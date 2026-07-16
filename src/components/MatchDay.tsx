@@ -139,7 +139,7 @@ export default function MatchDay({ players, session, setSession }: Props) {
   return (
     <div className="space-y-4">
       {/* step indicator */}
-      <div className="flex items-center gap-2 text-sm font-semibold">
+      <div className="flex flex-wrap items-center gap-2 text-sm font-semibold">
         <span className={step === 'players' ? 'text-orange-700' : 'text-amber-900/40'}>
           1 · Who's playing
         </span>

@@ -325,14 +325,14 @@ export default function Roster({ players, onChange }: Props) {
                   <Name className="truncate font-semibold text-amber-950">{p.name}</Name>
                   <span title={STYLE_META[p.playstyle].label}>{STYLE_META[p.playstyle].icon}</span>
                 </div>
-                <div className="mt-0.5 flex items-center gap-2 text-amber-950">
+                <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-amber-950">
                   <Stars rating={p.rating} />
                   <span className="text-xs font-semibold text-amber-900/60">
                     {fmtRating(p.rating)}
                   </span>
                   {p.chemistry.length > 0 && (
                     <span
-                      className="truncate text-xs text-pink-700/80"
+                      className="min-w-0 max-w-full truncate text-xs text-pink-700/80"
                       title="Plays well with"
                     >
                       🤝{' '}
@@ -344,7 +344,7 @@ export default function Roster({ players, onChange }: Props) {
                   )}
                   {(p.avoid ?? []).length > 0 && (
                     <span
-                      className="truncate text-xs text-red-700/80"
+                      className="min-w-0 max-w-full truncate text-xs text-red-700/80"
                       title="Keep on different teams"
                     >
                       🥊{' '}

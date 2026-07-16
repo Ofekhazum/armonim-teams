@@ -7,11 +7,22 @@
 body {
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue",
     Arial, "Noto Sans Hebrew", sans-serif;
-  background:
-    radial-gradient(1000px 500px at 50% -150px, #fdf3d9 0%, #f3e5c3 60%, #eddcb4 100%);
-  background-attachment: fixed;
+  /* no background-attachment: fixed — iOS Safari doesn't support it properly */
+  background-color: #eddcb4;
+  background-image: radial-gradient(1000px 500px at 50% -150px, #fdf3d9 0%, #f3e5c3 60%, #eddcb4 100%);
+  background-repeat: no-repeat;
   min-height: 100vh;
   color: #3d2b16;
+  overflow-x: hidden;
+}
+
+/* iOS Safari auto-zooms into form fields with fonts under 16px,
+   which knocks the layout out of place */
+@media (max-width: 640px) {
+  input,
+  select {
+    font-size: 16px;
+  }
 }
 
 bdi {

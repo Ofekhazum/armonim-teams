@@ -219,7 +219,7 @@ export default function TeamsBoard({
                 setSelected(null);
               }}
             >
-              <div className="mb-2 flex items-baseline justify-between px-1">
+              <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-2 px-1">
                 <h3 className={`text-lg font-black ${m.header}`}>
                   {m.emoji} {m.label}
                 </h3>
