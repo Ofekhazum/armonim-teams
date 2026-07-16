@@ -3,7 +3,7 @@ import type { Player, Session, Teams } from '../types';
 import { uid } from '../storage';
 import { generateTeams, targetSizes } from '../balancer';
 import TeamsBoard from './TeamsBoard';
-import { fmtRating, Name, RATING_STEPS, Stars, STYLE_META } from './ui';
+import { fmtRating, Name, RATING_STEPS, STYLE_META } from './ui';
 
 interface Props {
   players: Player[];
@@ -194,7 +194,6 @@ export default function MatchDay({ players, session, setSession }: Props) {
                       <Name className="min-w-0 flex-1 truncate font-medium text-amber-950">
                         {p.name}
                       </Name>
-                      <Stars rating={p.rating} />
                     </button>
                   );
                 })}
@@ -216,7 +215,6 @@ export default function MatchDay({ players, session, setSession }: Props) {
                     className="flex items-center gap-2 rounded-lg border border-amber-900/15 bg-white/60 px-3 py-2"
                   >
                     <Name className="font-medium text-amber-950">{g.name}</Name>
-                    <Stars rating={g.rating} unknown={g.ratingUnknown} />
                     <span className="min-w-0 flex-1 truncate text-xs text-amber-900/60">
                       with <Name>{players.find((p) => p.id === g.invitedBy)?.name ?? '?'}</Name>
                     </span>

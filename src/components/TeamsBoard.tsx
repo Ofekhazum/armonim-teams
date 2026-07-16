@@ -7,7 +7,7 @@ import {
   planRotation,
   teamStats,
 } from '../balancer';
-import { Name, Stars, STYLE_META, TEAM_META } from './ui';
+import { Name, STYLE_META, TEAM_META } from './ui';
 
 interface Props {
   teams: Teams;
@@ -116,6 +116,7 @@ export default function TeamsBoard({
 
   const shareText = () => {
     const HEB: Record<TeamColor, string> = { black: 'שחור', white: 'לבן', blue: 'כחול' };
+    const RLM = '‏'; // forces RTL rendering per line when pasted as plain text (e.g. WhatsApp)
     const lines: string[] = [
       `⚽ Armonim FC — ${new Date().toLocaleDateString('en-GB')}`,
       '',
@@ -139,7 +140,7 @@ export default function TeamsBoard({
         lines.push(loans ? `${base}; ${loans}` : base);
       }
     }
-    return lines.join('\n');
+    return lines.map((line) => (line ? RLM + line : line)).join('\n');
   };
 
   const copy = async () => {
@@ -269,7 +270,6 @@ export default function TeamsBoard({
                         <span title={STYLE_META[p.playstyle].label} className="text-xs">
                           {STYLE_META[p.playstyle].icon}
                         </span>
-                        <Stars rating={p.rating} unknown={p.ratingUnknown} />
                       </button>
                     </li>
                   );

@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import type { Player, Playstyle } from '../types';
 import { uid } from '../storage';
-import { fmtRating, Name, RATING_STEPS, Stars, STYLE_META } from './ui';
+import { fmtRating, Name, RATING_STEPS, STYLE_META } from './ui';
 
 interface Props {
   players: Player[];
@@ -198,26 +198,28 @@ export default function Roster({ players, onChange }: Props) {
           />
 
           <div className="flex flex-wrap gap-6">
-            <div>
-              <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-amber-900/60">
-                Rating
+            {!editingId && (
+              <div>
+                <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-amber-900/60">
+                  Rating
+                </div>
+                <div className="flex flex-wrap gap-1">
+                  {RATING_STEPS.map((r) => (
+                    <button
+                      key={r}
+                      onClick={() => setDraft({ ...draft, rating: r })}
+                      className={`h-9 min-w-9 rounded-lg border px-1.5 text-xs font-bold transition-colors ${
+                        draft.rating === r
+                          ? 'border-amber-500 bg-amber-500 text-amber-950'
+                          : 'border-amber-900/25 bg-white text-amber-900 hover:border-amber-500'
+                      }`}
+                    >
+                      {fmtRating(r)}
+                    </button>
+                  ))}
+                </div>
               </div>
-              <div className="flex flex-wrap gap-1">
-                {RATING_STEPS.map((r) => (
-                  <button
-                    key={r}
-                    onClick={() => setDraft({ ...draft, rating: r })}
-                    className={`h-9 min-w-9 rounded-lg border px-1.5 text-xs font-bold transition-colors ${
-                      draft.rating === r
-                        ? 'border-amber-500 bg-amber-500 text-amber-950'
-                        : 'border-amber-900/25 bg-white text-amber-900 hover:border-amber-500'
-                    }`}
-                  >
-                    {fmtRating(r)}
-                  </button>
-                ))}
-              </div>
-            </div>
+            )}
 
             <div>
               <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-amber-900/60">
@@ -326,10 +328,6 @@ export default function Roster({ players, onChange }: Props) {
                   <span title={STYLE_META[p.playstyle].label}>{STYLE_META[p.playstyle].icon}</span>
                 </div>
                 <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-amber-950">
-                  <Stars rating={p.rating} />
-                  <span className="text-xs font-semibold text-amber-900/60">
-                    {fmtRating(p.rating)}
-                  </span>
                   {p.chemistry.length > 0 && (
                     <span
                       className="min-w-0 max-w-full truncate text-xs text-pink-700/80"

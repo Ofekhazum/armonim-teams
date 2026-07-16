@@ -9,7 +9,7 @@ export const DEFAULT_PLAYERS: Player[] = [
     name: 'אופק',
     rating: 4,
     playstyle: 'defensive',
-    chemistry: ['mrnagchcdzzhr8', 'mrnbaphxaunwx5'],
+    chemistry: [],
     avoid: [],
   },
   {
@@ -17,7 +17,7 @@ export const DEFAULT_PLAYERS: Player[] = [
     name: 'ירין',
     rating: 5,
     playstyle: 'attacking',
-    chemistry: ['mrnag4a65q7lbc'],
+    chemistry: [],
     avoid: [],
   },
   {
@@ -25,7 +25,7 @@ export const DEFAULT_PLAYERS: Player[] = [
     name: 'יועד',
     rating: 3.5,
     playstyle: 'defensive',
-    chemistry: ['mrnag4a65q7lbc', 'mrnbpty5a4wm8a'],
+    chemistry: [],
     avoid: [],
   },
   {
@@ -65,7 +65,7 @@ export const DEFAULT_PLAYERS: Player[] = [
     name: 'ניב',
     rating: 4.5,
     playstyle: 'mixed',
-    chemistry: ['mrnboh9tj4rwut'],
+    chemistry: [],
     avoid: [],
   },
   {
@@ -73,7 +73,7 @@ export const DEFAULT_PLAYERS: Player[] = [
     name: 'יוני',
     rating: 4,
     playstyle: 'attacking',
-    chemistry: ['mrnbnlhn7akle6'],
+    chemistry: [],
     avoid: [],
   },
   {
@@ -89,7 +89,7 @@ export const DEFAULT_PLAYERS: Player[] = [
     name: 'טאקו',
     rating: 4.5,
     playstyle: 'defensive',
-    chemistry: ['mrnbaphxaunwx5'],
+    chemistry: [],
     avoid: [],
   },
   {
