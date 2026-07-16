@@ -181,7 +181,7 @@ export default function MatchDay({ players, session, setSession }: Props) {
                       key={p.id}
                       onClick={() => toggleAvailable(p.id)}
                       dir="rtl"
-                      className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-left transition-colors ${
+                      className={`flex items-center gap-2 rounded-lg border px-3 py-2 transition-colors ${
                         on
                           ? 'border-orange-500/70 bg-orange-500/10'
                           : 'border-amber-900/15 bg-white/60 opacity-70 hover:opacity-100'
@@ -315,7 +315,7 @@ export default function MatchDay({ players, session, setSession }: Props) {
                     onClick={() => !permanent && toggleGk(p.id)}
                     disabled={permanent}
                     dir="rtl"
-                    className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-left transition-colors ${
+                    className={`flex items-center gap-2 rounded-lg border px-3 py-2 transition-colors ${
                       on
                         ? 'border-amber-500 bg-amber-400/25'
                         : 'border-amber-900/15 bg-white/60 opacity-70 hover:opacity-100'
