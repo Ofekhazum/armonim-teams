@@ -15,7 +15,9 @@ export function loadState(): AppState {
     const raw = localStorage.getItem(KEY);
     if (raw) {
       const parsed = JSON.parse(raw) as AppState;
-      if (Array.isArray(parsed.players)) {
+      // an empty saved roster (e.g. the site was opened before the published
+      // roster existed) falls through to the published default below
+      if (Array.isArray(parsed.players) && parsed.players.length > 0) {
         // chemistry/avoid are mutual — repair any one-way links from older versions
         const players = parsed.players.map((p) => ({
           ...p,
