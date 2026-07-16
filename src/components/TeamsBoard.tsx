@@ -263,6 +263,7 @@ export default function TeamsBoard({
                           if (dragged && dragged !== id) swap(dragged, id);
                           setSelected(null);
                         }}
+                        dir="rtl"
                         className={`flex w-full cursor-grab items-center gap-2 rounded-lg border px-2.5 py-2 text-left transition-all active:cursor-grabbing ${m.row} ${
                           isSel ? `ring-2 ${m.ring} scale-[1.02]` : ''
                         }`}

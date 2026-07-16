@@ -320,6 +320,7 @@ export default function Roster({ players, onChange }: Props) {
           {sorted.map((p) => (
             <li
               key={p.id}
+              dir="rtl"
               className="flex items-center gap-3 rounded-xl border border-amber-900/15 bg-[#fffdf4]/70 px-4 py-3 shadow-sm"
             >
               <div className="min-w-0 flex-1">
