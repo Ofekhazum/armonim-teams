@@ -118,24 +118,22 @@ export default function TeamsBoard({
 
   const shareText = () => {
     const HEB: Record<TeamColor, string> = { black: 'שחור', white: 'לבן', blue: 'כחול' };
+    const HEART: Record<TeamColor, string> = { black: '🖤', white: '🤍', blue: '💙' };
     const RLM = '‏'; // forces RTL rendering per line when pasted as plain text (e.g. WhatsApp)
-    const lines: string[] = [
-      `⚽ Armonim FC — ${new Date().toLocaleDateString('en-GB')}`,
-      '',
-    ];
+    const lines: string[] = [];
     for (const c of TEAM_COLORS) {
-      lines.push(`${TEAM_META[c].emoji} ${HEB[c]}:`);
+      lines.push(`${HEART[c]} ${HEB[c]}:`);
       for (const id of displayIds(c)) {
         const p = byId.get(id);
         if (!p) continue;
-        lines.push(`  • ${p.name}${gkSet.has(id) ? ' 🧤' : ''}`);
+        lines.push(`  • ${p.name}`);
       }
       lines.push('');
     }
     if (rotation) {
       lines.push('🔁 Rotation (resting team completes the short side):');
       for (const m of rotation) {
-        const base = `${TEAM_META[m.a].emoji} vs ${TEAM_META[m.b].emoji} — ${TEAM_META[m.resting].emoji} rests`;
+        const base = `${HEART[m.a]} vs ${HEART[m.b]} — ${HEART[m.resting]} rests`;
         const loans = m.loans
           .map((l) => `${byId.get(l.id)?.name ?? '?'} joins ${HEB[l.to]}`)
           .join(', ');
