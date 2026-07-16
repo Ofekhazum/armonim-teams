@@ -8,6 +8,8 @@ export const emptySession = (): Session => ({
   guests: [],
   gkIds: [],
   teams: null,
+  teamAlts: [],
+  altIndex: 0,
 });
 
 export function loadState(): AppState {

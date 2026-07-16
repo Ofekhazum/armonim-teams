@@ -22,6 +22,8 @@ export interface Session {
   guests: Player[];
   gkIds: string[]; // who can play goalkeeper *today*
   teams: Teams | null;
+  teamAlts: Teams[]; // balanced variations generated alongside `teams`, for re-roll
+  altIndex: number; // which variation is currently shown
 }
 
 export interface AppState {

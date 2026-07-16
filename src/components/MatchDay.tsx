@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { Player, Session, Teams } from '../types';
+import type { Player, Session } from '../types';
 import { emptySession, uid } from '../storage';
 import { generateTeams, targetSizes } from '../balancer';
 import TeamsBoard from './TeamsBoard';
@@ -16,8 +16,6 @@ const IDEAL_PLAYERS = 15;
 
 export default function MatchDay({ players, session, setSession }: Props) {
   const [step, setStep] = useState<'players' | 'gk'>('players');
-  const [alts, setAlts] = useState<Teams[]>([]);
-  const [altIndex, setAltIndex] = useState(0);
 
   // guest form
   const [gName, setGName] = useState('');
@@ -84,16 +82,13 @@ export default function MatchDay({ players, session, setSession }: Props) {
 
   const generate = () => {
     const results = generateTeams(todays, new Set(effectiveGkIds));
-    setAlts(results);
-    setAltIndex(0);
-    setSession({ ...session, teams: results[0] ?? null });
+    setSession({ ...session, teams: results[0] ?? null, teamAlts: results, altIndex: 0 });
   };
 
   const reroll = () => {
-    if (alts.length < 2) return;
-    const next = (altIndex + 1) % alts.length;
-    setAltIndex(next);
-    setSession({ ...session, teams: alts[next] });
+    if (session.teamAlts.length < 2) return;
+    const next = (session.altIndex + 1) % session.teamAlts.length;
+    setSession({ ...session, teams: session.teamAlts[next], altIndex: next });
   };
 
   if (session.teams) {
@@ -103,8 +98,12 @@ export default function MatchDay({ players, session, setSession }: Props) {
         players={todays}
         gkIds={effectiveGkIds}
         onTeamsChange={(teams) => setSession({ ...session, teams })}
-        onReroll={alts.length > 1 ? reroll : undefined}
-        rerollLabel={alts.length > 1 ? `Variation ${altIndex + 1}/${alts.length}` : undefined}
+        onReroll={session.teamAlts.length > 1 ? reroll : undefined}
+        rerollLabel={
+          session.teamAlts.length > 1
+            ? `Variation ${session.altIndex + 1}/${session.teamAlts.length}`
+            : undefined
+        }
         onBack={() => {
           setSession({ ...session, teams: null });
           setStep('gk');
