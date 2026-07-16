@@ -155,7 +155,9 @@ export default function MatchDay({ players, session, setSession }: Props) {
         <span className="text-amber-900/40">3 · Teams</span>
       </div>
 
-      <div className={`rounded-xl border px-4 py-2.5 text-sm font-medium ${status.cls}`}>
+      <div
+        className={`sticky top-2 z-20 rounded-xl border px-4 py-2.5 text-sm font-medium shadow-md backdrop-blur-sm ${status.cls}`}
+      >
         {status.msg}
       </div>
 
