@@ -17,6 +17,7 @@ interface Props {
   onReroll?: () => void;
   rerollLabel?: string;
   onBack: () => void;
+  onNewFixture: () => void;
 }
 
 export default function TeamsBoard({
@@ -27,6 +28,7 @@ export default function TeamsBoard({
   onReroll,
   rerollLabel,
   onBack,
+  onNewFixture,
 }: Props) {
   const [selected, setSelected] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -170,6 +172,16 @@ export default function TeamsBoard({
             🎲 {rerollLabel ?? 'Re-roll'}
           </button>
         )}
+        <button
+          onClick={() => {
+            if (confirm('Start a new fixture? This clears today\'s selections, guests and teams.')) {
+              onNewFixture();
+            }
+          }}
+          className="rounded-xl border border-amber-900/30 px-4 py-2 text-sm font-semibold text-amber-900 hover:border-orange-500"
+        >
+          🆕 New Fixture
+        </button>
         <div className="flex-1" />
         <span
           className={`rounded-full px-3 py-1 text-xs font-bold ${

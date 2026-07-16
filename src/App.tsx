@@ -8,7 +8,7 @@ type Tab = 'match' | 'roster';
 
 export default function App() {
   const [state, setState] = useState<AppState>(() => loadState());
-  const [tab, setTab] = useState<Tab>(state.players.length ? 'match' : 'roster');
+  const [tab, setTab] = useState<Tab>('roster');
 
   useEffect(() => saveState(state), [state]);
 

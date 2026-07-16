@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { Player, Session, Teams } from '../types';
-import { uid } from '../storage';
+import { emptySession, uid } from '../storage';
 import { generateTeams, targetSizes } from '../balancer';
 import TeamsBoard from './TeamsBoard';
 import { fmtRating, Name, RATING_STEPS, STYLE_META } from './ui';
@@ -108,6 +108,10 @@ export default function MatchDay({ players, session, setSession }: Props) {
         onBack={() => {
           setSession({ ...session, teams: null });
           setStep('gk');
+        }}
+        onNewFixture={() => {
+          setSession(emptySession());
+          setStep('players');
         }}
       />
     );
@@ -248,7 +252,7 @@ export default function MatchDay({ players, session, setSession }: Props) {
                 >
                   <option value="">Invited by…</option>
                   {selectedMembers.map((p) => (
-                    <option key={p.id} value={p.id}>
+                    <option key={p.id} value={p.id} dir="auto">
                       {p.name}
                     </option>
                   ))}
