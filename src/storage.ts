@@ -1,4 +1,5 @@
 import type { AppState, Session } from './types';
+import { DEFAULT_PLAYERS } from './defaultRoster';
 
 const KEY = 'armonim-teams-v1';
 
@@ -41,7 +42,11 @@ export function loadState(): AppState {
   } catch {
     // corrupted state — start fresh
   }
-  return { players: [], session: emptySession() };
+  // nothing saved on this device yet — start from the published roster
+  return {
+    players: DEFAULT_PLAYERS.map((p) => ({ ...p, chemistry: [...p.chemistry], avoid: [...(p.avoid ?? [])] })),
+    session: emptySession(),
+  };
 }
 
 export function saveState(state: AppState) {

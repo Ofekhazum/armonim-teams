@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import type { Player, Playstyle } from '../types';
 import { uid } from '../storage';
 import { fmtRating, Name, RATING_STEPS, Stars, STYLE_META } from './ui';
@@ -21,6 +21,42 @@ const STYLES: Playstyle[] = ['defensive', 'mixed', 'attacking', 'gk'];
 export default function Roster({ players, onChange }: Props) {
   const [draft, setDraft] = useState<Draft | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
+
+  const exportRoster = () => {
+    const blob = new Blob([JSON.stringify(players, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'armonim-roster.json';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  };
+
+  const importRoster = async (file: File) => {
+    try {
+      const parsed = JSON.parse(await file.text()) as Player[];
+      if (!Array.isArray(parsed) || parsed.some((p) => !p?.id || !p?.name)) {
+        throw new Error('bad format');
+      }
+      if (
+        !confirm(
+          `Replace the current roster (${players.length} players) with the imported one (${parsed.length} players)?`,
+        )
+      )
+        return;
+      onChange(
+        parsed.map((p) => ({
+          ...p,
+          rating: typeof p.rating === 'number' ? p.rating : 3,
+          playstyle: p.playstyle ?? 'mixed',
+          chemistry: p.chemistry ?? [],
+          avoid: p.avoid ?? [],
+        })),
+      );
+    } catch {
+      alert('This file is not a valid roster export.');
+    }
+  };
 
   const startAdd = () => {
     setEditingId(null);
@@ -104,17 +140,46 @@ export default function Roster({ players, onChange }: Props) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-amber-900/70">
           The permanent squad. Guests are added on match day.
         </p>
         {!draft && (
-          <button
-            onClick={startAdd}
-            className="rounded-lg bg-orange-600 px-4 py-2 text-sm font-bold text-amber-50 shadow-sm transition-transform hover:scale-105"
-          >
-            + Add player
-          </button>
+          <div className="flex gap-2">
+            <input
+              ref={fileInput}
+              type="file"
+              accept="application/json,.json"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) importRoster(f);
+                e.target.value = '';
+              }}
+            />
+            <button
+              onClick={() => fileInput.current?.click()}
+              className="rounded-lg border border-amber-900/30 px-3 py-2 text-sm font-semibold text-amber-900 hover:border-orange-500"
+              title="Restore a roster from an exported file"
+            >
+              ⬆ Import
+            </button>
+            {players.length > 0 && (
+              <button
+                onClick={exportRoster}
+                className="rounded-lg border border-amber-900/30 px-3 py-2 text-sm font-semibold text-amber-900 hover:border-orange-500"
+                title="Download the roster as a backup file"
+              >
+                ⬇ Export
+              </button>
+            )}
+            <button
+              onClick={startAdd}
+              className="rounded-lg bg-orange-600 px-4 py-2 text-sm font-bold text-amber-50 shadow-sm transition-transform hover:scale-105"
+            >
+              + Add player
+            </button>
+          </div>
         )}
       </div>
 
