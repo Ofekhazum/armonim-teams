@@ -117,12 +117,16 @@ export default function TeamsBoard({
     });
 
   const shareText = () => {
-    const HEB: Record<TeamColor, string> = { black: 'שחור', white: 'לבן', blue: 'כחול' };
+    const HEB: Record<TeamColor, string> = {
+      black: 'קבוצה שחורה',
+      white: 'קבוצה לבנה',
+      blue: 'קבוצה כחולה',
+    };
     const HEART: Record<TeamColor, string> = { black: '🖤', white: '🤍', blue: '💙' };
     const RLM = '‏'; // forces RTL rendering per line when pasted as plain text (e.g. WhatsApp)
     const lines: string[] = [];
     for (const c of TEAM_COLORS) {
-      lines.push(`${HEART[c]} ${HEB[c]}:`);
+      lines.push(`${HEART[c]} ${HEB[c]} ${HEART[c]}`);
       for (const id of displayIds(c)) {
         const p = byId.get(id);
         if (!p) continue;
@@ -230,9 +234,26 @@ export default function TeamsBoard({
                 setSelected(null);
               }}
             >
-              <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-2 px-1">
-                <h3 className={`text-lg font-black ${m.header}`}>
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-x-2 px-1">
+                <h3 className={`flex items-center gap-1 text-lg font-black ${m.header}`}>
                   {m.emoji} {m.label}
+                  <select
+                    value=""
+                    onChange={(e) => {
+                      const target = e.target.value as TeamColor;
+                      if (!target) return;
+                      onTeamsChange({ ...teams, [c]: teams[target], [target]: teams[c] });
+                    }}
+                    title="Swap this team's color with another team"
+                    className="rounded bg-black/10 px-1 py-0.5 text-xs font-bold"
+                  >
+                    <option value="">🔀</option>
+                    {TEAM_COLORS.filter((x) => x !== c).map((x) => (
+                      <option key={x} value={x}>
+                        ⇄ {TEAM_META[x].emoji} {TEAM_META[x].label}
+                      </option>
+                    ))}
+                  </select>
                 </h3>
                 <span className={`text-xs font-semibold ${m.sub}`}>
                   {s.size} players · avg {s.avg.toFixed(1)}
