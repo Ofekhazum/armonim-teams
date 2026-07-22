@@ -2,6 +2,9 @@ import type { AppState, Session } from './types';
 import { DEFAULT_PLAYERS } from './defaultRoster';
 
 const KEY = 'armonim-teams-v1';
+const STORAGE_VERSION = 2;
+
+type PersistedState = AppState & { version?: number };
 
 export const emptySession = (): Session => ({
   availableIds: [],
@@ -16,7 +19,10 @@ export function loadState(): AppState {
   try {
     const raw = localStorage.getItem(KEY);
     if (raw) {
-      const parsed = JSON.parse(raw) as AppState;
+      const parsed = JSON.parse(raw) as PersistedState;
+      if (parsed.version !== STORAGE_VERSION) {
+        throw new Error('stale storage version');
+      }
       // an empty saved roster (e.g. the site was opened before the published
       // roster existed) falls through to the published default below
       if (Array.isArray(parsed.players) && parsed.players.length > 0) {
@@ -44,7 +50,7 @@ export function loadState(): AppState {
       }
     }
   } catch {
-    // corrupted state — start fresh
+    // corrupted or stale state — start fresh
   }
   // nothing saved on this device yet — start from the published roster
   return {
@@ -54,7 +60,7 @@ export function loadState(): AppState {
 }
 
 export function saveState(state: AppState) {
-  localStorage.setItem(KEY, JSON.stringify(state));
+  localStorage.setItem(KEY, JSON.stringify({ version: STORAGE_VERSION, ...state }));
 }
 
 export const uid = () =>
