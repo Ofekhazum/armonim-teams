@@ -1,0 +1,10 @@
+name = "armonim-roster"
+main = "roster-worker.js"
+compatibility_date = "2024-11-01"
+
+# The KV namespace that holds the roster. Create it once with:
+#   npx wrangler kv namespace create ROSTER_KV
+# then paste the printed id below (replace the placeholder).
+[[kv_namespaces]]
+binding = "ROSTER_KV"
+id = "8181a03150814ea0be97b2f853166a0d"

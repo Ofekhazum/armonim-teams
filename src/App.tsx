@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { AppState, Player, Session } from './types';
 import { loadState, saveState } from './storage';
+import { fetchRemoteRoster, localRosterVersion, setLocalRosterVersion } from './remote';
 import Roster from './components/Roster';
 import MatchDay from './components/MatchDay';
 
@@ -9,8 +10,30 @@ type Tab = 'match' | 'roster';
 export default function App() {
   const [state, setState] = useState<AppState>(() => loadState());
   const [tab, setTab] = useState<Tab>('roster');
+  // the secret word once unlocked — null means normal (read-only) mode
+  const [adminWord, setAdminWord] = useState<string | null>(null);
 
   useEffect(() => saveState(state), [state]);
+
+  // On load, pull the shared roster and adopt it if it's newer than what this
+  // device last applied. Failures (offline, not set up) are silently ignored,
+  // so the app keeps working from local/default data.
+  useEffect(() => {
+    let cancelled = false;
+    fetchRemoteRoster().then((remote) => {
+      if (cancelled || !remote || remote.version <= localRosterVersion()) return;
+      const normalized = remote.players.map((p) => ({
+        ...p,
+        chemistry: p.chemistry ?? [],
+        avoid: p.avoid ?? [],
+      }));
+      setPlayers(normalized);
+      setLocalRosterVersion(remote.version);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Roster edits can invalidate parts of the session (deleted players, broken
   // chemistry links, stale generated teams) — clean those up here.
@@ -60,6 +83,11 @@ export default function App() {
           <span className="bg-gradient-to-r from-orange-600 to-amber-800 bg-clip-text text-transparent">
             Armonim FC
           </span>
+          {adminWord && (
+            <span className="ml-2 rounded-full bg-orange-600 px-2 py-0.5 align-middle text-xs font-bold text-amber-50">
+              ADMIN
+            </span>
+          )}
         </h1>
         <nav className="flex gap-1 rounded-full border border-amber-900/20 bg-[#fffdf4]/70 p-1 shadow-sm">
           {tabBtn('match', 'Match day')}
@@ -68,7 +96,12 @@ export default function App() {
       </header>
 
       {tab === 'roster' ? (
-        <Roster players={state.players} onChange={setPlayers} />
+        <Roster
+          players={state.players}
+          onChange={setPlayers}
+          adminWord={adminWord}
+          setAdminWord={setAdminWord}
+        />
       ) : (
         <MatchDay players={state.players} session={state.session} setSession={setSession} />
       )}

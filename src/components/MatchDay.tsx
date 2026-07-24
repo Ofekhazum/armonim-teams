@@ -47,7 +47,7 @@ export default function MatchDay({ players, session, setSession }: Props) {
   };
 
   const addGuest = () => {
-    if (!gName.trim() || !gInviter) return;
+    if (!gName.trim()) return;
     const guest: Player = {
       id: uid(),
       name: gName.trim(),
@@ -55,11 +55,13 @@ export default function MatchDay({ players, session, setSession }: Props) {
       ratingUnknown: gRating === '?',
       playstyle: 'mixed',
       isGuest: true,
-      invitedBy: gInviter,
+      // no inviter → the guest is balanced freely instead of pinned to a team
+      ...(gInviter ? { invitedBy: gInviter } : {}),
       chemistry: [],
     };
     setSession({ ...session, guests: [...session.guests, guest] });
     setGName('');
+    setGInviter('');
     setGRating('?');
   };
 
@@ -210,7 +212,8 @@ export default function MatchDay({ players, session, setSession }: Props) {
           <div className="rounded-2xl border border-amber-900/15 bg-[#fffdf4]/70 p-4 shadow-sm">
             <h3 className="font-bold text-amber-950">Guests</h3>
             <p className="mb-3 text-xs text-amber-900/60">
-              A guest always plays on the same team as the friend who brought them.
+              A guest plays on the same team as the friend who brought them. Leave the
+              inviter empty if you don't know who brought them.
             </p>
 
             {session.guests.length > 0 && (
@@ -223,7 +226,13 @@ export default function MatchDay({ players, session, setSession }: Props) {
                   >
                     <Name className="font-medium text-amber-950">{g.name}</Name>
                     <span className="min-w-0 flex-1 truncate text-xs text-amber-900/60">
-                      with <Name>{players.find((p) => p.id === g.invitedBy)?.name ?? '?'}</Name>
+                      {g.invitedBy ? (
+                        <>
+                          with <Name>{players.find((p) => p.id === g.invitedBy)?.name ?? '?'}</Name>
+                        </>
+                      ) : (
+                        'guest'
+                      )}
                     </span>
                     <button
                       onClick={() => removeGuest(g.id)}
@@ -253,7 +262,7 @@ export default function MatchDay({ players, session, setSession }: Props) {
                   onChange={(e) => setGInviter(e.target.value)}
                   className="rounded-lg border border-amber-900/30 bg-white px-2 py-2 text-sm text-amber-950 outline-none focus:border-orange-500"
                 >
-                  <option value="">Invited by…</option>
+                  <option value="">Invited by… (optional)</option>
                   {selectedMembers.map((p) => (
                     <option key={p.id} value={p.id} dir="auto">
                       {p.name}
@@ -277,7 +286,7 @@ export default function MatchDay({ players, session, setSession }: Props) {
                 </select>
                 <button
                   onClick={addGuest}
-                  disabled={!gName.trim() || !gInviter}
+                  disabled={!gName.trim()}
                   className="rounded-lg bg-amber-900 px-4 py-2 text-sm font-bold text-amber-50 disabled:opacity-40"
                 >
                   + Add guest

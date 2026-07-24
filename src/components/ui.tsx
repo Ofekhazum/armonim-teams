@@ -66,6 +66,7 @@ export function Stars({ rating, unknown }: { rating: number; unknown?: boolean }
   const pct = (Math.max(0, Math.min(5, rating)) / 5) * 100;
   return (
     <span
+      dir="ltr"
       className="relative inline-block text-sm leading-none tracking-tight"
       title={`Rating ${rating}/5`}
     >

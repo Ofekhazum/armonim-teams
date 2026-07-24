@@ -1,11 +1,14 @@
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import type { Player, Playstyle } from '../types';
 import { uid } from '../storage';
-import { fmtRating, Name, RATING_STEPS, STYLE_META } from './ui';
+import { publishRemoteRoster, setLocalRosterVersion, verifyWord, REMOTE_URL } from '../remote';
+import { fmtRating, Name, RATING_STEPS, Stars, STYLE_META } from './ui';
 
 interface Props {
   players: Player[];
   onChange: (players: Player[]) => void;
+  adminWord: string | null;
+  setAdminWord: (word: string | null) => void;
 }
 
 interface Draft {
@@ -18,43 +21,47 @@ interface Draft {
 
 const STYLES: Playstyle[] = ['defensive', 'mixed', 'attacking', 'gk'];
 
-export default function Roster({ players, onChange }: Props) {
+export default function Roster({ players, onChange, adminWord, setAdminWord }: Props) {
   const [draft, setDraft] = useState<Draft | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const fileInput = useRef<HTMLInputElement>(null);
+  const [publishing, setPublishing] = useState(false);
+  const [unlocking, setUnlocking] = useState(false);
+  const isAdmin = adminWord !== null;
 
-  const exportRoster = () => {
-    const blob = new Blob([JSON.stringify(players, null, 2)], { type: 'application/json' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = 'armonim-roster.json';
-    a.click();
-    URL.revokeObjectURL(a.href);
+  // Prompt for the secret word and, if the worker accepts it, unlock admin
+  // mode (edit ratings + publish). The word is verified server-side.
+  const unlockAdmin = async () => {
+    const word = window.prompt('Enter the admin password:');
+    if (word == null) return; // cancelled
+    setUnlocking(true);
+    const result = await verifyWord(word.trim());
+    setUnlocking(false);
+    if (result === 'ok') {
+      setAdminWord(word.trim());
+    } else if (result === 'wrong-word') {
+      alert('❌ Wrong password.');
+    } else if (result === 'not-configured') {
+      alert('The shared roster is not set up yet (REMOTE_URL is empty in remote.ts).');
+    } else {
+      alert('Could not reach the server — check your connection and try again.');
+    }
   };
 
-  const importRoster = async (file: File) => {
-    try {
-      const parsed = JSON.parse(await file.text()) as Player[];
-      if (!Array.isArray(parsed) || parsed.some((p) => !p?.id || !p?.name)) {
-        throw new Error('bad format');
-      }
-      if (
-        !confirm(
-          `Replace the current roster (${players.length} players) with the imported one (${parsed.length} players)?`,
-        )
-      )
-        return;
-      onChange(
-        parsed.map((p) => ({
-          ...p,
-          rating: typeof p.rating === 'number' ? p.rating : 3,
-          playstyle: p.playstyle ?? 'mixed',
-          chemistry: p.chemistry ?? [],
-          avoid: p.avoid ?? [],
-        })),
-      );
-    } catch {
-      alert('This file is not a valid roster export.');
+  // Push the current roster to everyone, using the already-unlocked word.
+  const publish = async () => {
+    if (adminWord == null) return;
+    setPublishing(true);
+    const { result, version } = await publishRemoteRoster(players, adminWord);
+    setPublishing(false);
+    if (result === 'ok') {
+      if (version) setLocalRosterVersion(version); // don't re-pull our own change
+      alert('✅ Roster published — everyone gets it next time they open the app.');
+    } else if (result === 'wrong-word') {
+      // password was changed on the server since we unlocked — drop back to normal
+      alert('❌ The password is no longer valid. Please unlock admin again.');
+      setAdminWord(null);
+    } else {
+      alert('Could not publish — check your connection and try again.');
     }
   };
 
@@ -146,31 +153,33 @@ export default function Roster({ players, onChange }: Props) {
         </p>
         {!draft && (
           <div className="flex gap-2">
-            <input
-              ref={fileInput}
-              type="file"
-              accept="application/json,.json"
-              className="hidden"
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (f) importRoster(f);
-                e.target.value = '';
-              }}
-            />
-            <button
-              onClick={() => fileInput.current?.click()}
-              className="rounded-lg border border-amber-900/30 px-3 py-2 text-sm font-semibold text-amber-900 hover:border-orange-500"
-              title="Restore a roster from an exported file"
-            >
-              ⬆ Import
-            </button>
-            {players.length > 0 && (
+            {REMOTE_URL && !isAdmin && (
               <button
-                onClick={exportRoster}
-                className="rounded-lg border border-amber-900/30 px-3 py-2 text-sm font-semibold text-amber-900 hover:border-orange-500"
-                title="Download the roster as a backup file"
+                onClick={unlockAdmin}
+                disabled={unlocking}
+                className="rounded-lg border border-amber-900/30 px-3 py-2 text-sm font-semibold text-amber-900 hover:border-orange-500 disabled:opacity-50"
+                title="Unlock admin mode to edit ratings and publish"
               >
-                ⬇ Export
+                {unlocking ? 'Checking…' : '🔒 Admin'}
+              </button>
+            )}
+            {isAdmin && players.length > 0 && (
+              <button
+                onClick={publish}
+                disabled={publishing}
+                className="rounded-lg border border-orange-500 px-3 py-2 text-sm font-semibold text-orange-700 hover:bg-orange-50 disabled:opacity-50"
+                title="Update the roster for everyone"
+              >
+                {publishing ? 'Publishing…' : '📢 Publish'}
+              </button>
+            )}
+            {isAdmin && (
+              <button
+                onClick={() => setAdminWord(null)}
+                className="rounded-lg border border-amber-900/30 px-3 py-2 text-sm font-semibold text-amber-900 hover:border-orange-500"
+                title="Leave admin mode"
+              >
+                Exit
               </button>
             )}
             <button
@@ -198,7 +207,7 @@ export default function Roster({ players, onChange }: Props) {
           />
 
           <div className="flex flex-wrap gap-6">
-            {!editingId && (
+            {(!editingId || isAdmin) && (
               <div>
                 <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-amber-900/60">
                   Rating
@@ -327,6 +336,7 @@ export default function Roster({ players, onChange }: Props) {
                 <div className="flex items-center gap-2">
                   <Name className="truncate font-semibold text-amber-950">{p.name}</Name>
                   <span title={STYLE_META[p.playstyle].label}>{STYLE_META[p.playstyle].icon}</span>
+                  {isAdmin && <Stars rating={p.rating} unknown={p.ratingUnknown} />}
                 </div>
                 <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-amber-950">
                   {p.chemistry.length > 0 && (
