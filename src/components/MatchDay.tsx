@@ -334,41 +334,47 @@ export default function MatchDay({ players, session, setSession }: Props) {
                     <li
                       key={g.id}
                       dir="rtl"
-                      className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-900/15 bg-white/60 px-3 py-2"
+                      className="space-y-1.5 rounded-lg border border-amber-900/15 bg-white/60 px-3 py-2"
                     >
-                      <Name className="min-w-0 flex-1 font-medium text-amber-950">{g.name}</Name>
-                      <select
-                        value={g.ratingUnknown ? '?' : String(g.rating)}
-                        onChange={(e) => updateGuestRating(g.id, e.target.value)}
-                        className="rounded-lg border border-amber-900/30 bg-white px-2 py-1.5 text-xs text-amber-950 outline-none focus:border-orange-500"
-                        title="Rating"
-                      >
-                        <option value="?">Rating: ?</option>
-                        {RATING_STEPS.map((r) => (
-                          <option key={r} value={r}>
-                            Rating: {fmtRating(r)}
-                          </option>
-                        ))}
-                      </select>
-                      <select
-                        value={g.invitedBy ?? ''}
-                        onChange={(e) => updateGuestInviter(g.id, e.target.value)}
-                        className="rounded-lg border border-amber-900/30 bg-white px-2 py-1.5 text-xs text-amber-950 outline-none focus:border-orange-500"
-                        title="Invited by"
-                      >
-                        <option value="">No inviter</option>
-                        {inviterOptions.map((p) => (
-                          <option key={p.id} value={p.id} dir="auto">
-                            with {p.name}
-                          </option>
-                        ))}
-                      </select>
-                      <button
-                        onClick={() => removeGuest(g.id)}
-                        className="text-xs font-semibold text-red-600"
-                      >
-                        remove
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <Name className="min-w-0 flex-1 truncate font-medium text-amber-950">
+                          {g.name}
+                        </Name>
+                        <button
+                          onClick={() => removeGuest(g.id)}
+                          className="shrink-0 text-xs font-semibold text-red-600"
+                        >
+                          remove
+                        </button>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        <select
+                          value={g.ratingUnknown ? '?' : String(g.rating)}
+                          onChange={(e) => updateGuestRating(g.id, e.target.value)}
+                          className="min-w-0 flex-1 rounded-lg border border-amber-900/30 bg-white px-2 py-1.5 text-xs text-amber-950 outline-none focus:border-orange-500"
+                          title="Rating"
+                        >
+                          <option value="?">Rating: ?</option>
+                          {RATING_STEPS.map((r) => (
+                            <option key={r} value={r}>
+                              Rating: {fmtRating(r)}
+                            </option>
+                          ))}
+                        </select>
+                        <select
+                          value={g.invitedBy ?? ''}
+                          onChange={(e) => updateGuestInviter(g.id, e.target.value)}
+                          className="min-w-0 flex-1 rounded-lg border border-amber-900/30 bg-white px-2 py-1.5 text-xs text-amber-950 outline-none focus:border-orange-500"
+                          title="Invited by"
+                        >
+                          <option value="">No inviter</option>
+                          {inviterOptions.map((p) => (
+                            <option key={p.id} value={p.id} dir="auto">
+                              with {p.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
                     </li>
                   );
                 })}
