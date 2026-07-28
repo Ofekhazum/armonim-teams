@@ -75,10 +75,12 @@ export default function MatchDay({ players, session, setSession }: Props) {
 
   const applyImport = () => {
     const names = parseImportList(importText);
+    // pasting a list is a full override — it replaces availability and guests
+    // entirely, rather than merging with whatever was picked before
     const { availableIds, guests, matchedNames, guestNames } = resolveImportedNames(
       names,
       players,
-      session.guests,
+      [],
       (name) => ({
         id: uid(),
         name,
@@ -89,13 +91,37 @@ export default function MatchDay({ players, session, setSession }: Props) {
         chemistry: [],
       }),
     );
+    const knownIds = new Set([...availableIds, ...guests.map((g) => g.id)]);
     setSession({
       ...session,
-      availableIds: [...new Set([...session.availableIds, ...availableIds])],
-      guests: [...session.guests, ...guests],
+      availableIds,
+      guests,
+      gkIds: session.gkIds.filter((id) => knownIds.has(id)),
     });
     setImportSummary({ matched: matchedNames, guests: guestNames });
     setImportText('');
+  };
+
+  const updateGuestRating = (id: string, value: string) => {
+    setSession({
+      ...session,
+      guests: session.guests.map((g) =>
+        g.id === id
+          ? value === '?'
+            ? { ...g, rating: 3.5, ratingUnknown: true }
+            : { ...g, rating: Number(value), ratingUnknown: false }
+          : g,
+      ),
+    });
+  };
+
+  const updateGuestInviter = (id: string, inviterId: string) => {
+    setSession({
+      ...session,
+      guests: session.guests.map((g) =>
+        g.id === id ? { ...g, invitedBy: inviterId || undefined } : g,
+      ),
+    });
   };
 
   const removeGuest = (id: string) => {
@@ -215,6 +241,7 @@ export default function MatchDay({ players, session, setSession }: Props) {
                     <p className="text-xs text-amber-900/60">
                       Paste the numbered player list (e.g. from WhatsApp). Recognized names get
                       checked off below; unrecognized names are added as guests automatically.
+                      This replaces the current selection and guest list entirely.
                     </p>
                     <textarea
                       dir="auto"
@@ -294,30 +321,57 @@ export default function MatchDay({ players, session, setSession }: Props) {
 
             {session.guests.length > 0 && (
               <ul className="mb-3 space-y-1.5">
-                {session.guests.map((g) => (
-                  <li
-                    key={g.id}
-                    dir="rtl"
-                    className="flex items-center gap-2 rounded-lg border border-amber-900/15 bg-white/60 px-3 py-2"
-                  >
-                    <Name className="font-medium text-amber-950">{g.name}</Name>
-                    <span className="min-w-0 flex-1 truncate text-xs text-amber-900/60">
-                      {g.invitedBy ? (
-                        <>
-                          with <Name>{players.find((p) => p.id === g.invitedBy)?.name ?? '?'}</Name>
-                        </>
-                      ) : (
-                        'guest'
-                      )}
-                    </span>
-                    <button
-                      onClick={() => removeGuest(g.id)}
-                      className="text-xs font-semibold text-red-600"
+                {session.guests.map((g) => {
+                  // the inviter might have been deselected since — still offer them so the
+                  // dropdown doesn't silently blank out an existing pick
+                  const inviterOptions =
+                    g.invitedBy && !selectedMembers.some((p) => p.id === g.invitedBy)
+                      ? [...selectedMembers, players.find((p) => p.id === g.invitedBy)!].filter(
+                          Boolean,
+                        )
+                      : selectedMembers;
+                  return (
+                    <li
+                      key={g.id}
+                      dir="rtl"
+                      className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-900/15 bg-white/60 px-3 py-2"
                     >
-                      remove
-                    </button>
-                  </li>
-                ))}
+                      <Name className="min-w-0 flex-1 font-medium text-amber-950">{g.name}</Name>
+                      <select
+                        value={g.ratingUnknown ? '?' : String(g.rating)}
+                        onChange={(e) => updateGuestRating(g.id, e.target.value)}
+                        className="rounded-lg border border-amber-900/30 bg-white px-2 py-1.5 text-xs text-amber-950 outline-none focus:border-orange-500"
+                        title="Rating"
+                      >
+                        <option value="?">Rating: ?</option>
+                        {RATING_STEPS.map((r) => (
+                          <option key={r} value={r}>
+                            Rating: {fmtRating(r)}
+                          </option>
+                        ))}
+                      </select>
+                      <select
+                        value={g.invitedBy ?? ''}
+                        onChange={(e) => updateGuestInviter(g.id, e.target.value)}
+                        className="rounded-lg border border-amber-900/30 bg-white px-2 py-1.5 text-xs text-amber-950 outline-none focus:border-orange-500"
+                        title="Invited by"
+                      >
+                        <option value="">No inviter</option>
+                        {inviterOptions.map((p) => (
+                          <option key={p.id} value={p.id} dir="auto">
+                            with {p.name}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        onClick={() => removeGuest(g.id)}
+                        className="text-xs font-semibold text-red-600"
+                      >
+                        remove
+                      </button>
+                    </li>
+                  );
+                })}
               </ul>
             )}
 

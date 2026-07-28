@@ -59,14 +59,20 @@ of ticking players one by one:
    headers) are skipped. Reading stops as soon as a waiting-list header is hit (`המתנה` / `רזרבה` /
    `ממתינים`) — reserves aren't part of today's squad.
 2. `resolveImportedNames(names, players, existingGuests, makeGuest)` matches each name against
-   `player.name` or any of `player.aliases` (trim + case-insensitive). Matches get added to
+   `player.name` or any of `player.aliases` (trim + case-insensitive). Matches become
    `session.availableIds`. Names that match nothing become guests via `makeGuest` — same default
    guest shape as manual add (rating 3.5, `ratingUnknown: true`, `playstyle: 'mixed'`), with **no
    `invitedBy`** (the import never claims to know who invited an unrecognized name).
-3. The panel applies results additively (union with whatever was already ticked/added) and shows a
-   one-line summary: how many matched, and the names of any new guests. The organizer then uses the
-   existing manual controls (tick/untick, add/remove guest) to fix mismatches or top up to 15 if the
-   pasted list came up short.
+3. Applying an import is a **full override**, not a merge: `session.availableIds` and
+   `session.guests` are replaced outright (any previously-ticked players or manually-added guests
+   are dropped), and `session.gkIds` is pruned to drop any ids that no longer exist. The panel
+   shows a one-line summary of how many matched and the names of any new guests. The organizer then
+   uses the existing manual controls (tick/untick, add/remove/edit guest) to fix mismatches or top
+   up to 15 if the pasted list came up short.
+
+Guests can also be edited in place after being added (manually or via import) — each row in the
+guest list has its own rating and inviter `<select>`, backed by `updateGuestRating` /
+`updateGuestInviter` in `MatchDay.tsx`.
 
 ## 3. Team generation algorithm
 
