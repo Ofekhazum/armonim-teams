@@ -153,6 +153,15 @@ export default function Roster({ players, onChange, adminWord, setAdminWord }: P
 
   return (
     <div className="space-y-4">
+      <div className="text-right">
+        <span
+          className="font-mono text-[10px] uppercase tracking-wide text-amber-900/40"
+          title="Build version — changes on every deploy"
+        >
+          v{__GIT_HASH__}
+        </span>
+      </div>
+
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-amber-900/70">
           The permanent squad. Guests are added on match day.

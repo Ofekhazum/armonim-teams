@@ -123,11 +123,13 @@ App behavior:
 1. **Roster** (`src/components/Roster.tsx`) — the permanent squad: add/edit name, aliases,
    rating, playstyle, chemistry/avoid links. Ratings are only editable in **admin mode**
    (§6 shared roster); everyone else sees roster info read-only plus their own local
-   availability picks.
+   availability picks. Top-right shows a small `v<hash>` build marker (§6) so you can confirm
+   a deploy actually landed after pushing.
 2. **Match day** (`src/components/MatchDay.tsx`, the main flow):
    - Step 1 *(who's playing)*: tick available players from the roster grid, optionally use
      **📋 Import a pasted list** to bulk-mark attendance from pasted text (§2.4), and add/remove
-     guests manually (name + optional inviter + optional rating guess).
+     guests manually (name + optional inviter + optional rating guess) — guests can be edited
+     in place afterwards (rating, inviter) via `updateGuestRating`/`updateGuestInviter`.
    - Step 2 *(goalkeepers)*: mark who can go in goal today (permanent `gk` playstyle players are
      always included).
    - **Generate** → `src/components/TeamsBoard.tsx`: three colored team cards (black/white/blue)
@@ -154,6 +156,10 @@ via "New fixture."
   `REMOTE_URL` in `remote.ts`; leave it `''` to disable.
 - Drag-and-drop uses native HTML5 drag events (`draggable`/`onDragStart`/`onDrop`) — no dnd-kit
   or other DnD library is installed.
+- **Build version marker**: `vite.config.ts` runs `git rev-parse --short HEAD` at build time and
+  injects it as the `__GIT_HASH__` global (declared in `src/vite-env.d.ts`, falls back to `'dev'`
+  if git isn't available). Shown top-right of the Roster page — since GitHub Pages rebuilds on
+  every push to `main`, a changed hash after refreshing confirms a deploy actually landed.
 - Balancing algorithm (`src/balancer.ts`) is plain TypeScript, runs client-side.
 - Deploy as static files (the Vite build output in `dist/`); the Worker deploys separately
   (see `worker/`).
