@@ -4,6 +4,7 @@ export type Playstyle = 'defensive' | 'mixed' | 'attacking' | 'gk';
 export interface Player {
   id: string;
   name: string;
+  aliases?: string[]; // other names people call this player, used to match imported lists
   rating: number; // 1 (worst) – 5 (best)
   ratingUnknown?: boolean; // guests we know nothing about
   playstyle: Playstyle;

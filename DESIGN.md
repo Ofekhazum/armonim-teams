@@ -1,42 +1,72 @@
 # Armonim Teams — Weekly Football Team Builder
 
+This file describes the app **as actually implemented** (not just the original design intent) —
+keep it in sync with `src/` when the model or flows change, so a fresh session can read this
+instead of re-exploring the codebase.
+
 ## 1. What the app does
 
 A mobile-friendly web app for a weekly 3-team (black / white / blue), 5-a-side football night.
-The organizer opens the app, ticks who's available today, adds any guests, and hits **Generate Teams**.
+The organizer opens the app, ticks who's available today (or pastes a WhatsApp-style attendance
+list — see §2.4), adds/auto-adds any guests, and hits **Generate Teams**.
 The app produces three balanced teams that respect goalkeeper needs, chemistry, and guest pairings,
 lets the organizer tweak the result by drag-and-drop, and share it (e.g. paste into WhatsApp).
 
 ## 2. Core concepts & data model
 
-### Player (persistent roster)
+All types live in `src/types.ts`. There is no backend database — state is `localStorage`
+(`src/storage.ts`, key `armonim-teams-v1`) plus an optional shared roster synced through a
+tiny Cloudflare Worker (§6).
+
+### Player (`Player` in `src/types.ts`)
 | Field | Type | Notes |
 |---|---|---|
 | id | string | |
 | name | string | |
+| aliases | string[]? | other names people call this player (e.g. nicknames) — used to match imported attendance lists against the roster, see §2.4. Edited as a comma-separated field in the Roster form (`src/components/Roster.tsx`). |
 | rating | 1–5 | overall ability |
-| playstyle | `defensive` \| `mixed` \| `attacking` | |
-| isGuest | boolean | guests are one-off, invited by a member |
-| invitedBy | playerId? | guests only — hard constraint: same team as inviter |
-| notes | string? | optional |
+| ratingUnknown | boolean? | true for guests whose ability we don't know |
+| playstyle | `defensive` \| `mixed` \| `attacking` \| `gk` | `gk` = permanent goalkeeper, always GK-capable on match day |
+| isGuest | boolean? | guests are one-off, added on match day |
+| invitedBy | playerId? | guests only, optional — if set, the guest is a hard constraint: same team as inviter. If unset, the guest is balanced freely |
+| chemistry | string[] | ids of players they play well with (mutual — kept in sync both ways on save) |
+| avoid | string[]? | ids of players they clash with, kept on different teams (mutual, mutually exclusive with chemistry for the same pair) |
 
-Rating for guests defaults to **3 (unknown)** with an "unknown" flag — we don't know their ability,
-so the balancer treats them as average but avoids stacking multiple unknowns on one team.
+Guests default to **rating 3.5** with `ratingUnknown: true` when no rating is guessed at add-time
+(`addGuest` in `MatchDay.tsx`, and the same default in the paste-import guest path, §2.4)
+— the balancer treats them as average but avoids stacking multiple unknowns on one team.
 
-### Chemistry links
-Stored as pairs: `{ playerA, playerB, weight }` where weight is `prefer-together` (positive)
-— close friends who play better together. (Room later for `keep-apart` with negative weight if ever needed.)
-
-### Session (one match night)
+### Session (`Session` in `src/types.ts`) — one match night, no history kept
 | Field | Notes |
 |---|---|
-| date | |
-| availablePlayerIds | who's playing today |
-| gkOnlyIds | **per-session** list — GK-only status changes week to week (injury etc.), so it's picked at session setup, not stored on the player |
-| teams | the generated/edited assignment: black, white, blue |
-| loans | when short-handed: which resting-team players fill in (see §4) |
+| availableIds | roster player ids marked available today |
+| guests | one-off `Player[]` added for this session only |
+| gkIds | **per-session** list of who can go in goal today — GK-only status changes week to week, so it's picked at session setup, not stored on the player (permanent `playstyle: 'gk'` players are always included regardless) |
+| teams | the generated/edited assignment (`Record<'black'\|'white'\|'blue', string[]>`), or `null` before generation |
+| teamAlts | the top-N balanced variations generated alongside `teams`, for "re-roll" |
+| altIndex | which variation is currently shown |
 
-Past sessions are kept as history — useful later for "who played with whom" stats and fairness of loans.
+There is no session history — only the current in-progress session is persisted.
+
+### 2.4 Importing a pasted attendance list (match day, step 1)
+
+`src/importRoster.ts` + the "📋 Import a pasted list" panel in `src/components/MatchDay.tsx`.
+Lets the organizer paste a numbered list (e.g. copied from a WhatsApp poll/roster message) instead
+of ticking players one by one:
+
+1. `parseImportList(text)` reads the pasted text line by line, extracting the name from lines that
+   start with `<number>.` / `<number>)`. Non-numbered lines (titles, emoji, `19:00`-style time
+   headers) are skipped. Reading stops as soon as a waiting-list header is hit (`המתנה` / `רזרבה` /
+   `ממתינים`) — reserves aren't part of today's squad.
+2. `resolveImportedNames(names, players, existingGuests, makeGuest)` matches each name against
+   `player.name` or any of `player.aliases` (trim + case-insensitive). Matches get added to
+   `session.availableIds`. Names that match nothing become guests via `makeGuest` — same default
+   guest shape as manual add (rating 3.5, `ratingUnknown: true`, `playstyle: 'mixed'`), with **no
+   `invitedBy`** (the import never claims to know who invited an unrecognized name).
+3. The panel applies results additively (union with whatever was already ticked/added) and shows a
+   one-line summary: how many matched, and the names of any new guests. The organizer then uses the
+   existing manual controls (tick/untick, add/remove guest) to fix mismatches or top up to 15 if the
+   pasted list came up short.
 
 ## 3. Team generation algorithm
 
@@ -62,7 +92,7 @@ instantly and is easy to reason about:
 | Unknown spread | medium | avoid two unknown-rating guests on the same team (unless glued to the same inviter) |
 | Variety (later) | low | penalize repeating last week's exact teammates, so teams rotate over the season |
 
-Weights live in a settings screen so you can tune them ("we care more about ratings than friendships").
+Weights are constants inside `src/balancer.ts` (no settings UI exists to tune them at runtime).
 
 The generator returns the **top 3 distinct results**, so the organizer can flip between alternatives
 instead of re-rolling blindly.
@@ -79,34 +109,48 @@ App behavior:
 - **13 players** → 5/4/4, same logic with two short teams.
 - **< 13** → the app says the fixture doesn't go ahead (with a "generate 2 teams anyway" escape hatch as a later nice-to-have).
 
-The match-day screen shows the rotation: "Black vs White — **Yossi (Blue) joins White**", with a tap to swap the suggested loaner.
+`planRotation` (`src/balancer.ts`) computes this once teams exist; `TeamsBoard.tsx` renders it as a
+"🔁 Rotation plan" section (and includes it in the WhatsApp share text) whenever any team is short.
 
-## 5. Screens
+## 5. Screens (`src/App.tsx` — two tabs, no router)
 
-1. **Roster** — list of permanent players; add/edit name, rating, playstyle; manage chemistry links (from a player's card: "plays well with…").
-2. **New Session** (the main flow):
-   - Step 1: tick available players; "+ Add guest" (name + who invited them + optional rating guess).
-   - Step 2: mark today's GK-only players.
-   - Step 3: **Generate** → three colored team cards (black/white/blue) with per-team total & average rating, GK badge, playstyle icons. Drag-and-drop players between teams; the balance numbers update live and warnings appear if a hard constraint breaks (e.g. team with no GK). "Re-roll" cycles the alternative results.
-   - Step 4: **Share** — copies a clean text block (team lists + loan plan) for WhatsApp.
-3. **Match Day** (only when 13–14 players) — rotation view with loan suggestions.
-4. **History** — past sessions, read-only.
-5. **Settings** — balancer weights, minimum player count.
+1. **Roster** (`src/components/Roster.tsx`) — the permanent squad: add/edit name, aliases,
+   rating, playstyle, chemistry/avoid links. Ratings are only editable in **admin mode**
+   (§6 shared roster); everyone else sees roster info read-only plus their own local
+   availability picks.
+2. **Match day** (`src/components/MatchDay.tsx`, the main flow):
+   - Step 1 *(who's playing)*: tick available players from the roster grid, optionally use
+     **📋 Import a pasted list** to bulk-mark attendance from pasted text (§2.4), and add/remove
+     guests manually (name + optional inviter + optional rating guess).
+   - Step 2 *(goalkeepers)*: mark who can go in goal today (permanent `gk` playstyle players are
+     always included).
+   - **Generate** → `src/components/TeamsBoard.tsx`: three colored team cards (black/white/blue)
+     with per-team total/average rating, GK badge, playstyle icons, and the rotation plan if a team
+     is short. Drag-and-drop players between teams (native HTML5 DnD, no external library); balance
+     numbers update live. "Re-roll" cycles through the alternative generated results. A **Share**
+     button copies WhatsApp-ready text (`shareText`/`copy` in `TeamsBoard.tsx`).
 
-## 6. Tech stack
+There is no session history and no settings screen — one in-progress session is kept, and it resets
+via "New fixture."
 
-**Recommendation: a local-first single-page app, no backend.**
+## 6. Tech stack (as built)
 
-- **Vite + React + TypeScript** — fast to build, easy to iterate.
-- **Tailwind CSS** — quick mobile-first styling; team colors are literally the theme.
-- **State/persistence: localStorage** (roster, sessions, settings) with **JSON export/import** so the organizer's phone/laptop owns the data and can back it up or move it.
-- **dnd-kit** for drag-and-drop team editing.
-- Balancing algorithm is plain TypeScript, runs client-side — no server needed at 15 players.
-- Deploy as static files (GitHub Pages / Netlify / Vercel) — free, zero maintenance.
-
-Why no backend: one organizer runs the night; a shared database adds accounts, hosting and sync
-complexity for little gain. If later you want players to self-register availability, the clean upgrade
-path is Supabase (auth + Postgres) behind the same UI — the data model above maps directly to tables.
+- **Vite + React 18 + TypeScript**, Tailwind v4 — single-page app, no router.
+- **State/persistence**: `localStorage` only (`src/storage.ts`, key `armonim-teams-v1`,
+  `STORAGE_VERSION` bump on breaking schema changes — mismatched versions fall back to the
+  default roster). No JSON export/import UI currently exists.
+- **Shared roster (optional)**: `src/remote.ts` + `worker/roster-worker.js`, a small Cloudflare
+  Worker storing the roster as versioned JSON in KV, behind a secret admin word
+  (`/verify`, `/roster` endpoints). On load, `App.tsx` pulls the remote roster and adopts it if
+  its version is newer than what this device last applied. Unlocking admin mode
+  (`Roster.tsx`'s 🔒 Admin button) lets you edit ratings and 📢 Publish the roster for everyone;
+  without it the app works fully offline from local/default data. Configure by setting
+  `REMOTE_URL` in `remote.ts`; leave it `''` to disable.
+- Drag-and-drop uses native HTML5 drag events (`draggable`/`onDragStart`/`onDrop`) — no dnd-kit
+  or other DnD library is installed.
+- Balancing algorithm (`src/balancer.ts`) is plain TypeScript, runs client-side.
+- Deploy as static files (the Vite build output in `dist/`); the Worker deploys separately
+  (see `worker/`).
 
 ## 7. Build phases
 

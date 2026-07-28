@@ -31,6 +31,7 @@ export function loadState(): AppState {
           ...p,
           chemistry: p.chemistry ?? [],
           avoid: p.avoid ?? [],
+          aliases: p.aliases ?? [],
         }));
         const byId = new Map(players.map((p) => [p.id, p]));
         for (const p of players) {
@@ -54,7 +55,12 @@ export function loadState(): AppState {
   }
   // nothing saved on this device yet — start from the published roster
   return {
-    players: DEFAULT_PLAYERS.map((p) => ({ ...p, chemistry: [...p.chemistry], avoid: [...(p.avoid ?? [])] })),
+    players: DEFAULT_PLAYERS.map((p) => ({
+      ...p,
+      chemistry: [...p.chemistry],
+      avoid: [...(p.avoid ?? [])],
+      aliases: [...(p.aliases ?? [])],
+    })),
     session: emptySession(),
   };
 }

@@ -13,11 +13,15 @@ interface Props {
 
 interface Draft {
   name: string;
+  aliases: string; // comma-separated, as typed
   rating: number;
   playstyle: Playstyle;
   chemistry: string[];
   avoid: string[];
 }
+
+const parseAliases = (raw: string): string[] =>
+  [...new Set(raw.split(',').map((a) => a.trim()).filter(Boolean))];
 
 const STYLES: Playstyle[] = ['defensive', 'mixed', 'attacking', 'gk'];
 
@@ -67,13 +71,14 @@ export default function Roster({ players, onChange, adminWord, setAdminWord }: P
 
   const startAdd = () => {
     setEditingId(null);
-    setDraft({ name: '', rating: 3, playstyle: 'mixed', chemistry: [], avoid: [] });
+    setDraft({ name: '', aliases: '', rating: 3, playstyle: 'mixed', chemistry: [], avoid: [] });
   };
 
   const startEdit = (p: Player) => {
     setEditingId(p.id);
     setDraft({
       name: p.name,
+      aliases: (p.aliases ?? []).join(', '),
       rating: p.rating,
       playstyle: p.playstyle,
       chemistry: [...p.chemistry],
@@ -88,7 +93,8 @@ export default function Roster({ players, onChange, adminWord, setAdminWord }: P
 
   const save = () => {
     if (!draft || !draft.name.trim()) return;
-    const data = { ...draft, name: draft.name.trim() };
+    const { aliases, ...rest } = draft;
+    const data = { ...rest, name: draft.name.trim(), aliases: parseAliases(aliases) };
     const id = editingId ?? uid();
     const next = editingId
       ? players.map((p) => (p.id === editingId ? { ...p, ...data } : p))
@@ -205,6 +211,20 @@ export default function Roster({ players, onChange, adminWord, setAdminWord }: P
             placeholder="Name (עברית or English)"
             className="w-full rounded-lg border border-amber-900/30 bg-white px-3 py-2 text-amber-950 outline-none focus:border-orange-500"
           />
+
+          <div>
+            <input
+              dir="auto"
+              value={draft.aliases}
+              onChange={(e) => setDraft({ ...draft, aliases: e.target.value })}
+              onKeyDown={(e) => e.key === 'Enter' && save()}
+              placeholder="Other names people call them, comma-separated (optional)"
+              className="w-full rounded-lg border border-amber-900/30 bg-white px-3 py-2 text-sm text-amber-950 outline-none focus:border-orange-500"
+            />
+            <p className="mt-1 text-xs text-amber-900/50">
+              Used to match this player when importing a pasted list on match day.
+            </p>
+          </div>
 
           <div className="flex flex-wrap gap-6">
             {(!editingId || isAdmin) && (
@@ -338,6 +358,11 @@ export default function Roster({ players, onChange, adminWord, setAdminWord }: P
                   <span title={STYLE_META[p.playstyle].label}>{STYLE_META[p.playstyle].icon}</span>
                   {isAdmin && <Stars rating={p.rating} unknown={p.ratingUnknown} />}
                 </div>
+                {(p.aliases ?? []).length > 0 && (
+                  <div className="mt-0.5 truncate text-xs text-amber-900/50" title="Also known as">
+                    aka {p.aliases!.join(', ')}
+                  </div>
+                )}
                 <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-amber-950">
                   {p.chemistry.length > 0 && (
                     <span

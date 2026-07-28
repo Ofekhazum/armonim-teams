@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { Player, Session } from '../types';
 import { emptySession, uid } from '../storage';
 import { generateTeams, targetSizes } from '../balancer';
+import { parseImportList, resolveImportedNames } from '../importRoster';
 import TeamsBoard from './TeamsBoard';
 import { fmtRating, Name, RATING_STEPS, STYLE_META } from './ui';
 
@@ -21,6 +22,13 @@ export default function MatchDay({ players, session, setSession }: Props) {
   const [gName, setGName] = useState('');
   const [gInviter, setGInviter] = useState('');
   const [gRating, setGRating] = useState<'?' | number>('?');
+
+  // paste-a-list import
+  const [showImport, setShowImport] = useState(false);
+  const [importText, setImportText] = useState('');
+  const [importSummary, setImportSummary] = useState<{ matched: string[]; guests: string[] } | null>(
+    null,
+  );
 
   const selectedMembers = players.filter((p) => session.availableIds.includes(p.id));
   const todays: Player[] = [...selectedMembers, ...session.guests];
@@ -63,6 +71,31 @@ export default function MatchDay({ players, session, setSession }: Props) {
     setGName('');
     setGInviter('');
     setGRating('?');
+  };
+
+  const applyImport = () => {
+    const names = parseImportList(importText);
+    const { availableIds, guests, matchedNames, guestNames } = resolveImportedNames(
+      names,
+      players,
+      session.guests,
+      (name) => ({
+        id: uid(),
+        name,
+        rating: 3.5,
+        ratingUnknown: true,
+        playstyle: 'mixed',
+        isGuest: true,
+        chemistry: [],
+      }),
+    );
+    setSession({
+      ...session,
+      availableIds: [...new Set([...session.availableIds, ...availableIds])],
+      guests: [...session.guests, ...guests],
+    });
+    setImportSummary({ matched: matchedNames, guests: guestNames });
+    setImportText('');
   };
 
   const removeGuest = (id: string) => {
@@ -169,9 +202,51 @@ export default function MatchDay({ players, session, setSession }: Props) {
               The roster is empty — add players in the <b>Roster</b> tab first.
             </div>
           ) : (
-            <div className="rounded-2xl border border-amber-900/15 bg-[#fffdf4]/70 p-4 shadow-sm">
-              <h3 className="mb-3 font-bold text-amber-950">
-                Available today{' '}
+            <>
+              <div className="rounded-2xl border border-amber-900/15 bg-[#fffdf4]/70 p-4 shadow-sm">
+                <button
+                  onClick={() => setShowImport((v) => !v)}
+                  className="font-bold text-amber-950"
+                >
+                  📋 Import a pasted list {showImport ? '▲' : '▼'}
+                </button>
+                {showImport && (
+                  <div className="pop-in mt-3 space-y-2">
+                    <p className="text-xs text-amber-900/60">
+                      Paste the numbered player list (e.g. from WhatsApp). Recognized names get
+                      checked off below; unrecognized names are added as guests automatically.
+                    </p>
+                    <textarea
+                      dir="auto"
+                      value={importText}
+                      onChange={(e) => setImportText(e.target.value)}
+                      placeholder={'1. חנגל\n2. הלחמי\n3. דורגי\n...'}
+                      rows={6}
+                      className="w-full rounded-lg border border-amber-900/30 bg-white px-3 py-2 text-sm text-amber-950 outline-none focus:border-orange-500"
+                    />
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={applyImport}
+                        disabled={!importText.trim()}
+                        className="rounded-lg bg-amber-900 px-4 py-2 text-sm font-bold text-amber-50 disabled:opacity-40"
+                      >
+                        Match & add
+                      </button>
+                      {importSummary && (
+                        <span className="text-xs text-amber-900/70">
+                          ✅ Matched {importSummary.matched.length}
+                          {importSummary.guests.length > 0 &&
+                            `, added ${importSummary.guests.length} guest(s): ${importSummary.guests.join(', ')}`}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="rounded-2xl border border-amber-900/15 bg-[#fffdf4]/70 p-4 shadow-sm">
+                <h3 className="mb-3 font-bold text-amber-950">
+                  Available today{' '}
                 <span className="text-sm font-normal text-amber-900/60">
                   ({selectedMembers.length} of {players.length} selected)
                 </span>
@@ -206,7 +281,8 @@ export default function MatchDay({ players, session, setSession }: Props) {
                   );
                 })}
               </div>
-            </div>
+              </div>
+            </>
           )}
 
           <div className="rounded-2xl border border-amber-900/15 bg-[#fffdf4]/70 p-4 shadow-sm">
