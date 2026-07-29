@@ -92,7 +92,7 @@ instantly and is easy to reason about:
 ### Soft constraints (weighted score, lower = better)
 | Term | Default weight | What it measures |
 |---|---|---|
-| Rating balance | high | spread between team rating sums (normalized per player when sizes differ — a 4-player team is compared by average, not sum) |
+| Rating balance | high | spread between team rating sums (normalized per player when sizes differ — a 4-player team is compared by average, not sum). An outfield player marked GK-capable *today* (`session.gkIds`, but `playstyle !== 'gk'`) contributes a flat average rating (3) here instead of their outfield rating — see `teamStats`/`planRotation` in `src/balancer.ts`, applied consistently to both team generation and the rotation/loan plan. |
 | Playstyle mix | medium | each team should have a spread of defensive/mixed/attacking rather than e.g. all-attackers |
 | Chemistry | medium | bonus for each prefer-together pair on the same team |
 | Unknown spread | medium | avoid two unknown-rating guests on the same team (unless glued to the same inviter) |

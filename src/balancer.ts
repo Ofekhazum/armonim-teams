@@ -75,13 +75,12 @@ export function teamStats(
   for (const id of ids) {
     const p = byId.get(id);
     if (!p) continue;
-    // an outfield player keeping goal this fixture doesn't contribute their
-    // outfield rating; a permanent GK's rating counts normally
+    // an outfield player keeping goal this fixture is scored as an average
+    // rating (3) rather than their outfield rating — a permanent GK's rating
+    // counts normally
     const tempGk = gkIds.has(id) && p.playstyle !== 'gk';
-    if (!tempGk) {
-      sum += p.rating;
-      counted++;
-    }
+    sum += tempGk ? 3 : p.rating;
+    counted++;
     styles[p.playstyle]++;
     if (p.ratingUnknown) unknowns++;
     if (gkIds.has(id)) gkCount++;
@@ -310,18 +309,15 @@ export function planRotation(
     ['white', 'blue', 'black'],
   ];
   const used = new Map<string, number>();
-  // temporary keepers count as 0 outfield contribution (see teamStats)
+  // temporary keepers count as an average rating (3), not their outfield
+  // rating (see teamStats)
   const isTempGk = (id: string) => {
     const p = byId.get(id);
     return !!p && gkIds.has(id) && p.playstyle !== 'gk';
   };
-  const rating = (id: string) => (isTempGk(id) ? 0 : (byId.get(id)?.rating ?? 3.5));
-  const avg = (ids: string[]) => {
-    const counted = ids.filter((id) => !isTempGk(id));
-    return counted.length
-      ? counted.reduce((n, id) => n + rating(id), 0) / counted.length
-      : 0;
-  };
+  const rating = (id: string) => (isTempGk(id) ? 3 : (byId.get(id)?.rating ?? 3.5));
+  const avg = (ids: string[]) =>
+    ids.length ? ids.reduce((n, id) => n + rating(id), 0) / ids.length : 0;
 
   return order.map(([a, b, resting]) => {
     const loans: { id: string; to: TeamColor }[] = [];
@@ -331,10 +327,9 @@ export function planRotation(
       const other = t === a ? b : a;
       while (need > 0 && pool.length) {
         const current = [...teams[t], ...loans.filter((l) => l.to === t).map((l) => l.id)];
-        const counted = current.filter((id) => !isTempGk(id));
-        const sum = counted.reduce((n, id) => n + rating(id), 0);
+        const sum = current.reduce((n, id) => n + rating(id), 0);
         // rating that would make this team's average equal the opponent's
-        const ideal = avg(teams[other]) * (counted.length + 1) - sum;
+        const ideal = avg(teams[other]) * (current.length + 1) - sum;
         pool.sort((x, y) => {
           const ux = used.get(x) ?? 0;
           const uy = used.get(y) ?? 0;
