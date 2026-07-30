@@ -40,20 +40,28 @@ export default function RoomGuest({ roomId }: Props) {
 
   useEffect(() => {
     if (!name) return;
+    // StrictMode runs this effect twice in dev (mount → cleanup → mount) —
+    // without this guard, the first (intentionally torn-down) connection's
+    // eventual onClose still fires and stomps the second, live one's state
+    // with a false "disconnected".
+    let cancelled = false;
     const conn = joinRoom(roomId, name, null, {
-      onState: setState,
-      onPresence: setPresence,
-      onActivity: setActivity,
-      onError: (e) => setError(e),
-      onClosed: () => setError('closed'),
-      onClose: () => setError((e) => e ?? 'disconnected'),
+      onState: (s) => !cancelled && setState(s),
+      onPresence: (p) => !cancelled && setPresence(p),
+      onActivity: (a) => !cancelled && setActivity(a),
+      onError: (e) => !cancelled && setError(e),
+      onClosed: () => !cancelled && setError('closed'),
+      onClose: () => !cancelled && setError((e) => e ?? 'disconnected'),
     });
     if (!conn) {
       setError('not-configured');
       return;
     }
     connRef.current = conn;
-    return () => conn.close();
+    return () => {
+      cancelled = true;
+      conn.close();
+    };
   }, [roomId, name]);
 
   const join = () => {
