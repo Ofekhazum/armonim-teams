@@ -4,7 +4,7 @@ import { emptySession, getHostRoom, getMyName, setHostRoom, setMyName, uid } fro
 import { generateTeams, targetSizes } from '../balancer';
 import { parseImportList, resolveImportedNames } from '../importRoster';
 import { ROOMS_ENABLED, hostRoom, roomShareUrl } from '../liveRoom';
-import type { PresenceMember, RoomConnection } from '../liveRoom';
+import type { ActivityEvent, PresenceMember, RoomConnection } from '../liveRoom';
 import LiveRoomBar from './LiveRoomBar';
 import TeamsBoard from './TeamsBoard';
 import { fmtRating, Name, RATING_STEPS, STYLE_META } from './ui';
@@ -37,7 +37,7 @@ export default function MatchDay({ players, session, setSession }: Props) {
   const [room, setRoom] = useState<RoomConnection | null>(null);
   const [roomId, setRoomId] = useState<string | null>(null);
   const [presence, setPresence] = useState<PresenceMember[]>([]);
-  const [activity, setActivity] = useState<string | null>(null);
+  const [activity, setActivity] = useState<ActivityEvent | null>(null);
   const [linkCopied, setLinkCopied] = useState(false);
   // lets the room's onState callback always patch the latest session, since
   // the callback is created once (in goLive) and would otherwise close over

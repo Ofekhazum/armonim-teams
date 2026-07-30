@@ -23,7 +23,7 @@
 //   server -> client
 //     { type: 'state', room: { players, teams, gkIds } }
 //     { type: 'presence', members: [{ name, isHost }] }
-//     { type: 'activity', text }
+//     { type: 'activity', text, by }
 //     { type: 'closed' }
 //     { type: 'error', error }
 
@@ -108,7 +108,7 @@ export class MatchRoom {
       const who = this.sessions.get(ws).name;
       this.broadcast({ type: 'state', room: this.publicRoom() });
       const text = describeChange(who, prev, msg.teams, this.room.players);
-      if (text) this.broadcast({ type: 'activity', text });
+      if (text) this.broadcast({ type: 'activity', text, by: who });
       return;
     }
 

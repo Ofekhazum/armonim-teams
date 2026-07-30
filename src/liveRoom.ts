@@ -15,10 +15,15 @@ export interface PresenceMember {
   isHost: boolean;
 }
 
+export interface ActivityEvent {
+  text: string;
+  by?: string;
+}
+
 export interface RoomCallbacks {
   onState: (state: RoomState) => void;
   onPresence: (members: PresenceMember[]) => void;
-  onActivity: (text: string) => void;
+  onActivity: (event: ActivityEvent) => void;
   onError: (error: string) => void;
   onClose?: () => void;
   // the host ended the room (as opposed to onClose, which also fires on a
@@ -60,7 +65,7 @@ function connect(roomId: string, hello: Record<string, unknown>, cb: RoomCallbac
     }
     if (msg.type === 'state') cb.onState(msg.room as RoomState);
     else if (msg.type === 'presence') cb.onPresence(msg.members as PresenceMember[]);
-    else if (msg.type === 'activity') cb.onActivity(msg.text as string);
+    else if (msg.type === 'activity') cb.onActivity({ text: msg.text as string, by: msg.by as string | undefined });
     else if (msg.type === 'closed') cb.onClosed?.();
     else if (msg.type === 'error') cb.onError(msg.error as string);
   });

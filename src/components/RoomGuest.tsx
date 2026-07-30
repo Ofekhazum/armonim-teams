@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import type { PresenceMember, RoomConnection, RoomState } from '../liveRoom';
+import type { ActivityEvent, PresenceMember, RoomConnection, RoomState } from '../liveRoom';
 import { joinRoom } from '../liveRoom';
 import { getMyName, setMyName } from '../storage';
 import LiveRoomBar from './LiveRoomBar';
@@ -17,7 +17,7 @@ export default function RoomGuest({ roomId }: Props) {
   const [nameDraft, setNameDraft] = useState('');
   const [state, setState] = useState<RoomState | null>(null);
   const [presence, setPresence] = useState<PresenceMember[]>([]);
-  const [activity, setActivity] = useState<string | null>(null);
+  const [activity, setActivity] = useState<ActivityEvent | null>(null);
   const [error, setError] = useState<string | null>(null);
   const connRef = useRef<RoomConnection | null>(null);
 
