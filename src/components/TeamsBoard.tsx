@@ -145,7 +145,6 @@ export default function TeamsBoard({
       }
       lines.push('');
     }
-    lines.push('🔥 ערמונים ב-19:30 🔥');
     return lines.map((line) => (line ? RLM + line : line)).join('\n');
   };
 
