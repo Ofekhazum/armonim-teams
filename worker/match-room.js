@@ -16,11 +16,15 @@
 //     { type: 'sync', teams }
 //       Sent by anyone after a local drag/swap/move — overwrites the
 //       room's team split and is rebroadcast to everyone.
+//     { type: 'close-room', adminToken }
+//       Host-only: deletes the room. There's otherwise no expiry — a room
+//       lives in storage until explicitly closed.
 //
 //   server -> client
 //     { type: 'state', room: { players, teams, gkIds } }
 //     { type: 'presence', members: [{ name, isHost }] }
 //     { type: 'activity', text }
+//     { type: 'closed' }
 //     { type: 'error', error }
 
 const TEAM_COLORS = ['black', 'white', 'blue'];
@@ -105,6 +109,15 @@ export class MatchRoom {
       this.broadcast({ type: 'state', room: this.publicRoom() });
       const text = describeChange(who, prev, msg.teams, this.room.players);
       if (text) this.broadcast({ type: 'activity', text });
+      return;
+    }
+
+    if (msg.type === 'close-room') {
+      if (!this.room || this.room.adminToken !== msg.adminToken) return;
+      this.room = null;
+      await this.state.storage.delete('room');
+      this.broadcast({ type: 'closed' });
+      this.sessions.clear();
       return;
     }
   }

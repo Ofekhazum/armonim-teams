@@ -205,10 +205,23 @@ export default function MatchDay({ players, session, setSession }: Props) {
         onActivity: setActivity,
         onError: () => {},
         onClose: () => setRoom(null),
+        // fires if the room got closed from elsewhere (e.g. this host open
+        // in a second tab) — clean up here too so state stays consistent
+        onClosed: () => {
+          leaveRoom();
+          setHostRoom(null);
+        },
       },
     );
     setRoom(conn);
     setRoomId(id);
+  };
+
+  const closeRoomAction = () => {
+    if (!confirm('Close the room? Anyone with the link will be disconnected.')) return;
+    room?.closeRoom();
+    leaveRoom();
+    setHostRoom(null);
   };
 
   const copyRoomLink = async () => {
@@ -230,12 +243,20 @@ export default function MatchDay({ players, session, setSession }: Props) {
           (room ? (
             <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-red-600/20 bg-red-600/5 p-3 shadow-sm">
               <LiveRoomBar presence={presence} activity={activity} />
-              <button
-                onClick={copyRoomLink}
-                className="shrink-0 rounded-lg border border-amber-900/30 bg-white/70 px-3 py-1.5 text-xs font-bold text-amber-900 hover:border-orange-500"
-              >
-                {linkCopied ? '✓ Link copied!' : '📋 Copy link'}
-              </button>
+              <div className="flex shrink-0 gap-2">
+                <button
+                  onClick={copyRoomLink}
+                  className="rounded-lg border border-amber-900/30 bg-white/70 px-3 py-1.5 text-xs font-bold text-amber-900 hover:border-orange-500"
+                >
+                  {linkCopied ? '✓ Link copied!' : '📋 Copy link'}
+                </button>
+                <button
+                  onClick={closeRoomAction}
+                  className="rounded-lg border border-red-500/60 bg-white/70 px-3 py-1.5 text-xs font-bold text-red-700 hover:bg-red-50"
+                >
+                  ✕ Close room
+                </button>
+              </div>
             </div>
           ) : (
             <div className="flex justify-end">
@@ -267,6 +288,9 @@ export default function MatchDay({ players, session, setSession }: Props) {
             setStep('gk');
           }}
           onNewFixture={() => {
+            // tell any connected guests the room's gone, not just forget it
+            // locally and leave it orphaned in storage
+            room?.closeRoom();
             leaveRoom();
             setHostRoom(null);
             setSession(emptySession());

@@ -28,6 +28,7 @@ export default function RoomGuest({ roomId }: Props) {
       onPresence: setPresence,
       onActivity: setActivity,
       onError: (e) => setError(e),
+      onClosed: () => setError('closed'),
       onClose: () => setError((e) => e ?? 'disconnected'),
     });
     if (!conn) {
@@ -75,9 +76,11 @@ export default function RoomGuest({ roomId }: Props) {
     const msg =
       error === 'room-not-found'
         ? "This room doesn't exist — ask the host to send a fresh link."
-        : error === 'not-configured'
-          ? 'Live rooms are not set up for this app.'
-          : "Lost connection to the room — try reopening the host's link.";
+        : error === 'closed'
+          ? 'The host closed this room.'
+          : error === 'not-configured'
+            ? 'Live rooms are not set up for this app.'
+            : "Lost connection to the room — try reopening the host's link.";
     return (
       <div className="mx-auto max-w-sm space-y-2 px-4 py-16 text-center">
         <h1 className="text-xl font-black text-amber-950">🦁 Armonim FC</h1>

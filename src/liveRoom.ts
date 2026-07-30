@@ -21,10 +21,16 @@ export interface RoomCallbacks {
   onActivity: (text: string) => void;
   onError: (error: string) => void;
   onClose?: () => void;
+  // the host ended the room (as opposed to onClose, which also fires on a
+  // plain dropped connection — e.g. wifi hiccup, tab backgrounded)
+  onClosed?: () => void;
 }
 
 export interface RoomConnection {
   sendSync: (teams: Teams) => void;
+  // only meaningful for the host's own connection — a guest calling this
+  // has no adminToken, so the server just ignores it
+  closeRoom: () => void;
   close: () => void;
 }
 
@@ -55,14 +61,18 @@ function connect(roomId: string, hello: Record<string, unknown>, cb: RoomCallbac
     if (msg.type === 'state') cb.onState(msg.room as RoomState);
     else if (msg.type === 'presence') cb.onPresence(msg.members as PresenceMember[]);
     else if (msg.type === 'activity') cb.onActivity(msg.text as string);
+    else if (msg.type === 'closed') cb.onClosed?.();
     else if (msg.type === 'error') cb.onError(msg.error as string);
   });
   ws.addEventListener('close', () => cb.onClose?.());
 
+  const send = (data: Record<string, unknown>) => {
+    if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(data));
+  };
+
   return {
-    sendSync: (teams) => {
-      if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'sync', teams }));
-    },
+    sendSync: (teams) => send({ type: 'sync', teams }),
+    closeRoom: () => send({ type: 'close-room', adminToken: hello.adminToken }),
     close: () => ws.close(),
   };
 }

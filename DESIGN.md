@@ -110,11 +110,17 @@ snapshot (not ids), so a guest device can render the board without ever having s
 5. Conflicts resolve as plain last-write-wins on the server's own canonical copy — no merge logic.
    Good enough at this scale (a handful of people, occasional overlapping drags) and much simpler
    than operational transform/CRDT.
+6. The host can end the room with **✕ Close room** (confirms first), which sends
+   `{ type: 'close-room', adminToken }`; the Durable Object deletes its stored state and broadcasts
+   `{ type: 'closed' }` so any connected guest immediately sees "the host closed this room" instead
+   of just silently dropping. **New Fixture** also closes the room rather than abandoning it.
+   Without an explicit close, a room otherwise has no expiry — it persists in storage until closed
+   (harmless at this scale, see §6 free-tier numbers, but would want a TTL alarm if usage ever grew
+   enough for forgotten rooms to matter).
 
-**Known v1 limitations** (acceptable trade-offs, not accidental gaps): switching away from the
-Match Day tab and back drops the WebSocket (no auto-reconnect-on-remount — click "Go live" again,
-which reuses the persisted room/link); rooms have no explicit close/expiry (harmless at this scale
-— see §6 free-tier numbers — but would want a TTL alarm if usage ever grew).
+**Known v1 limitation**: switching away from the Match Day tab and back drops the WebSocket (no
+auto-reconnect-on-remount — click "Go live" again, which reuses the persisted room/link and resyncs
+rather than minting a new room).
 
 ## 3. Team generation algorithm
 
