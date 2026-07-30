@@ -74,6 +74,48 @@ Guests can also be edited in place after being added (manually or via import) �
 guest list has its own rating and inviter `<select>`, backed by `updateGuestRating` /
 `updateGuestInviter` in `MatchDay.tsx`.
 
+### 2.5 Live match-day room (optional, in progress on branch `live-teams-room`)
+
+Lets a few people on their own phones watch and drag players between teams together in real time,
+once the host has already generated teams. Deliberately narrow in scope — only the Teams page is
+collaborative; everything before it (availability, guests, GK marking) stays local and host-only,
+so the feature is purely additive on top of the offline-first app described above.
+
+**Server**: `worker/match-room.js`, a `MatchRoom` Durable Object on the same Cloudflare Worker as
+the shared roster (routed via `GET /room/:id` → WebSocket upgrade in `roster-worker.js`; bound in
+`wrangler.toml` under `[[durable_objects.bindings]]`, free-tier SQLite-backed). One DO instance
+per room id holds `{ adminToken, players, teams, gkIds }` — `players` is a full denormalized
+snapshot (not ids), so a guest device can render the board without ever having synced the roster.
+
+**Flow**:
+1. On the Teams page, the host (only) sees a **🔴 Go live** button (`goLive` in `MatchDay.tsx`).
+   Clicking it mints a room id + a random `adminToken` (persisted via `getHostRoom`/`setHostRoom`
+   in `storage.ts`, so revisiting the Teams page reuses the same room/link instead of minting a
+   new one), prompts for a display name once (`getMyName`/`setMyName`, asked once per device), and
+   opens a WebSocket sending `{ type: 'init', adminToken, name, players, teams, gkIds }`.
+2. The host shares the room link (**📋 Copy link**, `roomShareUrl` in `liveRoom.ts` — `?room=<id>`
+   on the app's own URL). Opening that link with no other app state renders `RoomGuest.tsx`
+   instead of `App` (routed in `main.tsx` by checking the query string — no router needed for one
+   param), prompts the guest for a name, and sends `{ type: 'join', name }`.
+3. Both host and guest render the *same* `TeamsBoard`, but a guest's instance omits
+   `onBack`/`onNewFixture`/`onReroll` entirely (those props are optional on `TeamsBoard` precisely
+   for this) — there is no way to navigate out of the board or touch setup from a guest link.
+4. Any drag/swap/move — host or guest — sends `{ type: 'sync', teams }`; the Durable Object
+   overwrites the room's canonical `teams`, broadcasts `{ type: 'state', room }` to everyone
+   connected, and derives a best-effort human summary of the change (`describeChange` in
+   `match-room.js`) broadcast as `{ type: 'activity', text }` — shown as a fading toast
+   (`LiveRoomBar.tsx`) alongside a presence chip list. Updates are instant (no debounce): each op
+   is already one deliberate action, not a stream of continuous drag deltas, so there's nothing to
+   batch, and Durable Object round trips are on the order of tens of milliseconds.
+5. Conflicts resolve as plain last-write-wins on the server's own canonical copy — no merge logic.
+   Good enough at this scale (a handful of people, occasional overlapping drags) and much simpler
+   than operational transform/CRDT.
+
+**Known v1 limitations** (acceptable trade-offs, not accidental gaps): switching away from the
+Match Day tab and back drops the WebSocket (no auto-reconnect-on-remount — click "Go live" again,
+which reuses the persisted room/link); rooms have no explicit close/expiry (harmless at this scale
+— see §6 free-tier numbers — but would want a TTL alarm if usage ever grew).
+
 ## 3. Team generation algorithm
 
 Balancing is a small constrained optimization. With ≤15 players, brute force is too big
@@ -136,7 +178,10 @@ App behavior:
      with per-team total/average rating, GK badge, playstyle icons, and the rotation plan if a team
      is short. Drag-and-drop players between teams (native HTML5 DnD, no external library); balance
      numbers update live. "Re-roll" cycles through the alternative generated results. A **Share**
-     button copies WhatsApp-ready text (`shareText`/`copy` in `TeamsBoard.tsx`).
+     button copies WhatsApp-ready text (`shareText`/`copy` in `TeamsBoard.tsx`). Optionally,
+     **🔴 Go live** turns this board into a shared live room others can join and drag in — see §2.5.
+3. **Live room guest view** (`src/components/RoomGuest.tsx`) — what a shared room link opens
+   instead of the app above; see §2.5.
 
 There is no session history and no settings screen — one in-progress session is kept, and it resets
 via "New fixture."
@@ -154,6 +199,11 @@ via "New fixture."
   (`Roster.tsx`'s 🔒 Admin button) lets you edit ratings and 📢 Publish the roster for everyone;
   without it the app works fully offline from local/default data. Configure by setting
   `REMOTE_URL` in `remote.ts`; leave it `''` to disable.
+- **Live match-day rooms (optional)**: see §2.5 — same Worker, a `MatchRoom` Durable Object per
+  room. Free-tier limits (100k requests/day, 13,000 GB-s/day of active WebSocket duration, 5GB
+  storage) are far beyond what a handful of people for a couple of hours a week would ever use —
+  see [Cloudflare's Durable Objects pricing](https://developers.cloudflare.com/durable-objects/platform/pricing/).
+  `ROOMS_ENABLED` in `liveRoom.ts` mirrors `REMOTE_URL`'s empty-string-to-disable convention.
 - Drag-and-drop uses native HTML5 drag events (`draggable`/`onDragStart`/`onDrop`) — no dnd-kit
   or other DnD library is installed.
 - **Build version marker**: `vite.config.ts` runs `git rev-parse --short HEAD` at build time and

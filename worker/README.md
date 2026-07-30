@@ -5,6 +5,12 @@ it for **everyone** from inside the app — no code changes, no redeploy. Your
 secret "publish word" is checked here on the server, so it's a real password:
 it never ships inside the app's public JavaScript.
 
+The same Worker also powers **live match-day rooms** (`match-room.js`) — real-time
+team-picking via a Durable Object, one per room. `npx wrangler deploy` sets this
+up automatically (see the `[[durable_objects.bindings]]` / `[[migrations]]`
+entries in `wrangler.toml`); there's no separate setup step for it beyond the
+deploy below.
+
 You only do this setup **once**.
 
 ## One-time setup (~10 minutes)

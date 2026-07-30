@@ -16,8 +16,9 @@ interface Props {
   onTeamsChange: (teams: Teams) => void;
   onReroll?: () => void;
   rerollLabel?: string;
-  onBack: () => void;
-  onNewFixture: () => void;
+  // omitted entirely for the read/drag-only guest view of a live room
+  onBack?: () => void;
+  onNewFixture?: () => void;
 }
 
 export default function TeamsBoard({
@@ -162,12 +163,14 @@ export default function TeamsBoard({
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
-        <button
-          onClick={onBack}
-          className="rounded-xl border border-amber-900/30 px-4 py-2 text-sm font-semibold text-amber-900"
-        >
-          ← Setup
-        </button>
+        {onBack && (
+          <button
+            onClick={onBack}
+            className="rounded-xl border border-amber-900/30 px-4 py-2 text-sm font-semibold text-amber-900"
+          >
+            ← Setup
+          </button>
+        )}
         {onReroll && (
           <button
             onClick={onReroll}
@@ -176,16 +179,18 @@ export default function TeamsBoard({
             🎲 {rerollLabel ?? 'Re-roll'}
           </button>
         )}
-        <button
-          onClick={() => {
-            if (confirm('Start a new fixture? This clears today\'s selections, guests and teams.')) {
-              onNewFixture();
-            }
-          }}
-          className="rounded-xl border border-amber-900/30 px-4 py-2 text-sm font-semibold text-amber-900 hover:border-orange-500"
-        >
-          🆕 New Fixture
-        </button>
+        {onNewFixture && (
+          <button
+            onClick={() => {
+              if (confirm('Start a new fixture? This clears today\'s selections, guests and teams.')) {
+                onNewFixture();
+              }
+            }}
+            className="rounded-xl border border-amber-900/30 px-4 py-2 text-sm font-semibold text-amber-900 hover:border-orange-500"
+          >
+            🆕 New Fixture
+          </button>
+        )}
         <div className="flex-1" />
         <span
           className={`rounded-full px-3 py-1 text-xs font-bold ${
