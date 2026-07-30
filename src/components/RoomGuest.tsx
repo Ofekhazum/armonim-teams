@@ -10,7 +10,7 @@ interface Props {
   roomId: string;
 }
 
-const ACTIVITY_MS = 950;
+const ACTIVITY_MS = 750;
 
 // What a guest sees after opening a shared room link — straight onto the
 // Teams page, restricted to dragging players between teams. No roster, no
