@@ -71,3 +71,36 @@ export function saveState(state: AppState) {
 
 export const uid = () =>
   Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+
+// --- Live room identity ----------------------------------------------------
+// The display name people pick the first time they go live or join a room,
+// remembered per device so it's only ever asked once.
+
+const NAME_KEY = 'armonim-my-name';
+
+export const getMyName = (): string | null => localStorage.getItem(NAME_KEY);
+export const setMyName = (name: string) => localStorage.setItem(NAME_KEY, name);
+
+// The host's {roomId, adminToken} for the fixture currently live, if any —
+// kept so a page refresh doesn't demote the host to a regular guest.
+
+const HOST_ROOM_KEY = 'armonim-host-room';
+
+export interface HostRoom {
+  roomId: string;
+  adminToken: string;
+}
+
+export const getHostRoom = (): HostRoom | null => {
+  try {
+    const raw = localStorage.getItem(HOST_ROOM_KEY);
+    return raw ? (JSON.parse(raw) as HostRoom) : null;
+  } catch {
+    return null;
+  }
+};
+
+export const setHostRoom = (room: HostRoom | null) => {
+  if (room) localStorage.setItem(HOST_ROOM_KEY, JSON.stringify(room));
+  else localStorage.removeItem(HOST_ROOM_KEY);
+};

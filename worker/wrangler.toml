@@ -8,3 +8,13 @@ compatibility_date = "2024-11-01"
 [[kv_namespaces]]
 binding = "ROSTER_KV"
 id = "8181a03150814ea0be97b2f853166a0d"
+
+# One Durable Object instance per live match-day room (see match-room.js).
+# Free plan requires the SQLite-backed storage class below.
+[[durable_objects.bindings]]
+name = "MATCH_ROOM"
+class_name = "MatchRoom"
+
+[[migrations]]
+tag = "v1-match-room"
+new_sqlite_classes = ["MatchRoom"]

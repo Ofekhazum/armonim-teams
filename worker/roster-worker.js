@@ -1,11 +1,15 @@
-// Cloudflare Worker: the shared Armonim roster store.
+// Cloudflare Worker: the shared Armonim roster store, plus live match-day
+// rooms (see match-room.js).
 //
-//   GET  /roster   → public read of the current roster (everyone's app calls this)
-//   POST /roster   → publish a new roster; requires the secret word
-//   POST /verify   → check the secret word (used to unlock admin mode)
+//   GET  /roster       → public read of the current roster (everyone's app calls this)
+//   POST /roster       → publish a new roster; requires the secret word
+//   POST /verify       → check the secret word (used to unlock admin mode)
+//   GET  /room/:id     → WebSocket upgrade into a live team-picking room
 //
-// Setup lives in worker/README.md. In short: bind a KV namespace as ROSTER_KV
-// and add a PUBLISH_SECRET secret holding your chosen word.
+// Setup lives in worker/README.md. In short: bind a KV namespace as ROSTER_KV,
+// add a PUBLISH_SECRET secret, and bind the MatchRoom Durable Object.
+
+export { MatchRoom } from './match-room.js';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -27,6 +31,14 @@ export default {
     }
 
     const url = new URL(request.url);
+
+    // live match-day room — hands the WebSocket upgrade off to the room's
+    // Durable Object, one instance per room id
+    const roomMatch = url.pathname.match(/^\/room\/([A-Za-z0-9_-]+)$/);
+    if (roomMatch) {
+      const id = env.MATCH_ROOM.idFromName(roomMatch[1]);
+      return env.MATCH_ROOM.get(id).fetch(request);
+    }
 
     // public read of the current roster
     if (url.pathname === '/roster' && request.method === 'GET') {

@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import type { CSSProperties } from 'react';
 import type { Player, Playstyle, TeamColor, Teams } from '../types';
 import {
   FULL_TEAM,
@@ -16,8 +17,12 @@ interface Props {
   onTeamsChange: (teams: Teams) => void;
   onReroll?: () => void;
   rerollLabel?: string;
-  onBack: () => void;
-  onNewFixture: () => void;
+  // omitted entirely for the read/drag-only guest view of a live room
+  onBack?: () => void;
+  onNewFixture?: () => void;
+  // live room only: briefly rings the row(s) a remote change just moved, in
+  // the mover's identity color
+  highlight?: { ids: string[]; color: string } | null;
 }
 
 export default function TeamsBoard({
@@ -29,6 +34,7 @@ export default function TeamsBoard({
   rerollLabel,
   onBack,
   onNewFixture,
+  highlight,
 }: Props) {
   const [selected, setSelected] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -161,12 +167,14 @@ export default function TeamsBoard({
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
-        <button
-          onClick={onBack}
-          className="rounded-xl border border-amber-900/30 px-4 py-2 text-sm font-semibold text-amber-900"
-        >
-          ← Setup
-        </button>
+        {onBack && (
+          <button
+            onClick={onBack}
+            className="rounded-xl border border-amber-900/30 px-4 py-2 text-sm font-semibold text-amber-900"
+          >
+            ← Setup
+          </button>
+        )}
         {onReroll && (
           <button
             onClick={onReroll}
@@ -175,16 +183,18 @@ export default function TeamsBoard({
             🎲 {rerollLabel ?? 'Re-roll'}
           </button>
         )}
-        <button
-          onClick={() => {
-            if (confirm('Start a new fixture? This clears today\'s selections, guests and teams.')) {
-              onNewFixture();
-            }
-          }}
-          className="rounded-xl border border-amber-900/30 px-4 py-2 text-sm font-semibold text-amber-900 hover:border-orange-500"
-        >
-          🆕 New Fixture
-        </button>
+        {onNewFixture && (
+          <button
+            onClick={() => {
+              if (confirm('Start a new fixture? This clears today\'s selections, guests and teams.')) {
+                onNewFixture();
+              }
+            }}
+            className="rounded-xl border border-amber-900/30 px-4 py-2 text-sm font-semibold text-amber-900 hover:border-orange-500"
+          >
+            🆕 New Fixture
+          </button>
+        )}
         <div className="flex-1" />
         <span
           className={`rounded-full px-3 py-1 text-xs font-bold ${
@@ -266,6 +276,7 @@ export default function TeamsBoard({
                   const p = byId.get(id);
                   if (!p) return null;
                   const isSel = selected === id;
+                  const isMoved = !!highlight?.ids.includes(id);
                   return (
                     <li key={id}>
                       <button
@@ -284,9 +295,10 @@ export default function TeamsBoard({
                           setSelected(null);
                         }}
                         dir="rtl"
+                        style={isMoved ? ({ '--flash-color': highlight!.color } as CSSProperties) : undefined}
                         className={`flex w-full cursor-grab items-center gap-2 rounded-lg border px-2.5 py-2 transition-all active:cursor-grabbing ${m.row} ${
                           isSel ? `ring-2 ${m.ring} scale-[1.02]` : ''
-                        }`}
+                        } ${isMoved ? 'flash-ring' : ''}`}
                       >
                         {gkSet.has(id) && <span title="Goalkeeper today">🧤</span>}
                         <Name className="min-w-0 flex-1 truncate text-sm font-semibold">

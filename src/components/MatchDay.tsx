@@ -1,10 +1,16 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Player, Session } from '../types';
-import { emptySession, uid } from '../storage';
+import { emptySession, getHostRoom, getMyName, setHostRoom, setMyName, uid } from '../storage';
 import { generateTeams, targetSizes } from '../balancer';
 import { parseImportList, resolveImportedNames } from '../importRoster';
+import { ROOMS_ENABLED, hostRoom, roomShareUrl } from '../liveRoom';
+import type { ActivityEvent, PresenceMember, RoomConnection } from '../liveRoom';
+import { createUserColorTracker } from '../userColor';
+import LiveRoomBar from './LiveRoomBar';
 import TeamsBoard from './TeamsBoard';
 import { fmtRating, Name, RATING_STEPS, STYLE_META } from './ui';
+
+const ACTIVITY_MS = 750;
 
 interface Props {
   players: Player[];
@@ -29,6 +35,32 @@ export default function MatchDay({ players, session, setSession }: Props) {
   const [importSummary, setImportSummary] = useState<{ matched: string[]; guests: string[] } | null>(
     null,
   );
+
+  // live room (Teams page only) — see LiveRoomBar/liveRoom.ts
+  const [room, setRoom] = useState<RoomConnection | null>(null);
+  const [roomId, setRoomId] = useState<string | null>(null);
+  const [presence, setPresence] = useState<PresenceMember[]>([]);
+  const [activity, setActivity] = useState<ActivityEvent | null>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
+  const colorOf = useRef(createUserColorTracker()).current;
+  // lets the room's onState callback always patch the latest session, since
+  // the callback is created once (in goLive) and would otherwise close over
+  // a stale session from that render
+  const sessionRef = useRef(session);
+  sessionRef.current = session;
+
+  // owns how long an activity toast + its matching player-row highlight stay
+  // up, so both fade together
+  useEffect(() => {
+    if (!activity) return;
+    const t = setTimeout(() => setActivity(null), ACTIVITY_MS);
+    return () => clearTimeout(t);
+  }, [activity]);
+
+  const highlight =
+    activity?.ids && activity.ids.length > 0
+      ? { ids: activity.ids, color: activity.by ? colorOf(activity.by) : '#78350f' }
+      : null;
 
   const selectedMembers = players.filter((p) => session.availableIds.includes(p.id));
   const todays: Player[] = [...selectedMembers, ...session.guests];
@@ -149,31 +181,141 @@ export default function MatchDay({ players, session, setSession }: Props) {
   const reroll = () => {
     if (session.teamAlts.length < 2) return;
     const next = (session.altIndex + 1) % session.teamAlts.length;
-    setSession({ ...session, teams: session.teamAlts[next], altIndex: next });
+    const teams = session.teamAlts[next];
+    setSession({ ...session, teams, altIndex: next });
+    room?.sendSync(teams);
+  };
+
+  const leaveRoom = () => {
+    room?.close();
+    setRoom(null);
+    setRoomId(null);
+    setPresence([]);
+    setActivity(null);
+  };
+
+  // Turns the current (already-generated) teams into a live room: guests who
+  // open the share link land straight on this same board, restricted to
+  // dragging players between teams. Reuses the same room id/token across
+  // re-visits so a previously shared link keeps working.
+  const goLive = () => {
+    if (!session.teams) return;
+    let name = getMyName();
+    if (!name) {
+      const entered = window.prompt('Pick a name to show when you make changes:');
+      if (!entered?.trim()) return;
+      name = entered.trim();
+      setMyName(name);
+    }
+    const existing = getHostRoom();
+    const id = existing?.roomId ?? uid();
+    const token = existing?.adminToken ?? uid();
+    setHostRoom({ roomId: id, adminToken: token });
+    const conn = hostRoom(
+      id,
+      token,
+      name,
+      { players: todays, teams: session.teams, gkIds: effectiveGkIds },
+      {
+        onState: (state) => setSession({ ...sessionRef.current, teams: state.teams }),
+        onPresence: setPresence,
+        onActivity: setActivity,
+        onError: () => {},
+        onClose: () => setRoom(null),
+        // fires if the room got closed from elsewhere (e.g. this host open
+        // in a second tab) — clean up here too so state stays consistent
+        onClosed: () => {
+          leaveRoom();
+          setHostRoom(null);
+        },
+      },
+    );
+    setRoom(conn);
+    setRoomId(id);
+  };
+
+  const closeRoomAction = () => {
+    if (!confirm('Close the room? Anyone with the link will be disconnected.')) return;
+    room?.closeRoom();
+    leaveRoom();
+    setHostRoom(null);
+  };
+
+  const copyRoomLink = async () => {
+    if (!roomId) return;
+    const url = roomShareUrl(roomId);
+    try {
+      await navigator.clipboard.writeText(url);
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2000);
+    } catch {
+      window.prompt('Copy the room link:', url);
+    }
   };
 
   if (session.teams) {
     return (
-      <TeamsBoard
-        teams={session.teams}
-        players={todays}
-        gkIds={effectiveGkIds}
-        onTeamsChange={(teams) => setSession({ ...session, teams })}
-        onReroll={session.teamAlts.length > 1 ? reroll : undefined}
-        rerollLabel={
-          session.teamAlts.length > 1
-            ? `Variation ${session.altIndex + 1}/${session.teamAlts.length}`
-            : undefined
-        }
-        onBack={() => {
-          setSession({ ...session, teams: null });
-          setStep('gk');
-        }}
-        onNewFixture={() => {
-          setSession(emptySession());
-          setStep('players');
-        }}
-      />
+      <div className="space-y-3">
+        {ROOMS_ENABLED &&
+          (room ? (
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-red-600/20 bg-red-600/5 p-3 shadow-sm">
+              <LiveRoomBar presence={presence} activity={activity} colorOf={colorOf} />
+              <div className="flex shrink-0 gap-2">
+                <button
+                  onClick={copyRoomLink}
+                  className="rounded-lg border border-amber-900/30 bg-white/70 px-3 py-1.5 text-xs font-bold text-amber-900 hover:border-orange-500"
+                >
+                  {linkCopied ? '✓ Link copied!' : '📋 Copy link'}
+                </button>
+                <button
+                  onClick={closeRoomAction}
+                  className="rounded-lg border border-red-500/60 bg-white/70 px-3 py-1.5 text-xs font-bold text-red-700 hover:bg-red-50"
+                >
+                  ✕ Close room
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex justify-end">
+              <button
+                onClick={goLive}
+                className="rounded-lg border border-red-500/60 px-3 py-1.5 text-xs font-bold text-red-700 hover:bg-red-50"
+              >
+                🔴 Go live — let others move players in real time
+              </button>
+            </div>
+          ))}
+        <TeamsBoard
+          teams={session.teams}
+          players={todays}
+          gkIds={effectiveGkIds}
+          highlight={highlight}
+          onTeamsChange={(teams) => {
+            setSession({ ...session, teams });
+            room?.sendSync(teams);
+          }}
+          onReroll={session.teamAlts.length > 1 ? reroll : undefined}
+          rerollLabel={
+            session.teamAlts.length > 1
+              ? `Variation ${session.altIndex + 1}/${session.teamAlts.length}`
+              : undefined
+          }
+          onBack={() => {
+            leaveRoom();
+            setSession({ ...session, teams: null });
+            setStep('gk');
+          }}
+          onNewFixture={() => {
+            // tell any connected guests the room's gone, not just forget it
+            // locally and leave it orphaned in storage
+            room?.closeRoom();
+            leaveRoom();
+            setHostRoom(null);
+            setSession(emptySession());
+            setStep('players');
+          }}
+        />
+      </div>
     );
   }
 
