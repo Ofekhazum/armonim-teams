@@ -47,3 +47,18 @@ button {
 .pop-in {
   animation: pop-in 0.25s ease-out both;
 }
+
+/* Live room: briefly rings the player row a remote change just moved, in
+   the mover's identity color (--flash-color, set inline per element). */
+@keyframes flash-ring {
+  0% {
+    box-shadow: 0 0 0 7px var(--flash-color);
+  }
+  100% {
+    box-shadow: 0 0 0 3px var(--flash-color);
+  }
+}
+
+.flash-ring {
+  animation: flash-ring 0.5s ease-out both;
+}

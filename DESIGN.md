@@ -103,19 +103,22 @@ snapshot (not ids), so a guest device can render the board without ever having s
 4. Any drag/swap/move — host or guest — sends `{ type: 'sync', teams }`; the Durable Object
    overwrites the room's canonical `teams`, broadcasts `{ type: 'state', room }` to everyone
    connected, and derives a best-effort human summary of the change (`describeChange` in
-   `match-room.js`) broadcast as `{ type: 'activity', text, by }` — shown as a fading toast
-   (`LiveRoomBar.tsx`) alongside a presence chip list. Updates are instant (no debounce): each op
-   is already one deliberate action, not a stream of continuous drag deltas, so there's nothing to
-   batch, and Durable Object round trips are on the order of tens of milliseconds. Each connected
-   person gets a stable identity color (`src/userColor.ts`, a validated 8-hue categorical palette —
-   see the dataviz skill's `palette.md`) shown as a small dot on their presence chip and on any
-   activity toast attributed to them (`by`); assigned in first-seen order, not hashed, so the
-   palette's CVD-safety guarantee (validated for consecutive slots rendered in that order) actually
-   holds, and always paired with their name text — color is never the only way to tell who's who.
-   The toast itself keeps the app's existing solid `amber-900` background rather than filling with
-   the identity color directly: white text on several of the 8 hues (yellow, aqua, magenta) fails
-   basic text-contrast (down to 2.09:1) — checked with the palette's own `contrast()` helper, not
-   eyeballed.
+   `match-room.js`) broadcast as `{ type: 'activity', text, by, ids }` (`ids` = the player(s) that
+   moved). Updates are instant (no debounce): each op is already one deliberate action, not a
+   stream of continuous drag deltas, so there's nothing to batch, and Durable Object round trips
+   are on the order of tens of milliseconds. Each connected person gets a stable identity color
+   (`src/userColor.ts`, a validated 8-hue categorical palette — see the dataviz skill's
+   `palette.md`), assigned in first-seen order (not hashed, so the palette's CVD-safety guarantee —
+   validated for consecutive slots rendered in that order — actually holds) and always paired with
+   their name text, never color-alone. That color drives two things at once, both owned by a single
+   ~4s timer in the parent (`MatchDay.tsx`/`RoomGuest.tsx`, not `LiveRoomBar` — so they fade
+   together): a banner (`LiveRoomBar.tsx`, a colored accent stripe + dot, bold text — sized to be
+   hard to miss rather than a small caption) and a `flash-ring` highlight (`index.css`,
+   `TeamsBoard`'s `highlight` prop) on the actual player row(s) that moved, so you see *what*
+   changed, not just a text log. The banner keeps the app's existing solid `amber-900` background
+   rather than filling with the identity color directly: white text on several of the 8 hues
+   (yellow, aqua, magenta) fails basic text-contrast (down to 2.09:1) — checked with the palette's
+   own `contrast()` helper, not eyeballed.
 5. Conflicts resolve as plain last-write-wins on the server's own canonical copy — no merge logic.
    Good enough at this scale (a handful of people, occasional overlapping drags) and much simpler
    than operational transform/CRDT.

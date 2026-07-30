@@ -2,12 +2,15 @@ import { useEffect, useRef, useState } from 'react';
 import type { ActivityEvent, PresenceMember, RoomConnection, RoomState } from '../liveRoom';
 import { joinRoom } from '../liveRoom';
 import { getMyName, setMyName } from '../storage';
+import { createUserColorTracker } from '../userColor';
 import LiveRoomBar from './LiveRoomBar';
 import TeamsBoard from './TeamsBoard';
 
 interface Props {
   roomId: string;
 }
+
+const ACTIVITY_MS = 4000;
 
 // What a guest sees after opening a shared room link — straight onto the
 // Teams page, restricted to dragging players between teams. No roster, no
@@ -20,6 +23,20 @@ export default function RoomGuest({ roomId }: Props) {
   const [activity, setActivity] = useState<ActivityEvent | null>(null);
   const [error, setError] = useState<string | null>(null);
   const connRef = useRef<RoomConnection | null>(null);
+  const colorOf = useRef(createUserColorTracker()).current;
+
+  // owns how long an activity banner + its matching player-row highlight
+  // stay up, so both fade together
+  useEffect(() => {
+    if (!activity) return;
+    const t = setTimeout(() => setActivity(null), ACTIVITY_MS);
+    return () => clearTimeout(t);
+  }, [activity]);
+
+  const highlight =
+    activity?.ids && activity.ids.length > 0
+      ? { ids: activity.ids, color: activity.by ? colorOf(activity.by) : '#78350f' }
+      : null;
 
   useEffect(() => {
     if (!name) return;
@@ -103,12 +120,13 @@ export default function RoomGuest({ roomId }: Props) {
         <span className="mr-2">🦁</span>Armonim FC — live
       </h1>
       <div className="rounded-2xl border border-red-600/20 bg-red-600/5 p-3 shadow-sm">
-        <LiveRoomBar presence={presence} activity={activity} />
+        <LiveRoomBar presence={presence} activity={activity} colorOf={colorOf} />
       </div>
       <TeamsBoard
         teams={state.teams}
         players={state.players}
         gkIds={state.gkIds}
+        highlight={highlight}
         onTeamsChange={(teams) => {
           setState((s) => (s ? { ...s, teams } : s));
           connRef.current?.sendSync(teams);

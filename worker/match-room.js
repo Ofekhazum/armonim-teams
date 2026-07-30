@@ -107,8 +107,8 @@ export class MatchRoom {
       await this.state.storage.put('room', this.room);
       const who = this.sessions.get(ws).name;
       this.broadcast({ type: 'state', room: this.publicRoom() });
-      const text = describeChange(who, prev, msg.teams, this.room.players);
-      if (text) this.broadcast({ type: 'activity', text, by: who });
+      const change = describeChange(who, prev, msg.teams, this.room.players);
+      if (change) this.broadcast({ type: 'activity', text: change.text, by: who, ids: change.ids });
       return;
     }
 
@@ -162,7 +162,8 @@ function isValidTeams(teams) {
 }
 
 // Small, best-effort human summary of what a sync changed, for the activity
-// toast — not authoritative, just a nicety.
+// toast — not authoritative, just a nicety. Returns the moved player ids too,
+// so the client can highlight the actual rows that changed.
 function describeChange(who, prev, next, players) {
   const teamOf = (teams, id) => TEAM_COLORS.find((c) => teams[c].includes(id));
   const ids = new Set([...TEAM_COLORS.flatMap((c) => prev[c]), ...TEAM_COLORS.flatMap((c) => next[c])]);
@@ -170,10 +171,10 @@ function describeChange(who, prev, next, players) {
   if (moved.length === 0) return null;
   const name = (id) => players.find((p) => p.id === id)?.name ?? '?';
   if (moved.length === 1) {
-    return `${who} moved ${name(moved[0])} to ${teamOf(next, moved[0])}`;
+    return { text: `${who} moved ${name(moved[0])} to ${teamOf(next, moved[0])}`, ids: moved };
   }
   if (moved.length === 2 && teamOf(next, moved[0]) === teamOf(prev, moved[1])) {
-    return `${who} swapped ${name(moved[0])} and ${name(moved[1])}`;
+    return { text: `${who} swapped ${name(moved[0])} and ${name(moved[1])}`, ids: moved };
   }
-  return `${who} reshuffled the teams`;
+  return { text: `${who} reshuffled the teams`, ids: moved };
 }

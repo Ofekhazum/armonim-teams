@@ -1,13 +1,16 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Player, Session } from '../types';
 import { emptySession, getHostRoom, getMyName, setHostRoom, setMyName, uid } from '../storage';
 import { generateTeams, targetSizes } from '../balancer';
 import { parseImportList, resolveImportedNames } from '../importRoster';
 import { ROOMS_ENABLED, hostRoom, roomShareUrl } from '../liveRoom';
 import type { ActivityEvent, PresenceMember, RoomConnection } from '../liveRoom';
+import { createUserColorTracker } from '../userColor';
 import LiveRoomBar from './LiveRoomBar';
 import TeamsBoard from './TeamsBoard';
 import { fmtRating, Name, RATING_STEPS, STYLE_META } from './ui';
+
+const ACTIVITY_MS = 4000;
 
 interface Props {
   players: Player[];
@@ -39,11 +42,25 @@ export default function MatchDay({ players, session, setSession }: Props) {
   const [presence, setPresence] = useState<PresenceMember[]>([]);
   const [activity, setActivity] = useState<ActivityEvent | null>(null);
   const [linkCopied, setLinkCopied] = useState(false);
+  const colorOf = useRef(createUserColorTracker()).current;
   // lets the room's onState callback always patch the latest session, since
   // the callback is created once (in goLive) and would otherwise close over
   // a stale session from that render
   const sessionRef = useRef(session);
   sessionRef.current = session;
+
+  // owns how long an activity toast + its matching player-row highlight stay
+  // up, so both fade together
+  useEffect(() => {
+    if (!activity) return;
+    const t = setTimeout(() => setActivity(null), ACTIVITY_MS);
+    return () => clearTimeout(t);
+  }, [activity]);
+
+  const highlight =
+    activity?.ids && activity.ids.length > 0
+      ? { ids: activity.ids, color: activity.by ? colorOf(activity.by) : '#78350f' }
+      : null;
 
   const selectedMembers = players.filter((p) => session.availableIds.includes(p.id));
   const todays: Player[] = [...selectedMembers, ...session.guests];
@@ -242,7 +259,7 @@ export default function MatchDay({ players, session, setSession }: Props) {
         {ROOMS_ENABLED &&
           (room ? (
             <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-red-600/20 bg-red-600/5 p-3 shadow-sm">
-              <LiveRoomBar presence={presence} activity={activity} />
+              <LiveRoomBar presence={presence} activity={activity} colorOf={colorOf} />
               <div className="flex shrink-0 gap-2">
                 <button
                   onClick={copyRoomLink}
@@ -272,6 +289,7 @@ export default function MatchDay({ players, session, setSession }: Props) {
           teams={session.teams}
           players={todays}
           gkIds={effectiveGkIds}
+          highlight={highlight}
           onTeamsChange={(teams) => {
             setSession({ ...session, teams });
             room?.sendSync(teams);
