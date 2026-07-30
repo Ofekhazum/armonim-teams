@@ -10,7 +10,7 @@ import LiveRoomBar from './LiveRoomBar';
 import TeamsBoard from './TeamsBoard';
 import { fmtRating, Name, RATING_STEPS, STYLE_META } from './ui';
 
-const ACTIVITY_MS = 4000;
+const ACTIVITY_MS = 1800;
 
 interface Props {
   players: Player[];

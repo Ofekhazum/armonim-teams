@@ -1,9 +1,15 @@
 // Stable per-user identity colors for the live room's presence chips and
-// activity toast. Validated categorical palette (8 hues, fixed order — see
-// the data-viz skill's palette.md); light surface only since this app has
-// no dark mode.
+// activity toast. Validated categorical palette (see the data-viz skill's
+// palette.md); light surface only since this app has no dark mode.
+//
+// Blue is deliberately dropped from the default 8-hue set — this app's teams
+// are literally named black/white/blue, so a "blue" identity dot would read
+// as "this is the Blue team" rather than "this person moved it". Re-validated
+// as a 7-hue set (still fixed order, just missing its first slot): worst
+// adjacent CVD ΔE unchanged at 9.1 light / 8.4 dark — dropping an endpoint
+// can only remove pairs, never add a worse one, but this was re-run through
+// the validator rather than assumed.
 const CATEGORICAL = [
-  '#2a78d6', // blue
   '#eb6834', // orange
   '#1baf7a', // aqua
   '#eda100', // yellow
