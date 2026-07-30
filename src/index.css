@@ -52,10 +52,10 @@ button {
    the mover's identity color (--flash-color, set inline per element). */
 @keyframes flash-ring {
   0% {
-    box-shadow: 0 0 0 7px var(--flash-color);
+    box-shadow: 0 0 0 4px var(--flash-color);
   }
   100% {
-    box-shadow: 0 0 0 3px var(--flash-color);
+    box-shadow: 0 0 0 1.5px var(--flash-color);
   }
 }
 
