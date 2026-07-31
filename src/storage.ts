@@ -21,9 +21,13 @@ export function loadState(): AppState {
     const raw = localStorage.getItem(KEY);
     if (raw) {
       const parsed = JSON.parse(raw) as PersistedState;
-      if (parsed.version !== STORAGE_VERSION) {
-        throw new Error('stale storage version');
-      }
+      // NOTE: a save from an older STORAGE_VERSION is *migrated*, never
+      // discarded. This used to throw on any version mismatch, which silently
+      // wiped the roster (locally-added players, edited ratings) and replaced
+      // it with the bundled default — the migration below exists precisely so
+      // that never has to happen. Breaking shape changes belong in
+      // migratePlayer / the normalisation here, not in a version guard.
+      //
       // an empty saved roster (e.g. the site was opened before the published
       // roster existed) falls through to the published default below
       if (Array.isArray(parsed.players) && parsed.players.length > 0) {
