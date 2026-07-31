@@ -27,7 +27,7 @@ tiny Cloudflare Worker (§6).
 | rating | 1–5 | overall ability |
 | ratingUnknown | boolean? | true for guests whose ability we don't know |
 | isGk | boolean? | permanent goalkeeper — always GK-capable on match day, and sits outside the outfield spectrum below |
-| attack | 0–100 | position on the defence↔attack spectrum in steps of 5: `0` = fully defensive, `50` = even split, `100` = fully attacking. The **badge** shown in the UI is derived, never stored — ≥70 reads as attacking, ≤30 as defensive, anything between as balanced (`roleBadge`/`badgeForAttack` in `types.ts`) |
+| attack | 0–100 | position on the defence↔attack spectrum in steps of 5: `0` = fully defensive, `50` = even split, `100` = fully attacking. The **badge** shown in the UI is derived, never stored — ≥75 reads as attacking, ≤25 as defensive, anything between as balanced. Both sides come off the single symmetric `BADGE_LEAN` constant in `types.ts`, so retuning the threshold is a one-line change (`roleBadge`/`badgeForAttack`) |
 | isGuest | boolean? | guests are one-off, added on match day |
 | invitedBy | playerId? | guests only, optional — if set, the guest is a hard constraint: same team as inviter. If unset, the guest is balanced freely |
 | chemistry | string[] | ids of players they play well with (mutual — kept in sync both ways on save) |

@@ -9,7 +9,7 @@ export const ATTACK_DEFAULT = 50;
 
 // A player leaning this far (or further) to one side wears that side's badge;
 // anything less reads as balanced.
-const BADGE_LEAN = 70;
+const BADGE_LEAN = 75;
 
 export interface Player {
   id: string;
