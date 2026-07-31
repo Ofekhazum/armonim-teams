@@ -1,8 +1,8 @@
-import type { Playstyle, TeamColor } from '../types';
+import type { RoleBadge, TeamColor } from '../types';
 
-export const STYLE_META: Record<Playstyle, { icon: string; label: string }> = {
+export const STYLE_META: Record<RoleBadge, { icon: string; label: string }> = {
   defensive: { icon: '🛡️', label: 'Defensive' },
-  mixed: { icon: '⚖️', label: 'Mixed' },
+  balanced: { icon: '⚖️', label: 'Balanced' },
   attacking: { icon: '⚔️', label: 'Attacking' },
   gk: { icon: '🧤', label: 'Goalkeeper' },
 };
@@ -84,3 +84,19 @@ export function Stars({ rating, unknown }: { rating: number; unknown?: boolean }
 export const RATING_STEPS = [1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5];
 
 export const fmtRating = (r: number) => (Number.isInteger(r) ? String(r) : r.toFixed(1));
+
+// Compact read-only view of where a player sits on the defence↔attack
+// spectrum — a track with a marker, shown on roster cards.
+export function SpectrumBar({ attack }: { attack: number }) {
+  return (
+    <span
+      dir="ltr"
+      className="relative inline-block h-1.5 w-16 shrink-0 rounded-full bg-gradient-to-r from-sky-600/35 via-amber-900/15 to-red-600/35"
+    >
+      <span
+        className="absolute top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white bg-amber-900 shadow-sm"
+        style={{ left: `${attack}%` }}
+      />
+    </span>
+  );
+}

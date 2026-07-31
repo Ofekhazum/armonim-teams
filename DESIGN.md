@@ -26,7 +26,8 @@ tiny Cloudflare Worker (§6).
 | aliases | string[]? | other names people call this player (e.g. nicknames) — used to match imported attendance lists against the roster, see §2.4. Edited as a comma-separated field in the Roster form (`src/components/Roster.tsx`). |
 | rating | 1–5 | overall ability |
 | ratingUnknown | boolean? | true for guests whose ability we don't know |
-| playstyle | `defensive` \| `mixed` \| `attacking` \| `gk` | `gk` = permanent goalkeeper, always GK-capable on match day |
+| isGk | boolean? | permanent goalkeeper — always GK-capable on match day, and sits outside the outfield spectrum below |
+| attack | 0–100 | position on the defence↔attack spectrum in steps of 5: `0` = fully defensive, `50` = even split, `100` = fully attacking. The **badge** shown in the UI is derived, never stored — ≥70 reads as attacking, ≤30 as defensive, anything between as balanced (`roleBadge`/`badgeForAttack` in `types.ts`) |
 | isGuest | boolean? | guests are one-off, added on match day |
 | invitedBy | playerId? | guests only, optional — if set, the guest is a hard constraint: same team as inviter. If unset, the guest is balanced freely |
 | chemistry | string[] | ids of players they play well with (mutual — kept in sync both ways on save) |
@@ -34,14 +35,24 @@ tiny Cloudflare Worker (§6).
 
 Guests default to **rating 3.5** with `ratingUnknown: true` when no rating is guessed at add-time
 (`addGuest` in `MatchDay.tsx`, and the same default in the paste-import guest path, §2.4)
-— the balancer treats them as average but avoids stacking multiple unknowns on one team.
+— the balancer treats them as average but avoids stacking multiple unknowns on one team. Guests
+also default to `attack: 50` (even split), since a one-off guest's style usually isn't known.
+
+**Legacy `playstyle` migration.** Before the spectrum, a player stored a categorical
+`playstyle: 'defensive' | 'mixed' | 'attacking' | 'gk'`. `migratePlayer` (`types.ts`) converts on
+read — defensive→`attack: 0`, attacking→`attack: 100`, mixed→`attack: 50`, gk→`isGk: true` — and is
+applied at **both** load paths: `localStorage` (`storage.ts`, `STORAGE_VERSION` bumped to 3) and the
+shared remote roster (`App.tsx`), because a roster published from an older client still carries the
+old shape until it's re-published. The conversion is idempotent and strips the dead field. The
+extremes are deliberate: an old "defensive" player is pinned at 100% defensive as a *starting
+point*, expected to be tuned by hand afterwards.
 
 ### Session (`Session` in `src/types.ts`) — one match night, no history kept
 | Field | Notes |
 |---|---|
 | availableIds | roster player ids marked available today |
 | guests | one-off `Player[]` added for this session only |
-| gkIds | **per-session** list of who can go in goal today — GK-only status changes week to week, so it's picked at session setup, not stored on the player (permanent `playstyle: 'gk'` players are always included regardless) |
+| gkIds | **per-session** list of who can go in goal today — GK-only status changes week to week, so it's picked at session setup, not stored on the player (permanent `isGk` players are always included regardless) |
 | teams | the generated/edited assignment (`Record<'black'\|'white'\|'blue', string[]>`), or `null` before generation |
 | teamAlts | the top-N balanced variations generated alongside `teams`, for "re-roll" |
 | altIndex | which variation is currently shown |
@@ -61,7 +72,7 @@ of ticking players one by one:
 2. `resolveImportedNames(names, players, existingGuests, makeGuest)` matches each name against
    `player.name` or any of `player.aliases` (trim + case-insensitive). Matches become
    `session.availableIds`. Names that match nothing become guests via `makeGuest` — same default
-   guest shape as manual add (rating 3.5, `ratingUnknown: true`, `playstyle: 'mixed'`), with **no
+   guest shape as manual add (rating 3.5, `ratingUnknown: true`, `attack: 50`), with **no
    `invitedBy`** (the import never claims to know who invited an unrecognized name).
 3. Applying an import is a **full override**, not a merge: `session.availableIds` and
    `session.guests` are replaced outright (any previously-ticked players or manually-added guests
@@ -158,7 +169,8 @@ instantly and is easy to reason about:
 | Term | Default weight | What it measures |
 |---|---|---|
 | Rating balance | high | spread between team rating sums (normalized per player when sizes differ — a 4-player team is compared by average, not sum) |
-| Playstyle mix | medium | each team should have a spread of defensive/mixed/attacking rather than e.g. all-attackers |
+| Badge mix | medium | each team should have a spread of defensive/balanced/attacking players rather than e.g. all-attackers — counts by derived badge |
+| Attack balance | medium | spread between teams' *mean* `attack` values. Complements the badge-count term: badges alone can't tell a 35 from a 65 (both "balanced"), so this catches the finer differences within a badge |
 | Chemistry | medium | bonus for each prefer-together pair on the same team |
 | Unknown spread | medium | avoid two unknown-rating guests on the same team (unless glued to the same inviter) |
 | Variety (later) | low | penalize repeating last week's exact teammates, so teams rotate over the season |
@@ -186,7 +198,8 @@ App behavior:
 ## 5. Screens (`src/App.tsx` — two tabs, no router)
 
 1. **Roster** (`src/components/Roster.tsx`) — the permanent squad: add/edit name, aliases,
-   rating, playstyle, chemistry/avoid links. Ratings are only editable in **admin mode**
+   rating, role (GK toggle, or a 0–100 defence↔attack slider in steps of 5), chemistry/avoid
+   links. Ratings are only editable in **admin mode**
    (§6 shared roster); everyone else sees roster info read-only plus their own local
    availability picks. Top-right shows a small `v<hash>` build marker (§6) so you can confirm
    a deploy actually landed after pushing.
@@ -195,10 +208,10 @@ App behavior:
      **📋 Import a pasted list** to bulk-mark attendance from pasted text (§2.4), and add/remove
      guests manually (name + optional inviter + optional rating guess) — guests can be edited
      in place afterwards (rating, inviter) via `updateGuestRating`/`updateGuestInviter`.
-   - Step 2 *(goalkeepers)*: mark who can go in goal today (permanent `gk` playstyle players are
+   - Step 2 *(goalkeepers)*: mark who can go in goal today (permanent `isGk` players are
      always included).
    - **Generate** → `src/components/TeamsBoard.tsx`: three colored team cards (black/white/blue)
-     with per-team total/average rating, GK badge, playstyle icons, and the rotation plan if a team
+     with per-team total/average rating, GK badge, role icons, and the rotation plan if a team
      is short. Drag-and-drop players between teams (native HTML5 DnD, no external library); balance
      numbers update live. "Re-roll" cycles through the alternative generated results. A **Share**
      button copies WhatsApp-ready text (`shareText`/`copy` in `TeamsBoard.tsx`). Optionally,
@@ -240,6 +253,6 @@ via "New fixture."
 ## 7. Build phases
 
 1. **MVP** — roster CRUD, availability picking, GK marking, balancer with hard constraints + rating balance, team cards, WhatsApp share text, localStorage.
-2. **Quality** — chemistry links, playstyle mix, guests glued to inviters, drag-and-drop editing with live balance feedback, alternative results.
+2. **Quality** — chemistry links, role/spectrum balance, guests glued to inviters, drag-and-drop editing with live balance feedback, alternative results.
 3. **Short-handed logic** — 13/14 player team sizing, loan rotation screen.
 4. **Polish** — history, settings for weights, variety-across-weeks scoring, JSON export/import.

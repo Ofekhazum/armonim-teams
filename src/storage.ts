@@ -1,8 +1,9 @@
 import type { AppState, Session } from './types';
+import { migratePlayer } from './types';
 import { DEFAULT_PLAYERS } from './defaultRoster';
 
 const KEY = 'armonim-teams-v1';
-const STORAGE_VERSION = 2;
+const STORAGE_VERSION = 3;
 
 type PersistedState = AppState & { version?: number };
 
@@ -28,7 +29,7 @@ export function loadState(): AppState {
       if (Array.isArray(parsed.players) && parsed.players.length > 0) {
         // chemistry/avoid are mutual — repair any one-way links from older versions
         const players = parsed.players.map((p) => ({
-          ...p,
+          ...migratePlayer(p),
           chemistry: p.chemistry ?? [],
           avoid: p.avoid ?? [],
           aliases: p.aliases ?? [],

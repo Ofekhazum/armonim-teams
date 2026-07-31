@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Player, Session } from '../types';
+import { ATTACK_DEFAULT, roleBadge } from '../types';
 import { emptySession, getHostRoom, getMyName, setHostRoom, setMyName, uid } from '../storage';
 import { generateTeams, targetSizes } from '../balancer';
 import { parseImportList, resolveImportedNames } from '../importRoster';
@@ -66,10 +67,10 @@ export default function MatchDay({ players, session, setSession }: Props) {
   const todays: Player[] = [...selectedMembers, ...session.guests];
   const count = todays.length;
 
-  // permanent goalkeepers (playstyle 'gk') are always GK-capable
+  // permanent goalkeepers are always GK-capable
   const effectiveGkIds = [
     ...new Set([
-      ...todays.filter((p) => p.playstyle === 'gk').map((p) => p.id),
+      ...todays.filter((p) => p.isGk).map((p) => p.id),
       ...session.gkIds.filter((id) => todays.some((p) => p.id === id)),
     ]),
   ];
@@ -93,7 +94,7 @@ export default function MatchDay({ players, session, setSession }: Props) {
       name: gName.trim(),
       rating: gRating === '?' ? 3.5 : gRating,
       ratingUnknown: gRating === '?',
-      playstyle: 'mixed',
+      attack: ATTACK_DEFAULT,
       isGuest: true,
       // no inviter → the guest is balanced freely instead of pinned to a team
       ...(gInviter ? { invitedBy: gInviter } : {}),
@@ -118,7 +119,7 @@ export default function MatchDay({ players, session, setSession }: Props) {
         name,
         rating: 3.5,
         ratingUnknown: true,
-        playstyle: 'mixed',
+        attack: ATTACK_DEFAULT,
         isGuest: true,
         chemistry: [],
       }),
@@ -595,7 +596,7 @@ export default function MatchDay({ players, session, setSession }: Props) {
             </p>
             <div className="grid gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
               {todays.map((p) => {
-                const permanent = p.playstyle === 'gk';
+                const permanent = !!p.isGk;
                 const on = permanent || session.gkIds.includes(p.id);
                 return (
                   <button
@@ -618,8 +619,8 @@ export default function MatchDay({ players, session, setSession }: Props) {
                         always
                       </span>
                     )}
-                    <span title={STYLE_META[p.playstyle].label}>
-                      {STYLE_META[p.playstyle].icon}
+                    <span title={STYLE_META[roleBadge(p)].label}>
+                      {STYLE_META[roleBadge(p)].icon}
                     </span>
                   </button>
                 );
