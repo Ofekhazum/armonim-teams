@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import type { CSSProperties } from 'react';
-import type { Player, Playstyle, TeamColor, Teams } from '../types';
+import type { Player, RoleBadge, TeamColor, Teams } from '../types';
+import { roleBadge } from '../types';
 import {
   FULL_TEAM,
   TEAM_COLORS,
@@ -113,11 +114,13 @@ export default function TeamsBoard({
   };
 
   // display order inside a team: today's keeper → defence → mixed → attacking
-  const STYLE_ORDER: Record<Playstyle, number> = { gk: 0, defensive: 1, mixed: 2, attacking: 3 };
+  const STYLE_ORDER: Record<RoleBadge, number> = { gk: 0, defensive: 1, balanced: 2, attacking: 3 };
   const displayIds = (c: TeamColor) =>
     [...teams[c]].sort((a, b) => {
-      const ka = gkSet.has(a) ? -1 : STYLE_ORDER[byId.get(a)?.playstyle ?? 'mixed'];
-      const kb = gkSet.has(b) ? -1 : STYLE_ORDER[byId.get(b)?.playstyle ?? 'mixed'];
+      const pa = byId.get(a);
+      const ka = gkSet.has(a) ? -1 : pa ? STYLE_ORDER[roleBadge(pa)] : 2;
+      const pb = byId.get(b);
+      const kb = gkSet.has(b) ? -1 : pb ? STYLE_ORDER[roleBadge(pb)] : 2;
       if (ka !== kb) return ka - kb;
       return (byId.get(b)?.rating ?? 0) - (byId.get(a)?.rating ?? 0);
     });
@@ -312,8 +315,8 @@ export default function TeamsBoard({
                             guest
                           </span>
                         )}
-                        <span title={STYLE_META[p.playstyle].label} className="text-xs">
-                          {STYLE_META[p.playstyle].icon}
+                        <span title={STYLE_META[roleBadge(p)].label} className="text-xs">
+                          {STYLE_META[roleBadge(p)].icon}
                         </span>
                       </button>
                     </li>

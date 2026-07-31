@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { AppState, Player, Session } from './types';
+import { migratePlayer } from './types';
 import { loadState, saveState } from './storage';
 import { fetchRemoteRoster, localRosterVersion, setLocalRosterVersion } from './remote';
 import Roster from './components/Roster';
@@ -23,7 +24,7 @@ export default function App() {
     fetchRemoteRoster().then((remote) => {
       if (cancelled || !remote || remote.version <= localRosterVersion()) return;
       const normalized = remote.players.map((p) => ({
-        ...p,
+        ...migratePlayer(p),
         chemistry: p.chemistry ?? [],
         avoid: p.avoid ?? [],
       }));

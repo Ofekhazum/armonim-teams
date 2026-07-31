@@ -1,8 +1,18 @@
 import { useState } from 'react';
-import type { Player, Playstyle } from '../types';
+import type { CSSProperties } from 'react';
+import type { Player } from '../types';
+import { ATTACK_DEFAULT, ATTACK_STEP, attackLabel, badgeForAttack, roleBadge } from '../types';
 import { uid } from '../storage';
 import { publishRemoteRoster, setLocalRosterVersion, verifyWord, REMOTE_URL } from '../remote';
-import { fmtRating, Name, RATING_STEPS, Stars, STYLE_META } from './ui';
+import {
+  fmtRating,
+  Name,
+  RATING_STEPS,
+  SpectrumBar,
+  spectrumColor,
+  Stars,
+  STYLE_META,
+} from './ui';
 
 interface Props {
   players: Player[];
@@ -15,15 +25,14 @@ interface Draft {
   name: string;
   aliases: string; // comma-separated, as typed
   rating: number;
-  playstyle: Playstyle;
+  isGk: boolean;
+  attack: number;
   chemistry: string[];
   avoid: string[];
 }
 
 const parseAliases = (raw: string): string[] =>
   [...new Set(raw.split(',').map((a) => a.trim()).filter(Boolean))];
-
-const STYLES: Playstyle[] = ['defensive', 'mixed', 'attacking', 'gk'];
 
 export default function Roster({ players, onChange, adminWord, setAdminWord }: Props) {
   const [draft, setDraft] = useState<Draft | null>(null);
@@ -71,7 +80,15 @@ export default function Roster({ players, onChange, adminWord, setAdminWord }: P
 
   const startAdd = () => {
     setEditingId(null);
-    setDraft({ name: '', aliases: '', rating: 3, playstyle: 'mixed', chemistry: [], avoid: [] });
+    setDraft({
+      name: '',
+      aliases: '',
+      rating: 3,
+      isGk: false,
+      attack: ATTACK_DEFAULT,
+      chemistry: [],
+      avoid: [],
+    });
   };
 
   const startEdit = (p: Player) => {
@@ -80,7 +97,8 @@ export default function Roster({ players, onChange, adminWord, setAdminWord }: P
       name: p.name,
       aliases: (p.aliases ?? []).join(', '),
       rating: p.rating,
-      playstyle: p.playstyle,
+      isGk: !!p.isGk,
+      attack: p.attack,
       chemistry: [...p.chemistry],
       avoid: [...(p.avoid ?? [])],
     });
@@ -235,50 +253,87 @@ export default function Roster({ players, onChange, adminWord, setAdminWord }: P
             </p>
           </div>
 
-          <div className="flex flex-wrap gap-6">
-            {(!editingId || isAdmin) && (
-              <div>
-                <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-amber-900/60">
-                  Rating
-                </div>
-                <div className="flex flex-wrap gap-1">
-                  {RATING_STEPS.map((r) => (
-                    <button
-                      key={r}
-                      onClick={() => setDraft({ ...draft, rating: r })}
-                      className={`h-9 min-w-9 rounded-lg border px-1.5 text-xs font-bold transition-colors ${
-                        draft.rating === r
-                          ? 'border-amber-500 bg-amber-500 text-amber-950'
-                          : 'border-amber-900/25 bg-white text-amber-900 hover:border-amber-500'
-                      }`}
-                    >
-                      {fmtRating(r)}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
+          {(!editingId || isAdmin) && (
             <div>
               <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-amber-900/60">
-                Playstyle
+                Rating
               </div>
-              <div className="flex gap-1">
-                {STYLES.map((s) => (
+              {/* fixed 5-up grid rather than wrapping buttons — keeps the rows
+                  even and the targets thumb-sized on a narrow screen */}
+              <div className="grid grid-cols-5 gap-1 sm:flex sm:flex-wrap">
+                {RATING_STEPS.map((r) => (
                   <button
-                    key={s}
-                    onClick={() => setDraft({ ...draft, playstyle: s })}
-                    className={`rounded-lg border px-3 py-2 text-sm font-semibold transition-colors ${
-                      draft.playstyle === s
-                        ? 'border-sky-600 bg-sky-600/15 text-sky-800'
-                        : 'border-amber-900/25 bg-white text-amber-900 hover:border-sky-600/60'
+                    key={r}
+                    onClick={() => setDraft({ ...draft, rating: r })}
+                    className={`h-10 rounded-lg border text-sm font-bold transition-colors sm:min-w-10 sm:px-1.5 ${
+                      draft.rating === r
+                        ? 'border-amber-500 bg-amber-500 text-amber-950'
+                        : 'border-amber-900/25 bg-white text-amber-900 hover:border-amber-500'
                     }`}
                   >
-                    {STYLE_META[s].icon} {STYLE_META[s].label}
+                    {fmtRating(r)}
                   </button>
                 ))}
               </div>
             </div>
+          )}
+
+          <div>
+            <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
+              <span className="text-xs font-semibold uppercase tracking-wide text-amber-900/60">
+                Role
+              </span>
+              <button
+                onClick={() => setDraft({ ...draft, isGk: !draft.isGk })}
+                className={`rounded-lg border px-3 py-1.5 text-sm font-semibold transition-colors ${
+                  draft.isGk
+                    ? 'border-sky-600 bg-sky-600/15 text-sky-800'
+                    : 'border-amber-900/25 bg-white text-amber-900'
+                }`}
+              >
+                🧤 Goalkeeper
+              </button>
+            </div>
+
+            {draft.isGk ? (
+              <p className="rounded-lg border border-amber-900/15 bg-white/60 px-3 py-2.5 text-xs text-amber-900/70">
+                Permanent goalkeepers sit outside the outfield spectrum — they're always
+                GK-capable on match day.
+              </p>
+            ) : (
+              <div className="rounded-lg border border-amber-900/15 bg-white/60 px-3 py-2.5">
+                <div className="mb-1 flex items-center justify-between gap-2 text-sm font-bold text-amber-950">
+                  <span>
+                    {STYLE_META[badgeForAttack(draft.attack)].icon}{' '}
+                    {STYLE_META[badgeForAttack(draft.attack)].label}
+                  </span>
+                  <span className="text-xs font-semibold text-amber-900/60">
+                    {attackLabel(draft.attack)}
+                  </span>
+                </div>
+                {/* the thumb tracks the spectrum colour as it moves: blue when
+                    leaning defensive, red when leaning attacking */}
+                <input
+                  dir="ltr"
+                  type="range"
+                  min={0}
+                  max={100}
+                  step={ATTACK_STEP}
+                  value={draft.attack}
+                  onChange={(e) => setDraft({ ...draft, attack: Number(e.target.value) })}
+                  aria-label="Position on the defence to attack spectrum"
+                  className="spectrum-range w-full"
+                  style={{ '--thumb': spectrumColor(draft.attack) } as CSSProperties}
+                />
+                <div
+                  dir="ltr"
+                  className="flex justify-between text-[11px] font-semibold text-amber-900/50"
+                >
+                  <span>🛡️ Defence</span>
+                  <span>Attack ⚔️</span>
+                </div>
+              </div>
+            )}
           </div>
 
           {players.filter((p) => p.id !== editingId).length > 0 && (
@@ -294,7 +349,7 @@ export default function Roster({ players, onChange, adminWord, setAdminWord }: P
                       <button
                         key={p.id}
                         onClick={() => toggleChem(p.id)}
-                        className={`rounded-full border px-3 py-1 text-sm transition-colors ${
+                        className={`rounded-full border px-3 py-2 text-sm transition-colors ${
                           draft.chemistry.includes(p.id)
                             ? 'border-pink-500 bg-pink-500/15 text-pink-700'
                             : 'border-amber-900/25 bg-white text-amber-900/70 hover:border-pink-500/60'
@@ -317,7 +372,7 @@ export default function Roster({ players, onChange, adminWord, setAdminWord }: P
                       <button
                         key={p.id}
                         onClick={() => toggleAvoid(p.id)}
-                        className={`rounded-full border px-3 py-1 text-sm transition-colors ${
+                        className={`rounded-full border px-3 py-2 text-sm transition-colors ${
                           draft.avoid.includes(p.id)
                             ? 'border-red-500 bg-red-500/15 text-red-700'
                             : 'border-amber-900/25 bg-white text-amber-900/70 hover:border-red-500/60'
@@ -331,17 +386,19 @@ export default function Roster({ players, onChange, adminWord, setAdminWord }: P
             </>
           )}
 
-          <div className="flex gap-2">
+          {/* sticky on mobile so Save stays reachable without scrolling back
+              down past the chemistry chip lists */}
+          <div className="sticky bottom-0 -mx-4 -mb-4 flex gap-2 border-t border-amber-900/10 bg-[#fffdf4]/95 px-4 py-3 backdrop-blur-sm sm:static sm:mx-0 sm:mb-0 sm:border-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-none">
             <button
               onClick={save}
               disabled={!draft.name.trim()}
-              className="rounded-lg bg-orange-600 px-5 py-2 text-sm font-bold text-amber-50 disabled:opacity-40"
+              className="flex-1 rounded-lg bg-orange-600 px-5 py-2.5 text-sm font-bold text-amber-50 disabled:opacity-40 sm:flex-none"
             >
               Save
             </button>
             <button
               onClick={cancel}
-              className="rounded-lg border border-amber-900/30 px-5 py-2 text-sm font-semibold text-amber-900"
+              className="flex-1 rounded-lg border border-amber-900/30 px-5 py-2.5 text-sm font-semibold text-amber-900 sm:flex-none"
             >
               Cancel
             </button>
@@ -364,7 +421,8 @@ export default function Roster({ players, onChange, adminWord, setAdminWord }: P
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                   <Name className="truncate font-semibold text-amber-950">{p.name}</Name>
-                  <span title={STYLE_META[p.playstyle].label}>{STYLE_META[p.playstyle].icon}</span>
+                  <span title={STYLE_META[roleBadge(p)].label}>{STYLE_META[roleBadge(p)].icon}</span>
+                  {isAdmin && !p.isGk && <SpectrumBar attack={p.attack} />}
                   {isAdmin && <Stars rating={p.rating} unknown={p.ratingUnknown} />}
                 </div>
                 {(p.aliases ?? []).length > 0 && (
