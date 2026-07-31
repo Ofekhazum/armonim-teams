@@ -85,8 +85,27 @@ export const RATING_STEPS = [1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5];
 
 export const fmtRating = (r: number) => (Number.isInteger(r) ? String(r) : r.toFixed(1));
 
+// Marker colour along the spectrum: blue at fully-defensive, through a warm
+// neutral at an even split, to red at fully-attacking — matching the track
+// gradient beneath it, so the handle reads as "where am I leaning".
+const SPECTRUM_STOPS = {
+  defensive: [2, 132, 199], // sky-600
+  neutral: [120, 113, 108], // stone-500
+  attacking: [220, 38, 38], // red-600
+} as const;
+
+export function spectrumColor(attack: number): string {
+  const t = Math.max(0, Math.min(100, attack)) / 100;
+  const [from, to, k] =
+    t <= 0.5
+      ? [SPECTRUM_STOPS.defensive, SPECTRUM_STOPS.neutral, t / 0.5]
+      : [SPECTRUM_STOPS.neutral, SPECTRUM_STOPS.attacking, (t - 0.5) / 0.5];
+  const mix = from.map((c, i) => Math.round(c + (to[i] - c) * k));
+  return `rgb(${mix.join(' ')})`;
+}
+
 // Compact read-only view of where a player sits on the defence↔attack
-// spectrum — a track with a marker, shown on roster cards.
+// spectrum — a track with a marker. Roster cards show this in admin mode only.
 export function SpectrumBar({ attack }: { attack: number }) {
   return (
     <span
@@ -94,8 +113,8 @@ export function SpectrumBar({ attack }: { attack: number }) {
       className="relative inline-block h-1.5 w-16 shrink-0 rounded-full bg-gradient-to-r from-sky-600/35 via-amber-900/15 to-red-600/35"
     >
       <span
-        className="absolute top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white bg-amber-900 shadow-sm"
-        style={{ left: `${attack}%` }}
+        className="absolute top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white shadow-sm"
+        style={{ left: `${attack}%`, background: spectrumColor(attack) }}
       />
     </span>
   );

@@ -1,9 +1,18 @@
 import { useState } from 'react';
+import type { CSSProperties } from 'react';
 import type { Player } from '../types';
 import { ATTACK_DEFAULT, ATTACK_STEP, attackLabel, badgeForAttack, roleBadge } from '../types';
 import { uid } from '../storage';
 import { publishRemoteRoster, setLocalRosterVersion, verifyWord, REMOTE_URL } from '../remote';
-import { fmtRating, Name, RATING_STEPS, SpectrumBar, Stars, STYLE_META } from './ui';
+import {
+  fmtRating,
+  Name,
+  RATING_STEPS,
+  SpectrumBar,
+  spectrumColor,
+  Stars,
+  STYLE_META,
+} from './ui';
 
 interface Props {
   players: Player[];
@@ -302,6 +311,8 @@ export default function Roster({ players, onChange, adminWord, setAdminWord }: P
                     {attackLabel(draft.attack)}
                   </span>
                 </div>
+                {/* the thumb tracks the spectrum colour as it moves: blue when
+                    leaning defensive, red when leaning attacking */}
                 <input
                   dir="ltr"
                   type="range"
@@ -311,7 +322,8 @@ export default function Roster({ players, onChange, adminWord, setAdminWord }: P
                   value={draft.attack}
                   onChange={(e) => setDraft({ ...draft, attack: Number(e.target.value) })}
                   aria-label="Position on the defence to attack spectrum"
-                  className="h-6 w-full accent-orange-600"
+                  className="spectrum-range w-full"
+                  style={{ '--thumb': spectrumColor(draft.attack) } as CSSProperties}
                 />
                 <div
                   dir="ltr"
@@ -410,7 +422,7 @@ export default function Roster({ players, onChange, adminWord, setAdminWord }: P
                 <div className="flex items-center gap-2">
                   <Name className="truncate font-semibold text-amber-950">{p.name}</Name>
                   <span title={STYLE_META[roleBadge(p)].label}>{STYLE_META[roleBadge(p)].icon}</span>
-                  {!p.isGk && <SpectrumBar attack={p.attack} />}
+                  {isAdmin && !p.isGk && <SpectrumBar attack={p.attack} />}
                   {isAdmin && <Stars rating={p.rating} unknown={p.ratingUnknown} />}
                 </div>
                 {(p.aliases ?? []).length > 0 && (

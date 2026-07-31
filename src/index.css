@@ -48,6 +48,73 @@ button {
   animation: pop-in 0.25s ease-out both;
 }
 
+/* Defence↔attack role slider. The track carries the blue→red spectrum and
+   the thumb is tinted to match its current position (--thumb, set inline).
+   Needs the vendor pseudo-elements — a plain accent-color can't tint a
+   custom thumb, and the track gradient isn't reachable any other way. */
+.spectrum-range {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 24px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.spectrum-range::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 999px;
+  background: linear-gradient(
+    to right,
+    rgba(2, 132, 199, 0.55),
+    rgba(120, 113, 108, 0.25),
+    rgba(220, 38, 38, 0.55)
+  );
+}
+
+.spectrum-range::-moz-range-track {
+  height: 6px;
+  border-radius: 999px;
+  background: linear-gradient(
+    to right,
+    rgba(2, 132, 199, 0.55),
+    rgba(120, 113, 108, 0.25),
+    rgba(220, 38, 38, 0.55)
+  );
+}
+
+.spectrum-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 20px;
+  width: 20px;
+  border-radius: 999px;
+  background: var(--thumb, #78716c);
+  border: 2px solid #fffdf4;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.3);
+  /* centres the 20px thumb on the 6px track */
+  margin-top: -7px;
+}
+
+.spectrum-range::-moz-range-thumb {
+  height: 20px;
+  width: 20px;
+  border-radius: 999px;
+  background: var(--thumb, #78716c);
+  border: 2px solid #fffdf4;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.3);
+}
+
+.spectrum-range:focus-visible::-webkit-slider-thumb {
+  outline: 2px solid #ea580c;
+  outline-offset: 2px;
+}
+
+.spectrum-range:focus-visible::-moz-range-thumb {
+  outline: 2px solid #ea580c;
+  outline-offset: 2px;
+}
+
 /* Live room: briefly rings the player row a remote change just moved, in
    the mover's identity color (--flash-color, set inline per element). */
 @keyframes flash-ring {
