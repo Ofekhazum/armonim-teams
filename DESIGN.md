@@ -170,7 +170,7 @@ instantly and is easy to reason about:
 |---|---|---|
 | Rating balance | high | spread between team rating sums (normalized per player when sizes differ — a 4-player team is compared by average, not sum) |
 | Badge mix | medium | each team should have a spread of defensive/balanced/attacking players rather than e.g. all-attackers — counts by derived badge |
-| Attack balance | medium | spread between teams' *mean* `attack` values. Complements the badge-count term: badges alone can't tell a 35 from a 65 (both "balanced"), so this catches the finer differences within a badge |
+| Role strength | medium | spread between teams' **defensive** and **attacking** strength (both ends scored separately). Each outfield player splits their *rating* across the two ends in proportion to their spectrum position — a 5★ at `attack: 0` contributes 5 defence, a 3★ contributes 3 — so quality is balanced *per role*, not just overall. This is what stops one team getting the 5★ defender while another makes do with the 3★ one; the aggregate rating term can't see where a team's strength sits, and badge counts treat both defenders as one head each. Anyone in goal today (permanent or temporary) is excluded from both pools, matching how their rating is already handled. With equal ratings this reduces to plain mean-attack balance, so it generalises rather than replaces that idea |
 | Chemistry | medium | bonus for each prefer-together pair on the same team |
 | Unknown spread | medium | avoid two unknown-rating guests on the same team (unless glued to the same inviter) |
 | Variety (later) | low | penalize repeating last week's exact teammates, so teams rotate over the season |

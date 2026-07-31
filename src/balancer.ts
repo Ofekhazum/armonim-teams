@@ -11,10 +11,11 @@ const W = {
   gkStack: 300, // per extra keeper on the same team — spread them, but no team *needs* one
   rating: 120, // per point of avg-rating spread between best and worst team
   style: 6, // per player of badge-count deviation — keeps real defenders/attackers spread
-  // per point of mean-attack spread between teams. Scaled so a 30-point gap on
-  // the 0–100 spectrum costs about what a 0.3 rating gap does, keeping the two
-  // balance terms comparable in weight.
-  attack: 1.2,
+  // per point of defensive/attacking strength spread between teams. Strength is
+  // on the rating scale (a team of 5★ pure defenders scores 5 defensive), and
+  // this is applied to both ends, so the pair together carries about the same
+  // weight as overall rating balance above.
+  roleStrength: 70,
   chemistry: 12,
   avoid: 40, // clashing players on the same team hurts more than friendship helps
   unknown: 20,
@@ -65,7 +66,12 @@ export interface TeamStats {
   gkCount: number;
   unknowns: number;
   styles: Record<RoleBadge, number>;
-  attackAvg: number; // mean spectrum position of this team's outfield players
+  // Per-player defensive/attacking strength: each outfield player splits their
+  // rating across the two ends in proportion to where they sit on the spectrum,
+  // so a 5★ defender counts for more defence than a 3★ one. Keepers (permanent
+  // or just for today) contribute to neither — they aren't playing outfield.
+  defStrength: number;
+  attStrength: number;
 }
 
 export function teamStats(
@@ -83,8 +89,9 @@ export function teamStats(
   let counted = 0;
   let unknowns = 0;
   let gkCount = 0;
-  let attackSum = 0;
-  let attackCounted = 0;
+  let defSum = 0;
+  let attSum = 0;
+  let outfield = 0;
   for (const id of ids) {
     const p = byId.get(id);
     if (!p) continue;
@@ -96,10 +103,12 @@ export function teamStats(
       counted++;
     }
     styles[roleBadge(p)]++;
-    // a permanent keeper has no place on the outfield spectrum
-    if (!p.isGk) {
-      attackSum += p.attack;
-      attackCounted++;
+    // anyone in goal today isn't holding an outfield role, so they're left out
+    // of both strength pools
+    if (!p.isGk && !tempGk) {
+      attSum += p.rating * (p.attack / 100);
+      defSum += p.rating * (1 - p.attack / 100);
+      outfield++;
     }
     if (p.ratingUnknown) unknowns++;
     if (gkIds.has(id)) gkCount++;
@@ -111,7 +120,8 @@ export function teamStats(
     gkCount,
     unknowns,
     styles,
-    attackAvg: attackCounted ? attackSum / attackCounted : 0,
+    defStrength: outfield ? defSum / outfield : 0,
+    attStrength: outfield ? attSum / outfield : 0,
   };
 }
 
@@ -131,9 +141,10 @@ function scoreTeams(teams: Teams, ctx: Ctx): number {
   const avgs = stats.filter((x) => x.s.size > 0).map((x) => x.s.avg);
   if (avgs.length > 1) score += (Math.max(...avgs) - Math.min(...avgs)) * W.rating;
 
-  // Two complementary shape terms: badge counts keep genuine defenders and
-  // attackers spread across teams, while mean-attack catches the finer
-  // differences within a badge that counting alone can't see.
+  // Two complementary shape terms. Badge counts keep genuine defenders and
+  // attackers spread across teams by head count, while the strength terms
+  // weigh each player's position by their rating — so one team doesn't end up
+  // with the 5★ defender while another makes do with the 3★ one.
   for (const badge of BADGES) {
     const totalOfBadge = stats.reduce((n, x) => n + x.s.styles[badge], 0);
     if (!totalOfBadge) continue;
@@ -143,9 +154,15 @@ function scoreTeams(teams: Teams, ctx: Ctx): number {
     }
   }
 
-  const attackAvgs = stats.filter((x) => x.s.size > 0).map((x) => x.s.attackAvg);
-  if (attackAvgs.length > 1) {
-    score += (Math.max(...attackAvgs) - Math.min(...attackAvgs)) * W.attack;
+  const played = stats.filter((x) => x.s.size > 0);
+  if (played.length > 1) {
+    for (const pick of [
+      (s: TeamStats) => s.defStrength,
+      (s: TeamStats) => s.attStrength,
+    ]) {
+      const vals = played.map((x) => pick(x.s));
+      score += (Math.max(...vals) - Math.min(...vals)) * W.roleStrength;
+    }
   }
 
   if (ctx.chemPairs.size || ctx.avoidPairs.size) {
