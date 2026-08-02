@@ -17,7 +17,9 @@ const W = {
   // weight as overall rating balance above.
   roleStrength: 70,
   chemistry: 12,
-  avoid: 40, // clashing players on the same team hurts more than friendship helps
+  // a preference, not a rule: nudges a pair onto separate teams, but yields
+  // when keeping them apart would cost real balance (~0.15 of rating spread)
+  avoid: 18,
   unknown: 20,
 };
 

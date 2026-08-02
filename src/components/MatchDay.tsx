@@ -17,12 +17,13 @@ interface Props {
   players: Player[];
   session: Session;
   setSession: (s: Session) => void;
+  isAdmin: boolean; // gates the private "keep apart" notes on the teams board
 }
 
 const MIN_PLAYERS = 13;
 const IDEAL_PLAYERS = 15;
 
-export default function MatchDay({ players, session, setSession }: Props) {
+export default function MatchDay({ players, session, setSession, isAdmin }: Props) {
   const [step, setStep] = useState<'players' | 'gk'>('players');
 
   // guest form
@@ -291,6 +292,7 @@ export default function MatchDay({ players, session, setSession }: Props) {
           players={todays}
           gkIds={effectiveGkIds}
           highlight={highlight}
+          showPrivateNotes={isAdmin}
           onTeamsChange={(teams) => {
             setSession({ ...session, teams });
             room?.sendSync(teams);

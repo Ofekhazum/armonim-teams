@@ -104,7 +104,12 @@ export default function App() {
           setAdminWord={setAdminWord}
         />
       ) : (
-        <MatchDay players={state.players} session={state.session} setSession={setSession} />
+        <MatchDay
+          players={state.players}
+          session={state.session}
+          setSession={setSession}
+          isAdmin={adminWord !== null}
+        />
       )}
     </div>
   );

@@ -24,6 +24,9 @@ interface Props {
   // live room only: briefly rings the row(s) a remote change just moved, in
   // the mover's identity color
   highlight?: { ids: string[]; color: string } | null;
+  // admin-only extras (who prefers to be kept apart). Off by default so the
+  // guest view of a live room can never leak them.
+  showPrivateNotes?: boolean;
 }
 
 export default function TeamsBoard({
@@ -36,6 +39,7 @@ export default function TeamsBoard({
   onBack,
   onNewFixture,
   highlight,
+  showPrivateNotes = false,
 }: Props) {
   const [selected, setSelected] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -70,10 +74,16 @@ export default function TeamsBoard({
     const inviter = g.invitedBy ? byId.get(g.invitedBy)?.name : '';
     warnings.push(`Guest ${g.name} is not on the same team as ${inviter}.`);
   }
-  for (const p of players) {
-    for (const otherId of p.avoid ?? []) {
-      if (p.id < otherId && byId.has(otherId) && teamOf(p.id) === teamOf(otherId)) {
-        warnings.push(`🥊 ${p.name} and ${byId.get(otherId)!.name} don't click — they're on the same team.`);
+  // Who'd rather not be paired up is private — never surfaced on a board that
+  // guests can see (a shared live room renders this same component).
+  if (showPrivateNotes) {
+    for (const p of players) {
+      for (const otherId of p.avoid ?? []) {
+        if (p.id < otherId && byId.has(otherId) && teamOf(p.id) === teamOf(otherId)) {
+          warnings.push(
+            `↔️ ${p.name} and ${byId.get(otherId)!.name} are usually kept apart — they're together here.`,
+          );
+        }
       }
     }
   }

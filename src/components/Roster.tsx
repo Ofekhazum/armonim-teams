@@ -361,28 +361,36 @@ export default function Roster({ players, onChange, adminWord, setAdminWord }: P
                 </div>
               </div>
 
-              <div>
-                <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-amber-900/60">
-                  🥊 Doesn't click with (keep on different teams)
+              {/* deliberately admin-only: who'd rather not be paired up is
+                  sensitive, so it isn't shown or editable in normal mode */}
+              {isAdmin && (
+                <div>
+                  <div className="text-xs font-semibold uppercase tracking-wide text-amber-900/60">
+                    ↔️ Prefer on separate teams
+                  </div>
+                  <p className="mb-1.5 text-xs text-amber-900/50">
+                    A nudge, not a rule — the balancer splits them when it can, but won't
+                    wreck the balance to do it. Only visible in admin mode.
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {sorted
+                      .filter((p) => p.id !== editingId)
+                      .map((p) => (
+                        <button
+                          key={p.id}
+                          onClick={() => toggleAvoid(p.id)}
+                          className={`rounded-full border px-3 py-2 text-sm transition-colors ${
+                            draft.avoid.includes(p.id)
+                              ? 'border-sky-600 bg-sky-600/15 text-sky-800'
+                              : 'border-amber-900/25 bg-white text-amber-900/70 hover:border-sky-600/60'
+                          }`}
+                        >
+                          <Name>{p.name}</Name>
+                        </button>
+                      ))}
+                  </div>
                 </div>
-                <div className="flex flex-wrap gap-1.5">
-                  {sorted
-                    .filter((p) => p.id !== editingId)
-                    .map((p) => (
-                      <button
-                        key={p.id}
-                        onClick={() => toggleAvoid(p.id)}
-                        className={`rounded-full border px-3 py-2 text-sm transition-colors ${
-                          draft.avoid.includes(p.id)
-                            ? 'border-red-500 bg-red-500/15 text-red-700'
-                            : 'border-amber-900/25 bg-white text-amber-900/70 hover:border-red-500/60'
-                        }`}
-                      >
-                        <Name>{p.name}</Name>
-                      </button>
-                    ))}
-                </div>
-              </div>
+              )}
             </>
           )}
 
@@ -443,12 +451,12 @@ export default function Roster({ players, onChange, adminWord, setAdminWord }: P
                         .join(', ')}
                     </span>
                   )}
-                  {(p.avoid ?? []).length > 0 && (
+                  {isAdmin && (p.avoid ?? []).length > 0 && (
                     <span
-                      className="min-w-0 max-w-full truncate text-xs text-red-700/80"
-                      title="Keep on different teams"
+                      className="min-w-0 max-w-full truncate text-xs text-sky-800/80"
+                      title="Prefer on separate teams (admin only)"
                     >
-                      🥊{' '}
+                      ↔️{' '}
                       {p.avoid!
                         .map((id) => byId.get(id)?.name)
                         .filter(Boolean)

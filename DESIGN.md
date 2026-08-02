@@ -31,7 +31,7 @@ tiny Cloudflare Worker (§6).
 | isGuest | boolean? | guests are one-off, added on match day |
 | invitedBy | playerId? | guests only, optional — if set, the guest is a hard constraint: same team as inviter. If unset, the guest is balanced freely |
 | chemistry | string[] | ids of players they play well with (mutual — kept in sync both ways on save) |
-| avoid | string[]? | ids of players they clash with, kept on different teams (mutual, mutually exclusive with chemistry for the same pair) |
+| avoid | string[]? | ids of players they'd rather not be teamed with — a *preference* to keep apart, not a hard rule (mutual, mutually exclusive with chemistry for the same pair). **Admin-only**: never shown or editable outside admin mode, and deliberately withheld from the teams board when it renders for a live-room guest (`showPrivateNotes` on `TeamsBoard`). Note the data itself still ships in the published roster JSON, which is a public endpoint — this is UI discretion, not a security boundary |
 
 Guests default to **rating 3.5** with `ratingUnknown: true` when no rating is guessed at add-time
 (`addGuest` in `MatchDay.tsx`, and the same default in the paste-import guest path, §2.4)
@@ -172,6 +172,7 @@ instantly and is easy to reason about:
 | Badge mix | medium | each team should have a spread of defensive/balanced/attacking players rather than e.g. all-attackers — counts by derived badge |
 | Role strength | medium | spread between teams' **defensive** and **attacking** strength (both ends scored separately). Each outfield player splits their *rating* across the two ends in proportion to their spectrum position — a 5★ at `attack: 0` contributes 5 defence, a 3★ contributes 3 — so quality is balanced *per role*, not just overall. This is what stops one team getting the 5★ defender while another makes do with the 3★ one; the aggregate rating term can't see where a team's strength sits, and badge counts treat both defenders as one head each. Anyone in goal today (permanent or temporary) is excluded from both pools, matching how their rating is already handled. With equal ratings this reduces to plain mean-attack balance, so it generalises rather than replaces that idea |
 | Chemistry | medium | bonus for each prefer-together pair on the same team |
+| Keep apart | medium | penalty for a "prefer on separate teams" pair landing together. Weight 18 (was 40) — deliberately a nudge that yields rather than a near-hard constraint. In practice a single pair is separated ~100% of the time anyway (with 15 players across 3 teams it costs almost nothing); the weight only bites when preferences conflict with each other, where the balancer now accepts the unavoidable clash rather than wrecking rating balance chasing an impossible split |
 | Unknown spread | medium | avoid two unknown-rating guests on the same team (unless glued to the same inviter) |
 | Variety (later) | low | penalize repeating last week's exact teammates, so teams rotate over the season |
 
