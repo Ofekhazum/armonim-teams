@@ -153,7 +153,8 @@ export default function TeamsBoard({
       }
       lines.push('');
     }
-    if (rotation) {
+    const totalAssigned = TEAM_COLORS.reduce((sum, c) => sum + teams[c].length, 0);
+    if (rotation && totalAssigned >= 15) {
       lines.push('🔁 Rotation (resting team completes the short side):');
       for (const m of rotation) {
         const base = `${HEART[m.a]} vs ${HEART[m.b]} — ${HEART[m.resting]} rests`;
