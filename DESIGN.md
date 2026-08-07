@@ -232,6 +232,15 @@ how often it fires at four nights *and* pushes the wrong-direction rate to about
 recommending a downgrade for a genuinely good player one time in four. Three numbers a night is a
 coarse record, and no amount of modelling manufactures information that isn't there.
 
+**Running out of scale.** A player already at 5★ who keeps beating expectation, or one at 1★ who
+keeps falling short, has no half-star left to move. Rather than silently dropping the case (which
+left them showing a large "vs rating" number with no explanation), it's reported as a note with
+`atLimit: true` — shown without an Apply button and sorted below the actionable suggestions. The
+note says what it means in practice: since the balancer only ever *compares* players, a ceiling
+player who keeps over-performing means the top of the scale is compressed, so teams built around
+them are stronger than their numbers admit, and the fix — if it persists — is to nudge the rest of
+the roster down rather than to invent a 5.5.
+
 Two further caveats worth keeping in view:
 
 - Converting "surprise in results" into "stars" assumes a model of how ratings drive wins that this

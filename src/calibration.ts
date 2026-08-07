@@ -104,6 +104,14 @@ export interface RatingSuggestion {
   wins: number;
   impliedDelta: number;
   confidence: 'building' | 'solid' | 'strong';
+  // The evidence points past the end of the 1–5 scale: already a 5 and still
+  // winning more than a 5 should, or already a 1 and still losing more. There
+  // is no half-star left to offer, so this is a note rather than an action —
+  // but it is worth saying rather than swallowing, because the balancer only
+  // ever compares players. Someone pinned at the ceiling who keeps beating
+  // expectation means the top of the scale is compressed, and teams built
+  // around them are stronger than their numbers admit.
+  atLimit: boolean;
 }
 
 // --- Reading a night -------------------------------------------------------
@@ -347,7 +355,8 @@ export function suggestRatings(
 
     const direction = est.delta > 0 ? 'up' : 'down';
     const suggested = clampRating(p.rating + (direction === 'up' ? STEP : -STEP));
-    if (suggested === p.rating) continue; // already at the end of the scale
+    // no room left to move them: reported as a note instead of being dropped
+    const atLimit = suggested === p.rating;
 
     out.push({
       id,
@@ -360,8 +369,14 @@ export function suggestRatings(
       impliedDelta: est.delta,
       // evidence grows with nights played, not with how big the estimate looks
       confidence: rec.nights >= 15 ? 'strong' : rec.nights >= 8 ? 'solid' : 'building',
+      atLimit,
     });
   }
 
-  return out.sort((x, y) => Math.abs(y.impliedDelta) - Math.abs(x.impliedDelta));
+  // things you can act on first; a ceiling note is information, not a to-do
+  return out.sort(
+    (x, y) =>
+      Number(x.atLimit) - Number(y.atLimit) ||
+      Math.abs(y.impliedDelta) - Math.abs(x.impliedDelta),
+  );
 }

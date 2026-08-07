@@ -121,13 +121,23 @@ export default function History({
             {suggestions.map((s) => (
               <li
                 key={s.id}
-                className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-amber-900/10 bg-white/70 px-3 py-2.5 text-sm"
+                className={`flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border px-3 py-2.5 text-sm ${
+                  s.atLimit
+                    ? 'border-amber-900/10 bg-amber-900/[0.04]'
+                    : 'border-amber-900/10 bg-white/70'
+                }`}
               >
                 <Name className="font-bold text-amber-950">{s.name}</Name>
-                <span className="font-semibold text-amber-900">
-                  {fmtRating(s.current)} → {fmtRating(s.suggested)}
-                  <span className="ml-1">{s.direction === 'up' ? '⬆️' : '⬇️'}</span>
-                </span>
+                {s.atLimit ? (
+                  <span className="font-semibold text-amber-900">
+                    {s.direction === 'up' ? '⭐' : '⚓'} stays at {fmtRating(s.current)}
+                  </span>
+                ) : (
+                  <span className="font-semibold text-amber-900">
+                    {fmtRating(s.current)} → {fmtRating(s.suggested)}
+                    <span className="ml-1">{s.direction === 'up' ? '⬆️' : '⬇️'}</span>
+                  </span>
+                )}
                 <span className="text-xs text-amber-900/55">
                   {s.nights} night{s.nights === 1 ? '' : 's'} · {fmtWins(s.wins)} wins
                 </span>
@@ -148,18 +158,28 @@ export default function History({
                   {s.confidence === 'building' ? 'early' : s.confidence}
                 </span>
                 <div className="flex-1" />
-                <button
-                  onClick={() => onApplyRating(s.id, s.suggested)}
-                  className="rounded-lg bg-orange-600 px-3 py-1 text-xs font-bold text-amber-50 hover:scale-105"
-                >
-                  Apply
-                </button>
+                {/* nothing to apply when the scale has run out — only the note */}
+                {!s.atLimit && (
+                  <button
+                    onClick={() => onApplyRating(s.id, s.suggested)}
+                    className="rounded-lg bg-orange-600 px-3 py-1 text-xs font-bold text-amber-50 hover:scale-105"
+                  >
+                    Apply
+                  </button>
+                )}
                 <button
                   onClick={() => setDismissed((d) => new Set(d).add(s.id))}
                   className="rounded-lg border border-amber-900/25 px-3 py-1 text-xs font-bold text-amber-900 hover:border-orange-500"
                 >
                   Dismiss
                 </button>
+                {s.atLimit && (
+                  <p className="w-full text-xs text-amber-900/60">
+                    {s.direction === 'up'
+                      ? `Already at ${fmtRating(s.current)}★ — the scale stops here, but the results say they're further ahead than a ${fmtRating(s.current)} can show. Teams built around them are stronger than the numbers admit, so nudge the rest of the roster down if this keeps up.`
+                      : `Already at ${fmtRating(s.current)}★ — the scale stops here, but the results say they're further behind than a ${fmtRating(s.current)} can show. Teams carrying them are weaker than the numbers admit.`}
+                  </p>
+                )}
               </li>
             ))}
           </ul>
