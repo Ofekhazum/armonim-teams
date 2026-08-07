@@ -77,9 +77,48 @@ export interface Session {
   teams: Teams | null;
   teamAlts: Teams[]; // balanced variations generated alongside `teams`, for re-roll
   altIndex: number; // which variation is currently shown
+  results: MatchResult[]; // tonight's scores as entered, before they're filed
+  savedFixtureId: string | null; // set once tonight is saved, so re-saving updates
+}
+
+// --- Results & history -----------------------------------------------------
+
+export interface MatchResult {
+  a: TeamColor;
+  b: TeamColor;
+  // null until someone types a score — an unplayed or unrecorded match is
+  // skipped everywhere rather than counted as a 0-0 draw
+  scoreA: number | null;
+  scoreB: number | null;
+  // house rule: a match that finishes level goes to penalties, and taking the
+  // shootout is worth *half* a win (hence standings like "3.5 wins"). Left
+  // unset if a level match was just called a draw.
+  penaltyWinner?: TeamColor | null;
+  // who came on from the resting team for *this* match (short-handed nights,
+  // see planRotation). Recorded so calibration credits the result to the team
+  // a player actually played for, not the one they were drafted into.
+  loans?: { id: string; to: TeamColor }[];
+}
+
+// Who played, captured at the time. Guests are one-off and renames happen, so
+// a fixture keeps its own copy of names/ratings rather than pointing at the
+// live roster and going stale.
+export interface FixturePlayer {
+  id: string;
+  name: string;
+  rating: number;
+}
+
+export interface FixtureRecord {
+  id: string;
+  date: string; // ISO 'YYYY-MM-DD', absolute so it reads correctly forever
+  teams: Teams;
+  players: FixturePlayer[];
+  matches: MatchResult[];
 }
 
 export interface AppState {
   players: Player[];
   session: Session;
+  history: FixtureRecord[]; // past fixtures, oldest first
 }

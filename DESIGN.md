@@ -47,7 +47,7 @@ old shape until it's re-published. The conversion is idempotent and strips the d
 extremes are deliberate: an old "defensive" player is pinned at 100% defensive as a *starting
 point*, expected to be tuned by hand afterwards.
 
-### Session (`Session` in `src/types.ts`) — one match night, no history kept
+### Session (`Session` in `src/types.ts`) — the match night in progress
 | Field | Notes |
 |---|---|
 | availableIds | roster player ids marked available today |
@@ -56,8 +56,11 @@ point*, expected to be tuned by hand afterwards.
 | teams | the generated/edited assignment (`Record<'black'\|'white'\|'blue', string[]>`), or `null` before generation |
 | teamAlts | the top-N balanced variations generated alongside `teams`, for "re-roll" |
 | altIndex | which variation is currently shown |
+| results | tonight's three scores as typed, before they're filed (§2.6) |
+| savedFixtureId | set once tonight is saved, so re-saving updates that record instead of adding another |
 
-There is no session history — only the current in-progress session is persisted.
+Only the night in progress lives here. Finished nights move into `AppState.history` as
+`FixtureRecord`s (§2.6); the session itself is reset by "New fixture".
 
 ### 2.4 Importing a pasted attendance list (match day, step 1)
 
@@ -165,6 +168,66 @@ with.
 auto-reconnect-on-remount — click "Go live" again, which reuses the persisted room/link and resyncs
 rather than minting a new room).
 
+### 2.6 Results, history & rating suggestions
+
+Recording what actually happened, and using it to question the ratings.
+
+**Model** (`types.ts`): a `FixtureRecord` per night — `{ id, date, teams, players, matches }`.
+`players` is a **snapshot** (`FixturePlayer`: id/name/rating at the time) rather than a pointer into
+the roster, because guests are one-off and both names and ratings move; history has to still read
+correctly years later. `matches` holds three `MatchResult`s in `MATCH_PAIRINGS` order (exported from
+`balancer.ts` and shared with `planRotation`, so a saved score always lines up with the match it was
+typed against). A match carries `loans` when the night was short-handed, so a player who came on for
+the resting side is credited to the team they actually played for.
+
+**House rule — half wins.** A level match goes to penalties, and taking the shootout is worth *half*
+a win: hence standings like "3.5 wins". `winShare` (`calibration.ts`) is the single place that
+encodes it — decisive result 1/0, shootout 0.5/0, level-but-unrecorded 0.5/0.5. A match with no
+score entered is skipped everywhere rather than counted as a 0-0 draw.
+
+**Entry**: `ResultsPanel.tsx`, rendered by `MatchDay` *below* the board rather than inside
+`TeamsBoard` — deliberately, since a live-room guest renders that same board and must not be able to
+file a night into the host's history. Re-saving updates the same record (`session.savedFixtureId`)
+instead of appending a duplicate; generating fresh teams clears both, since old scores no longer
+describe the new sheet.
+
+**Rating suggestions** (`calibration.ts`, surfaced in the History tab, admin only). The naive
+approach — take a team's surprise and blame all five players equally — cannot separate a player from
+their teammates; simulated seasons showed it finding genuinely mis-rated players about half the time
+while flagging fairly-rated ones in most seasons. Instead every player is solved for at once with
+**ridge-regularised plus-minus**: each recorded match is one equation ("the surprise in this result
+is the sum of the rating errors on A minus those on B"), and because the balancer reshuffles teams
+weekly, the same player appears in many combinations — that variation is what separates them.
+
+Four things stop it being reactionary:
+
+1. Expectation uses **current** ratings, not the night's, which makes a suggestion self-cancelling:
+   accept it and the player's expected results rise with it, so the same history stops arguing for
+   another one.
+2. The ridge penalty (`LAMBDA`) pulls every estimate toward "your rating is fine".
+3. The trigger is a **confidence test** (`MIN_Z`), not a raw margin — an estimate has to stand clear
+   of its own error bars.
+4. A hard `MIN_MATCHES` floor.
+
+Penalties are ignored *here* even though they decide the standings: a shootout is near enough a coin
+flip, so for judging ability a level match is just a draw.
+
+**What the numbers actually support.** Constants were picked by simulating 80 seasons per setting,
+not by taste. Two findings worth keeping in mind before trusting this feature:
+
+- Individual attribution in five-a-side is genuinely hard. At the chosen bar, a league where
+  everyone is correctly rated still throws up a spurious suggestion in roughly one season in six,
+  and a player who really is a full star out is found about a fifth of the time once a couple of
+  years of results exist. Loosening the bar to `z=1.0` quadruples the hit rate but makes a false
+  suggestion near-certain every season, which would train everyone to ignore the feature.
+- The conversion from "surprise in results" to "stars" assumes a model of how ratings drive goals
+  that this data cannot verify; simulation showed the *magnitude* can be off by about a factor of
+  two while the sign and ordering hold. That is why `MIN_Z` does the gatekeeping, the suggestion
+  only ever moves half a star, and the UI calls them prompts rather than verdicts.
+
+So the standings table also shows a raw "vs rating" column for everyone, greyed out until it clears
+`|z| ≥ 1.5` — the underlying information is useful long before any suggestion fires.
+
 ## 3. Team generation algorithm
 
 Balancing is a small constrained optimization. With ≤15 players, brute force is too big
@@ -219,7 +282,7 @@ today; the guard is equivalent to deleting the block, and is written as a thresh
 intent ("don't paste rotation into WhatsApp for a short-handed night") stays legible. The on-screen
 panel is unaffected — the organizer still sees the plan, it just doesn't go into the group chat.
 
-## 5. Screens (`src/App.tsx` — two tabs, no router)
+## 5. Screens (`src/App.tsx` — three tabs, no router)
 
 1. **Roster** (`src/components/Roster.tsx`) — the permanent squad: add/edit name, aliases,
    rating, role (GK toggle, or a 0–100 defence↔attack slider in steps of 5), chemistry/avoid
@@ -240,18 +303,25 @@ panel is unaffected — the organizer still sees the plan, it just doesn't go in
      numbers update live. "Re-roll" cycles through the alternative generated results. A **Share**
      button copies WhatsApp-ready text (`shareText`/`copy` in `TeamsBoard.tsx`). Optionally,
      **🔴 Go live** turns this board into a shared live room others can join and drag in — see §2.5.
-3. **Live room guest view** (`src/components/RoomGuest.tsx`) — what a shared room link opens
+   Below the board, **🏁 Tonight's results** (`ResultsPanel.tsx`) takes the three scores and
+   files the night into history — see §2.6.
+3. **History** (`src/components/History.tsx`) — past nights (expandable to the team sheets and
+   scores), a standings table where a shootout counts as half a win, and, in admin mode,
+   rating suggestions with Apply/Dismiss. Empty until the first night is saved.
+4. **Live room guest view** (`src/components/RoomGuest.tsx`) — what a shared room link opens
    instead of the app above; see §2.5.
 
-There is no session history and no settings screen — one in-progress session is kept, and it resets
-via "New fixture."
+There is no settings screen — one in-progress session is kept and resets via "New fixture", while
+saved nights accumulate in the History tab (§2.6).
 
 ## 6. Tech stack (as built)
 
 - **Vite + React 18 + TypeScript**, Tailwind v4 — single-page app, no router.
 - **State/persistence**: `localStorage` only (`src/storage.ts`, key `armonim-teams-v1`,
-  `STORAGE_VERSION` bump on breaking schema changes — mismatched versions fall back to the
-  default roster). No JSON export/import UI currently exists.
+  `STORAGE_VERSION` 4 — bumped when results/history were added; a save from an older version is
+  *migrated*, never discarded, and a missing `history` simply starts empty). No JSON
+  export/import UI currently exists. History is local to the device: it is deliberately not part
+  of the published roster, so it never leaves the organizer's phone.
 - **Shared roster (optional)**: `src/remote.ts` + `worker/roster-worker.js`, a small Cloudflare
   Worker storing the roster as versioned JSON in KV, behind a secret admin word
   (`/verify`, `/roster` endpoints). On load, `App.tsx` pulls the remote roster and adopts it if
@@ -276,6 +346,11 @@ via "New fixture."
   `ROOMS_ENABLED` in `liveRoom.ts` mirrors `REMOTE_URL`'s empty-string-to-disable convention.
 - Drag-and-drop uses native HTML5 drag events (`draggable`/`onDragStart`/`onDrop`) — no dnd-kit
   or other DnD library is installed.
+- **Share as an image** (`src/shareImage.ts`): the teams drawn onto a `<canvas>` at 2× and handed
+  to the OS share sheet via `navigator.share({ files })`, falling back to a download where file
+  sharing isn't supported. Canvas rather than rasterising the DOM so nothing new has to be
+  installed, and text is drawn with `ctx.direction = 'rtl'` so Hebrew names — and Latin nicknames
+  mixed into them — sit the right way round.
 - **Build version marker**: `vite.config.ts` runs `git rev-parse --short HEAD` at build time and
   injects it as the `__GIT_HASH__` global (declared in `src/vite-env.d.ts`, falls back to `'dev'`
   if git isn't available). Shown top-right of the Roster page — since GitHub Pages rebuilds on
@@ -337,4 +412,5 @@ on demand.
 1. **MVP** — roster CRUD, availability picking, GK marking, balancer with hard constraints + rating balance, team cards, WhatsApp share text, localStorage.
 2. **Quality** — chemistry links, role/spectrum balance, guests glued to inviters, drag-and-drop editing with live balance feedback, alternative results.
 3. **Short-handed logic** — 13/14 player team sizing, loan rotation screen.
-4. **Polish** — history, settings for weights, variety-across-weeks scoring, JSON export/import.
+4. **Polish** — settings for weights, variety-across-weeks scoring, JSON export/import.
+   *(History, results and rating suggestions landed in §2.6; picture sharing in §6.)*

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import type { Player, Session } from '../types';
+import type { FixtureRecord, Player, Session } from '../types';
 import { ATTACK_DEFAULT, roleBadge } from '../types';
 import {
   emptySession,
@@ -10,13 +10,14 @@ import {
   setMyName,
   uid,
 } from '../storage';
-import { generateTeams, targetSizes } from '../balancer';
+import { generateTeams, planRotation, targetSizes } from '../balancer';
 import { parseImportList, resolveImportedNames } from '../importRoster';
 import { ROOMS_ENABLED, hostRoom, roomShareUrl } from '../liveRoom';
 import type { ActivityEvent, PresenceMember, RoomConnection } from '../liveRoom';
 import { createUserColorTracker } from '../userColor';
 import LiveRoomBar from './LiveRoomBar';
 import TeamsBoard from './TeamsBoard';
+import ResultsPanel, { emptyResults } from './ResultsPanel';
 import { fmtRating, Name, RATING_STEPS, STYLE_META } from './ui';
 
 const ACTIVITY_MS = 750;
@@ -26,12 +27,19 @@ interface Props {
   session: Session;
   setSession: (s: Session) => void;
   isAdmin: boolean; // gates the private "keep apart" notes on the teams board
+  onSaveFixture: (fixture: FixtureRecord) => void;
 }
 
 const MIN_PLAYERS = 13;
 const IDEAL_PLAYERS = 15;
 
-export default function MatchDay({ players, session, setSession, isAdmin }: Props) {
+export default function MatchDay({
+  players,
+  session,
+  setSession,
+  isAdmin,
+  onSaveFixture,
+}: Props) {
   const [step, setStep] = useState<'players' | 'gk'>('players');
 
   // guest form
@@ -185,7 +193,16 @@ export default function MatchDay({ players, session, setSession, isAdmin }: Prop
 
   const generate = () => {
     const results = generateTeams(todays, new Set(effectiveGkIds));
-    setSession({ ...session, teams: results[0] ?? null, teamAlts: results, altIndex: 0 });
+    setSession({
+      ...session,
+      teams: results[0] ?? null,
+      teamAlts: results,
+      altIndex: 0,
+      // these teams are new, so any scores typed against the old ones — and
+      // the history record they were filed into — no longer describe them
+      results: emptyResults(),
+      savedFixtureId: null,
+    });
   };
 
   const reroll = () => {
@@ -194,6 +211,34 @@ export default function MatchDay({ players, session, setSession, isAdmin }: Prop
     const teams = session.teamAlts[next];
     setSession({ ...session, teams, altIndex: next });
     room?.sendSync(teams);
+  };
+
+  // Files tonight into history. Re-saving updates the same record instead of
+  // piling up duplicates, so correcting a typo doesn't invent a second night.
+  // The team sheet and everyone's name/rating are snapshotted, because guests
+  // vanish and ratings move — history has to stay readable years later.
+  const saveNight = () => {
+    if (!session.teams) return;
+    const teams = session.teams;
+    const byId = new Map(todays.map((p) => [p.id, p]));
+    // loans line up with the results rows: both are in MATCH_PAIRINGS order.
+    // On a full night every loans array is empty, which is the right answer.
+    const plan = planRotation(teams, byId, new Set(effectiveGkIds));
+    const rows = session.results.length ? session.results : emptyResults();
+    const matches = rows.map((r, i) => {
+      const loans = plan[i]?.loans ?? [];
+      return loans.length ? { ...r, loans } : { ...r, loans: undefined };
+    });
+
+    const id = session.savedFixtureId ?? uid();
+    onSaveFixture({
+      id,
+      date: new Date().toISOString().slice(0, 10),
+      teams: { black: [...teams.black], white: [...teams.white], blue: [...teams.blue] },
+      players: todays.map((p) => ({ id: p.id, name: p.name, rating: p.rating })),
+      matches,
+    });
+    setSession({ ...session, results: rows, savedFixtureId: id });
   };
 
   const leaveRoom = () => {
@@ -326,6 +371,13 @@ export default function MatchDay({ players, session, setSession, isAdmin }: Prop
             setSession(emptySession());
             setStep('players');
           }}
+        />
+        <ResultsPanel
+          teams={session.teams}
+          results={session.results}
+          onChange={(results) => setSession({ ...session, results })}
+          onSave={saveNight}
+          saved={session.savedFixtureId !== null}
         />
       </div>
     );

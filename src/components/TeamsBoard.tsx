@@ -9,6 +9,7 @@ import {
   planRotation,
   teamStats,
 } from '../balancer';
+import { shareTeamsImage } from '../shareImage';
 import { Name, STYLE_META, TEAM_META } from './ui';
 
 interface Props {
@@ -43,6 +44,7 @@ export default function TeamsBoard({
 }: Props) {
   const [selected, setSelected] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [sharing, setSharing] = useState(false);
 
   const byId = useMemo(() => new Map(players.map((p) => [p.id, p])), [players]);
   const gkSet = useMemo(() => new Set(gkIds), [gkIds]);
@@ -178,6 +180,18 @@ export default function TeamsBoard({
     }
   };
 
+  const shareImage = async () => {
+    setSharing(true);
+    const result = await shareTeamsImage({
+      teams,
+      byId,
+      gkIds: gkSet,
+      date: new Date().toISOString().slice(0, 10),
+    });
+    setSharing(false);
+    if (result === 'failed') alert('Could not create the image on this device.');
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
@@ -222,6 +236,14 @@ export default function TeamsBoard({
         >
           Balance gap: {spread.toFixed(2)}
         </span>
+        <button
+          onClick={shareImage}
+          disabled={sharing}
+          className="rounded-xl border border-amber-900/30 px-4 py-2 text-sm font-semibold text-amber-900 hover:border-orange-500 disabled:opacity-50"
+          title="Share the teams as a picture"
+        >
+          {sharing ? '…' : '🖼️ Share image'}
+        </button>
         <button
           onClick={copy}
           className="rounded-xl bg-orange-600 px-4 py-2 text-sm font-bold text-amber-50 shadow-sm transition-transform hover:scale-105"

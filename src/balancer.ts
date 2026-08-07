@@ -342,6 +342,15 @@ export interface MatchPlan {
   loans: { id: string; to: TeamColor }[];
 }
 
+// A night is three matches: every team plays the other two once and sits out
+// the third. Both the rotation plan and the results sheet key off this order,
+// so a saved result always lines up with the match it was entered against.
+export const MATCH_PAIRINGS: { a: TeamColor; b: TeamColor; resting: TeamColor }[] = [
+  { a: 'black', b: 'white', resting: 'blue' },
+  { a: 'blue', b: 'black', resting: 'white' },
+  { a: 'white', b: 'blue', resting: 'black' },
+];
+
 // For each of the three pairings, pick players from the resting team to
 // complete any short team — preferring players loaned the fewest times, then
 // the rating that best evens out the match.
@@ -350,11 +359,6 @@ export function planRotation(
   byId: Map<string, Player>,
   gkIds: Set<string> = new Set(),
 ): MatchPlan[] {
-  const order: [TeamColor, TeamColor, TeamColor][] = [
-    ['black', 'white', 'blue'],
-    ['blue', 'black', 'white'],
-    ['white', 'blue', 'black'],
-  ];
   const used = new Map<string, number>();
   // temporary keepers count as 0 outfield contribution (see teamStats)
   const isTempGk = (id: string) => {
@@ -369,7 +373,7 @@ export function planRotation(
       : 0;
   };
 
-  return order.map(([a, b, resting]) => {
+  return MATCH_PAIRINGS.map(({ a, b, resting }) => {
     const loans: { id: string; to: TeamColor }[] = [];
     const pool = [...teams[resting]];
     for (const t of [a, b]) {

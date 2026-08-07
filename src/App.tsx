@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
-import type { AppState, Player, Session } from './types';
+import type { AppState, FixtureRecord, Player, Session } from './types';
 import { migratePlayer } from './types';
 import { loadState, saveState } from './storage';
 import { fetchRemoteRoster, localRosterVersion, setLocalRosterVersion } from './remote';
 import Roster from './components/Roster';
 import MatchDay from './components/MatchDay';
+import History from './components/History';
 
-type Tab = 'match' | 'roster';
+type Tab = 'match' | 'roster' | 'history';
 
 export default function App() {
   const [state, setState] = useState<AppState>(() => loadState());
@@ -57,11 +58,30 @@ export default function App() {
       if (session.teams && Object.values(session.teams).flat().some((id) => !knownIds.has(id))) {
         session.teams = null;
       }
-      return { players: clean, session };
+      return { ...s, players: clean, session };
     });
   };
 
   const setSession = (session: Session) => setState((s) => ({ ...s, session }));
+
+  // Saving the same night twice replaces the record rather than appending, so
+  // fixing a score doesn't leave a duplicate behind.
+  const saveFixture = (fixture: FixtureRecord) =>
+    setState((s) => ({
+      ...s,
+      history: s.history.some((f) => f.id === fixture.id)
+        ? s.history.map((f) => (f.id === fixture.id ? fixture : f))
+        : [...s.history, fixture],
+    }));
+
+  const deleteFixture = (id: string) =>
+    setState((s) => ({ ...s, history: s.history.filter((f) => f.id !== id) }));
+
+  // Accepting a rating suggestion is a normal roster edit — it goes through
+  // setPlayers so the session stays consistent, and still needs publishing to
+  // reach anyone else.
+  const applyRating = (playerId: string, rating: number) =>
+    setPlayers(state.players.map((p) => (p.id === playerId ? { ...p, rating } : p)));
 
   const tabBtn = (t: Tab, label: string) => (
     <button
@@ -93,6 +113,7 @@ export default function App() {
         <nav className="flex gap-1 rounded-full border border-amber-900/20 bg-[#fffdf4]/70 p-1 shadow-sm">
           {tabBtn('match', 'Match day')}
           {tabBtn('roster', `Roster (${state.players.length})`)}
+          {tabBtn('history', 'History')}
         </nav>
       </header>
 
@@ -103,12 +124,21 @@ export default function App() {
           adminWord={adminWord}
           setAdminWord={setAdminWord}
         />
+      ) : tab === 'history' ? (
+        <History
+          history={state.history}
+          players={state.players}
+          isAdmin={adminWord !== null}
+          onApplyRating={applyRating}
+          onDeleteFixture={deleteFixture}
+        />
       ) : (
         <MatchDay
           players={state.players}
           session={state.session}
           setSession={setSession}
           isAdmin={adminWord !== null}
+          onSaveFixture={saveFixture}
         />
       )}
     </div>

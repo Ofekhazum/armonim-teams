@@ -3,7 +3,7 @@ import { migratePlayer } from './types';
 import { DEFAULT_PLAYERS } from './defaultRoster';
 
 const KEY = 'armonim-teams-v1';
-const STORAGE_VERSION = 3;
+const STORAGE_VERSION = 4;
 
 type PersistedState = AppState & { version?: number };
 
@@ -14,6 +14,8 @@ export const emptySession = (): Session => ({
   teams: null,
   teamAlts: [],
   altIndex: 0,
+  results: [],
+  savedFixtureId: null,
 });
 
 export function loadState(): AppState {
@@ -52,6 +54,9 @@ export function loadState(): AppState {
         return {
           players,
           session: { ...emptySession(), ...parsed.session },
+          // absent on saves from before results existed — an empty history is
+          // the correct starting point, not a reason to discard the save
+          history: Array.isArray(parsed.history) ? parsed.history : [],
         };
       }
     }
@@ -67,6 +72,7 @@ export function loadState(): AppState {
       aliases: [...(p.aliases ?? [])],
     })),
     session: emptySession(),
+    history: [],
   };
 }
 
