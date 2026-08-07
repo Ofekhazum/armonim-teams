@@ -182,6 +182,24 @@ export default function MatchDay({
     });
   };
 
+  // Ticks a random full squad, for trying the app out without typing fifteen
+  // names in. Starts from a clean slate — guests and keeper picks belonged to
+  // whoever was selected before — and takes the whole roster if it's short.
+  const pickRandom = () => {
+    const shuffled = [...players];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    setSession({
+      ...emptySession(),
+      availableIds: shuffled.slice(0, Math.min(IDEAL_PLAYERS, players.length)).map((p) => p.id),
+    });
+  };
+
+  const clearSelection = () =>
+    setSession({ ...session, availableIds: [], guests: [], gkIds: [], teams: null });
+
   const toggleGk = (id: string) => {
     setSession({
       ...session,
@@ -472,12 +490,36 @@ export default function MatchDay({
               </div>
 
               <div className="rounded-2xl border border-amber-900/15 bg-[#fffdf4]/70 p-4 shadow-sm">
-                <h3 className="mb-3 font-bold text-amber-950">
-                  Available today{' '}
-                <span className="text-sm font-normal text-amber-900/60">
-                  ({selectedMembers.length} of {players.length} selected)
-                </span>
-              </h3>
+                <div className="mb-3 flex flex-wrap items-center gap-2">
+                  <h3 className="font-bold text-amber-950">
+                    Available today{' '}
+                    <span className="text-sm font-normal text-amber-900/60">
+                      ({selectedMembers.length} of {players.length} selected)
+                    </span>
+                  </h3>
+                  <div className="flex-1" />
+                  {/* A shortcut for trying the app out — filling in fifteen names
+                      by hand to look at one screen gets old fast. Hidden on the
+                      real site unless admin is unlocked, so it never confuses
+                      anyone just checking who's playing. */}
+                  {(import.meta.env.DEV || isAdmin) && (
+                    <button
+                      onClick={pickRandom}
+                      title="Testing shortcut: tick a random full squad"
+                      className="rounded-lg border border-amber-900/25 px-3 py-1 text-xs font-bold text-amber-900 hover:border-orange-500"
+                    >
+                      🎲 Random {Math.min(IDEAL_PLAYERS, players.length)}
+                    </button>
+                  )}
+                  {selectedMembers.length > 0 && (
+                    <button
+                      onClick={clearSelection}
+                      className="rounded-lg border border-amber-900/25 px-3 py-1 text-xs font-bold text-amber-900 hover:border-orange-500"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
               <div className="grid gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
                 {sortedMembers.map((p) => {
                   const on = session.availableIds.includes(p.id);

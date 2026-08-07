@@ -258,7 +258,10 @@ export default function History({
           .map((fx) => {
           const open = openId === fx.id;
           const nameOf = (id: string) => fx.players.find((p) => p.id === id)?.name ?? '?';
-          const winner = [...TEAM_COLORS].sort((a, b) => (fx.wins[b] ?? 0) - (fx.wins[a] ?? 0))[0];
+          // a night can genuinely end level, so take everyone on the top score
+          // rather than whoever a sort happened to put first
+          const top = Math.max(...TEAM_COLORS.map((c) => fx.wins[c] ?? 0));
+          const winners = TEAM_COLORS.filter((c) => (fx.wins[c] ?? 0) === top);
           return (
             <div
               key={fx.id}
@@ -278,8 +281,23 @@ export default function History({
                   <span className="text-xs text-amber-900/40">no result recorded</span>
                 )}
                 {hasResult(fx.wins) && (
-                  <span className="text-xs font-bold text-orange-700">
-                    🏆 {TEAM_META[winner].label}
+                  <span className="flex items-center gap-1 text-xs font-bold">
+                    🏆
+                    {winners.length > 1 && (
+                      <span className="text-amber-900/60">tied</span>
+                    )}
+                    {winners.map((c) => (
+                      // the team's own card palette rather than a tinted text
+                      // colour: white-on-cream would be unreadable, and these
+                      // three combinations are already contrast-checked because
+                      // the teams board uses them
+                      <span
+                        key={c}
+                        className={`rounded-full border px-2 py-0.5 ${TEAM_META[c].card}`}
+                      >
+                        {TEAM_META[c].label}
+                      </span>
+                    ))}
                   </span>
                 )}
                 <div className="flex-1" />
