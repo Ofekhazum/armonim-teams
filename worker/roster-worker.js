@@ -6,22 +6,34 @@
 //   POST /verify       → check the secret word (used to unlock admin mode)
 //   GET  /room/:id     → WebSocket upgrade into a live team-picking room
 //
+// The two POSTs are gated on the secret word and rate-limited per IP
+// (see rate-limit.js) so the word can't simply be guessed at speed.
+//
 // Setup lives in worker/README.md. In short: bind a KV namespace as ROSTER_KV,
-// add a PUBLISH_SECRET secret, and bind the MatchRoom Durable Object.
+// add a PUBLISH_SECRET secret, and bind the MatchRoom and RateLimiter
+// Durable Objects.
 
 export { MatchRoom } from './match-room.js';
+export { RateLimiter } from './rate-limit.js';
 
+// Deliberately open: GET /roster is meant to be readable by anyone with the
+// app, and the POSTs are gated on the secret word rather than on origin — a
+// CORS rule would only inconvenience browsers, never a scripted attacker, and
+// would break `npm run dev` against the deployed worker.
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type',
 };
 
-const json = (data, status = 200) =>
+const json = (data, status = 200, extraHeaders = {}) =>
   new Response(JSON.stringify(data), {
     status,
-    headers: { 'Content-Type': 'application/json', ...CORS },
+    headers: { 'Content-Type': 'application/json', ...CORS, ...extraHeaders },
   });
+
+// A roster is a few dozen players; anything far past that is not a roster.
+const MAX_PLAYERS = 200;
 
 export default {
   async fetch(request, env) {
@@ -49,6 +61,17 @@ export default {
 
     // everything below is a POST guarded by the secret word
     if ((url.pathname === '/roster' || url.pathname === '/verify') && request.method === 'POST') {
+      // one counter per client IP (see rate-limit.js). Checked before we do any
+      // other work, so a flood costs us as little as possible.
+      const ip = request.headers.get('CF-Connecting-IP') ?? 'unknown';
+      const limiter = env.RATE_LIMITER.get(env.RATE_LIMITER.idFromName(ip));
+      const gate = await limiter.fetch('https://limiter/check').then((r) => r.json());
+      if (gate.blocked) {
+        return json({ error: 'too many attempts' }, 429, {
+          'Retry-After': String(gate.retryAfter),
+        });
+      }
+
       let body;
       try {
         body = await request.json();
@@ -58,6 +81,8 @@ export default {
 
       // the secret word is the password — checked here, on the server
       if (!safeEqual(body.secret, env.PUBLISH_SECRET)) {
+        // only wrong guesses move the counter, so publishing often is fine
+        await limiter.fetch('https://limiter/fail', { method: 'POST' });
         return json({ error: 'wrong word' }, 401);
       }
 
@@ -66,7 +91,11 @@ export default {
         return json({ ok: true });
       }
 
-      if (!Array.isArray(body.players) || body.players.some((p) => !p?.id || !p?.name)) {
+      if (
+        !Array.isArray(body.players) ||
+        body.players.length > MAX_PLAYERS ||
+        body.players.some((p) => !p?.id || !p?.name)
+      ) {
         return json({ error: 'bad roster' }, 400);
       }
 

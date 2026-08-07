@@ -53,6 +53,8 @@ export default function Roster({ players, onChange, adminWord, setAdminWord }: P
       setAdminWord(word.trim());
     } else if (result === 'wrong-word') {
       alert('❌ Wrong password.');
+    } else if (result === 'rate-limited') {
+      alert('❌ Too many wrong passwords. Please wait a few minutes and try again.');
     } else if (result === 'not-configured') {
       alert('The shared roster is not set up yet (REMOTE_URL is empty in remote.ts).');
     } else {
@@ -73,6 +75,8 @@ export default function Roster({ players, onChange, adminWord, setAdminWord }: P
       // password was changed on the server since we unlocked — drop back to normal
       alert('❌ The password is no longer valid. Please unlock admin again.');
       setAdminWord(null);
+    } else if (result === 'rate-limited') {
+      alert('❌ Too many failed attempts. Please wait a few minutes and try again.');
     } else {
       alert('Could not publish — check your connection and try again.');
     }

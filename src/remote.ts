@@ -37,7 +37,15 @@ export async function fetchRemoteRoster(): Promise<RemoteRoster | null> {
   }
 }
 
-export type PublishResult = 'ok' | 'wrong-word' | 'error' | 'not-configured';
+// 'rate-limited' comes from the worker after too many wrong words from this IP
+// (see worker/rate-limit.js) — worth telling apart from a generic failure, so
+// the app can say "wait" rather than "check your connection".
+export type PublishResult =
+  | 'ok'
+  | 'wrong-word'
+  | 'rate-limited'
+  | 'error'
+  | 'not-configured';
 
 // Check the secret word without changing anything — used to unlock admin mode.
 export async function verifyWord(secret: string): Promise<PublishResult> {
@@ -49,6 +57,7 @@ export async function verifyWord(secret: string): Promise<PublishResult> {
       body: JSON.stringify({ secret }),
     });
     if (res.status === 401) return 'wrong-word';
+    if (res.status === 429) return 'rate-limited';
     if (!res.ok) return 'error';
     return 'ok';
   } catch {
@@ -70,6 +79,7 @@ export async function publishRemoteRoster(
       body: JSON.stringify({ secret, players }),
     });
     if (res.status === 401) return { result: 'wrong-word' };
+    if (res.status === 429) return { result: 'rate-limited' };
     if (!res.ok) return { result: 'error' };
     const data = (await res.json()) as { version: number };
     return { result: 'ok', version: data.version };

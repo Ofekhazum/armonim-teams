@@ -77,6 +77,12 @@ export function saveState(state: AppState) {
 export const uid = () =>
   Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 
+// Like uid(), but for the live room's adminToken, which is a credential rather
+// than just a label: it's the only thing proving a connection is the host, so
+// it has to be unguessable. uid()'s Math.random() is neither cryptographically
+// strong nor long enough for that; this is.
+export const secureToken = (): string => crypto.randomUUID();
+
 // --- Live room identity ----------------------------------------------------
 // The display name people pick the first time they go live or join a room,
 // remembered per device so it's only ever asked once.

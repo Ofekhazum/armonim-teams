@@ -15,6 +15,16 @@ id = "8181a03150814ea0be97b2f853166a0d"
 name = "MATCH_ROOM"
 class_name = "MatchRoom"
 
+# One instance per client IP, counting wrong publish-word guesses
+# (see rate-limit.js).
+[[durable_objects.bindings]]
+name = "RATE_LIMITER"
+class_name = "RateLimiter"
+
 [[migrations]]
 tag = "v1-match-room"
 new_sqlite_classes = ["MatchRoom"]
+
+[[migrations]]
+tag = "v2-rate-limiter"
+new_sqlite_classes = ["RateLimiter"]

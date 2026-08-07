@@ -75,6 +75,12 @@ npx wrangler secret put PUBLISH_SECRET
 
 - **Read** (`GET /roster`) is public — anyone with the app can load the roster.
 - **Write** (`POST /roster`) requires the secret word, checked server-side.
+- **Wrong words are rate-limited** per IP (`rate-limit.js`): 10 failures in 10
+  minutes and that IP gets `429` until the window rolls over, so the word can't
+  be guessed at speed. Only failures count — publishing as often as you like
+  never locks you out.
+- **Live rooms expire** after 12 hours with no activity, so a room you forget to
+  close doesn't sit in storage forever.
 - Free tier allows 100,000 requests/day — vastly more than a friends' team needs.
 - If `REMOTE_URL` is left empty, the app just works offline from its built-in
   roster, exactly like before.

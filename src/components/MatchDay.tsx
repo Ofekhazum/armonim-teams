@@ -1,7 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Player, Session } from '../types';
 import { ATTACK_DEFAULT, roleBadge } from '../types';
-import { emptySession, getHostRoom, getMyName, setHostRoom, setMyName, uid } from '../storage';
+import {
+  emptySession,
+  getHostRoom,
+  getMyName,
+  secureToken,
+  setHostRoom,
+  setMyName,
+  uid,
+} from '../storage';
 import { generateTeams, targetSizes } from '../balancer';
 import { parseImportList, resolveImportedNames } from '../importRoster';
 import { ROOMS_ENABLED, hostRoom, roomShareUrl } from '../liveRoom';
@@ -211,7 +219,8 @@ export default function MatchDay({ players, session, setSession, isAdmin }: Prop
     }
     const existing = getHostRoom();
     const id = existing?.roomId ?? uid();
-    const token = existing?.adminToken ?? uid();
+    // any already-live room keeps the token it was created with
+    const token = existing?.adminToken ?? secureToken();
     setHostRoom({ roomId: id, adminToken: token });
     const conn = hostRoom(
       id,

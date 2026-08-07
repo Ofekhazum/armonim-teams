@@ -85,7 +85,7 @@ Guests can also be edited in place after being added (manually or via import) �
 guest list has its own rating and inviter `<select>`, backed by `updateGuestRating` /
 `updateGuestInviter` in `MatchDay.tsx`.
 
-### 2.5 Live match-day room (optional, in progress on branch `live-teams-room`)
+### 2.5 Live match-day room (optional, merged to `main` in `38f4ecf`)
 
 Lets a few people on their own phones watch and drag players between teams together in real time,
 once the host has already generated teams. Deliberately narrow in scope — only the Teams page is
@@ -142,9 +142,24 @@ snapshot (not ids), so a guest device can render the board without ever having s
    `{ type: 'close-room', adminToken }`; the Durable Object deletes its stored state and broadcasts
    `{ type: 'closed' }` so any connected guest immediately sees "the host closed this room" instead
    of just silently dropping. **New Fixture** also closes the room rather than abandoning it.
-   Without an explicit close, a room otherwise has no expiry — it persists in storage until closed
-   (harmless at this scale, see §6 free-tier numbers, but would want a TTL alarm if usage ever grew
-   enough for forgotten rooms to matter).
+   A room that is *never* closed expires on its own **12 hours after the last activity** — every
+   write re-arms a Durable Object alarm (`save()`/`alarm()` in `match-room.js`), and firing it
+   clears storage and broadcasts the same `{ type: 'closed' }`, so a forgotten room looks
+   identical to a closed one rather than lingering in storage.
+
+**Untrusted input.** Anyone who knows a room id can open a socket to it, so nothing off the wire is
+stored as-is (`match-room.js`): oversized frames are dropped before parsing (128k chars), team and
+id arrays are length- and shape-checked, display names are clamped to 60 chars, and `init`'s player
+list is **rebuilt field by field** rather than passed through. That whitelist deliberately drops
+`chemistry` (a balancer-only input, and the balancer has already run) and `avoid` — so the private
+keep-apart preference never reaches a guest device at all, instead of shipping it and relying on
+`showPrivateNotes` not to render it. The host's own board is unaffected: it renders from local
+state (`todays` in `MatchDay.tsx`), never from the room copy.
+
+The host's `adminToken` is minted with `secureToken()` (`crypto.randomUUID()`), not `uid()` — it's
+the only thing proving a connection is the host, and `uid()`'s `Math.random()` tail is neither
+strong nor long enough for a credential. Existing live rooms keep whatever token they were created
+with.
 
 **Known v1 limitation**: switching away from the Match Day tab and back drops the WebSocket (no
 auto-reconnect-on-remount — click "Go live" again, which reuses the persisted room/link and resyncs
@@ -194,7 +209,15 @@ App behavior:
 - **< 13** → the app says the fixture doesn't go ahead (with a "generate 2 teams anyway" escape hatch as a later nice-to-have).
 
 `planRotation` (`src/balancer.ts`) computes this once teams exist; `TeamsBoard.tsx` renders it as a
-"🔁 Rotation plan" section (and includes it in the WhatsApp share text) whenever any team is short.
+"🔁 Rotation plan" section on screen whenever any team is short.
+
+**The WhatsApp share text deliberately omits the rotation lines** (`shareText` in `TeamsBoard.tsx`,
+guarded by `totalAssigned >= 15`). Note what this means in practice: teams are sized by
+`targetSizes(n)` = `floor(n/3)` + remainder, so a team is short only when `n < 15` — which is
+exactly the case the guard excludes. So the rotation block **never** appears in the shared text
+today; the guard is equivalent to deleting the block, and is written as a threshold only so the
+intent ("don't paste rotation into WhatsApp for a short-handed night") stays legible. The on-screen
+panel is unaffected — the organizer still sees the plan, it just doesn't go into the group chat.
 
 ## 5. Screens (`src/App.tsx` — two tabs, no router)
 
@@ -236,6 +259,16 @@ via "New fixture."
   (`Roster.tsx`'s 🔒 Admin button) lets you edit ratings and 📢 Publish the roster for everyone;
   without it the app works fully offline from local/default data. Configure by setting
   `REMOTE_URL` in `remote.ts`; leave it `''` to disable.
+  Both POSTs are **rate-limited per client IP** by a `RateLimiter` Durable Object
+  (`worker/rate-limit.js`): 10 wrong words inside 10 minutes and that IP gets `429` until the
+  window rolls over. Only *failures* count, so publishing repeatedly never locks the admin out.
+  A DO rather than KV because KV is eventually consistent and caps same-key writes at ~1/sec —
+  a counter on it would undercount exactly when it matters. Sharding by IP (`idFromName(ip)`)
+  keeps each client on its own counter instead of funnelling the world through one instance, and
+  the counter self-deletes via alarm once its window lapses. The client maps `429` to a
+  `'rate-limited'` `PublishResult` (`remote.ts`) so the app says "wait a few minutes" rather than
+  "check your connection". CORS stays `*` deliberately — the POSTs are gated on the secret, and an
+  origin rule would only inconvenience browsers while breaking `npm run dev`.
 - **Live match-day rooms (optional)**: see §2.5 — same Worker, a `MatchRoom` Durable Object per
   room. Free-tier limits (100k requests/day, 13,000 GB-s/day of active WebSocket duration, 5GB
   storage) are far beyond what a handful of people for a couple of hours a week would ever use —
@@ -251,7 +284,55 @@ via "New fixture."
 - Deploy as static files (the Vite build output in `dist/`); the Worker deploys separately
   (see `worker/`).
 
-## 7. Build phases
+## 7. Working on this repo (dev, deploy, gotchas)
+
+```sh
+npm install
+npm run dev      # vite dev server
+npm run build    # tsc --noEmit && vite build  → dist/
+```
+
+**There are no tests and no linter.** The only automated gate — locally and in CI — is the
+`tsc --noEmit` inside `npm run build`. A broken balancer heuristic or a UI regression ships
+silently, so changes to `src/balancer.ts` in particular need manual verification. (`balancer.ts`
+is pure, dependency-free TypeScript and would be cheap to unit test if that's ever wanted.)
+
+### Deploying the site (GitHub Pages)
+
+Automatic: every push to `main` triggers `.github/workflows/deploy.yml` (build job uploads
+`dist/` as the `github-pages` artifact → deploy job publishes it). Live at
+https://ofekhazum.github.io/armonim-teams/. Confirm a deploy landed by checking the `v<hash>`
+build marker top-right of the Roster page against `git rev-parse --short HEAD`.
+
+**Gotcha worth knowing (cost hours on 2026-08-06):** if a deploy fails, do **not** re-run only the
+failed job (`gh run rerun <id> --failed`). The `deploy` job consumes the artifact built by the
+`build` job; rerunning just `deploy` reuses the *original* artifact, and once that artifact expires
+you get `Found 0 artifact(s)` / `No artifacts named "github-pages"`. Re-run the **whole** workflow
+so `build` regenerates a fresh artifact:
+
+```sh
+gh run rerun <run-id>          # all jobs — correct
+gh run rerun <run-id> --failed # deploy only — will fail on an expired artifact
+```
+
+Separately, `actions/deploy-pages@v4` can hang in `deployment_queued` for its full 10-minute
+timeout for reasons unrelated to this repo; a full re-run is also the fix there.
+
+### Deploying the Worker (Cloudflare)
+
+The Worker deploys **separately** from the site — pushing to `main` does not touch it:
+
+```sh
+cd worker
+npx wrangler deploy                    # ships roster-worker.js + match-room.js (Durable Object)
+npx wrangler secret put PUBLISH_SECRET # only when changing the admin publish word
+```
+
+One-time setup (login, KV namespace creation) is already done and documented in
+[`worker/README.md`](worker/README.md). `wrangler` is not a project dependency — `npx` fetches it
+on demand.
+
+## 8. Build phases
 
 1. **MVP** — roster CRUD, availability picking, GK marking, balancer with hard constraints + rating balance, team cards, WhatsApp share text, localStorage.
 2. **Quality** — chemistry links, role/spectrum balance, guests glued to inviters, drag-and-drop editing with live balance feedback, alternative results.
