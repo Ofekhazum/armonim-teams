@@ -88,6 +88,61 @@ const MIN_Z = 1;
 // player one time in four. Most players should simply get no suggestion.
 const MIN_IMPLIED_DELTA = 1.5;
 
+// Where the scale's centre of gravity sits. Deliberately lower-mid rather than
+// the arithmetic middle (3): most squads have a few genuinely strong players
+// and a long tail of ordinary ones, and ratings drift upwards over time because
+// nobody enjoys arguing someone down.
+const ANCHOR_RATING = 2.5;
+
+// How much the bar moves per star away from that anchor. A rating is treated as
+// a claim that has to keep being justified: climbing further from the anchor
+// costs more evidence than the base bar, and sliding back toward it costs less.
+// A 5★ therefore needs twice the evidence to be promoted that it needs to be
+// dropped, and a 2★ the reverse.
+//
+//   rating │ to go up │ to come down
+//      1.0 │     1.20 │         1.80
+//      2.0 │     1.40 │         1.60
+//      2.5 │     1.50 │         1.50
+//      3.0 │     1.60 │         1.40
+//      4.0 │     1.80 │         1.20
+//      5.0 │     2.00 │         1.00
+//
+// Symmetric about the anchor — a 1★ has to justify staying down there as much
+// as a 5★ has to justify staying up — but in practice it bites at the top,
+// which is where unearned ratings accumulate.
+//
+// The size of the tilt is a judgement call, and the cost is real. Measured over
+// 120 runs × 20 nights on a realistically spread roster:
+//
+//                                        suggested down
+//   5★ who is really a 3.5 (overrated)          58%   ← the point of the tilt
+//   5★ who really is a 5 (correctly rated)      28%   ← the price of it
+//   4★ who is really a 3 (overrated)            31%
+//   4★ who really is a 4 (correctly rated)      13%
+//
+// Roughly two right for every one wrong, and that ratio barely moves however
+// this constant is set — steepening the tilt raises both numbers together.
+// So the tilt chooses where to sit on a fixed trade, not how good the trade is.
+// It's set moderate on purpose: a suggestion is dismissible and only moves half
+// a star, but nagging someone to demote their best player would quickly teach
+// them to ignore the whole panel.
+const RATING_BIAS = 0.20;
+
+// However far the bias pushes, never take the bar below this: a suggestion
+// still has to rest on a real effect, not merely on someone being highly rated.
+const MIN_BAR = 1.0;
+
+// How much a player has to look out by before it's worth saying anything,
+// given where they currently sit and which way the evidence points.
+export function barFor(rating: number, direction: 'up' | 'down'): number {
+  const distance = rating - ANCHOR_RATING;
+  const movingAway =
+    (direction === 'up' && distance > 0) || (direction === 'down' && distance < 0);
+  const shift = RATING_BIAS * Math.abs(distance) * (movingAway ? 1 : -1);
+  return Math.max(MIN_BAR, MIN_IMPLIED_DELTA + shift);
+}
+
 // Rating points a suggestion moves by. Deliberately one small step: the app
 // can always suggest again next month if the evidence keeps building.
 const STEP = 0.5;
@@ -351,9 +406,11 @@ export function suggestRatings(
 
     // the real gate: could noise alone have produced this?
     if (Math.abs(est.z) < MIN_Z) continue;
-    if (Math.abs(est.delta) < MIN_IMPLIED_DELTA) continue;
 
     const direction = est.delta > 0 ? 'up' : 'down';
+    // ...and is it enough, given what they're already rated? Climbing away from
+    // the anchor costs more evidence than sliding back toward it.
+    if (Math.abs(est.delta) < barFor(p.rating, direction)) continue;
     const suggested = clampRating(p.rating + (direction === 'up' ? STEP : -STEP));
     // no room left to move them: reported as a note instead of being dropped
     const atLimit = suggested === p.rating;

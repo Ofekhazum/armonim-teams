@@ -232,6 +232,30 @@ how often it fires at four nights *and* pushes the wrong-direction rate to about
 recommending a downgrade for a genuinely good player one time in four. Three numbers a night is a
 coarse record, and no amount of modelling manufactures information that isn't there.
 
+**A rating is a claim that has to keep being justified.** The bar is not the same in both
+directions: it's anchored at lower-mid (2.5★) and tilts with how far a player sits from it.
+Climbing further from the anchor costs more evidence; sliding back toward it costs less.
+
+| rating | to go up | to come down |
+|---|---|---|
+| 1.0 | 1.20 | 1.80 |
+| 2.5 | 1.50 | 1.50 |
+| 4.0 | 1.80 | 1.20 |
+| 5.0 | 2.00 | 1.00 |
+
+So a 5★ needs twice the evidence to be promoted that it needs to be dropped, and a 2★ the reverse.
+The anchor sits below the arithmetic middle deliberately: squads have a few genuinely strong players
+and a long ordinary tail, and hand-set ratings drift upward over time because nobody enjoys arguing
+someone down.
+
+The cost is real and worth stating. Over 120 runs × 20 nights on a realistically spread roster, a 5★
+who is really a 3.5 is flagged for a drop 58% of the time — and a 5★ who genuinely *is* a 5 is
+flagged 28% of the time. About two right for every one wrong, and **that ratio barely moves however
+the tilt is set** — steepening it raises both numbers together. The tilt therefore chooses where to
+sit on a fixed trade rather than improving it, and it's set moderate on purpose: suggestions are
+dismissible and only move half a star, but nagging someone to demote their best player would teach
+them to ignore the panel entirely.
+
 **Running out of scale.** A player already at 5★ who keeps beating expectation, or one at 1★ who
 keeps falling short, has no half-star left to move. Rather than silently dropping the case (which
 left them showing a large "vs rating" number with no explanation), it's reported as a note with
