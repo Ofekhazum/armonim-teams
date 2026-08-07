@@ -424,14 +424,26 @@ saved nights accumulate in the History tab (§2.6).
   `ROOMS_ENABLED` in `liveRoom.ts` mirrors `REMOTE_URL`'s empty-string-to-disable convention.
 - Drag-and-drop uses native HTML5 drag events (`draggable`/`onDragStart`/`onDrop`) — no dnd-kit
   or other DnD library is installed.
-- **Share as an image** (`src/shareImage.ts`) — **written but not wired into the UI**. The teams
-  drawn onto a `<canvas>` at 2× and handed to the OS share sheet via `navigator.share({ files })`,
-  falling back to a download where file sharing isn't supported; canvas rather than rasterising the
-  DOM so nothing new has to be installed, text drawn with `ctx.direction = 'rtl'` so Hebrew names —
-  and Latin nicknames mixed into them — sit the right way round. `TeamsBoard.tsx` shipped a
-  "🖼️ Share image" button calling it, then that button was pulled after a look at the result:
-  the module itself is untouched, so re-adding the button is the only step needed to bring it back
-  once the visual design is worth shipping.
+- **Share as an image, card style** (`src/shareImage.ts`) — **written but not wired into the UI**.
+  The teams drawn onto a `<canvas>` at 2× and handed to the OS share sheet via
+  `navigator.share({ files })`, falling back to a download where file sharing isn't supported;
+  canvas rather than rasterising the DOM so nothing new has to be installed, text drawn with
+  `ctx.direction = 'rtl'` so Hebrew names — and Latin nicknames mixed into them — sit the right way
+  round. `TeamsBoard.tsx` shipped a "🖼️ Share image" button calling it, then that button was pulled
+  after a look at the result: the module itself is untouched, so re-adding the button is the only
+  step needed to bring it back if this style is ever wanted instead of the shirt style below.
+- **Share as an image, shirt style** (`src/shirtImage.ts`) — the "🖼️ Share images" button on
+  `TeamsBoard.tsx`. Takes the three hand-drawn shirt-card templates in `src/shirt_images/`
+  (one per team color, a fixed 5-shirt pentagon since this app is 5-a-side, see `FULL_TEAM`) and
+  draws each player's name onto their shirt with a canvas, same RTL-text approach as the card style
+  above. Names go on top → bottom in `lineupOrder()` (`balancer.ts`, shared with the on-screen
+  board) — keeper/defence on the top shirt, most attacking on the bottom two — so the picture and
+  the board always agree on who's "up top". Font size shrinks to fit each shirt's chest, wrapping
+  onto a second line rather than shrinking past readability for long names; a squad bigger than 5
+  (extra guests) gets listed in a small caption under the shirts rather than silently dropped. All
+  three team images are handed to `navigator.share({ files })` in one call, so accepting the OS
+  share sheet's "Save Image"/"Save to Photos" drops all three into the gallery at once; falls back
+  to three staggered downloads where file sharing isn't available.
 - **Build version marker**: `vite.config.ts` runs `git rev-parse --short HEAD` at build time and
   injects it as the `__GIT_HASH__` global (declared in `src/vite-env.d.ts`, falls back to `'dev'`
   if git isn't available). Shown top-right of the Roster page — since GitHub Pages rebuilds on

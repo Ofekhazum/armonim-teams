@@ -1,15 +1,17 @@
 import { useMemo, useState } from 'react';
 import type { CSSProperties } from 'react';
-import type { Player, RoleBadge, TeamColor, Teams } from '../types';
+import type { Player, TeamColor, Teams } from '../types';
 import { roleBadge } from '../types';
 import {
   FULL_TEAM,
   TEAM_COLORS,
   glueViolations,
+  lineupOrder,
   planRotation,
   teamStats,
 } from '../balancer';
 import { Name, STYLE_META, TEAM_META } from './ui';
+import { shareTeamsShirtImages } from '../shirtImage';
 
 interface Props {
   teams: Teams;
@@ -43,6 +45,7 @@ export default function TeamsBoard({
 }: Props) {
   const [selected, setSelected] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [sharingImages, setSharingImages] = useState(false);
 
   const byId = useMemo(() => new Map(players.map((p) => [p.id, p])), [players]);
   const gkSet = useMemo(() => new Set(gkIds), [gkIds]);
@@ -124,16 +127,7 @@ export default function TeamsBoard({
   };
 
   // display order inside a team: today's keeper → defence → mixed → attacking
-  const STYLE_ORDER: Record<RoleBadge, number> = { gk: 0, defensive: 1, balanced: 2, attacking: 3 };
-  const displayIds = (c: TeamColor) =>
-    [...teams[c]].sort((a, b) => {
-      const pa = byId.get(a);
-      const ka = gkSet.has(a) ? -1 : pa ? STYLE_ORDER[roleBadge(pa)] : 2;
-      const pb = byId.get(b);
-      const kb = gkSet.has(b) ? -1 : pb ? STYLE_ORDER[roleBadge(pb)] : 2;
-      if (ka !== kb) return ka - kb;
-      return (byId.get(b)?.rating ?? 0) - (byId.get(a)?.rating ?? 0);
-    });
+  const displayIds = (c: TeamColor) => lineupOrder(teams[c], byId, gkSet);
 
   const shareText = () => {
     const HEB: Record<TeamColor, string> = {
@@ -176,6 +170,18 @@ export default function TeamsBoard({
     } catch {
       prompt('Copy the teams:', shareText());
     }
+  };
+
+  const shareImages = async () => {
+    setSharingImages(true);
+    const result = await shareTeamsShirtImages({
+      teams,
+      byId,
+      gkIds: gkSet,
+      date: new Date().toISOString().slice(0, 10),
+    });
+    setSharingImages(false);
+    if (result === 'failed') alert('Could not create the lineup images on this device.');
   };
 
   return (
@@ -222,6 +228,14 @@ export default function TeamsBoard({
         >
           Balance gap: {spread.toFixed(2)}
         </span>
+        <button
+          onClick={shareImages}
+          disabled={sharingImages}
+          className="rounded-xl border border-amber-900/30 px-4 py-2 text-sm font-semibold text-amber-900 hover:border-orange-500 disabled:opacity-50"
+          title="Share each team's lineup as a shirt-card image"
+        >
+          {sharingImages ? '…' : '🖼️ Share images'}
+        </button>
         <button
           onClick={copy}
           className="rounded-xl bg-orange-600 px-4 py-2 text-sm font-bold text-amber-50 shadow-sm transition-transform hover:scale-105"

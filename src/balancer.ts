@@ -4,6 +4,22 @@ import { roleBadge } from './types';
 export const TEAM_COLORS: TeamColor[] = ['black', 'white', 'blue'];
 export const FULL_TEAM = 5;
 
+// Display order within a team: today's keeper → defence → mixed → attacking,
+// ties broken by rating. Shared by the on-screen board and the shirt-image
+// export so "who's listed first" always means the same thing in both places.
+const LINEUP_ROLE_ORDER: Record<RoleBadge, number> = { gk: 0, defensive: 1, balanced: 2, attacking: 3 };
+
+export function lineupOrder(ids: string[], byId: Map<string, Player>, gkIds: Set<string>): string[] {
+  return [...ids].sort((a, b) => {
+    const pa = byId.get(a);
+    const ka = gkIds.has(a) ? -1 : pa ? LINEUP_ROLE_ORDER[roleBadge(pa)] : 2;
+    const pb = byId.get(b);
+    const kb = gkIds.has(b) ? -1 : pb ? LINEUP_ROLE_ORDER[roleBadge(pb)] : 2;
+    if (ka !== kb) return ka - kb;
+    return (byId.get(b)?.rating ?? 0) - (byId.get(a)?.rating ?? 0);
+  });
+}
+
 // Soft-constraint weights. GK and size are so heavy they act as hard
 // constraints whenever a valid arrangement exists.
 const W = {
