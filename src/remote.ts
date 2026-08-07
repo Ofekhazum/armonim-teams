@@ -1,4 +1,4 @@
-import type { Player } from './types';
+import type { FixtureRecord, Player } from './types';
 
 // URL of the Cloudflare Worker that stores the shared roster (see worker/).
 // Paste your deployed worker URL here, e.g.
@@ -77,6 +77,62 @@ export async function publishRemoteRoster(
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ secret, players }),
+    });
+    if (res.status === 401) return { result: 'wrong-word' };
+    if (res.status === 429) return { result: 'rate-limited' };
+    if (!res.ok) return { result: 'error' };
+    const data = (await res.json()) as { version: number };
+    return { result: 'ok', version: data.version };
+  } catch {
+    return { result: 'error' };
+  }
+}
+
+// --- Shared results history -------------------------------------------------
+// Same shape and behaviour as the roster above — a full-list replace, gated on
+// the same admin word, versioned the same way — so results recorded on one
+// device (or by one organiser) show up for everyone else, the same as the
+// roster and unlike the local-only history this replaced.
+
+const HISTORY_VERSION_KEY = 'armonim-history-version';
+
+export interface RemoteHistory {
+  version: number;
+  fixtures: FixtureRecord[];
+}
+
+export const localHistoryVersion = (): number =>
+  Number(localStorage.getItem(HISTORY_VERSION_KEY) ?? 0);
+
+export const setLocalHistoryVersion = (v: number): void =>
+  localStorage.setItem(HISTORY_VERSION_KEY, String(v));
+
+export async function fetchRemoteHistory(): Promise<RemoteHistory | null> {
+  if (!REMOTE_URL) return null;
+  try {
+    const res = await fetch(`${REMOTE_URL}/history`, { cache: 'no-store' });
+    if (!res.ok) return null;
+    const data = (await res.json()) as RemoteHistory;
+    if (!Array.isArray(data.fixtures)) return null;
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+// Push the given fixture list to the shared store. Sends the *whole* list —
+// same last-write-wins model as the roster, which is fine at this scale (one
+// organiser recording results right after a match, not concurrent editors).
+export async function publishRemoteHistory(
+  fixtures: FixtureRecord[],
+  secret: string,
+): Promise<{ result: PublishResult; version?: number }> {
+  if (!REMOTE_URL) return { result: 'not-configured' };
+  try {
+    const res = await fetch(`${REMOTE_URL}/history`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ secret, fixtures }),
     });
     if (res.status === 401) return { result: 'wrong-word' };
     if (res.status === 429) return { result: 'rate-limited' };

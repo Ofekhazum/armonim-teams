@@ -191,6 +191,22 @@ to file a night into the host's history. Re-saving updates the same record
 (`session.savedFixtureId`) instead of appending a duplicate; generating fresh teams clears both,
 since an old tally no longer describes the new sheet.
 
+**Shared, like the roster** (`src/remote.ts`, `GET`/`POST /history` on the same Worker as §6):
+history is **not** local-only — every admin write (save, edit, delete) publishes the *entire*
+fixture list to the shared store immediately, and any device adopts it on load if the remote
+version is newer than what it last applied. Same last-write-wins model as the roster, and the same
+tradeoff: fine at this scale (one organiser recording results after a match, not concurrent
+editors), and simpler than merging individual fixture changes. Unlike the roster's explicit
+**📢 Publish** button, this syncs automatically — asking someone to remember a separate publish
+step after every night's scores was one more thing to forget, and unlike a roster edit (which is
+provisional until reviewed and published), a saved result is already a completed fact. Reading is
+public, same as the roster; **writing requires the admin word**, checked and rate-limited by the
+same Worker code that already guards `/roster` (§6, `worker/roster-worker.js`) — so recording a
+result now needs the organiser's word where it didn't before this was shared. A write that fails to
+sync (offline, wrong word, rate-limited) still commits locally — the app alerts rather than losing
+the correction silently, but the device with the fix is now ahead of everyone else's until it
+reconnects and saves again.
+
 **Correcting a night afterwards** (admin only, History tab — a non-admin sees a line saying so,
 since an empty panel reads as a bug rather than a lock): expanding a past night offers
 *✏️ Edit result* — the three win counts and the date — and *🗑️ Delete this night*. The team sheet
@@ -371,11 +387,12 @@ saved nights accumulate in the History tab (§2.6).
 ## 6. Tech stack (as built)
 
 - **Vite + React 18 + TypeScript**, Tailwind v4 — single-page app, no router.
-- **State/persistence**: `localStorage` only (`src/storage.ts`, key `armonim-teams-v1`,
-  `STORAGE_VERSION` 4 — bumped when results/history were added; a save from an older version is
-  *migrated*, never discarded, and a missing `history` simply starts empty). No JSON
-  export/import UI currently exists. History is local to the device: it is deliberately not part
-  of the published roster, so it never leaves the organizer's phone.
+- **State/persistence**: `localStorage` is the on-device cache for everything (`src/storage.ts`,
+  key `armonim-teams-v1`, `STORAGE_VERSION` 4 — bumped when results/history were added; a save from
+  an older version is *migrated*, never discarded, and a missing `history` simply starts empty).
+  No JSON export/import UI currently exists. The roster and the results history are both also
+  synced through the Worker (below) when one is configured — `localStorage` is what the app reads
+  from and falls back to, not the system of record once a `REMOTE_URL` is set.
 - **Shared roster (optional)**: `src/remote.ts` + `worker/roster-worker.js`, a small Cloudflare
   Worker storing the roster as versioned JSON in KV, behind a secret admin word
   (`/verify`, `/roster` endpoints). On load, `App.tsx` pulls the remote roster and adopts it if
@@ -393,6 +410,13 @@ saved nights accumulate in the History tab (§2.6).
   `'rate-limited'` `PublishResult` (`remote.ts`) so the app says "wait a few minutes" rather than
   "check your connection". CORS stays `*` deliberately — the POSTs are gated on the secret, and an
   origin rule would only inconvenience browsers while breaking `npm run dev`.
+- **Shared results history (optional)**: same Worker and KV namespace as the roster, under the
+  `history` key instead of `roster` — `GET`/`POST /history` in `roster-worker.js`, `fetchRemoteHistory`
+  / `publishRemoteHistory` in `remote.ts`. Same rate limiting, same secret, same version-timestamp
+  conflict handling. The one real difference from the roster: writes here are **automatic**, not a
+  manual Publish button — every admin save/edit/delete pushes the full fixture list immediately (see
+  §2.6). Reading is public; a device with no `REMOTE_URL` configured just keeps recording locally,
+  same empty-string-disables convention as everything else on this Worker.
 - **Live match-day rooms (optional)**: see §2.5 — same Worker, a `MatchRoom` Durable Object per
   room. Free-tier limits (100k requests/day, 13,000 GB-s/day of active WebSocket duration, 5GB
   storage) are far beyond what a handful of people for a couple of hours a week would ever use —
@@ -418,13 +442,17 @@ saved nights accumulate in the History tab (§2.6).
 ```sh
 npm install
 npm run dev      # vite dev server
+npm test         # vitest run — see src/calibration.test.ts
 npm run build    # tsc --noEmit && vite build  → dist/
 ```
 
-**There are no tests and no linter.** The only automated gate — locally and in CI — is the
-`tsc --noEmit` inside `npm run build`. A broken balancer heuristic or a UI regression ships
-silently, so changes to `src/balancer.ts` in particular need manual verification. (`balancer.ts`
-is pure, dependency-free TypeScript and would be cheap to unit test if that's ever wanted.)
+**There is no linter, and `src/calibration.ts` is the only file with real tests.** CI
+(`.github/workflows/deploy.yml`) runs `npm test` then `npm run build` before deploying, so a broken
+rating-suggestion property fails the build now — but `src/balancer.ts` (the team-generation
+heuristic) and every component are still only checked by `tsc --noEmit` and manual verification. The
+calibration tests are mostly statistical (many synthetic seasons with a known ground truth, asserted
+on the *rate* of correct/incorrect suggestions, seeded for reproducibility) rather than exact-output
+checks — the nature of a probabilistic estimator, not a style choice to copy for ordinary logic.
 
 ### Deploying the site (GitHub Pages)
 

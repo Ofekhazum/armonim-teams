@@ -236,7 +236,10 @@ export default function MatchDay({
   // The team sheet and everyone's name/rating are snapshotted, because guests
   // vanish and ratings move — history has to stay readable years later.
   const saveNight = () => {
-    if (!session.teams) return;
+    // defense in depth: the button that calls this is already hidden for a
+    // non-admin, but a write that reaches App.syncHistory needs the admin
+    // word regardless of how it got triggered
+    if (!isAdmin || !session.teams) return;
     const teams = session.teams;
     const id = session.savedFixtureId ?? uid();
     onSaveFixture({
@@ -390,6 +393,7 @@ export default function MatchDay({
           onChange={(wins) => setSession({ ...session, wins })}
           onSave={saveNight}
           saved={session.savedFixtureId !== null}
+          isAdmin={isAdmin}
         />
       </div>
     );

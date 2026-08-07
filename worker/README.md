@@ -1,9 +1,9 @@
-# Shared roster backend (Cloudflare Worker)
+# Shared roster + results backend (Cloudflare Worker)
 
-This is a tiny free Worker that stores the team roster online so you can update
-it for **everyone** from inside the app — no code changes, no redeploy. Your
-secret "publish word" is checked here on the server, so it's a real password:
-it never ships inside the app's public JavaScript.
+This is a tiny free Worker that stores the team roster **and the results history**
+online so both update for **everyone** from inside the app — no code changes, no
+redeploy. Your secret "publish word" is checked here on the server, so it's a
+real password: it never ships inside the app's public JavaScript.
 
 The same Worker also powers **live match-day rooms** (`match-room.js`) — real-time
 team-picking via a Durable Object, one per room. `npx wrangler deploy` sets this
@@ -60,9 +60,14 @@ You only do this setup **once**.
 
 ## Day-to-day use
 
-- Open the app → **Roster** tab → edit players however you like → tap
-  **📢 Publish** → type your secret word.
-- Everyone else gets the new roster the next time they open the app.
+- **Roster**: open the app → **Roster** tab → edit players however you like → tap
+  **📢 Publish** → type your secret word. Everyone else gets the new roster the
+  next time they open the app.
+- **Results**: unlock admin (🔒 **Admin** on the Roster tab) once, then record a
+  night's win tally on Match Day and tap **💾 Save to history** — this shares
+  immediately, no separate publish step. Editing or deleting a past night
+  (History tab) shares the same way. Reading history — the standings and past
+  nights — needs no password, same as reading the roster.
 
 ## Changing the password later
 
@@ -73,8 +78,12 @@ npx wrangler secret put PUBLISH_SECRET
 
 ## Notes
 
-- **Read** (`GET /roster`) is public — anyone with the app can load the roster.
-- **Write** (`POST /roster`) requires the secret word, checked server-side.
+- **Read** (`GET /roster`, `GET /history`) is public — anyone with the app can load
+  the roster and results.
+- **Write** (`POST /roster`, `POST /history`) requires the secret word, checked
+  server-side. History writes are a full replace — the app sends its whole
+  local fixture list each time, same as the roster — so the most recent write
+  wins if two admins somehow save at the same moment.
 - **Wrong words are rate-limited** per IP (`rate-limit.js`): 10 failures in 10
   minutes and that IP gets `429` until the window rolls over, so the word can't
   be guessed at speed. Only failures count — publishing as often as you like

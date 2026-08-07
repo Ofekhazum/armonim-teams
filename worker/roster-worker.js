@@ -1,12 +1,19 @@
-// Cloudflare Worker: the shared Armonim roster store, plus live match-day
-// rooms (see match-room.js).
+// Cloudflare Worker: the shared Armonim roster + results history, plus live
+// match-day rooms (see match-room.js).
 //
 //   GET  /roster       → public read of the current roster (everyone's app calls this)
 //   POST /roster       → publish a new roster; requires the secret word
-//   POST /verify       → check the secret word (used to unlock admin mode)
-//   GET  /room/:id     → WebSocket upgrade into a live team-picking room
+//   GET  /history       → public read of recorded fixtures (nights + win tallies)
+//   POST /history       → publish the fixture list; requires the secret word
+//   POST /verify        → check the secret word (used to unlock admin mode)
+//   GET  /room/:id      → WebSocket upgrade into a live team-picking room
 //
-// The two POSTs are gated on the secret word and rate-limited per IP
+// /history is a full-list replace, same as /roster — the client sends its
+// whole local history and that becomes the shared copy — rather than
+// per-fixture endpoints. Simpler, consistent with how /roster already works,
+// and a season's worth of fixtures is a few dozen KB, well inside a KV value.
+//
+// The three POSTs are gated on the secret word and rate-limited per IP
 // (see rate-limit.js) so the word can't simply be guessed at speed.
 //
 // Setup lives in worker/README.md. In short: bind a KV namespace as ROSTER_KV,
@@ -35,6 +42,37 @@ const json = (data, status = 200, extraHeaders = {}) =>
 // A roster is a few dozen players; anything far past that is not a roster.
 const MAX_PLAYERS = 200;
 
+// A fixture is one night; a few years of weekly football is still well under
+// this. A team's roster for one night is capped much lower than MAX_PLAYERS —
+// nobody fields 200 players in one match.
+const MAX_FIXTURES = 1000;
+const MAX_FIXTURE_PLAYERS = 60;
+const TEAM_COLORS = ['black', 'white', 'blue'];
+
+// Loose but real shape-checking, same spirit as the roster's own check below:
+// catch garbage, don't fight over exactly what a valid date string looks like.
+function isValidFixtures(fixtures) {
+  if (!Array.isArray(fixtures) || fixtures.length > MAX_FIXTURES) return false;
+  return fixtures.every((fx) => {
+    if (!fx || typeof fx !== 'object') return false;
+    if (typeof fx.id !== 'string' || !fx.id || fx.id.length > 64) return false;
+    if (typeof fx.date !== 'string' || !fx.date || fx.date.length > 20) return false;
+    if (!fx.teams || typeof fx.teams !== 'object') return false;
+    if (
+      !TEAM_COLORS.every(
+        (c) => Array.isArray(fx.teams[c]) && fx.teams[c].length <= MAX_FIXTURE_PLAYERS,
+      )
+    ) {
+      return false;
+    }
+    if (!Array.isArray(fx.players) || fx.players.length > MAX_FIXTURE_PLAYERS) return false;
+    if (!fx.players.every((p) => p?.id && p?.name && Number.isFinite(p.rating))) return false;
+    if (!fx.wins || typeof fx.wins !== 'object') return false;
+    if (!TEAM_COLORS.every((c) => Number.isFinite(fx.wins[c]))) return false;
+    return true;
+  });
+}
+
 export default {
   async fetch(request, env) {
     // browsers send a CORS preflight before the POST
@@ -59,8 +97,18 @@ export default {
       return json(raw ? JSON.parse(raw) : { version: 0, players: null });
     }
 
+    // public read of recorded fixtures
+    if (url.pathname === '/history' && request.method === 'GET') {
+      const raw = await env.ROSTER_KV.get('history');
+      // nothing published yet → the app keeps whatever it has saved locally
+      return json(raw ? JSON.parse(raw) : { version: 0, fixtures: null });
+    }
+
     // everything below is a POST guarded by the secret word
-    if ((url.pathname === '/roster' || url.pathname === '/verify') && request.method === 'POST') {
+    if (
+      (url.pathname === '/roster' || url.pathname === '/history' || url.pathname === '/verify') &&
+      request.method === 'POST'
+    ) {
       // one counter per client IP (see rate-limit.js). Checked before we do any
       // other work, so a flood costs us as little as possible.
       const ip = request.headers.get('CF-Connecting-IP') ?? 'unknown';
@@ -89,6 +137,16 @@ export default {
       // word-only check, used to unlock admin mode in the app
       if (url.pathname === '/verify') {
         return json({ ok: true });
+      }
+
+      if (url.pathname === '/history') {
+        if (!isValidFixtures(body.fixtures)) {
+          return json({ error: 'bad history' }, 400);
+        }
+        // version is a timestamp so each device knows when it has newer history
+        const payload = { version: Date.now(), fixtures: body.fixtures };
+        await env.ROSTER_KV.put('history', JSON.stringify(payload));
+        return json({ ok: true, version: payload.version });
       }
 
       if (

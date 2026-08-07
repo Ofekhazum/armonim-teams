@@ -2,7 +2,15 @@ import { useEffect, useState } from 'react';
 import type { AppState, FixtureRecord, Player, Session, TeamWins } from './types';
 import { migratePlayer } from './types';
 import { loadState, saveState } from './storage';
-import { fetchRemoteRoster, localRosterVersion, setLocalRosterVersion } from './remote';
+import {
+  fetchRemoteHistory,
+  fetchRemoteRoster,
+  localHistoryVersion,
+  localRosterVersion,
+  publishRemoteHistory,
+  setLocalHistoryVersion,
+  setLocalRosterVersion,
+} from './remote';
 import Roster from './components/Roster';
 import MatchDay from './components/MatchDay';
 import History from './components/History';
@@ -37,6 +45,21 @@ export default function App() {
     };
   }, []);
 
+  // Same pull-on-load as the roster above, for the shared results history.
+  // Only pulled once at mount — an admin actively recording results mid-session
+  // won't have their own in-progress edits overwritten by a stale fetch.
+  useEffect(() => {
+    let cancelled = false;
+    fetchRemoteHistory().then((remote) => {
+      if (cancelled || !remote || remote.version <= localHistoryVersion()) return;
+      setState((s) => ({ ...s, history: remote.fixtures }));
+      setLocalHistoryVersion(remote.version);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   // Roster edits can invalidate parts of the session (deleted players, broken
   // chemistry links, stale generated teams) — clean those up here.
   const setPlayers = (players: Player[]) => {
@@ -64,36 +87,70 @@ export default function App() {
 
   const setSession = (session: Session) => setState((s) => ({ ...s, session }));
 
+  // History is shared, like the roster — but unlike the roster's manual
+  // "📢 Publish" button, every admin write here pushes immediately, since
+  // asking someone to separately publish after recording every night's scores
+  // would be one more step nobody remembers. Only admin writes sync at all:
+  // an unlocked-word write is already required to save/edit/delete a fixture
+  // (see the isAdmin checks in MatchDay/History), so this never runs
+  // unauthenticated. Failures are surfaced — the local change already stuck,
+  // but silently failing to *share* it would look like data loss to anyone
+  // else expecting to see it.
+  const syncHistory = async (history: FixtureRecord[]) => {
+    if (adminWord == null) return;
+    const { result, version } = await publishRemoteHistory(history, adminWord);
+    if (result === 'ok') {
+      if (version) setLocalHistoryVersion(version);
+    } else if (result === 'wrong-word') {
+      alert(
+        '❌ The password is no longer valid — this is saved on this device but not shared yet. Unlock admin again and re-save.',
+      );
+      setAdminWord(null);
+    } else if (result === 'rate-limited') {
+      alert(
+        '❌ Too many failed attempts recently — this is saved on this device, but sharing is paused for a few minutes.',
+      );
+    } else if (result !== 'not-configured') {
+      alert("Could not share this — it's saved on this device, but others won't see it yet.");
+    }
+  };
+
   // Saving the same night twice replaces the record rather than appending, so
   // fixing a score doesn't leave a duplicate behind.
-  const saveFixture = (fixture: FixtureRecord) =>
-    setState((s) => ({
-      ...s,
-      history: s.history.some((f) => f.id === fixture.id)
-        ? s.history.map((f) => (f.id === fixture.id ? fixture : f))
-        : [...s.history, fixture],
-    }));
+  const saveFixture = (fixture: FixtureRecord) => {
+    const history = state.history.some((f) => f.id === fixture.id)
+      ? state.history.map((f) => (f.id === fixture.id ? fixture : f))
+      : [...state.history, fixture];
+    setState((s) => ({ ...s, history }));
+    void syncHistory(history);
+  };
 
-  const deleteFixture = (id: string) =>
+  const deleteFixture = (id: string) => {
+    const history = state.history.filter((f) => f.id !== id);
     setState((s) => ({
       ...s,
-      history: s.history.filter((f) => f.id !== id),
+      history,
       // if tonight's own record was the one deleted, forget that it was ever
       // filed — otherwise "Save to history" would still read as an update
       session:
         s.session.savedFixtureId === id ? { ...s.session, savedFixtureId: null } : s.session,
     }));
+    void syncHistory(history);
+  };
 
   // Correcting a night after the fact. If it happens to be the night still
   // open on Match Day, the in-progress tally is corrected with it — otherwise
   // saving again from there would quietly undo the edit.
-  const editFixture = (id: string, patch: { wins: TeamWins; date: string }) =>
+  const editFixture = (id: string, patch: { wins: TeamWins; date: string }) => {
+    const history = state.history.map((f) => (f.id === id ? { ...f, ...patch } : f));
     setState((s) => ({
       ...s,
-      history: s.history.map((f) => (f.id === id ? { ...f, ...patch } : f)),
+      history,
       session:
         s.session.savedFixtureId === id ? { ...s.session, wins: patch.wins } : s.session,
     }));
+    void syncHistory(history);
+  };
 
   // Accepting a rating suggestion is a normal roster edit — it goes through
   // setPlayers so the session stays consistent, and still needs publishing to
