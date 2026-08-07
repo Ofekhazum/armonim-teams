@@ -424,11 +424,14 @@ saved nights accumulate in the History tab (§2.6).
   `ROOMS_ENABLED` in `liveRoom.ts` mirrors `REMOTE_URL`'s empty-string-to-disable convention.
 - Drag-and-drop uses native HTML5 drag events (`draggable`/`onDragStart`/`onDrop`) — no dnd-kit
   or other DnD library is installed.
-- **Share as an image** (`src/shareImage.ts`): the teams drawn onto a `<canvas>` at 2× and handed
-  to the OS share sheet via `navigator.share({ files })`, falling back to a download where file
-  sharing isn't supported. Canvas rather than rasterising the DOM so nothing new has to be
-  installed, and text is drawn with `ctx.direction = 'rtl'` so Hebrew names — and Latin nicknames
-  mixed into them — sit the right way round.
+- **Share as an image** (`src/shareImage.ts`) — **written but not wired into the UI**. The teams
+  drawn onto a `<canvas>` at 2× and handed to the OS share sheet via `navigator.share({ files })`,
+  falling back to a download where file sharing isn't supported; canvas rather than rasterising the
+  DOM so nothing new has to be installed, text drawn with `ctx.direction = 'rtl'` so Hebrew names —
+  and Latin nicknames mixed into them — sit the right way round. `TeamsBoard.tsx` shipped a
+  "🖼️ Share image" button calling it, then that button was pulled after a look at the result:
+  the module itself is untouched, so re-adding the button is the only step needed to bring it back
+  once the visual design is worth shipping.
 - **Build version marker**: `vite.config.ts` runs `git rev-parse --short HEAD` at build time and
   injects it as the `__GIT_HASH__` global (declared in `src/vite-env.d.ts`, falls back to `'dev'`
   if git isn't available). Shown top-right of the Roster page — since GitHub Pages rebuilds on
