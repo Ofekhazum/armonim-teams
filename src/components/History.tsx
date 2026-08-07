@@ -1,7 +1,14 @@
 import { useMemo, useState } from 'react';
 import type { DraftTeamWins, FixtureRecord, Player, TeamColor, TeamWins } from '../types';
 import { TEAM_COLORS } from '../balancer';
-import { hasResult, playerForm, playerStandings, suggestRatings, totalWins } from '../calibration';
+import {
+  MIN_NIGHTS,
+  hasResult,
+  playerForm,
+  playerStandings,
+  suggestRatings,
+  totalWins,
+} from '../calibration';
 import { TEAM_META, Name, fmtRating } from './ui';
 
 interface Props {
@@ -163,8 +170,9 @@ export default function History({
         <h3 className="mb-1 font-bold text-amber-950">🏆 Standings</h3>
         <p className="mb-3 text-xs text-amber-900/60">
           Wins a player's team collected while they were on it — a penalty shootout counts as
-          half. "vs rating" is how that compares with what their rating predicts; it's greyed
-          out until there's enough football behind it to mean anything.
+          half. "vs rating" is how that compares with what their rating predicts: blank until a
+          player has {MIN_NIGHTS} nights behind them, and greyed until there's enough of a
+          pattern to read anything into it.
         </p>
         <table className="w-full min-w-[26rem] text-sm">
           <thead>
@@ -180,7 +188,10 @@ export default function History({
             {standings.map((s) => {
               const f = formById.get(s.id);
               const d = f?.delta ?? 0;
-              const meaningful = Math.abs(f?.z ?? 0) >= 1.5;
+              // below the suggestion floor there is nothing worth reading, so
+              // show nothing at all rather than a number that invites reading
+              const rated = s.nights >= MIN_NIGHTS;
+              const meaningful = rated && Math.abs(f?.z ?? 0) >= 1.5;
               return (
                 <tr key={s.id} className="border-t border-amber-900/10">
                   <td className="py-1.5">
@@ -202,13 +213,14 @@ export default function History({
                           : 'font-semibold text-red-700'
                     }`}
                     title={
-                      meaningful
-                        ? 'Consistently over/under-performing their rating'
-                        : 'Not enough evidence to read anything into this yet'
+                      !rated
+                        ? `Needs ${MIN_NIGHTS} nights before this means anything`
+                        : meaningful
+                          ? 'Consistently over/under-performing their rating'
+                          : 'Not enough evidence to read anything into this yet'
                     }
                   >
-                    {d >= 0 ? '+' : ''}
-                    {d.toFixed(2)}
+                    {rated ? `${d >= 0 ? '+' : ''}${d.toFixed(2)}` : '—'}
                   </td>
                 </tr>
               );
@@ -330,6 +342,8 @@ export default function History({
                       <p className="text-xs text-amber-900/45">
                         {totalWins(fx.wins)} wins across the night · {fx.players.length} players
                       </p>
+                      {/* correcting the record is an organiser action, same as
+                          editing ratings — so it sits behind admin mode */}
                       {isAdmin && (
                         <div className="flex flex-wrap gap-2">
                           <button
@@ -349,6 +363,13 @@ export default function History({
                             🗑️ Delete this night
                           </button>
                         </div>
+                      )}
+                      {!isAdmin && (
+                        // otherwise the absence of any control reads as a bug
+                        // rather than as a deliberate lock
+                        <p className="text-xs text-amber-900/40">
+                          🔒 Unlock admin on the Roster tab to correct or delete a night.
+                        </p>
                       )}
                     </>
                   )}

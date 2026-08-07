@@ -191,7 +191,8 @@ to file a night into the host's history. Re-saving updates the same record
 (`session.savedFixtureId`) instead of appending a duplicate; generating fresh teams clears both,
 since an old tally no longer describes the new sheet.
 
-**Correcting a night afterwards** (admin only, History tab): expanding a past night offers
+**Correcting a night afterwards** (admin only, History tab — a non-admin sees a line saying so,
+since an empty panel reads as a bug rather than a lock): expanding a past night offers
 *✏️ Edit result* — the three win counts and the date — and *🗑️ Delete this night*. The team sheet
 is deliberately not editable, since it's a snapshot of who actually played; a genuinely wrong sheet
 means deleting the night and saving it again. Two consistency details live in `App.tsx` rather than
@@ -240,8 +241,10 @@ Two further caveats worth keeping in view:
 - Short-handed nights lend players between teams (§4), but an aggregate tally can't say which
   matches those were, so a loaned player is credited to their own team for the night.
 
-The standings therefore also carry a raw "vs rating" column for everyone, greyed out until
-`|z| ≥ 1.5` — the underlying information is worth seeing long before any suggestion fires.
+The standings therefore also carry a raw "vs rating" column, on the same `MIN_NIGHTS` floor as the
+suggestions: blank below four nights, then greyed until `|z| ≥ 1.5`. Showing a number for someone
+with one night behind them read as the app passing judgement on them, which is exactly the
+impression the floor exists to avoid.
 
 ## 3. Team generation algorithm
 
