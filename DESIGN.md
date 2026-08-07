@@ -56,7 +56,7 @@ point*, expected to be tuned by hand afterwards.
 | teams | the generated/edited assignment (`Record<'black'\|'white'\|'blue', string[]>`), or `null` before generation |
 | teamAlts | the top-N balanced variations generated alongside `teams`, for "re-roll" |
 | altIndex | which variation is currently shown |
-| results | tonight's three scores as typed, before they're filed (§2.6) |
+| wins | tonight's win tally per team as typed, before it's filed (§2.6) |
 | savedFixtureId | set once tonight is saved, so re-saving updates that record instead of adding another |
 
 Only the night in progress lives here. Finished nights move into `AppState.history` as
@@ -172,61 +172,65 @@ rather than minting a new room).
 
 Recording what actually happened, and using it to question the ratings.
 
-**Model** (`types.ts`): a `FixtureRecord` per night — `{ id, date, teams, players, matches }`.
-`players` is a **snapshot** (`FixturePlayer`: id/name/rating at the time) rather than a pointer into
-the roster, because guests are one-off and both names and ratings move; history has to still read
-correctly years later. `matches` holds three `MatchResult`s in `MATCH_PAIRINGS` order (exported from
-`balancer.ts` and shared with `planRotation`, so a saved score always lines up with the match it was
-typed against). A match carries `loans` when the night was short-handed, so a player who came on for
-the resting side is credited to the team they actually played for.
+**What gets recorded.** At the end of the night the organiser types **three numbers: how many
+matches each team won**. Half-steps are ordinary — the house rule is that taking a shootout is
+worth *half* a win, so `3.5` is a normal entry. That's the whole result: no per-match scores, no
+head-to-head record, and no count of how many matches were played. It's deliberately what actually
+gets written down rather than what would be most convenient to analyse, and §2.6's last part is
+honest about what that costs.
 
-**House rule — half wins.** A level match goes to penalties, and taking the shootout is worth *half*
-a win: hence standings like "3.5 wins". `winShare` (`calibration.ts`) is the single place that
-encodes it — decisive result 1/0, shootout 0.5/0, level-but-unrecorded 0.5/0.5. A match with no
-score entered is skipped everywhere rather than counted as a 0-0 draw.
+**Model** (`types.ts`): `TeamWins = Record<TeamColor, number>` on a `FixtureRecord`
+(`{ id, date, teams, players, wins }`), with `DraftTeamWins` (nullable) for the tally while it's
+still being typed. `players` is a **snapshot** (`FixturePlayer`: id/name/rating at the time) rather
+than a pointer into the roster, because guests are one-off and both names and ratings move; history
+has to still read correctly years later.
 
 **Entry**: `ResultsPanel.tsx`, rendered by `MatchDay` *below* the board rather than inside
-`TeamsBoard` — deliberately, since a live-room guest renders that same board and must not be able to
-file a night into the host's history. Re-saving updates the same record (`session.savedFixtureId`)
-instead of appending a duplicate; generating fresh teams clears both, since old scores no longer
-describe the new sheet.
+`TeamsBoard` — deliberately, since a live-room guest renders that same board and must not be able
+to file a night into the host's history. Re-saving updates the same record
+(`session.savedFixtureId`) instead of appending a duplicate; generating fresh teams clears both,
+since an old tally no longer describes the new sheet.
 
-**Rating suggestions** (`calibration.ts`, surfaced in the History tab, admin only). The naive
-approach — take a team's surprise and blame all five players equally — cannot separate a player from
-their teammates; simulated seasons showed it finding genuinely mis-rated players about half the time
-while flagging fairly-rated ones in most seasons. Instead every player is solved for at once with
-**ridge-regularised plus-minus**: each recorded match is one equation ("the surprise in this result
-is the sum of the rating errors on A minus those on B"), and because the balancer reshuffles teams
-weekly, the same player appears in many combinations — that variation is what separates them.
+**Standings** (`playerStandings`): a player collects whatever their team won on nights they played,
+so the table is nights / wins / wins-per-night. Without a matches-played count there is no true
+win percentage — wins-per-night is the honest rate.
 
-Four things stop it being reactionary:
+**Rating suggestions** (`calibration.ts`, History tab, admin only). Each night is turned into three
+*pairwise* observations — black vs white, black vs blue, white vs blue — where the outcome is each
+side's share of the wins the two of them took between them, weighted by how many wins that was (a
+4–1 night is stronger evidence than 1–0). Every player is then solved for at once with
+**ridge-regularised plus-minus**, so a result is attributed to whoever keeps turning up on the right
+side of it rather than smeared equally across five shirts. Expectation uses **current** ratings, not
+the night's, which makes an accepted suggestion self-cancelling rather than repeating.
 
-1. Expectation uses **current** ratings, not the night's, which makes a suggestion self-cancelling:
-   accept it and the player's expected results rise with it, so the same history stops arguing for
-   another one.
-2. The ridge penalty (`LAMBDA`) pulls every estimate toward "your rating is fine".
-3. The trigger is a **confidence test** (`MIN_Z`), not a raw margin — an estimate has to stand clear
-   of its own error bars.
-4. A hard `MIN_MATCHES` floor.
+**What the numbers actually support.** Constants were set by simulation (120 runs per setting: one
+player a full star underrated, one a full star overrated, the other thirteen rated exactly right),
+not by taste. At the chosen setting, for a genuinely mis-rated player:
 
-Penalties are ignored *here* even though they decide the standings: a shootout is near enough a coin
-flip, so for judging ability a level match is just a draw.
+| nights | found | pointed the wrong way | fairly-rated players flagged |
+|---|---|---|---|
+| 4 | ~8% | ~7% | 1.6 of 13 |
+| 6 | ~18% | ~9% | 2.6 of 13 |
+| 10 | ~28% | ~3% | 3.0 of 13 |
 
-**What the numbers actually support.** Constants were picked by simulating 80 seasons per setting,
-not by taste. Two findings worth keeping in mind before trusting this feature:
+So it *can* speak from three or four nights, but usually won't, and **most players should get no
+suggestion at all** — that is the intended behaviour, not a gap. The tuning run that made this
+concrete: loosening the effect-size gate (`MIN_IMPLIED_DELTA`) from 1.5 to 0.6 roughly quadruples
+how often it fires at four nights *and* pushes the wrong-direction rate to about 25% — it would be
+recommending a downgrade for a genuinely good player one time in four. Three numbers a night is a
+coarse record, and no amount of modelling manufactures information that isn't there.
 
-- Individual attribution in five-a-side is genuinely hard. At the chosen bar, a league where
-  everyone is correctly rated still throws up a spurious suggestion in roughly one season in six,
-  and a player who really is a full star out is found about a fifth of the time once a couple of
-  years of results exist. Loosening the bar to `z=1.0` quadruples the hit rate but makes a false
-  suggestion near-certain every season, which would train everyone to ignore the feature.
-- The conversion from "surprise in results" to "stars" assumes a model of how ratings drive goals
-  that this data cannot verify; simulation showed the *magnitude* can be off by about a factor of
-  two while the sign and ordering hold. That is why `MIN_Z` does the gatekeeping, the suggestion
-  only ever moves half a star, and the UI calls them prompts rather than verdicts.
+Two further caveats worth keeping in view:
 
-So the standings table also shows a raw "vs rating" column for everyone, greyed out until it clears
-`|z| ≥ 1.5` — the underlying information is useful long before any suggestion fires.
+- Converting "surprise in results" into "stars" assumes a model of how ratings drive wins that this
+  data cannot check. Simulation shows the sign and ordering hold up while the magnitude can be well
+  out — hence a suggestion never moves more than half a star, and the UI calls them prompts rather
+  than verdicts, with an `early` badge until a player has a real number of nights behind them.
+- Short-handed nights lend players between teams (§4), but an aggregate tally can't say which
+  matches those were, so a loaned player is credited to their own team for the night.
+
+The standings therefore also carry a raw "vs rating" column for everyone, greyed out until
+`|z| ≥ 1.5` — the underlying information is worth seeing long before any suggestion fires.
 
 ## 3. Team generation algorithm
 
@@ -303,11 +307,12 @@ panel is unaffected — the organizer still sees the plan, it just doesn't go in
      numbers update live. "Re-roll" cycles through the alternative generated results. A **Share**
      button copies WhatsApp-ready text (`shareText`/`copy` in `TeamsBoard.tsx`). Optionally,
      **🔴 Go live** turns this board into a shared live room others can join and drag in — see §2.5.
-   Below the board, **🏁 Tonight's results** (`ResultsPanel.tsx`) takes the three scores and
-   files the night into history — see §2.6.
+   Below the board, **🏁 Tonight's results** (`ResultsPanel.tsx`) takes each team's win count
+   and files the night into history — see §2.6.
 3. **History** (`src/components/History.tsx`) — past nights (expandable to the team sheets and
-   scores), a standings table where a shootout counts as half a win, and, in admin mode,
-   rating suggestions with Apply/Dismiss. Empty until the first night is saved.
+   each team's wins), a standings table of nights / wins / wins-per-night where a shootout counts
+   as half, and, in admin mode, rating suggestions with Apply/Dismiss. Empty until the first
+   night is saved.
 4. **Live room guest view** (`src/components/RoomGuest.tsx`) — what a shared room link opens
    instead of the app above; see §2.5.
 

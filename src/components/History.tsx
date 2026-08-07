@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import type { FixtureRecord, Player } from '../types';
-import { playerForm, playerStandings, suggestRatings, winShare } from '../calibration';
+import { TEAM_COLORS } from '../balancer';
+import { hasResult, playerForm, playerStandings, suggestRatings, totalWins } from '../calibration';
 import { TEAM_META, Name, fmtRating } from './ui';
 
 interface Props {
@@ -31,18 +32,15 @@ export default function History({
   );
 
   const formById = new Map(form.map((f) => [f.id, f]));
-  const recorded = history.reduce(
-    (n, fx) => n + fx.matches.filter((m) => winShare(m)).length,
-    0,
-  );
+  const recordedNights = history.filter((fx) => hasResult(fx.wins)).length;
 
   if (history.length === 0) {
     return (
       <div className="rounded-2xl border border-amber-900/15 bg-[#fffdf4]/70 p-6 text-center shadow-sm">
         <p className="text-lg font-bold text-amber-950">No nights recorded yet</p>
         <p className="mx-auto mt-1 max-w-md text-sm text-amber-900/60">
-          Generate teams on Match day, type in the scores under 🏁 Tonight's results, and
-          save. Standings and rating suggestions build up from there.
+          Generate teams on Match day, tally up how many matches each team won under 🏁
+          Tonight's results, and save. Standings and rating suggestions build from there.
         </p>
       </div>
     );
@@ -52,17 +50,20 @@ export default function History({
     <div className="space-y-4">
       <div className="flex flex-wrap items-baseline gap-x-3 text-sm text-amber-900/60">
         <span className="text-base font-bold text-amber-950">
-          {history.length} night{history.length === 1 ? '' : 's'}
+          {recordedNights} night{recordedNights === 1 ? '' : 's'} recorded
         </span>
-        <span>{recorded} matches recorded</span>
+        {history.length !== recordedNights && (
+          <span>{history.length - recordedNights} saved with no result</span>
+        )}
       </div>
 
       {isAdmin && suggestions.length > 0 && (
         <div className="space-y-2 rounded-2xl border border-orange-600/40 bg-orange-500/10 p-4 shadow-sm">
           <h3 className="font-bold text-amber-950">📈 Rating suggestions</h3>
           <p className="text-xs text-amber-900/60">
-            Drawn from results, controlling for who each player lined up with and against.
-            These are prompts, not verdicts — accept the ones that match what you've seen.
+            Based on how each player's teams do against what their rating predicts, allowing
+            for who they lined up with. Early ones rest on a handful of nights — treat those
+            as a nudge to look, not a verdict.
           </p>
           <ul className="space-y-2">
             {suggestions.map((s) => (
@@ -76,8 +77,23 @@ export default function History({
                   <span className="ml-1">{s.direction === 'up' ? '⬆️' : '⬇️'}</span>
                 </span>
                 <span className="text-xs text-amber-900/55">
-                  {s.played} matches · {fmtWins(s.wins)}W {s.draws}D {s.losses}L ·{' '}
-                  {s.confidence} evidence
+                  {s.nights} night{s.nights === 1 ? '' : 's'} · {fmtWins(s.wins)} wins
+                </span>
+                <span
+                  className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${
+                    s.confidence === 'strong'
+                      ? 'bg-green-600/15 text-green-800'
+                      : s.confidence === 'solid'
+                        ? 'bg-amber-500/25 text-amber-900'
+                        : 'bg-amber-900/10 text-amber-900/70'
+                  }`}
+                  title={
+                    s.confidence === 'building'
+                      ? 'Early — could still be luck'
+                      : 'The pattern has held up over more football'
+                  }
+                >
+                  {s.confidence === 'building' ? 'early' : s.confidence}
                 </span>
                 <div className="flex-1" />
                 <button
@@ -101,19 +117,17 @@ export default function History({
       <div className="overflow-x-auto rounded-2xl border border-amber-900/15 bg-[#fffdf4]/70 p-4 shadow-sm">
         <h3 className="mb-1 font-bold text-amber-950">🏆 Standings</h3>
         <p className="mb-3 text-xs text-amber-900/60">
-          A penalty shootout counts as half a win. "vs rating" is how a player's results
-          compare with what their rating predicts — it needs a lot of football before it
-          means much, so treat small numbers as noise.
+          Wins a player's team collected while they were on it — a penalty shootout counts as
+          half. "vs rating" is how that compares with what their rating predicts; it's greyed
+          out until there's enough football behind it to mean anything.
         </p>
-        <table className="w-full min-w-[30rem] text-sm">
+        <table className="w-full min-w-[26rem] text-sm">
           <thead>
             <tr className="text-left text-xs uppercase tracking-wide text-amber-900/50">
               <th className="pb-1 font-bold">Player</th>
-              <th className="pb-1 text-right font-bold">P</th>
-              <th className="pb-1 text-right font-bold">W</th>
-              <th className="pb-1 text-right font-bold">D</th>
-              <th className="pb-1 text-right font-bold">L</th>
-              <th className="pb-1 text-right font-bold">Win %</th>
+              <th className="pb-1 text-right font-bold">Nights</th>
+              <th className="pb-1 text-right font-bold">Wins</th>
+              <th className="pb-1 text-right font-bold">Per night</th>
               <th className="pb-1 text-right font-bold">vs rating</th>
             </tr>
           </thead>
@@ -127,14 +141,12 @@ export default function History({
                   <td className="py-1.5">
                     <Name className="font-semibold text-amber-950">{s.name}</Name>
                   </td>
-                  <td className="py-1.5 text-right tabular-nums text-amber-900/70">{s.played}</td>
+                  <td className="py-1.5 text-right tabular-nums text-amber-900/70">{s.nights}</td>
                   <td className="py-1.5 text-right font-bold tabular-nums text-amber-950">
                     {fmtWins(s.wins)}
                   </td>
-                  <td className="py-1.5 text-right tabular-nums text-amber-900/70">{s.draws}</td>
-                  <td className="py-1.5 text-right tabular-nums text-amber-900/70">{s.losses}</td>
                   <td className="py-1.5 text-right tabular-nums text-amber-900/70">
-                    {((s.wins / (s.played || 1)) * 100).toFixed(0)}%
+                    {s.perNight.toFixed(2)}
                   </td>
                   <td
                     className={`py-1.5 text-right tabular-nums ${
@@ -165,6 +177,7 @@ export default function History({
         {[...history].reverse().map((fx) => {
           const open = openId === fx.id;
           const nameOf = (id: string) => fx.players.find((p) => p.id === id)?.name ?? '?';
+          const winner = [...TEAM_COLORS].sort((a, b) => (fx.wins[b] ?? 0) - (fx.wins[a] ?? 0))[0];
           return (
             <div
               key={fx.id}
@@ -173,41 +186,33 @@ export default function History({
               <button
                 onClick={() => setOpenId(open ? null : fx.id)}
                 aria-expanded={open}
-                className="flex w-full items-center gap-3 px-4 py-3 text-left"
+                className="flex w-full flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3 text-left"
               >
                 <span className="font-bold text-amber-950">{fx.date}</span>
-                <span className="text-xs text-amber-900/55">
-                  {fx.matches.filter((m) => winShare(m)).length} matches ·{' '}
-                  {fx.players.length} players
-                </span>
+                {hasResult(fx.wins) ? (
+                  <span className="text-sm text-amber-900/70">
+                    {TEAM_COLORS.map((c) => `${TEAM_META[c].emoji} ${fmtWins(fx.wins[c] ?? 0)}`).join('  ')}
+                  </span>
+                ) : (
+                  <span className="text-xs text-amber-900/40">no result recorded</span>
+                )}
+                {hasResult(fx.wins) && (
+                  <span className="text-xs font-bold text-orange-700">
+                    🏆 {TEAM_META[winner].label}
+                  </span>
+                )}
                 <div className="flex-1" />
                 <span className="text-amber-900/40">{open ? '▲' : '▼'}</span>
               </button>
 
               {open && (
                 <div className="space-y-3 border-t border-amber-900/10 px-4 py-3">
-                  <ul className="space-y-1 text-sm">
-                    {fx.matches.map((m, i) => {
-                      const share = winShare(m);
-                      return (
-                        <li key={i} className="text-amber-900">
-                          {TEAM_META[m.a].emoji} {m.scoreA ?? '–'} – {m.scoreB ?? '–'}{' '}
-                          {TEAM_META[m.b].emoji}
-                          {m.penaltyWinner && (
-                            <span className="ml-2 text-xs text-orange-700">
-                              {TEAM_META[m.penaltyWinner].label} on penalties (½)
-                            </span>
-                          )}
-                          {!share && <span className="ml-2 text-xs text-amber-900/40">not played</span>}
-                        </li>
-                      );
-                    })}
-                  </ul>
                   <div className="grid gap-2 sm:grid-cols-3">
-                    {(['black', 'white', 'blue'] as const).map((c) => (
+                    {TEAM_COLORS.map((c) => (
                       <div key={c} className="text-xs">
                         <div className="font-bold text-amber-950">
-                          {TEAM_META[c].emoji} {TEAM_META[c].label}
+                          {TEAM_META[c].emoji} {TEAM_META[c].label} —{' '}
+                          {fmtWins(fx.wins[c] ?? 0)} win{(fx.wins[c] ?? 0) === 1 ? '' : 's'}
                         </div>
                         <div className="text-amber-900/60">
                           {fx.teams[c].map((id) => nameOf(id)).join(', ') || '—'}
@@ -215,6 +220,9 @@ export default function History({
                       </div>
                     ))}
                   </div>
+                  <p className="text-xs text-amber-900/45">
+                    {totalWins(fx.wins)} wins across the night · {fx.players.length} players
+                  </p>
                   {isAdmin && (
                     <button
                       onClick={() => {

@@ -10,14 +10,14 @@ import {
   setMyName,
   uid,
 } from '../storage';
-import { generateTeams, planRotation, targetSizes } from '../balancer';
+import { generateTeams, targetSizes } from '../balancer';
 import { parseImportList, resolveImportedNames } from '../importRoster';
 import { ROOMS_ENABLED, hostRoom, roomShareUrl } from '../liveRoom';
 import type { ActivityEvent, PresenceMember, RoomConnection } from '../liveRoom';
 import { createUserColorTracker } from '../userColor';
 import LiveRoomBar from './LiveRoomBar';
 import TeamsBoard from './TeamsBoard';
-import ResultsPanel, { emptyResults } from './ResultsPanel';
+import ResultsPanel, { emptyWins } from './ResultsPanel';
 import { fmtRating, Name, RATING_STEPS, STYLE_META } from './ui';
 
 const ACTIVITY_MS = 750;
@@ -198,9 +198,9 @@ export default function MatchDay({
       teams: results[0] ?? null,
       teamAlts: results,
       altIndex: 0,
-      // these teams are new, so any scores typed against the old ones — and
-      // the history record they were filed into — no longer describe them
-      results: emptyResults(),
+      // these teams are new, so a tally typed against the old ones — and the
+      // history record it was filed into — no longer describes them
+      wins: emptyWins(),
       savedFixtureId: null,
     });
   };
@@ -220,25 +220,20 @@ export default function MatchDay({
   const saveNight = () => {
     if (!session.teams) return;
     const teams = session.teams;
-    const byId = new Map(todays.map((p) => [p.id, p]));
-    // loans line up with the results rows: both are in MATCH_PAIRINGS order.
-    // On a full night every loans array is empty, which is the right answer.
-    const plan = planRotation(teams, byId, new Set(effectiveGkIds));
-    const rows = session.results.length ? session.results : emptyResults();
-    const matches = rows.map((r, i) => {
-      const loans = plan[i]?.loans ?? [];
-      return loans.length ? { ...r, loans } : { ...r, loans: undefined };
-    });
-
     const id = session.savedFixtureId ?? uid();
     onSaveFixture({
       id,
       date: new Date().toISOString().slice(0, 10),
       teams: { black: [...teams.black], white: [...teams.white], blue: [...teams.blue] },
       players: todays.map((p) => ({ id: p.id, name: p.name, rating: p.rating })),
-      matches,
+      // a team left blank simply didn't win any
+      wins: {
+        black: session.wins.black ?? 0,
+        white: session.wins.white ?? 0,
+        blue: session.wins.blue ?? 0,
+      },
     });
-    setSession({ ...session, results: rows, savedFixtureId: id });
+    setSession({ ...session, savedFixtureId: id });
   };
 
   const leaveRoom = () => {
@@ -373,9 +368,8 @@ export default function MatchDay({
           }}
         />
         <ResultsPanel
-          teams={session.teams}
-          results={session.results}
-          onChange={(results) => setSession({ ...session, results })}
+          wins={session.wins}
+          onChange={(wins) => setSession({ ...session, wins })}
           onSave={saveNight}
           saved={session.savedFixtureId !== null}
         />
