@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { AppState, FixtureRecord, Player, Session } from './types';
+import type { AppState, FixtureRecord, Player, Session, TeamWins } from './types';
 import { migratePlayer } from './types';
 import { loadState, saveState } from './storage';
 import { fetchRemoteRoster, localRosterVersion, setLocalRosterVersion } from './remote';
@@ -75,7 +75,25 @@ export default function App() {
     }));
 
   const deleteFixture = (id: string) =>
-    setState((s) => ({ ...s, history: s.history.filter((f) => f.id !== id) }));
+    setState((s) => ({
+      ...s,
+      history: s.history.filter((f) => f.id !== id),
+      // if tonight's own record was the one deleted, forget that it was ever
+      // filed — otherwise "Save to history" would still read as an update
+      session:
+        s.session.savedFixtureId === id ? { ...s.session, savedFixtureId: null } : s.session,
+    }));
+
+  // Correcting a night after the fact. If it happens to be the night still
+  // open on Match Day, the in-progress tally is corrected with it — otherwise
+  // saving again from there would quietly undo the edit.
+  const editFixture = (id: string, patch: { wins: TeamWins; date: string }) =>
+    setState((s) => ({
+      ...s,
+      history: s.history.map((f) => (f.id === id ? { ...f, ...patch } : f)),
+      session:
+        s.session.savedFixtureId === id ? { ...s.session, wins: patch.wins } : s.session,
+    }));
 
   // Accepting a rating suggestion is a normal roster edit — it goes through
   // setPlayers so the session stays consistent, and still needs publishing to
@@ -131,6 +149,7 @@ export default function App() {
           isAdmin={adminWord !== null}
           onApplyRating={applyRating}
           onDeleteFixture={deleteFixture}
+          onEditFixture={editFixture}
         />
       ) : (
         <MatchDay

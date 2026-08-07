@@ -191,6 +191,15 @@ to file a night into the host's history. Re-saving updates the same record
 (`session.savedFixtureId`) instead of appending a duplicate; generating fresh teams clears both,
 since an old tally no longer describes the new sheet.
 
+**Correcting a night afterwards** (admin only, History tab): expanding a past night offers
+*✏️ Edit result* — the three win counts and the date — and *🗑️ Delete this night*. The team sheet
+is deliberately not editable, since it's a snapshot of who actually played; a genuinely wrong sheet
+means deleting the night and saving it again. Two consistency details live in `App.tsx` rather than
+the component: editing or deleting the night that is *still open on Match Day* also patches
+`session.wins` / clears `session.savedFixtureId`, so pressing "Save to history" again can't silently
+undo the correction. The list is ordered by date rather than by insertion, so a night filed late or
+re-dated still sorts correctly.
+
 **Standings** (`playerStandings`): a player collects whatever their team won on nights they played,
 so the table is nights / wins / wins-per-night. Without a matches-played count there is no true
 win percentage — wins-per-night is the honest rate.
@@ -213,7 +222,9 @@ not by taste. At the chosen setting, for a genuinely mis-rated player:
 | 6 | ~18% | ~9% | 2.6 of 13 |
 | 10 | ~28% | ~3% | 3.0 of 13 |
 
-So it *can* speak from three or four nights, but usually won't, and **most players should get no
+Suggestions need **four nights from that player** (`MIN_NIGHTS`) — counted per player, not per
+season, so a regular builds a record while someone who turns up twice a year is never judged on it.
+So it *can* speak from four nights, but usually won't, and **most players should get no
 suggestion at all** — that is the intended behaviour, not a gap. The tuning run that made this
 concrete: loosening the effect-size gate (`MIN_IMPLIED_DELTA`) from 1.5 to 0.6 roughly quadruples
 how often it fires at four nights *and* pushes the wrong-direction rate to about 25% — it would be

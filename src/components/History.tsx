@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import type { FixtureRecord, Player } from '../types';
+import type { DraftTeamWins, FixtureRecord, Player, TeamColor, TeamWins } from '../types';
 import { TEAM_COLORS } from '../balancer';
 import { hasResult, playerForm, playerStandings, suggestRatings, totalWins } from '../calibration';
 import { TEAM_META, Name, fmtRating } from './ui';
@@ -10,6 +10,12 @@ interface Props {
   isAdmin: boolean;
   onApplyRating: (playerId: string, rating: number) => void;
   onDeleteFixture: (fixtureId: string) => void;
+  onEditFixture: (fixtureId: string, patch: { wins: TeamWins; date: string }) => void;
+}
+
+interface Draft {
+  wins: DraftTeamWins;
+  date: string;
 }
 
 const fmtWins = (w: number) => (Number.isInteger(w) ? String(w) : w.toFixed(1));
@@ -20,9 +26,48 @@ export default function History({
   isAdmin,
   onApplyRating,
   onDeleteFixture,
+  onEditFixture,
 }: Props) {
   const [openId, setOpenId] = useState<string | null>(null);
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
+  // the night currently being corrected, and the values as typed so far
+  const [editId, setEditId] = useState<string | null>(null);
+  const [draft, setDraft] = useState<Draft | null>(null);
+
+  const startEdit = (fx: FixtureRecord) => {
+    setEditId(fx.id);
+    setDraft({ wins: { ...fx.wins }, date: fx.date });
+  };
+
+  const cancelEdit = () => {
+    setEditId(null);
+    setDraft(null);
+  };
+
+  const commitEdit = (id: string) => {
+    if (!draft) return;
+    onEditFixture(id, {
+      // a team left blank simply didn't win any, same as on Match Day
+      wins: {
+        black: draft.wins.black ?? 0,
+        white: draft.wins.white ?? 0,
+        blue: draft.wins.blue ?? 0,
+      },
+      date: draft.date,
+    });
+    cancelEdit();
+  };
+
+  const setDraftWin = (c: TeamColor, raw: string) => {
+    setDraft((d) => {
+      if (!d) return d;
+      if (raw === '') return { ...d, wins: { ...d.wins, [c]: null } };
+      const n = Number(raw);
+      if (!Number.isFinite(n) || n < 0) return d;
+      // half-steps are meaningful (a shootout is half a win); snap anything finer
+      return { ...d, wins: { ...d.wins, [c]: Math.min(99, Math.round(n * 2) / 2) } };
+    });
+  };
 
   const standings = useMemo(() => playerStandings(history), [history]);
   const form = useMemo(() => playerForm(history, players), [history, players]);
@@ -174,7 +219,11 @@ export default function History({
 
       <div className="space-y-2">
         <h3 className="font-bold text-amber-950">📅 Past nights</h3>
-        {[...history].reverse().map((fx) => {
+        {/* newest first by date, not by when it happened to be saved — a night
+            filed late, or one whose date was corrected, still sorts correctly */}
+        {[...history]
+          .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0))
+          .map((fx) => {
           const open = openId === fx.id;
           const nameOf = (id: string) => fx.players.find((p) => p.id === id)?.name ?? '?';
           const winner = [...TEAM_COLORS].sort((a, b) => (fx.wins[b] ?? 0) - (fx.wins[a] ?? 0))[0];
@@ -207,33 +256,101 @@ export default function History({
 
               {open && (
                 <div className="space-y-3 border-t border-amber-900/10 px-4 py-3">
-                  <div className="grid gap-2 sm:grid-cols-3">
-                    {TEAM_COLORS.map((c) => (
-                      <div key={c} className="text-xs">
-                        <div className="font-bold text-amber-950">
-                          {TEAM_META[c].emoji} {TEAM_META[c].label} —{' '}
-                          {fmtWins(fx.wins[c] ?? 0)} win{(fx.wins[c] ?? 0) === 1 ? '' : 's'}
-                        </div>
-                        <div className="text-amber-900/60">
-                          {fx.teams[c].map((id) => nameOf(id)).join(', ') || '—'}
-                        </div>
+                  {editId === fx.id && draft ? (
+                    <>
+                      <div className="grid gap-2 sm:grid-cols-3">
+                        {TEAM_COLORS.map((c) => (
+                          <label
+                            key={c}
+                            className="flex items-center gap-2 rounded-xl border border-amber-900/10 bg-white/70 px-3 py-2"
+                          >
+                            <span className="flex-1 text-sm font-bold text-amber-950">
+                              {TEAM_META[c].emoji} {TEAM_META[c].label}
+                            </span>
+                            <input
+                              type="number"
+                              inputMode="decimal"
+                              min={0}
+                              max={99}
+                              step={0.5}
+                              value={draft.wins[c] ?? ''}
+                              onChange={(e) => setDraftWin(c, e.target.value)}
+                              placeholder="–"
+                              aria-label={`Matches won by ${TEAM_META[c].label}`}
+                              className="w-20 rounded-lg border border-amber-900/25 bg-white px-2 py-1 text-center font-bold text-amber-950"
+                            />
+                          </label>
+                        ))}
                       </div>
-                    ))}
-                  </div>
-                  <p className="text-xs text-amber-900/45">
-                    {totalWins(fx.wins)} wins across the night · {fx.players.length} players
-                  </p>
-                  {isAdmin && (
-                    <button
-                      onClick={() => {
-                        if (confirm(`Delete the night of ${fx.date} from history?`)) {
-                          onDeleteFixture(fx.id);
-                        }
-                      }}
-                      className="rounded-lg border border-red-500/50 px-3 py-1 text-xs font-bold text-red-700 hover:bg-red-50"
-                    >
-                      Delete this night
-                    </button>
+                      <label className="flex items-center gap-2 text-xs text-amber-900/70">
+                        Date
+                        <input
+                          type="date"
+                          value={draft.date}
+                          onChange={(e) =>
+                            setDraft((d) => (d ? { ...d, date: e.target.value } : d))
+                          }
+                          className="rounded-lg border border-amber-900/25 bg-white px-2 py-1 font-semibold text-amber-950"
+                        />
+                      </label>
+                      <p className="text-xs text-amber-900/50">
+                        Half a win means it was taken on penalties. The team sheet can't be
+                        changed — delete the night and save it again if the teams were wrong.
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          onClick={() => commitEdit(fx.id)}
+                          className="rounded-lg bg-orange-600 px-3 py-1 text-xs font-bold text-amber-50 hover:scale-105"
+                        >
+                          Save changes
+                        </button>
+                        <button
+                          onClick={cancelEdit}
+                          className="rounded-lg border border-amber-900/25 px-3 py-1 text-xs font-bold text-amber-900 hover:border-orange-500"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="grid gap-2 sm:grid-cols-3">
+                        {TEAM_COLORS.map((c) => (
+                          <div key={c} className="text-xs">
+                            <div className="font-bold text-amber-950">
+                              {TEAM_META[c].emoji} {TEAM_META[c].label} —{' '}
+                              {fmtWins(fx.wins[c] ?? 0)} win{(fx.wins[c] ?? 0) === 1 ? '' : 's'}
+                            </div>
+                            <div className="text-amber-900/60">
+                              {fx.teams[c].map((id) => nameOf(id)).join(', ') || '—'}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <p className="text-xs text-amber-900/45">
+                        {totalWins(fx.wins)} wins across the night · {fx.players.length} players
+                      </p>
+                      {isAdmin && (
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            onClick={() => startEdit(fx)}
+                            className="rounded-lg border border-amber-900/25 px-3 py-1 text-xs font-bold text-amber-900 hover:border-orange-500"
+                          >
+                            ✏️ Edit result
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (confirm(`Delete the night of ${fx.date} from history?`)) {
+                                onDeleteFixture(fx.id);
+                              }
+                            }}
+                            className="rounded-lg border border-red-500/50 px-3 py-1 text-xs font-bold text-red-700 hover:bg-red-50"
+                          >
+                            🗑️ Delete this night
+                          </button>
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
               )}

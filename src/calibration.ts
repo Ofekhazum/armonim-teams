@@ -43,10 +43,12 @@
 import { FULL_TEAM, TEAM_COLORS } from './balancer';
 import type { FixtureRecord, Player, TeamColor, TeamWins } from './types';
 
-// Nothing is suggested below this many nights. Set low on purpose: the app
-// should be able to speak up early. What stops that becoming noise is the
-// effect-size bar below, not a long wait.
-const MIN_NIGHTS = 3;
+// A player needs this many nights behind them before anything is suggested
+// about them — counted per player, not per season, so a regular builds up a
+// record while someone who turns up twice a year never gets judged on it.
+// Kept deliberately low so the app can speak up early; what stops that becoming
+// noise is the effect-size bar below, not a long wait.
+const MIN_NIGHTS = 4;
 
 // Converts a rating gap into an expected share of the wins. At SCALE = 2, a
 // full point of team-average advantage means taking about 76% of them.
