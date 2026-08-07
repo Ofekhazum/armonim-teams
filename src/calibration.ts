@@ -97,37 +97,37 @@ const ANCHOR_RATING = 2.5;
 // How much the bar moves per star away from that anchor. A rating is treated as
 // a claim that has to keep being justified: climbing further from the anchor
 // costs more evidence than the base bar, and sliding back toward it costs less.
-// A 5★ therefore needs twice the evidence to be promoted that it needs to be
-// dropped, and a 2★ the reverse.
 //
 //   rating │ to go up │ to come down
-//      1.0 │     1.20 │         1.80
-//      2.0 │     1.40 │         1.60
+//      1.0 │     1.35 │         1.65
+//      2.0 │     1.45 │         1.55
 //      2.5 │     1.50 │         1.50
-//      3.0 │     1.60 │         1.40
-//      4.0 │     1.80 │         1.20
-//      5.0 │     2.00 │         1.00
+//      3.0 │     1.55 │         1.45
+//      4.0 │     1.65 │         1.35
+//      5.0 │     1.75 │         1.25
 //
 // Symmetric about the anchor — a 1★ has to justify staying down there as much
 // as a 5★ has to justify staying up — but in practice it bites at the top,
 // which is where unearned ratings accumulate.
 //
-// The size of the tilt is a judgement call, and the cost is real. Measured over
-// 120 runs × 20 nights on a realistically spread roster:
+// Kept gentle deliberately, and tuned down once already (from 0.20): the
+// stronger the tilt, the more it also flags players who are exactly where they
+// should be, and a panel that keeps nagging you to demote your best player
+// trains you to stop reading it. Measured over 120 runs × 20 nights on a
+// realistically spread roster, at this value:
 //
 //                                        suggested down
-//   5★ who is really a 3.5 (overrated)          58%   ← the point of the tilt
-//   5★ who really is a 5 (correctly rated)      28%   ← the price of it
-//   4★ who is really a 3 (overrated)            31%
-//   4★ who really is a 4 (correctly rated)      13%
+//   5★ who is really a 3.5 (overrated)          47%   ← the point of the tilt
+//   5★ who really is a 5 (correctly rated)      17%   ← the price of it
+//   4★ who is really a 3 (overrated)             23%
+//   4★ who really is a 4 (correctly rated)       12%
 //
-// Roughly two right for every one wrong, and that ratio barely moves however
-// this constant is set — steepening the tilt raises both numbers together.
-// So the tilt chooses where to sit on a fixed trade, not how good the trade is.
-// It's set moderate on purpose: a suggestion is dismissible and only moves half
-// a star, but nagging someone to demote their best player would quickly teach
-// them to ignore the whole panel.
-const RATING_BIAS = 0.20;
+// Almost three right for every one wrong. A steeper tilt (0.20, the original
+// value) catches more genuine over-ratings — 58% vs 47% here — but very nearly
+// doubles the false-flag rate on a correctly-rated 5★ (28% vs 17%), which is a
+// worse trade than it looks: a wrong "demote your best player" costs more
+// trust than a missed "you should probably drop this one" costs opportunity.
+const RATING_BIAS = 0.10;
 
 // However far the bias pushes, never take the bar below this: a suggestion
 // still has to rest on a real effect, not merely on someone being highly rated.

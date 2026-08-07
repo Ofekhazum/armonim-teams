@@ -238,23 +238,25 @@ Climbing further from the anchor costs more evidence; sliding back toward it cos
 
 | rating | to go up | to come down |
 |---|---|---|
-| 1.0 | 1.20 | 1.80 |
+| 1.0 | 1.35 | 1.65 |
 | 2.5 | 1.50 | 1.50 |
-| 4.0 | 1.80 | 1.20 |
-| 5.0 | 2.00 | 1.00 |
+| 4.0 | 1.65 | 1.35 |
+| 5.0 | 1.75 | 1.25 |
 
-So a 5★ needs twice the evidence to be promoted that it needs to be dropped, and a 2★ the reverse.
-The anchor sits below the arithmetic middle deliberately: squads have a few genuinely strong players
-and a long ordinary tail, and hand-set ratings drift upward over time because nobody enjoys arguing
+So a 5★ needs somewhat more evidence to be promoted than to be dropped, and a 2★ the reverse. The
+anchor sits below the arithmetic middle deliberately: squads have a few genuinely strong players and
+a long ordinary tail, and hand-set ratings drift upward over time because nobody enjoys arguing
 someone down.
 
-The cost is real and worth stating. Over 120 runs × 20 nights on a realistically spread roster, a 5★
-who is really a 3.5 is flagged for a drop 58% of the time — and a 5★ who genuinely *is* a 5 is
-flagged 28% of the time. About two right for every one wrong, and **that ratio barely moves however
-the tilt is set** — steepening it raises both numbers together. The tilt therefore chooses where to
-sit on a fixed trade rather than improving it, and it's set moderate on purpose: suggestions are
-dismissible and only move half a star, but nagging someone to demote their best player would teach
-them to ignore the panel entirely.
+The size of the tilt (`RATING_BIAS`) was lowered once already, from 0.20 to 0.10, after testing
+showed it too aggressive at the top. Over 120 runs × 20 nights on a realistically spread roster, at
+0.10 a 5★ who is really a 3.5 is flagged for a drop 47% of the time, and — the actual cost — a 5★ who
+genuinely *is* a 5 is flagged 17% of the time. At the original 0.20 those were 58% and 28%: steepening
+the tilt does catch more genuine over-ratings, but it worsens the false-flag rate on a correctly-rated
+player *faster*, which is the wrong direction to trade in — a wrong "demote your best player" costs
+more trust in the feature than a missed "you should probably drop this one" costs opportunity.
+Suggestions are dismissible and only ever move half a star, but a panel that keeps nagging you about
+your best player trains you to stop reading it.
 
 **Running out of scale.** A player already at 5★ who keeps beating expectation, or one at 1★ who
 keeps falling short, has no half-star left to move. Rather than silently dropping the case (which

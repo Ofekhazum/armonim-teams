@@ -232,9 +232,11 @@ export default function History({
         <h3 className="mb-1 font-bold text-amber-950">🏆 Standings</h3>
         <p className="mb-3 text-xs text-amber-900/60">
           Wins a player's team collected while they were on it — a penalty shootout counts as
-          half. "vs rating" is how that compares with what their rating predicts: blank until a
-          player has {MIN_NIGHTS} nights behind them, and greyed until there's enough of a
-          pattern to read anything into it.
+          half. "vs rating" is a different measure, not a rescaling of per-night: it accounts for
+          the strength of who they played <i>with</i> and <i>against</i> each night, so it can
+          rank someone above a teammate with a higher per-night number if that teammate's wins
+          came from stronger sides. Blank until a player has {MIN_NIGHTS} nights behind them, and
+          greyed until there's enough of a pattern to read anything into it.
         </p>
         <table className="w-full min-w-[26rem] text-sm">
           <thead>
