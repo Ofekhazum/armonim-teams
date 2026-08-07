@@ -25,6 +25,16 @@ interface Draft {
   date: string;
 }
 
+type SortKey = 'name' | 'nights' | 'wins' | 'perNight' | 'vsRating';
+
+const SORT_COLUMNS: { key: SortKey; label: string }[] = [
+  { key: 'name', label: 'Player' },
+  { key: 'nights', label: 'Nights' },
+  { key: 'wins', label: 'Wins' },
+  { key: 'perNight', label: 'Per night' },
+  { key: 'vsRating', label: 'vs rating' },
+];
+
 const fmtWins = (w: number) => (Number.isInteger(w) ? String(w) : w.toFixed(1));
 
 export default function History({
@@ -40,6 +50,13 @@ export default function History({
   // the night currently being corrected, and the values as typed so far
   const [editId, setEditId] = useState<string | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
+  // collapsed by default — a season's worth of nights is a wall of rows nobody
+  // wants on landing in the tab, and the standings above already summarise them
+  const [nightsExpanded, setNightsExpanded] = useState(false);
+  const [sort, setSort] = useState<{ key: SortKey; dir: 'asc' | 'desc' }>({
+    key: 'perNight',
+    dir: 'desc',
+  });
 
   const startEdit = (fx: FixtureRecord) => {
     setEditId(fx.id);
@@ -85,6 +102,31 @@ export default function History({
 
   const formById = new Map(form.map((f) => [f.id, f]));
   const recordedNights = history.filter((fx) => hasResult(fx.wins)).length;
+
+  // clicking the same header flips direction; a new column starts in whatever
+  // direction is useful first — biggest-first for numbers, A→Z for the name
+  const toggleSort = (key: SortKey) =>
+    setSort((s) =>
+      s.key === key
+        ? { key, dir: s.dir === 'asc' ? 'desc' : 'asc' }
+        : { key, dir: key === 'name' ? 'asc' : 'desc' },
+    );
+
+  const sortedStandings = [...standings].sort((a, b) => {
+    const dir = sort.dir === 'asc' ? 1 : -1;
+    switch (sort.key) {
+      case 'name':
+        return dir * a.name.localeCompare(b.name);
+      case 'nights':
+        return dir * (a.nights - b.nights);
+      case 'wins':
+        return dir * (a.wins - b.wins);
+      case 'perNight':
+        return dir * (a.perNight - b.perNight);
+      case 'vsRating':
+        return dir * ((formById.get(a.id)?.delta ?? 0) - (formById.get(b.id)?.delta ?? 0));
+    }
+  });
 
   if (history.length === 0) {
     return (
@@ -197,15 +239,28 @@ export default function History({
         <table className="w-full min-w-[26rem] text-sm">
           <thead>
             <tr className="text-left text-xs uppercase tracking-wide text-amber-900/50">
-              <th className="pb-1 font-bold">Player</th>
-              <th className="pb-1 text-right font-bold">Nights</th>
-              <th className="pb-1 text-right font-bold">Wins</th>
-              <th className="pb-1 text-right font-bold">Per night</th>
-              <th className="pb-1 text-right font-bold">vs rating</th>
+              {SORT_COLUMNS.map(({ key, label }) => (
+                <th key={key} className={`pb-1 font-bold ${key === 'name' ? '' : 'text-right'}`}>
+                  <button
+                    onClick={() => toggleSort(key)}
+                    aria-sort={
+                      sort.key === key ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'
+                    }
+                    className={`inline-flex items-center gap-0.5 hover:text-amber-900 ${
+                      key !== 'name' ? 'flex-row-reverse' : ''
+                    } ${sort.key === key ? 'text-amber-900' : ''}`}
+                  >
+                    {label}
+                    <span className="w-3 text-[9px]">
+                      {sort.key === key ? (sort.dir === 'asc' ? '▲' : '▼') : ''}
+                    </span>
+                  </button>
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody>
-            {standings.map((s) => {
+            {sortedStandings.map((s) => {
               const f = formById.get(s.id);
               const d = f?.delta ?? 0;
               // below the suggestion floor there is nothing worth reading, so
@@ -250,12 +305,21 @@ export default function History({
       </div>
 
       <div className="space-y-2">
-        <h3 className="font-bold text-amber-950">📅 Past nights</h3>
+        <button
+          onClick={() => setNightsExpanded((v) => !v)}
+          aria-expanded={nightsExpanded}
+          className="flex items-center gap-2 font-bold text-amber-950"
+        >
+          📅 Past nights
+          <span className="text-sm font-normal text-amber-900/50">({history.length})</span>
+          <span className="text-xs text-amber-900/40">{nightsExpanded ? '▲ hide' : '▼ show'}</span>
+        </button>
         {/* newest first by date, not by when it happened to be saved — a night
             filed late, or one whose date was corrected, still sorts correctly */}
-        {[...history]
-          .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0))
-          .map((fx) => {
+        {nightsExpanded &&
+          [...history]
+            .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0))
+            .map((fx) => {
           const open = openId === fx.id;
           const nameOf = (id: string) => fx.players.find((p) => p.id === id)?.name ?? '?';
           // a night can genuinely end level, so take everyone on the top score
