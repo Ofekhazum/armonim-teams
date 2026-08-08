@@ -58,11 +58,11 @@ const NAME_BOXES: Box[] = [
 // — measured at the same time as NAME_BOXES. Only drawn for players who
 // have one set (Player.number); most won't.
 const NUMBER_BOXES: Box[] = [
-  { x: 287, y: 381, width: 70, height: 71 }, // top
-  { x: 124, y: 496, width: 70, height: 71 }, // middle-left
-  { x: 449, y: 497, width: 70, height: 71 }, // middle-right
-  { x: 183, y: 697, width: 70, height: 71 }, // bottom-left
-  { x: 389, y: 698, width: 70, height: 71 }, // bottom-right
+  { x: 287, y: 373, width: 51, height: 52 }, // top
+  { x: 125, y: 486, width: 51, height: 52 }, // middle-left
+  { x: 450, y: 486, width: 51, height: 52 }, // middle-right
+  { x: 183, y: 688, width: 51, height: 52 }, // bottom-left
+  { x: 390, y: 688, width: 51, height: 52 }, // bottom-right
 ];
 
 const font = (size: number, weight = '800') =>
