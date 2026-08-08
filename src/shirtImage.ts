@@ -87,8 +87,8 @@ function fitName(
   maxWidth: number,
   scale: number,
 ): { lines: string[]; size: number } {
-  const minSize = 15 * scale;
-  for (let size = 24 * scale; size >= minSize; size -= scale) {
+  const minSize = 18 * scale;
+  for (let size = 30 * scale; size >= minSize; size -= scale) {
     ctx.font = font(size);
     if (ctx.measureText(name).width <= maxWidth) return { lines: [name], size };
   }
@@ -117,8 +117,8 @@ function fitNumberSize(
   maxHeight: number,
   scale: number,
 ): number {
-  const minSize = 18 * scale;
-  let size = Math.min(52 * scale, maxHeight * 0.8);
+  const minSize = 13 * scale;
+  let size = Math.min(36 * scale, maxHeight * 0.55);
   while (size > minSize) {
     ctx.font = font(size, '900');
     if (ctx.measureText(text).width <= maxWidth) break;
