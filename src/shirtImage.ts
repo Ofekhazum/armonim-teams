@@ -29,20 +29,22 @@ const TEXT_STYLE: Record<TeamColor, { fill: string; stroke: string }> = {
   blue: { fill: '#f2f8ff', stroke: 'rgba(4,12,36,0.85)' },
 };
 
-// Chest-center of each of the 5 shirts in the template, measured by hand
-// against a 572px-wide render of the source images (all three share one
-// layout, just recolored). The actual template assets are exported at a
-// higher resolution for sharper sharing, so every measurement here gets
-// multiplied by `scale` (actual width ÷ this design width) before use.
+// Name position on each of the 5 shirts, measured by hand against a 572px-
+// wide render of the source images (all three share one layout, just
+// recolored). Sits just below the collar, like the name on a real shirt —
+// leaving the wider, more open area below it free for a number down the
+// line. The actual template assets are exported at a higher resolution for
+// sharper sharing, so every measurement here gets multiplied by `scale`
+// (actual width ÷ this design width) before use.
 const DESIGN_WIDTH = 572;
 const SLOTS: { x: number; y: number }[] = [
-  { x: 286, y: 340 }, // top
-  { x: 123, y: 466 }, // middle-left
-  { x: 452, y: 466 }, // middle-right
-  { x: 187, y: 662 }, // bottom-left
-  { x: 388, y: 662 }, // bottom-right
+  { x: 286, y: 294 }, // top
+  { x: 123, y: 420 }, // middle-left
+  { x: 452, y: 420 }, // middle-right
+  { x: 187, y: 616 }, // bottom-left
+  { x: 388, y: 616 }, // bottom-right
 ];
-const SLOT_MAX_WIDTH = 116;
+const SLOT_MAX_WIDTH = 128;
 
 const font = (size: number, weight = '800') =>
   `${weight} ${size}px system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif`;
@@ -67,7 +69,7 @@ function fitName(
   scale: number,
 ): { lines: string[]; size: number } {
   const minSize = 15 * scale;
-  for (let size = 26 * scale; size >= minSize; size -= scale) {
+  for (let size = 24 * scale; size >= minSize; size -= scale) {
     ctx.font = font(size);
     if (ctx.measureText(name).width <= maxWidth) return { lines: [name], size };
   }
