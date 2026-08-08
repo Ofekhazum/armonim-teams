@@ -23,6 +23,10 @@ export interface Player {
   invitedBy?: string; // player id — guests stick with their inviter
   chemistry: string[]; // ids of players they play well with
   avoid?: string[]; // ids of players they clash with — keep on different teams
+  // shirt number, purely cosmetic — shown only on the edit form and printed
+  // onto the shirt-image export (see shirtImage.ts). Optional; duplicates
+  // across players are fine, nothing depends on it being unique.
+  number?: number;
 }
 
 export function badgeForAttack(attack: number): Exclude<RoleBadge, 'gk'> {

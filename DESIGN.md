@@ -435,15 +435,24 @@ saved nights accumulate in the History tab (§2.6).
 - **Share as an image, shirt style** (`src/shirtImage.ts`) — the "🖼️ Share images" button on
   `TeamsBoard.tsx`. Takes the three hand-drawn shirt-card templates in `src/shirt_images/`
   (one per team color, a fixed 5-shirt pentagon since this app is 5-a-side, see `FULL_TEAM`) and
-  draws each player's name onto their shirt with a canvas, same RTL-text approach as the card style
-  above. Names go on top → bottom in `lineupOrder()` (`balancer.ts`, shared with the on-screen
-  board) — keeper/defence on the top shirt, most attacking on the bottom two — so the picture and
-  the board always agree on who's "up top". Font size shrinks to fit each shirt's chest, wrapping
-  onto a second line rather than shrinking past readability for long names; a squad bigger than 5
-  (extra guests) gets listed in a small caption under the shirts rather than silently dropped. All
-  three team images are handed to `navigator.share({ files })` in one call, so accepting the OS
-  share sheet's "Save Image"/"Save to Photos" drops all three into the gallery at once; falls back
-  to three staggered downloads where file sharing isn't available.
+  draws each player's name — and shirt number, if they have one set — onto their shirt with a
+  canvas, same RTL-text approach as the card style above. Names go on top → bottom in
+  `lineupOrder()` (`balancer.ts`, shared with the on-screen board) — keeper/defence on the top
+  shirt, most attacking on the bottom two — so the picture and the board always agree on who's
+  "up top". Both the name box (yoke, below the collar) and the number box (open center of the
+  shirt) are `Box` constants hand-measured against the actual template art with a small picker
+  tool (not in the repo — it was a throwaway HTML file), rather than guessed by eye; font size
+  shrinks to fit each box, names wrapping onto a second line rather than shrinking past
+  readability, numbers just shrinking (a bare "9" and "99" need different sizes to look like they
+  belong in the same box). A squad bigger than 5 (extra guests) gets listed in a small caption
+  under the shirts rather than silently dropped. All three team images are handed to
+  `navigator.share({ files })` in one call, so accepting the OS share sheet's "Save
+  Image"/"Save to Photos" drops all three into the gallery at once; falls back to three staggered
+  downloads where file sharing isn't available.
+- **Shirt numbers** (`Player.number`, optional): set from the Roster tab's edit-player form only —
+  never shown in the roster list, on the board, in the WhatsApp text, or in history, purely
+  cosmetic and only surfaces on the shirt-image export above. No uniqueness check; two players
+  sharing a number is fine since nothing depends on it being distinct.
 - **Build version marker**: `vite.config.ts` runs `git rev-parse --short HEAD` at build time and
   injects it as the `__GIT_HASH__` global (declared in `src/vite-env.d.ts`, falls back to `'dev'`
   if git isn't available). Shown top-right of the Roster page — since GitHub Pages rebuilds on

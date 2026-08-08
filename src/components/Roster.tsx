@@ -29,6 +29,7 @@ interface Draft {
   attack: number;
   chemistry: string[];
   avoid: string[];
+  number: string; // as typed, so the field can be empty; parsed on save
 }
 
 const parseAliases = (raw: string): string[] =>
@@ -92,6 +93,7 @@ export default function Roster({ players, onChange, adminWord, setAdminWord }: P
       attack: ATTACK_DEFAULT,
       chemistry: [],
       avoid: [],
+      number: '',
     });
   };
 
@@ -105,6 +107,7 @@ export default function Roster({ players, onChange, adminWord, setAdminWord }: P
       attack: p.attack,
       chemistry: [...p.chemistry],
       avoid: [...(p.avoid ?? [])],
+      number: p.number != null ? String(p.number) : '',
     });
   };
 
@@ -115,8 +118,17 @@ export default function Roster({ players, onChange, adminWord, setAdminWord }: P
 
   const save = () => {
     if (!draft || !draft.name.trim()) return;
-    const { aliases, ...rest } = draft;
-    const data = { ...rest, name: draft.name.trim(), aliases: parseAliases(aliases) };
+    const { aliases, number, ...rest } = draft;
+    const trimmedNumber = number.trim();
+    const parsedNumber = trimmedNumber === '' ? NaN : Number(trimmedNumber);
+    const data = {
+      ...rest,
+      name: draft.name.trim(),
+      aliases: parseAliases(aliases),
+      // explicit undefined (rather than omitting the key) so saving a
+      // cleared field actually erases a previously-set number
+      number: Number.isFinite(parsedNumber) ? parsedNumber : undefined,
+    };
     const id = editingId ?? uid();
     const next = editingId
       ? players.map((p) => (p.id === editingId ? { ...p, ...data } : p))
@@ -254,6 +266,28 @@ export default function Roster({ players, onChange, adminWord, setAdminWord }: P
             />
             <p className="mt-1 text-xs text-amber-900/50">
               Used to match this player when importing a pasted list on match day.
+            </p>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-amber-900/60">
+              Shirt number (optional)
+            </label>
+            <input
+              dir="ltr"
+              type="number"
+              inputMode="numeric"
+              min={0}
+              max={99}
+              value={draft.number}
+              onChange={(e) => setDraft({ ...draft, number: e.target.value })}
+              onKeyDown={(e) => e.key === 'Enter' && save()}
+              placeholder="e.g. 9"
+              className="w-24 rounded-lg border border-amber-900/30 bg-white px-3 py-2 text-amber-950 outline-none focus:border-orange-500"
+            />
+            <p className="mt-1 text-xs text-amber-900/50">
+              Printed on the shirt when sharing teams as images — not shown anywhere else.
+              Fine to leave blank, and fine if two players share a number.
             </p>
           </div>
 

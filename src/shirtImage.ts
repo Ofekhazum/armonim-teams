@@ -54,10 +54,10 @@ const NAME_BOXES: Box[] = [
   { x: 389, y: 632, width: 98, height: 43 }, // bottom-right
 ];
 
-// Where a jersey number would go — the open center of the shirt, below the
-// name — measured at the same time as NAME_BOXES so it's ready whenever
-// numbers get built. Not drawn anywhere yet.
-export const NUMBER_BOXES: Box[] = [
+// Where a jersey number goes — the open center of the shirt, below the name
+// — measured at the same time as NAME_BOXES. Only drawn for players who
+// have one set (Player.number); most won't.
+const NUMBER_BOXES: Box[] = [
   { x: 287, y: 381, width: 70, height: 71 }, // top
   { x: 124, y: 496, width: 70, height: 71 }, // middle-left
   { x: 449, y: 497, width: 70, height: 71 }, // middle-right
@@ -107,7 +107,35 @@ function fitName(
   return { lines: second ? [first, second] : [first], size: minSize };
 }
 
-export async function renderShirtImage(color: TeamColor, names: string[]): Promise<HTMLCanvasElement> {
+// Shrinks a jersey number until it fits its box — numbers never wrap, they
+// just get smaller, since "9" and "99" need very different sizes to look
+// like they belong in the same-size box.
+function fitNumberSize(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  maxWidth: number,
+  maxHeight: number,
+  scale: number,
+): number {
+  const minSize = 18 * scale;
+  let size = Math.min(52 * scale, maxHeight * 0.8);
+  while (size > minSize) {
+    ctx.font = font(size, '900');
+    if (ctx.measureText(text).width <= maxWidth) break;
+    size -= scale;
+  }
+  return Math.max(size, minSize);
+}
+
+export interface ShirtPlayer {
+  name: string;
+  number?: number;
+}
+
+export async function renderShirtImage(
+  color: TeamColor,
+  players: ShirtPlayer[],
+): Promise<HTMLCanvasElement> {
   const img = await loadImage(SHIRT_URL[color]);
   const canvas = document.createElement('canvas');
   canvas.width = img.naturalWidth;
@@ -122,9 +150,9 @@ export async function renderShirtImage(color: TeamColor, names: string[]): Promi
   ctx.textBaseline = 'middle';
   ctx.lineJoin = 'round';
 
-  names.slice(0, NAME_BOXES.length).forEach((name, i) => {
+  players.slice(0, NAME_BOXES.length).forEach((player, i) => {
     const box = NAME_BOXES[i];
-    const { lines, size } = fitName(ctx, name, box.width * scale, scale);
+    const { lines, size } = fitName(ctx, player.name, box.width * scale, scale);
     ctx.font = font(size);
     // Centered both ways: fillText's own textAlign='center' handles the x
     // axis, and stacking the lines symmetrically around the box's own
@@ -141,15 +169,30 @@ export async function renderShirtImage(color: TeamColor, names: string[]): Promi
     });
   });
 
+  ctx.direction = 'ltr'; // pure digits, but keep it explicit rather than inheriting 'rtl'
+  players.slice(0, NUMBER_BOXES.length).forEach((player, i) => {
+    if (player.number == null) return;
+    const box = NUMBER_BOXES[i];
+    const text = String(player.number);
+    const size = fitNumberSize(ctx, text, box.width * scale, box.height * scale, scale);
+    ctx.font = font(size, '900');
+    ctx.lineWidth = size * 0.16;
+    ctx.strokeStyle = style.stroke;
+    ctx.strokeText(text, box.x * scale, box.y * scale);
+    ctx.fillStyle = style.fill;
+    ctx.fillText(text, box.x * scale, box.y * scale);
+  });
+
   // A squad bigger than the 5 drawn shirts (extra guests, mostly) still
   // needs to show up somewhere rather than silently vanish off the picture.
-  const overflow = names.slice(NAME_BOXES.length);
+  const overflow = players.slice(NAME_BOXES.length);
   if (overflow.length > 0) {
+    ctx.direction = 'rtl';
     ctx.font = font(15 * scale, '700');
     ctx.fillStyle = style.fill;
     ctx.strokeStyle = style.stroke;
     ctx.lineWidth = 3 * scale;
-    const line = `+${overflow.length}: ${overflow.join(', ')}`;
+    const line = `+${overflow.length}: ${overflow.map((p) => p.name).join(', ')}`;
     ctx.strokeText(line, canvas.width / 2, canvas.height - 40 * scale);
     ctx.fillText(line, canvas.width / 2, canvas.height - 40 * scale);
   }
@@ -176,9 +219,12 @@ export async function shareTeamsShirtImages(opts: ShareShirtsOptions): Promise<S
     const files: File[] = [];
     for (const c of TEAM_COLORS) {
       const ids = lineupOrder(opts.teams[c], opts.byId, opts.gkIds);
-      const names = ids.map((id) => opts.byId.get(id)?.name).filter((n): n is string => !!n);
-      if (names.length === 0) continue;
-      const canvas = await renderShirtImage(c, names);
+      const players = ids
+        .map((id) => opts.byId.get(id))
+        .filter((p): p is Player => !!p)
+        .map((p) => ({ name: p.name, number: p.number }));
+      if (players.length === 0) continue;
+      const canvas = await renderShirtImage(c, players);
       const blob = await canvasBlob(canvas);
       if (!blob) continue;
       files.push(new File([blob], `armonim-${c}-${opts.date ?? 'lineup'}.png`, { type: 'image/png' }));
