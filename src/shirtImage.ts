@@ -29,22 +29,41 @@ const TEXT_STYLE: Record<TeamColor, { fill: string; stroke: string }> = {
   blue: { fill: '#f2f8ff', stroke: 'rgba(4,12,36,0.85)' },
 };
 
-// Name position on each of the 5 shirts, measured by hand against a 572px-
-// wide render of the source images (all three share one layout, just
-// recolored). Sits just below the collar, like the name on a real shirt —
-// leaving the wider, more open area below it free for a number down the
-// line. The actual template assets are exported at a higher resolution for
-// sharper sharing, so every measurement here gets multiplied by `scale`
-// (actual width ÷ this design width) before use.
+interface Box {
+  x: number; // center
+  y: number; // center
+  width: number;
+  height: number;
+}
+
+// Boxes measured by hand, per shirt, against a 572px-wide render of the
+// source images (all three share one layout, just recolored) using a small
+// drawing tool built for the purpose. The actual template assets are
+// exported at a higher resolution for sharper sharing, so every measurement
+// here gets multiplied by `scale` (actual width ÷ this design width) before
+// use.
 const DESIGN_WIDTH = 572;
-const SLOTS: { x: number; y: number }[] = [
-  { x: 286, y: 294 }, // top
-  { x: 123, y: 420 }, // middle-left
-  { x: 452, y: 420 }, // middle-right
-  { x: 187, y: 616 }, // bottom-left
-  { x: 388, y: 616 }, // bottom-right
+
+// Where the name goes — the yoke area right below the collar, like a real
+// shirt — in top → bottom order: keeper/defence first, most attacking last.
+const NAME_BOXES: Box[] = [
+  { x: 286, y: 316, width: 98, height: 43 }, // top
+  { x: 124, y: 431, width: 98, height: 43 }, // middle-left
+  { x: 449, y: 432, width: 98, height: 43 }, // middle-right
+  { x: 183, y: 632, width: 98, height: 43 }, // bottom-left
+  { x: 389, y: 632, width: 98, height: 43 }, // bottom-right
 ];
-const SLOT_MAX_WIDTH = 128;
+
+// Where a jersey number would go — the open center of the shirt, below the
+// name — measured at the same time as NAME_BOXES so it's ready whenever
+// numbers get built. Not drawn anywhere yet.
+export const NUMBER_BOXES: Box[] = [
+  { x: 287, y: 381, width: 70, height: 71 }, // top
+  { x: 124, y: 496, width: 70, height: 71 }, // middle-left
+  { x: 449, y: 497, width: 70, height: 71 }, // middle-right
+  { x: 183, y: 697, width: 70, height: 71 }, // bottom-left
+  { x: 389, y: 698, width: 70, height: 71 }, // bottom-right
+];
 
 const font = (size: number, weight = '800') =>
   `${weight} ${size}px system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif`;
@@ -58,10 +77,10 @@ function loadImage(url: string): Promise<HTMLImageElement> {
   });
 }
 
-// Shrinks the name until it fits the shirt's chest; if it still won't fit at
-// the smallest readable size, wraps it onto a second line instead of
-// shrinking further. `maxWidth` and the returned `size` are both in actual
-// canvas pixels (i.e. already multiplied by `scale`).
+// Shrinks the name until it fits the name box; if it still won't fit at the
+// smallest readable size, wraps it onto a second line instead of shrinking
+// further. `maxWidth` and the returned `size` are both in actual canvas
+// pixels (i.e. already multiplied by `scale`).
 function fitName(
   ctx: CanvasRenderingContext2D,
   name: string,
@@ -103,25 +122,28 @@ export async function renderShirtImage(color: TeamColor, names: string[]): Promi
   ctx.textBaseline = 'middle';
   ctx.lineJoin = 'round';
 
-  names.slice(0, SLOTS.length).forEach((name, i) => {
-    const slot = SLOTS[i];
-    const { lines, size } = fitName(ctx, name, SLOT_MAX_WIDTH * scale, scale);
+  names.slice(0, NAME_BOXES.length).forEach((name, i) => {
+    const box = NAME_BOXES[i];
+    const { lines, size } = fitName(ctx, name, box.width * scale, scale);
     ctx.font = font(size);
+    // Centered both ways: fillText's own textAlign='center' handles the x
+    // axis, and stacking the lines symmetrically around the box's own
+    // center-y (rather than its top) handles the y axis, for one line or two.
     const lineHeight = size * 1.15;
-    const startY = slot.y * scale - ((lines.length - 1) * lineHeight) / 2;
+    const startY = box.y * scale - ((lines.length - 1) * lineHeight) / 2;
     lines.forEach((line, li) => {
       const y = startY + li * lineHeight;
       ctx.lineWidth = size * 0.22;
       ctx.strokeStyle = style.stroke;
-      ctx.strokeText(line, slot.x * scale, y);
+      ctx.strokeText(line, box.x * scale, y);
       ctx.fillStyle = style.fill;
-      ctx.fillText(line, slot.x * scale, y);
+      ctx.fillText(line, box.x * scale, y);
     });
   });
 
   // A squad bigger than the 5 drawn shirts (extra guests, mostly) still
   // needs to show up somewhere rather than silently vanish off the picture.
-  const overflow = names.slice(SLOTS.length);
+  const overflow = names.slice(NAME_BOXES.length);
   if (overflow.length > 0) {
     ctx.font = font(15 * scale, '700');
     ctx.fillStyle = style.fill;
