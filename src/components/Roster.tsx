@@ -185,6 +185,221 @@ export default function Roster({ players, onChange, adminWord, setAdminWord }: P
   const sorted = [...players].sort((a, b) => a.name.localeCompare(b.name, 'he'));
   const byId = new Map(players.map((p) => [p.id, p]));
 
+  // Rendered either up top (adding a new player, nothing to anchor to yet)
+  // or inline in place of the player's own row (editing one) — so editing
+  // someone near the bottom of a long roster doesn't yank the page back up
+  // to the top of the screen.
+  const draftForm = draft && (
+    <div className="pop-in space-y-4 rounded-2xl border border-amber-900/20 bg-[#fffdf4]/80 p-4 shadow-sm">
+      <h3 className="font-bold text-amber-950">{editingId ? 'Edit player' : 'New player'}</h3>
+
+      <input
+        dir="auto"
+        autoFocus
+        value={draft.name}
+        onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+        onKeyDown={(e) => e.key === 'Enter' && save()}
+        placeholder="Name (עברית or English)"
+        className="w-full rounded-lg border border-amber-900/30 bg-white px-3 py-2 text-amber-950 outline-none focus:border-orange-500"
+      />
+
+      <div>
+        <input
+          dir="auto"
+          value={draft.aliases}
+          onChange={(e) => setDraft({ ...draft, aliases: e.target.value })}
+          onKeyDown={(e) => e.key === 'Enter' && save()}
+          placeholder="Other names people call them, comma-separated (optional)"
+          className="w-full rounded-lg border border-amber-900/30 bg-white px-3 py-2 text-sm text-amber-950 outline-none focus:border-orange-500"
+        />
+        <p className="mt-1 text-xs text-amber-900/50">
+          Used to match this player when importing a pasted list on match day.
+        </p>
+      </div>
+
+      <div>
+        <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-amber-900/60">
+          Shirt number (optional)
+        </label>
+        <input
+          dir="ltr"
+          type="number"
+          inputMode="numeric"
+          min={0}
+          max={99}
+          value={draft.number}
+          onChange={(e) => setDraft({ ...draft, number: e.target.value })}
+          onKeyDown={(e) => e.key === 'Enter' && save()}
+          placeholder="e.g. 9"
+          className="w-24 rounded-lg border border-amber-900/30 bg-white px-3 py-2 text-amber-950 outline-none focus:border-orange-500"
+        />
+        <p className="mt-1 text-xs text-amber-900/50">
+          Printed on the shirt when sharing teams as images — not shown anywhere else.
+          Fine to leave blank, and fine if two players share a number.
+        </p>
+      </div>
+
+      {(!editingId || isAdmin) && (
+        <div>
+          <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-amber-900/60">
+            Rating
+          </div>
+          {/* fixed 5-up grid rather than wrapping buttons — keeps the rows
+              even and the targets thumb-sized on a narrow screen */}
+          <div className="grid grid-cols-5 gap-1 sm:flex sm:flex-wrap">
+            {RATING_STEPS.map((r) => (
+              <button
+                key={r}
+                onClick={() => setDraft({ ...draft, rating: r })}
+                className={`h-10 rounded-lg border text-sm font-bold transition-colors sm:min-w-10 sm:px-1.5 ${
+                  draft.rating === r
+                    ? 'border-amber-500 bg-amber-500 text-amber-950'
+                    : 'border-amber-900/25 bg-white text-amber-900 hover:border-amber-500'
+                }`}
+              >
+                {fmtRating(r)}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div>
+        <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
+          <span className="text-xs font-semibold uppercase tracking-wide text-amber-900/60">
+            Role
+          </span>
+          <button
+            onClick={() => setDraft({ ...draft, isGk: !draft.isGk })}
+            className={`rounded-lg border px-3 py-1.5 text-sm font-semibold transition-colors ${
+              draft.isGk
+                ? 'border-sky-600 bg-sky-600/15 text-sky-800'
+                : 'border-amber-900/25 bg-white text-amber-900'
+            }`}
+          >
+            🧤 Goalkeeper
+          </button>
+        </div>
+
+        {draft.isGk ? (
+          <p className="rounded-lg border border-amber-900/15 bg-white/60 px-3 py-2.5 text-xs text-amber-900/70">
+            Permanent goalkeepers sit outside the outfield spectrum — they're always
+            GK-capable on match day.
+          </p>
+        ) : (
+          <div className="rounded-lg border border-amber-900/15 bg-white/60 px-3 py-2.5">
+            <div className="mb-1 flex items-center justify-between gap-2 text-sm font-bold text-amber-950">
+              <span>
+                {STYLE_META[badgeForAttack(draft.attack)].icon}{' '}
+                {STYLE_META[badgeForAttack(draft.attack)].label}
+              </span>
+              <span className="text-xs font-semibold text-amber-900/60">
+                {attackLabel(draft.attack)}
+              </span>
+            </div>
+            {/* the thumb tracks the spectrum colour as it moves: blue when
+                leaning defensive, red when leaning attacking */}
+            <input
+              dir="ltr"
+              type="range"
+              min={0}
+              max={100}
+              step={ATTACK_STEP}
+              value={draft.attack}
+              onChange={(e) => setDraft({ ...draft, attack: Number(e.target.value) })}
+              aria-label="Position on the defence to attack spectrum"
+              className="spectrum-range w-full"
+              style={{ '--thumb': spectrumColor(draft.attack) } as CSSProperties}
+            />
+            <div
+              dir="ltr"
+              className="flex justify-between text-[11px] font-semibold text-amber-900/50"
+            >
+              <span>🛡️ Defence</span>
+              <span>Attack ⚔️</span>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {players.filter((p) => p.id !== editingId).length > 0 && (
+        <>
+          <div>
+            <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-amber-900/60">
+              🤝 Plays well with (chemistry)
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {sorted
+                .filter((p) => p.id !== editingId)
+                .map((p) => (
+                  <button
+                    key={p.id}
+                    onClick={() => toggleChem(p.id)}
+                    className={`rounded-full border px-3 py-2 text-sm transition-colors ${
+                      draft.chemistry.includes(p.id)
+                        ? 'border-pink-500 bg-pink-500/15 text-pink-700'
+                        : 'border-amber-900/25 bg-white text-amber-900/70 hover:border-pink-500/60'
+                    }`}
+                  >
+                    <Name>{p.name}</Name>
+                  </button>
+                ))}
+            </div>
+          </div>
+
+          {/* deliberately admin-only: who'd rather not be paired up is
+              sensitive, so it isn't shown or editable in normal mode */}
+          {isAdmin && (
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-wide text-amber-900/60">
+                ↔️ Prefer on separate teams
+              </div>
+              <p className="mb-1.5 text-xs text-amber-900/50">
+                A nudge, not a rule — the balancer splits them when it can, but won't
+                wreck the balance to do it. Only visible in admin mode.
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {sorted
+                  .filter((p) => p.id !== editingId)
+                  .map((p) => (
+                    <button
+                      key={p.id}
+                      onClick={() => toggleAvoid(p.id)}
+                      className={`rounded-full border px-3 py-2 text-sm transition-colors ${
+                        draft.avoid.includes(p.id)
+                          ? 'border-sky-600 bg-sky-600/15 text-sky-800'
+                          : 'border-amber-900/25 bg-white text-amber-900/70 hover:border-sky-600/60'
+                      }`}
+                    >
+                      <Name>{p.name}</Name>
+                    </button>
+                  ))}
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* sticky on mobile so Save stays reachable without scrolling back
+          down past the chemistry chip lists */}
+      <div className="sticky bottom-0 -mx-4 -mb-4 flex gap-2 border-t border-amber-900/10 bg-[#fffdf4]/95 px-4 py-3 backdrop-blur-sm sm:static sm:mx-0 sm:mb-0 sm:border-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-none">
+        <button
+          onClick={save}
+          disabled={!draft.name.trim()}
+          className="flex-1 rounded-lg bg-orange-600 px-5 py-2.5 text-sm font-bold text-amber-50 disabled:opacity-40 sm:flex-none"
+        >
+          Save
+        </button>
+        <button
+          onClick={cancel}
+          className="flex-1 rounded-lg border border-amber-900/30 px-5 py-2.5 text-sm font-semibold text-amber-900 sm:flex-none"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+
   return (
     <div className="space-y-4">
       <div className="text-right">
@@ -241,216 +456,7 @@ export default function Roster({ players, onChange, adminWord, setAdminWord }: P
         )}
       </div>
 
-      {draft && (
-        <div className="pop-in space-y-4 rounded-2xl border border-amber-900/20 bg-[#fffdf4]/80 p-4 shadow-sm">
-          <h3 className="font-bold text-amber-950">{editingId ? 'Edit player' : 'New player'}</h3>
-
-          <input
-            dir="auto"
-            autoFocus
-            value={draft.name}
-            onChange={(e) => setDraft({ ...draft, name: e.target.value })}
-            onKeyDown={(e) => e.key === 'Enter' && save()}
-            placeholder="Name (עברית or English)"
-            className="w-full rounded-lg border border-amber-900/30 bg-white px-3 py-2 text-amber-950 outline-none focus:border-orange-500"
-          />
-
-          <div>
-            <input
-              dir="auto"
-              value={draft.aliases}
-              onChange={(e) => setDraft({ ...draft, aliases: e.target.value })}
-              onKeyDown={(e) => e.key === 'Enter' && save()}
-              placeholder="Other names people call them, comma-separated (optional)"
-              className="w-full rounded-lg border border-amber-900/30 bg-white px-3 py-2 text-sm text-amber-950 outline-none focus:border-orange-500"
-            />
-            <p className="mt-1 text-xs text-amber-900/50">
-              Used to match this player when importing a pasted list on match day.
-            </p>
-          </div>
-
-          <div>
-            <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-amber-900/60">
-              Shirt number (optional)
-            </label>
-            <input
-              dir="ltr"
-              type="number"
-              inputMode="numeric"
-              min={0}
-              max={99}
-              value={draft.number}
-              onChange={(e) => setDraft({ ...draft, number: e.target.value })}
-              onKeyDown={(e) => e.key === 'Enter' && save()}
-              placeholder="e.g. 9"
-              className="w-24 rounded-lg border border-amber-900/30 bg-white px-3 py-2 text-amber-950 outline-none focus:border-orange-500"
-            />
-            <p className="mt-1 text-xs text-amber-900/50">
-              Printed on the shirt when sharing teams as images — not shown anywhere else.
-              Fine to leave blank, and fine if two players share a number.
-            </p>
-          </div>
-
-          {(!editingId || isAdmin) && (
-            <div>
-              <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-amber-900/60">
-                Rating
-              </div>
-              {/* fixed 5-up grid rather than wrapping buttons — keeps the rows
-                  even and the targets thumb-sized on a narrow screen */}
-              <div className="grid grid-cols-5 gap-1 sm:flex sm:flex-wrap">
-                {RATING_STEPS.map((r) => (
-                  <button
-                    key={r}
-                    onClick={() => setDraft({ ...draft, rating: r })}
-                    className={`h-10 rounded-lg border text-sm font-bold transition-colors sm:min-w-10 sm:px-1.5 ${
-                      draft.rating === r
-                        ? 'border-amber-500 bg-amber-500 text-amber-950'
-                        : 'border-amber-900/25 bg-white text-amber-900 hover:border-amber-500'
-                    }`}
-                  >
-                    {fmtRating(r)}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <div>
-            <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
-              <span className="text-xs font-semibold uppercase tracking-wide text-amber-900/60">
-                Role
-              </span>
-              <button
-                onClick={() => setDraft({ ...draft, isGk: !draft.isGk })}
-                className={`rounded-lg border px-3 py-1.5 text-sm font-semibold transition-colors ${
-                  draft.isGk
-                    ? 'border-sky-600 bg-sky-600/15 text-sky-800'
-                    : 'border-amber-900/25 bg-white text-amber-900'
-                }`}
-              >
-                🧤 Goalkeeper
-              </button>
-            </div>
-
-            {draft.isGk ? (
-              <p className="rounded-lg border border-amber-900/15 bg-white/60 px-3 py-2.5 text-xs text-amber-900/70">
-                Permanent goalkeepers sit outside the outfield spectrum — they're always
-                GK-capable on match day.
-              </p>
-            ) : (
-              <div className="rounded-lg border border-amber-900/15 bg-white/60 px-3 py-2.5">
-                <div className="mb-1 flex items-center justify-between gap-2 text-sm font-bold text-amber-950">
-                  <span>
-                    {STYLE_META[badgeForAttack(draft.attack)].icon}{' '}
-                    {STYLE_META[badgeForAttack(draft.attack)].label}
-                  </span>
-                  <span className="text-xs font-semibold text-amber-900/60">
-                    {attackLabel(draft.attack)}
-                  </span>
-                </div>
-                {/* the thumb tracks the spectrum colour as it moves: blue when
-                    leaning defensive, red when leaning attacking */}
-                <input
-                  dir="ltr"
-                  type="range"
-                  min={0}
-                  max={100}
-                  step={ATTACK_STEP}
-                  value={draft.attack}
-                  onChange={(e) => setDraft({ ...draft, attack: Number(e.target.value) })}
-                  aria-label="Position on the defence to attack spectrum"
-                  className="spectrum-range w-full"
-                  style={{ '--thumb': spectrumColor(draft.attack) } as CSSProperties}
-                />
-                <div
-                  dir="ltr"
-                  className="flex justify-between text-[11px] font-semibold text-amber-900/50"
-                >
-                  <span>🛡️ Defence</span>
-                  <span>Attack ⚔️</span>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {players.filter((p) => p.id !== editingId).length > 0 && (
-            <>
-              <div>
-                <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-amber-900/60">
-                  🤝 Plays well with (chemistry)
-                </div>
-                <div className="flex flex-wrap gap-1.5">
-                  {sorted
-                    .filter((p) => p.id !== editingId)
-                    .map((p) => (
-                      <button
-                        key={p.id}
-                        onClick={() => toggleChem(p.id)}
-                        className={`rounded-full border px-3 py-2 text-sm transition-colors ${
-                          draft.chemistry.includes(p.id)
-                            ? 'border-pink-500 bg-pink-500/15 text-pink-700'
-                            : 'border-amber-900/25 bg-white text-amber-900/70 hover:border-pink-500/60'
-                        }`}
-                      >
-                        <Name>{p.name}</Name>
-                      </button>
-                    ))}
-                </div>
-              </div>
-
-              {/* deliberately admin-only: who'd rather not be paired up is
-                  sensitive, so it isn't shown or editable in normal mode */}
-              {isAdmin && (
-                <div>
-                  <div className="text-xs font-semibold uppercase tracking-wide text-amber-900/60">
-                    ↔️ Prefer on separate teams
-                  </div>
-                  <p className="mb-1.5 text-xs text-amber-900/50">
-                    A nudge, not a rule — the balancer splits them when it can, but won't
-                    wreck the balance to do it. Only visible in admin mode.
-                  </p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {sorted
-                      .filter((p) => p.id !== editingId)
-                      .map((p) => (
-                        <button
-                          key={p.id}
-                          onClick={() => toggleAvoid(p.id)}
-                          className={`rounded-full border px-3 py-2 text-sm transition-colors ${
-                            draft.avoid.includes(p.id)
-                              ? 'border-sky-600 bg-sky-600/15 text-sky-800'
-                              : 'border-amber-900/25 bg-white text-amber-900/70 hover:border-sky-600/60'
-                          }`}
-                        >
-                          <Name>{p.name}</Name>
-                        </button>
-                      ))}
-                  </div>
-                </div>
-              )}
-            </>
-          )}
-
-          {/* sticky on mobile so Save stays reachable without scrolling back
-              down past the chemistry chip lists */}
-          <div className="sticky bottom-0 -mx-4 -mb-4 flex gap-2 border-t border-amber-900/10 bg-[#fffdf4]/95 px-4 py-3 backdrop-blur-sm sm:static sm:mx-0 sm:mb-0 sm:border-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-none">
-            <button
-              onClick={save}
-              disabled={!draft.name.trim()}
-              className="flex-1 rounded-lg bg-orange-600 px-5 py-2.5 text-sm font-bold text-amber-50 disabled:opacity-40 sm:flex-none"
-            >
-              Save
-            </button>
-            <button
-              onClick={cancel}
-              className="flex-1 rounded-lg border border-amber-900/30 px-5 py-2.5 text-sm font-semibold text-amber-900 sm:flex-none"
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
+      {draft && editingId === null && draftForm}
 
       {sorted.length === 0 && !draft ? (
         <div className="rounded-2xl border border-dashed border-amber-900/30 p-10 text-center text-amber-900/70">
@@ -458,65 +464,71 @@ export default function Roster({ players, onChange, adminWord, setAdminWord }: P
         </div>
       ) : (
         <ul className="grid gap-2 sm:grid-cols-2">
-          {sorted.map((p) => (
-            <li
-              key={p.id}
-              dir="rtl"
-              className="flex items-center gap-3 rounded-xl border border-amber-900/15 bg-[#fffdf4]/70 px-4 py-3 shadow-sm"
-            >
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <Name className="truncate font-semibold text-amber-950">{p.name}</Name>
-                  <span title={STYLE_META[roleBadge(p)].label}>{STYLE_META[roleBadge(p)].icon}</span>
-                  {isAdmin && !p.isGk && <SpectrumBar attack={p.attack} />}
-                  {isAdmin && <Stars rating={p.rating} unknown={p.ratingUnknown} />}
-                </div>
-                {(p.aliases ?? []).length > 0 && (
-                  <div className="mt-0.5 truncate text-xs text-amber-900/50" title="Also known as">
-                    aka {p.aliases!.join(', ')}
+          {sorted.map((p) =>
+            draft && editingId === p.id ? (
+              <li key={p.id} className="sm:col-span-2">
+                {draftForm}
+              </li>
+            ) : (
+              <li
+                key={p.id}
+                dir="rtl"
+                className="flex items-center gap-3 rounded-xl border border-amber-900/15 bg-[#fffdf4]/70 px-4 py-3 shadow-sm"
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <Name className="truncate font-semibold text-amber-950">{p.name}</Name>
+                    <span title={STYLE_META[roleBadge(p)].label}>{STYLE_META[roleBadge(p)].icon}</span>
+                    {isAdmin && !p.isGk && <SpectrumBar attack={p.attack} />}
+                    {isAdmin && <Stars rating={p.rating} unknown={p.ratingUnknown} />}
                   </div>
-                )}
-                <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-amber-950">
-                  {p.chemistry.length > 0 && (
-                    <span
-                      className="min-w-0 max-w-full truncate text-xs text-pink-700/80"
-                      title="Plays well with"
-                    >
-                      🤝{' '}
-                      {p.chemistry
-                        .map((id) => byId.get(id)?.name)
-                        .filter(Boolean)
-                        .join(', ')}
-                    </span>
+                  {(p.aliases ?? []).length > 0 && (
+                    <div className="mt-0.5 truncate text-xs text-amber-900/50" title="Also known as">
+                      aka {p.aliases!.join(', ')}
+                    </div>
                   )}
-                  {isAdmin && (p.avoid ?? []).length > 0 && (
-                    <span
-                      className="min-w-0 max-w-full truncate text-xs text-sky-800/80"
-                      title="Prefer on separate teams (admin only)"
-                    >
-                      ↔️{' '}
-                      {p.avoid!
-                        .map((id) => byId.get(id)?.name)
-                        .filter(Boolean)
-                        .join(', ')}
-                    </span>
-                  )}
+                  <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-amber-950">
+                    {p.chemistry.length > 0 && (
+                      <span
+                        className="min-w-0 max-w-full truncate text-xs text-pink-700/80"
+                        title="Plays well with"
+                      >
+                        🤝{' '}
+                        {p.chemistry
+                          .map((id) => byId.get(id)?.name)
+                          .filter(Boolean)
+                          .join(', ')}
+                      </span>
+                    )}
+                    {isAdmin && (p.avoid ?? []).length > 0 && (
+                      <span
+                        className="min-w-0 max-w-full truncate text-xs text-sky-800/80"
+                        title="Prefer on separate teams (admin only)"
+                      >
+                        ↔️{' '}
+                        {p.avoid!
+                          .map((id) => byId.get(id)?.name)
+                          .filter(Boolean)
+                          .join(', ')}
+                      </span>
+                    )}
+                  </div>
                 </div>
-              </div>
-              <button
-                onClick={() => startEdit(p)}
-                className="rounded-lg border border-amber-900/25 px-2.5 py-1 text-xs font-semibold text-amber-900 hover:border-orange-500"
-              >
-                Edit
-              </button>
-              <button
-                onClick={() => remove(p)}
-                className="rounded-lg border border-amber-900/25 px-2.5 py-1 text-xs font-semibold text-red-600 hover:border-red-500"
-              >
-                ✕
-              </button>
-            </li>
-          ))}
+                <button
+                  onClick={() => startEdit(p)}
+                  className="rounded-lg border border-amber-900/25 px-2.5 py-1 text-xs font-semibold text-amber-900 hover:border-orange-500"
+                >
+                  Edit
+                </button>
+                <button
+                  onClick={() => remove(p)}
+                  className="rounded-lg border border-amber-900/25 px-2.5 py-1 text-xs font-semibold text-red-600 hover:border-red-500"
+                >
+                  ✕
+                </button>
+              </li>
+            ),
+          )}
         </ul>
       )}
     </div>
