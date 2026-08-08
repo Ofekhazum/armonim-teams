@@ -195,7 +195,11 @@ export default function Roster({ players, onChange, adminWord, setAdminWord }: P
 
       <input
         dir="auto"
-        autoFocus
+        // Only for a brand-new player — focusing this on an existing one pops
+        // the keyboard open on mobile the instant you tap Edit, which shoves
+        // the page around for no reason since you're often just tweaking a
+        // rating or role, not the name.
+        autoFocus={editingId === null}
         value={draft.name}
         onChange={(e) => setDraft({ ...draft, name: e.target.value })}
         onKeyDown={(e) => e.key === 'Enter' && save()}
