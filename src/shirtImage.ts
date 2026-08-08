@@ -1,5 +1,5 @@
 // Renders each team's lineup onto the hand-drawn shirt-card templates
-// (src/shirt_images/*.jpeg) and hands all three off to the OS share sheet in
+// (src/shirt_images/*.webp) and hands all three off to the OS share sheet in
 // one go, so "share" on a phone means "save 3 pictures to the gallery".
 //
 // The templates are a fixed 5-shirt pentagon (this app is 5-a-side, see
@@ -11,9 +11,9 @@
 import type { Player, TeamColor, Teams } from './types';
 import { TEAM_COLORS, lineupOrder } from './balancer';
 import type { ShareImageResult } from './shareImage';
-import blackShirtUrl from './shirt_images/black_team_shirt.jpeg';
-import whiteShirtUrl from './shirt_images/white_team_shirt.jpeg';
-import blueShirtUrl from './shirt_images/blue_team_shirt.jpeg';
+import blackShirtUrl from './shirt_images/black_team_shirt.webp';
+import whiteShirtUrl from './shirt_images/white_team_shirt.webp';
+import blueShirtUrl from './shirt_images/blue_team_shirt.webp';
 
 const SHIRT_URL: Record<TeamColor, string> = {
   black: blackShirtUrl,
@@ -30,7 +30,11 @@ const TEXT_STYLE: Record<TeamColor, { fill: string; stroke: string }> = {
 };
 
 // Chest-center of each of the 5 shirts in the template, measured by hand
-// against the source images (all three share one layout, just recolored).
+// against a 572px-wide render of the source images (all three share one
+// layout, just recolored). The actual template assets are exported at a
+// higher resolution for sharper sharing, so every measurement here gets
+// multiplied by `scale` (actual width ÷ this design width) before use.
+const DESIGN_WIDTH = 572;
 const SLOTS: { x: number; y: number }[] = [
   { x: 286, y: 340 }, // top
   { x: 123, y: 466 }, // middle-left
@@ -54,14 +58,16 @@ function loadImage(url: string): Promise<HTMLImageElement> {
 
 // Shrinks the name until it fits the shirt's chest; if it still won't fit at
 // the smallest readable size, wraps it onto a second line instead of
-// shrinking further.
+// shrinking further. `maxWidth` and the returned `size` are both in actual
+// canvas pixels (i.e. already multiplied by `scale`).
 function fitName(
   ctx: CanvasRenderingContext2D,
   name: string,
   maxWidth: number,
+  scale: number,
 ): { lines: string[]; size: number } {
-  const minSize = 15;
-  for (let size = 26; size >= minSize; size--) {
+  const minSize = 15 * scale;
+  for (let size = 26 * scale; size >= minSize; size -= scale) {
     ctx.font = font(size);
     if (ctx.measureText(name).width <= maxWidth) return { lines: [name], size };
   }
@@ -85,6 +91,7 @@ export async function renderShirtImage(color: TeamColor, names: string[]): Promi
   const canvas = document.createElement('canvas');
   canvas.width = img.naturalWidth;
   canvas.height = img.naturalHeight;
+  const scale = canvas.width / DESIGN_WIDTH;
   const ctx = canvas.getContext('2d')!;
   ctx.drawImage(img, 0, 0);
 
@@ -96,17 +103,17 @@ export async function renderShirtImage(color: TeamColor, names: string[]): Promi
 
   names.slice(0, SLOTS.length).forEach((name, i) => {
     const slot = SLOTS[i];
-    const { lines, size } = fitName(ctx, name, SLOT_MAX_WIDTH);
+    const { lines, size } = fitName(ctx, name, SLOT_MAX_WIDTH * scale, scale);
     ctx.font = font(size);
     const lineHeight = size * 1.15;
-    const startY = slot.y - ((lines.length - 1) * lineHeight) / 2;
+    const startY = slot.y * scale - ((lines.length - 1) * lineHeight) / 2;
     lines.forEach((line, li) => {
       const y = startY + li * lineHeight;
       ctx.lineWidth = size * 0.22;
       ctx.strokeStyle = style.stroke;
-      ctx.strokeText(line, slot.x, y);
+      ctx.strokeText(line, slot.x * scale, y);
       ctx.fillStyle = style.fill;
-      ctx.fillText(line, slot.x, y);
+      ctx.fillText(line, slot.x * scale, y);
     });
   });
 
@@ -114,13 +121,13 @@ export async function renderShirtImage(color: TeamColor, names: string[]): Promi
   // needs to show up somewhere rather than silently vanish off the picture.
   const overflow = names.slice(SLOTS.length);
   if (overflow.length > 0) {
-    ctx.font = font(15, '700');
+    ctx.font = font(15 * scale, '700');
     ctx.fillStyle = style.fill;
     ctx.strokeStyle = style.stroke;
-    ctx.lineWidth = 3;
+    ctx.lineWidth = 3 * scale;
     const line = `+${overflow.length}: ${overflow.join(', ')}`;
-    ctx.strokeText(line, canvas.width / 2, canvas.height - 40);
-    ctx.fillText(line, canvas.width / 2, canvas.height - 40);
+    ctx.strokeText(line, canvas.width / 2, canvas.height - 40 * scale);
+    ctx.fillText(line, canvas.width / 2, canvas.height - 40 * scale);
   }
 
   return canvas;
