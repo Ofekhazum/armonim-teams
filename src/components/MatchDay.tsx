@@ -461,9 +461,10 @@ export default function MatchDay({
                 {showImport && (
                   <div className="pop-in mt-3 space-y-2">
                     <p className="text-xs text-amber-900/60">
-                      Paste the numbered player list (e.g. from WhatsApp). Recognized names get
-                      checked off below; unrecognized names are added as guests automatically.
-                      This replaces the current selection and guest list entirely.
+                      Paste the player list (e.g. from WhatsApp) — numbered, bulleted, or just one
+                      name per line all work. Recognized names get checked off below; unrecognized
+                      names are added as guests automatically. This replaces the current selection
+                      and guest list entirely.
                     </p>
                     <textarea
                       dir="auto"

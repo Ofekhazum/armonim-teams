@@ -68,10 +68,17 @@ Only the night in progress lives here. Finished nights move into `AppState.histo
 Lets the organizer paste a numbered list (e.g. copied from a WhatsApp poll/roster message) instead
 of ticking players one by one:
 
-1. `parseImportList(text)` reads the pasted text line by line, extracting the name from lines that
-   start with `<number>.` / `<number>)`. Non-numbered lines (titles, emoji, `19:00`-style time
-   headers) are skipped. Reading stops as soon as a waiting-list header is hit (`המתנה` / `רזרבה` /
-   `ממתינים`) — reserves aren't part of today's squad.
+1. `parseImportList(text)` reads the pasted text line by line and figures out which style of list
+   it's looking at, rather than assuming one fixed format: a numbered list (`1. Name`, `1) Name`,
+   `1- Name`, or just `1 Name` with nothing but a space — any punctuation, or none, all work, since
+   phones often don't render the dot into copied text), a bulleted list (`• Name` / `- Name`), or a
+   plain one-name-per-line list with no prefix at all. For a numbered list, unpunctuated `N Name`
+   lines are only trusted once the numbers across the whole paste actually climb (gaps are fine,
+   e.g. `1, 3, 7`) — that's what stops an unrelated sentence starting with a digit (`"3 players
+   still needed"`) from being swept in as a name. A trailing note in brackets (`דני (אורח)`,
+   `לירן (שוער)`) is stripped from the name. Time headers (`19:00`-style) are skipped outright, and
+   reading stops as soon as a waiting-list header is hit (`המתנה` / `רזרבה` / `ממתינים`) — reserves
+   aren't part of today's squad. Covered by `src/importRoster.test.ts`.
 2. `resolveImportedNames(names, players, existingGuests, makeGuest)` matches each name against
    `player.name` or any of `player.aliases` (trim + case-insensitive). Matches become
    `session.availableIds`. Names that match nothing become guests via `makeGuest` — same default
