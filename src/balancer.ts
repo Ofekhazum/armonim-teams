@@ -290,7 +290,7 @@ const signature = (teams: Teams): string =>
 export function generateTeams(
   players: Player[],
   gkIds: Set<string>,
-  variants = 3,
+  variants = 5,
 ): Teams[] {
   if (!players.length) return [];
   const sizes = targetSizes(players.length);

@@ -332,7 +332,7 @@ instantly and is easy to reason about:
 
 Weights are constants inside `src/balancer.ts` (no settings UI exists to tune them at runtime).
 
-The generator returns the **top 3 distinct results**, so the organizer can flip between alternatives
+The generator returns the **top 5 distinct results**, so the organizer can flip between alternatives
 instead of re-rolling blindly.
 
 ## 4. Short-handed nights (13–14 players)
