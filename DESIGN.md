@@ -342,6 +342,18 @@ to verify a word against.
 `session.fixtureStarted` persists in `localStorage` like the rest of the session, so a page refresh
 while the fixture is open reopens the fixture page rather than dropping back to the teams board.
 
+**⏹️ End fixture** is the opposite: the night is over, wipe it and start again from availability.
+It's the *same action* as the teams board's **🆕 New Fixture** — one `newFixture()` in `MatchDay.tsx`
+backs both, so closing the live room, clearing `getHostRoom`, resetting to `emptySession()` and
+returning to step 1 can't drift apart between the two entry points. It's offered here because this
+is the page you're actually on when a night finishes; walking back to the teams board to end the
+night made the button hard to find at the only moment it's wanted.
+
+Being destructive, it confirms first, and the confirmation **says which thing you're about to
+lose**: if a result has been typed but not filed to history, the prompt leads with that rather than
+the generic "clears today's selections". History itself is untouched — ending a fixture clears the
+session, never the saved nights (§2.6).
+
 **What else is on the page**, top to bottom: tonight's milestones (§2.9), the match clock (§2.8),
 and the results panel. Everything here is either read-only or costs a single tap — a deliberate
 constraint, since anything needing steady input during a match (live scores, goal scorers) gets
@@ -543,7 +555,8 @@ panel is unaffected — the organizer still sees the plan, it just doesn't go in
      them read-only (§2.7), with tonight's milestones and duo records (§2.9, §2.10), the 8-minute
      match clock (§2.8), and **🏁 Tonight's results** (`ResultsPanel.tsx`) to file the night.
      **← Back to teams** returns to the editable board above without losing anything, in case the
-     teams need another look.
+     teams need another look; **⏹️ End fixture** wipes the night and starts over, the same action
+     as the board's 🆕 New Fixture.
 3. **History** (`src/components/History.tsx`) — past nights (expandable to the team sheets and
    each team's wins), a standings table of nights / wins / wins-per-night where a shootout counts
    as half, and, in admin mode, rating suggestions with Apply/Dismiss. Empty until the first

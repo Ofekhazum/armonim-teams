@@ -24,6 +24,10 @@ interface Props {
   unlocking?: boolean;
   // lets the organizer undo a mistaken "Start fixture" and go on editing teams
   onBack: () => void;
+  // wipes the night and starts over from availability — the same action as the
+  // teams board's "New Fixture", offered from the page you're actually on when
+  // the night finishes
+  onEndFixture: () => void;
 }
 
 // The fixture in progress: tonight's teams, locked in and shown read-only, plus
@@ -43,6 +47,7 @@ export default function FixturePage({
   onUnlockAdmin,
   unlocking,
   onBack,
+  onEndFixture,
 }: Props) {
   const byId = useMemo(() => new Map(players.map((p) => [p.id, p])), [players]);
   const gkSet = useMemo(() => new Set(gkIds), [gkIds]);
@@ -60,14 +65,33 @@ export default function FixturePage({
     [players, history, savedFixtureId],
   );
 
+  // Ending the night throws away whatever hasn't been filed, so the warning
+  // says so specifically rather than leaving it to be discovered afterwards.
+  const unsavedResult = !saved && TEAM_COLORS.some((c) => wins[c] != null);
+  const endFixture = () => {
+    const warning = unsavedResult
+      ? "Tonight's result hasn't been saved to history yet and will be lost. End the fixture anyway?"
+      : "End tonight's fixture? This clears today's selections, guests and teams.";
+    if (confirm(warning)) onEndFixture();
+  };
+
   return (
     <div className="space-y-4">
-      <button
-        onClick={onBack}
-        className="rounded-xl border border-amber-900/30 px-4 py-2 text-sm font-semibold text-amber-900"
-      >
-        ← Back to teams
-      </button>
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          onClick={onBack}
+          className="rounded-xl border border-amber-900/30 px-4 py-2 text-sm font-semibold text-amber-900"
+        >
+          ← Back to teams
+        </button>
+        <div className="flex-1" />
+        <button
+          onClick={endFixture}
+          className="rounded-xl border border-red-500/60 px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-50"
+        >
+          ⏹️ End fixture
+        </button>
+      </div>
 
       {/* Deliberately compact: on this page the teams are a reference you glance
           at, not something you work on, so names go in wrapped chips (~3 lines a
