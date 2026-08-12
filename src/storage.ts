@@ -14,6 +14,7 @@ export const emptySession = (): Session => ({
   teams: null,
   teamAlts: [],
   altIndex: 0,
+  fixtureStarted: false,
   wins: { black: null, white: null, blue: null },
   savedFixtureId: null,
 });

@@ -214,6 +214,7 @@ export default function App() {
           session={state.session}
           setSession={setSession}
           isAdmin={adminWord !== null}
+          setAdminWord={setAdminWord}
           onSaveFixture={saveFixture}
         />
       )}

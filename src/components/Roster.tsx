@@ -3,7 +3,8 @@ import type { CSSProperties } from 'react';
 import type { Player } from '../types';
 import { ATTACK_DEFAULT, ATTACK_STEP, attackLabel, badgeForAttack, roleBadge } from '../types';
 import { uid } from '../storage';
-import { publishRemoteRoster, setLocalRosterVersion, verifyWord, REMOTE_URL } from '../remote';
+import { publishRemoteRoster, setLocalRosterVersion, REMOTE_URL } from '../remote';
+import { useAdminUnlock } from '../useAdminUnlock';
 import {
   fmtRating,
   Name,
@@ -39,29 +40,8 @@ export default function Roster({ players, onChange, adminWord, setAdminWord }: P
   const [draft, setDraft] = useState<Draft | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [publishing, setPublishing] = useState(false);
-  const [unlocking, setUnlocking] = useState(false);
   const isAdmin = adminWord !== null;
-
-  // Prompt for the secret word and, if the worker accepts it, unlock admin
-  // mode (edit ratings + publish). The word is verified server-side.
-  const unlockAdmin = async () => {
-    const word = window.prompt('Enter the admin password:');
-    if (word == null) return; // cancelled
-    setUnlocking(true);
-    const result = await verifyWord(word.trim());
-    setUnlocking(false);
-    if (result === 'ok') {
-      setAdminWord(word.trim());
-    } else if (result === 'wrong-word') {
-      alert('❌ Wrong password.');
-    } else if (result === 'rate-limited') {
-      alert('❌ Too many wrong passwords. Please wait a few minutes and try again.');
-    } else if (result === 'not-configured') {
-      alert('The shared roster is not set up yet (REMOTE_URL is empty in remote.ts).');
-    } else {
-      alert('Could not reach the server — check your connection and try again.');
-    }
-  };
+  const { unlockAdmin, unlocking } = useAdminUnlock(setAdminWord);
 
   // Push the current roster to everyone, using the already-unlocked word.
   const publish = async () => {
