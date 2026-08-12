@@ -244,6 +244,19 @@ export default function MatchDay({
   const startFixture = () => setSession({ ...session, fixtureStarted: true });
   const backToTeams = () => setSession({ ...session, fixtureStarted: false });
 
+  // Wipes the night and starts over from availability. Shared by the teams
+  // board's "New Fixture" and the fixture page's "End fixture" — the same
+  // action from either end of the flow, so it lives here rather than being
+  // written out twice. Note it tells any connected guests the room is gone
+  // rather than just forgetting it locally and orphaning it in storage.
+  const newFixture = () => {
+    room?.closeRoom();
+    leaveRoom();
+    setHostRoom(null);
+    setSession(emptySession());
+    setStep('players');
+  };
+
   // Files tonight into history. Re-saving updates the same record instead of
   // piling up duplicates, so correcting a typo doesn't invent a second night.
   // The team sheet and everyone's name/rating are snapshotted, because guests
@@ -355,6 +368,7 @@ export default function MatchDay({
         onUnlockAdmin={REMOTE_URL ? unlockAdmin : undefined}
         unlocking={unlocking}
         onBack={backToTeams}
+        onEndFixture={newFixture}
       />
     );
   }
@@ -412,15 +426,7 @@ export default function MatchDay({
             setSession({ ...session, teams: null });
             setStep('gk');
           }}
-          onNewFixture={() => {
-            // tell any connected guests the room's gone, not just forget it
-            // locally and leave it orphaned in storage
-            room?.closeRoom();
-            leaveRoom();
-            setHostRoom(null);
-            setSession(emptySession());
-            setStep('players');
-          }}
+          onNewFixture={newFixture}
           onStartFixture={startFixture}
         />
       </div>
