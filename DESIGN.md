@@ -397,10 +397,19 @@ The facts, and what each needs:
 | Fact | Fires when | Notes |
 |---|---|---|
 | 🎉 Nth night | 10, 25, then every 50 | roughly a mention a year once established |
-| 🏆 Nth win | crossing 25, 50, then every 50 | wins are fractional, so it's a *crossing*, not equality |
+| 🏆 Nth win | crossing 50, 100, 250, then every 500 | wins are fractional, so it's a *crossing*, not equality |
 | 📈 Won N nights running | run ≥ `MIN_WIN_STREAK` (3) | ~one player on any given night |
 | 💤 Hasn't won in N nights | run ≥ `MIN_WINLESS_RUN` (5) | the same maths inverted |
 | ✨ First night | see the debut rules below | |
+
+**The two ladders are calibrated against real results, not guessed.** The first recorded night
+finished 7 / 5 / 2 — **14 wins shared between the three teams**, so a player banks roughly 4–5 wins
+per night, not the 1–2 `isWinMilestone` first assumed. That had 🏆 firing about three times sooner
+than intended, and because everyone accrues at much the same rate, half the squad would have crossed
+a low threshold within a fortnight of each other and crowded the streaks off the line. At ~4.7 a
+night the current ladder lands near nights 11 / 22 / 54 / 107 — comparable rarity to the nights
+ladder, and offset from it so one player rarely trips both on the same evening. **If the format
+changes (longer matches, more or fewer of them), this is the constant to revisit.**
 
 **Winning the night is derived, not recorded.** The organiser enters three win counts (§2.6); there
 is no stored notion of who "won". `winnerOf` defines it as *strictly* the most wins, so a tie at the

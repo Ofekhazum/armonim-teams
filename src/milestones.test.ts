@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isMilestoneNight, tonightsMilestones } from './milestones';
+import { isMilestoneNight, isWinMilestone, tonightsMilestones } from './milestones';
 import type { FixtureRecord, Player } from './types';
 
 function player(id: string, name: string, extra: Partial<Player> = {}): Player {
@@ -191,24 +191,31 @@ describe('win streaks and winless runs', () => {
 describe('career wins', () => {
   // black takes 3 a night when it wins, 1 when it loses
   it('fires when tonight is what carries them past a round number', () => {
-    // 8 wins × 3 = 24 so far; tonight's 3 crosses 25
-    const past = nights(8, ['a'], 'won');
+    // 16 wins × 3 = 48 so far; tonight's 3 crosses 50
+    const past = nights(16, ['a'], 'won');
     const tonight = fixture(['a'], 'won', 'tonight');
     const out = tonightsMilestones([player('a', 'דור')], [...past, tonight], 'tonight');
-    expect(out).toContainEqual({ kind: 'nth-win', id: 'a', name: 'דור', wins: 25 });
+    expect(out).toContainEqual({ kind: 'nth-win', id: 'a', name: 'דור', wins: 50 });
   });
 
   it('says nothing until the result is in, since the crossing has not happened yet', () => {
-    const past = nights(8, ['a'], 'won'); // 24 wins
+    const past = nights(16, ['a'], 'won'); // 48 wins — not there yet
     const out = tonightsMilestones([player('a', 'דור')], past);
     expect(out.some((m) => m.kind === 'nth-win')).toBe(false);
   });
 
   it('does not repeat the milestone on later nights', () => {
-    const past = [...nights(9, ['a'], 'won')]; // 27 wins, already past 25
+    const past = nights(18, ['a'], 'won'); // 54 wins, already past 50
     const tonight = fixture(['a'], 'won', 'tonight');
     const out = tonightsMilestones([player('a', 'דור')], [...past, tonight], 'tonight');
     expect(out.some((m) => m.kind === 'nth-win')).toBe(false);
+  });
+
+  // Guards the recalibration: the ladder was 25/50/every-50, which at the ~4.7
+  // wins a night the real results show had 🏆 firing three times too often.
+  it('uses a ladder spaced for the real rate of about five wins a night', () => {
+    expect([50, 100, 250, 500, 1000].every(isWinMilestone)).toBe(true);
+    expect([25, 75, 150, 200, 300, 400].some(isWinMilestone)).toBe(false);
   });
 });
 

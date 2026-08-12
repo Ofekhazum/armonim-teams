@@ -42,10 +42,18 @@ export function isMilestoneNight(n: number): boolean {
   return n === 10 || n === 25 || (n >= 50 && n % 50 === 0);
 }
 
-// Wins accumulate at 1–2 a night, so this ladder is deliberately sparser than
-// the nights one — 50 wins is already the better part of a year.
+// Calibrated against real recorded nights, not a guess: a night's three teams
+// share something like 14 wins between them, so a player banks roughly 4–5 a
+// night — far faster than the 1–2 this ladder first assumed, which had 🏆
+// firing three times sooner than intended. Worse, everyone accrues at about
+// the same rate, so a low threshold gets crossed by half the squad within a
+// week or two of each other and crowds everything else off the line.
+//
+// At ~4.7 a night these land near nights 11 / 22 / 54 / 107 — comparable
+// rarity to the nights ladder above, and offset from it so a player doesn't
+// usually trip both on the same evening.
 export function isWinMilestone(n: number): boolean {
-  return n === 25 || (n >= 50 && n % 50 === 0);
+  return n === 50 || n === 100 || n === 250 || (n >= 500 && n % 500 === 0);
 }
 
 // Who took the night. Not something the app records — the organiser enters
