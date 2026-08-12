@@ -349,6 +349,7 @@ export default function MatchDay({
         onChangeWins={(wins) => setSession({ ...session, wins })}
         onSaveResults={saveNight}
         saved={session.savedFixtureId !== null}
+        savedFixtureId={session.savedFixtureId}
         isAdmin={isAdmin}
         // nothing to unlock against when the shared Worker isn't configured
         onUnlockAdmin={REMOTE_URL ? unlockAdmin : undefined}

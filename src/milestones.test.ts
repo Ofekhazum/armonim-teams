@@ -6,19 +6,39 @@ function player(id: string, name: string, extra: Partial<Player> = {}): Player {
   return { id, name, rating: 3, attack: 50, chemistry: [], ...extra };
 }
 
-// A night that `ids` played in. Only `players` matters for counting.
-function fixture(id: string, ids: string[]): FixtureRecord {
-  return {
-    id,
-    date: '2026-01-01',
+// Unique ids and ascending dates across every fixture any test builds, so
+// nothing depends on two helper calls not colliding.
+let seq = 0;
+const nextDate = () => new Date(Date.UTC(2026, 0, 1 + seq)).toISOString().slice(0, 10);
+
+type Outcome = 'won' | 'lost' | 'no-result';
+
+// A night `ids` played, all on black. `outcome` is from their point of view:
+// black takes it 3–1, drops it 1–3, or the night was never scored.
+function fixture(ids: string[], outcome: Outcome = 'lost', id?: string): FixtureRecord {
+  const wins =
+    outcome === 'won'
+      ? { black: 3, white: 1, blue: 0 }
+      : outcome === 'lost'
+        ? { black: 1, white: 3, blue: 0 }
+        : { black: 0, white: 0, blue: 0 };
+  const fx: FixtureRecord = {
+    id: id ?? `f${seq}`,
+    date: nextDate(),
     teams: { black: ids, white: [], blue: [] },
     players: ids.map((x) => ({ id: x, name: x, rating: 3 })),
-    wins: { black: 1, white: 0, blue: 0 },
+    wins,
   };
+  seq++;
+  return fx;
 }
 
-const nights = (n: number, ids: string[]) =>
-  Array.from({ length: n }, (_, i) => fixture(`f${i}`, ids));
+// `n` nights for `ids`. Outcomes alternate by default so no run ever builds —
+// tests about counts shouldn't accidentally trip the streak facts.
+const nights = (n: number, ids: string[], outcome?: Outcome) =>
+  Array.from({ length: n }, (_, i) =>
+    fixture(ids, outcome ?? (i % 2 ? 'won' : 'lost')),
+  );
 
 describe('isMilestoneNight', () => {
   it('fires on 10, 25 and every 50 after', () => {
@@ -79,8 +99,8 @@ describe('tonightsMilestones', () => {
     ]);
   });
 
-  it('counts a fixture once even if a player somehow appears twice on the sheet', () => {
-    const dupe = fixture('f', ['a']);
+  it('counts a fixture once even if a player is somehow listed twice on it', () => {
+    const dupe = fixture(['a', 'a']);
     dupe.players.push({ id: 'a', name: 'a', rating: 3 });
     // 9 clean nights + 1 duplicated one = 10 nights, so tonight is the 11th
     expect(tonightsMilestones([player('a', 'דור')], [...nights(9, ['a']), dupe])).toEqual([]);
@@ -104,5 +124,103 @@ describe('tonightsMilestones', () => {
       { kind: 'nth-night', id: 'a', name: 'דור', nights: 25 },
       { kind: 'debut', id: 'c', name: 'חדש' },
     ]);
+  });
+});
+
+describe('win streaks and winless runs', () => {
+  it('reports a run of three wins, and stays quiet at two', () => {
+    const two = tonightsMilestones([player('a', 'דור')], nights(2, ['a'], 'won'));
+    expect(two.some((m) => m.kind === 'win-streak')).toBe(false);
+
+    const three = tonightsMilestones([player('a', 'דור')], nights(3, ['a'], 'won'));
+    expect(three).toContainEqual({ kind: 'win-streak', id: 'a', name: 'דור', nights: 3 });
+  });
+
+  it('counts only the run at the end, not wins scattered through the season', () => {
+    const history = [...nights(9, ['a'], 'won'), ...nights(1, ['a'], 'lost'), ...nights(3, ['a'], 'won')];
+    const out = tonightsMilestones([player('a', 'דור')], history);
+    expect(out).toContainEqual({ kind: 'win-streak', id: 'a', name: 'דור', nights: 3 });
+  });
+
+  it('does not break a run over a night the player missed', () => {
+    const history = [
+      ...nights(2, ['a'], 'won'),
+      ...nights(1, ['someone-else'], 'won'), // a wasn't there
+      ...nights(1, ['a'], 'won'),
+    ];
+    expect(tonightsMilestones([player('a', 'דור')], history)).toContainEqual({
+      kind: 'win-streak',
+      id: 'a',
+      name: 'דור',
+      nights: 3,
+    });
+  });
+
+  it('does not break a run over a night nobody scored', () => {
+    const history = [
+      ...nights(2, ['a'], 'won'),
+      ...nights(1, ['a'], 'no-result'),
+      ...nights(1, ['a'], 'won'),
+    ];
+    expect(tonightsMilestones([player('a', 'דור')], history)).toContainEqual({
+      kind: 'win-streak',
+      id: 'a',
+      name: 'דור',
+      nights: 3,
+    });
+  });
+
+  it('treats a drawn top — two teams level on wins — as nobody winning the night', () => {
+    const won = nights(3, ['a'], 'won');
+    // built after, so it sorts last and is the run-breaking night
+    const drawn = fixture(['a'], 'won');
+    drawn.wins = { black: 3, white: 3, blue: 0 };
+    const out = tonightsMilestones([player('a', 'דור')], [...won, drawn]);
+    expect(out.some((m) => m.kind === 'win-streak')).toBe(false);
+  });
+
+  it('reports a winless run only at five or more', () => {
+    const four = tonightsMilestones([player('a', 'דור')], nights(4, ['a'], 'lost'));
+    expect(four.some((m) => m.kind === 'winless')).toBe(false);
+
+    const five = tonightsMilestones([player('a', 'דור')], nights(5, ['a'], 'lost'));
+    expect(five).toContainEqual({ kind: 'winless', id: 'a', name: 'דור', nights: 5 });
+  });
+});
+
+describe('career wins', () => {
+  // black takes 3 a night when it wins, 1 when it loses
+  it('fires when tonight is what carries them past a round number', () => {
+    // 8 wins × 3 = 24 so far; tonight's 3 crosses 25
+    const past = nights(8, ['a'], 'won');
+    const tonight = fixture(['a'], 'won', 'tonight');
+    const out = tonightsMilestones([player('a', 'דור')], [...past, tonight], 'tonight');
+    expect(out).toContainEqual({ kind: 'nth-win', id: 'a', name: 'דור', wins: 25 });
+  });
+
+  it('says nothing until the result is in, since the crossing has not happened yet', () => {
+    const past = nights(8, ['a'], 'won'); // 24 wins
+    const out = tonightsMilestones([player('a', 'דור')], past);
+    expect(out.some((m) => m.kind === 'nth-win')).toBe(false);
+  });
+
+  it('does not repeat the milestone on later nights', () => {
+    const past = [...nights(9, ['a'], 'won')]; // 27 wins, already past 25
+    const tonight = fixture(['a'], 'won', 'tonight');
+    const out = tonightsMilestones([player('a', 'דור')], [...past, tonight], 'tonight');
+    expect(out.some((m) => m.kind === 'nth-win')).toBe(false);
+  });
+});
+
+describe("tonight's own fixture", () => {
+  // Regression: once the result is saved, tonight lands in `history`, which
+  // made "your 50th night" tick over to "your 51st" the moment you hit save.
+  it('does not let a saved result inflate the nights count', () => {
+    const past = nights(49, ['a']);
+    const tonight = fixture(['a'], 'won', 'tonight');
+    const before = tonightsMilestones([player('a', 'דור')], past);
+    const after = tonightsMilestones([player('a', 'דור')], [...past, tonight], 'tonight');
+    expect(before).toContainEqual({ kind: 'nth-night', id: 'a', name: 'דור', nights: 50 });
+    expect(after).toContainEqual({ kind: 'nth-night', id: 'a', name: 'דור', nights: 50 });
   });
 });

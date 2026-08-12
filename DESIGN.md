@@ -386,12 +386,35 @@ persisted), so backing it out is deleting that file and its two lines in `Fixtur
 `src/milestones.ts` (+ `milestones.test.ts`) turns `AppState.history` into a one-line note above the
 clock: *"🎉 אופק's 50th night · ✨ First night for דור"*. Zero input — it's counting, not tracking.
 
-Deliberately **only counts and firsts**: nothing about form, streaks or who's playing well. Those
-read as claims about a player, and the same reasoning that keeps rating suggestions behind
-`MIN_NIGHTS` (§2.6) says a handful of three-numbers-a-night results can't support one. Milestone
-numbers are 10, 25, then every 50 — roughly a mention a year once you're established.
+Everything here is a **count**, never a verdict. The line between the two is the whole design rule:
+*"won the last three nights"* is checkable arithmetic, while *"is in form"* or *"these two click"*
+are claims about ability that a night's three win totals cannot support — the same reasoning that
+keeps rating suggestions behind `MIN_NIGHTS` (§2.6). The copy is written to stay on the count side,
+which is why the streak line says "has won 3 nights running" rather than anything about form.
 
-Three details that are each a bug someone would otherwise hit:
+The facts, and what each needs:
+
+| Fact | Fires when | Notes |
+|---|---|---|
+| 🎉 Nth night | 10, 25, then every 50 | roughly a mention a year once established |
+| 🏆 Nth win | crossing 25, 50, then every 50 | wins are fractional, so it's a *crossing*, not equality |
+| 📈 Won N nights running | run ≥ `MIN_WIN_STREAK` (3) | ~one player on any given night |
+| 💤 Hasn't won in N nights | run ≥ `MIN_WINLESS_RUN` (5) | the same maths inverted |
+| ✨ First night | see the debut rules below | |
+
+**Winning the night is derived, not recorded.** The organiser enters three win counts (§2.6); there
+is no stored notion of who "won". `winnerOf` defines it as *strictly* the most wins, so a tie at the
+top means nobody took the night. Runs count **nights played** — a week someone missed doesn't break
+a streak, matching how `MIN_NIGHTS` is counted per player rather than per season — and a night with
+no result recorded is skipped rather than counted as a loss, since it says nothing either way.
+
+**Timing.** Most facts are knowable before kick-off, but a career-win crossing depends on tonight's
+result, so it only appears once the night is saved. That's also why `tonightsMilestones` takes
+`session.savedFixtureId`: tonight must be **excluded** from the nights count (it's the +1) and
+**included** in career wins. Getting this wrong is a real bug that existed briefly — saving the
+result flipped "your 50th night" to "your 51st".
+
+Three debut details that are each a bug someone would otherwise hit:
 
 - **Guests are skipped entirely.** A guest gets a fresh `uid` every visit, so their history never
   matches and they'd be "making their debut" every single week.
@@ -400,6 +423,37 @@ Three details that are each a bug someone would otherwise hit:
   install everyone is trivially absent, which tagged the entire squad at once.
 - **More than `MAX_NAMED_DEBUTS` (3) first-timers collapse to one line** ("✨ 13 first nights
   tonight"). Past that it stops reading as a milestone and starts reading as a list.
+
+At most `MAX_SHOWN` (5) facts are rendered, ranked rarest-first. In practice it's usually nought or
+one; the cap only exists so a freak night can't turn the line into a wall.
+
+### 2.10 Duo records
+
+`src/duos.ts` (+ `duos.test.ts`) adds one more line: the best and worst **pairing** among tonight's
+players — *"🤝 יועד & חנש have won 12 of their 12 nights together"*.
+
+**Why it's phrased as a record and not a verdict.** The obvious feature here is "these two play well
+together", and the data cannot support it. Detecting a genuinely large chemistry effect (≈ +0.5 wins
+a night) would take something like **45 nights together**, and well over 100 once you account for a
+15-player squad containing ~105 possible pairs — test that many and the best-looking one is noise
+almost every time. Four nights at 100% isn't even surprising: at a two-in-three base rate that
+happens by chance about one time in five. So the UI states the count and lets the reader draw their
+own conclusion.
+
+Worth knowing: the app already has the honest version of this as an **input**. `chemistry` and
+`avoid` on `Player` (§2) are human-declared and the balancer acts on them. This section is a record
+of what happened, not a competing inference about who ought to play together.
+
+**How a short record is stopped from winning.** Rather than a hard cut-off, the win rate is shrunk
+toward the measured base rate as if every pair began with `SHRINK_K` (20) ordinary nights, and a
+pair must then clear `MIN_EDGE` (0.10) to be worth a line. At a 50% base that puts a 4-from-4 pair
+at 0.583 — quiet — and a 15-from-20 pair at 0.625 — reported. So `MIN_TOGETHER` (4) is a floor that
+in practice rarely binds: a pair realistically needs 10–15 nights together before it can surface.
+Early records are still collected and ranked; they just can't win on the strength of being small.
+
+Two smaller details: the base rate is **measured** from tonight's players rather than assumed to be
+a third (ties at the top drag it below that), and guests are excluded for the same id-churn reason
+as milestones.
 
 ## 3. Team generation algorithm
 
@@ -477,8 +531,8 @@ panel is unaffected — the organizer still sees the plan, it just doesn't go in
      button copies WhatsApp-ready text (`shareText`/`copy` in `TeamsBoard.tsx`). Optionally,
      **🔴 Go live** turns this board into a shared live room others can join and drag in — see §2.5.
    - **▶️ Start fixture** → `src/components/FixturePage.tsx`: locks tonight's teams in and shows
-     them read-only (§2.7), with tonight's milestones (§2.9), the 8-minute match clock (§2.8), and
-     **🏁 Tonight's results** (`ResultsPanel.tsx`) to file the night into history.
+     them read-only (§2.7), with tonight's milestones and duo records (§2.9, §2.10), the 8-minute
+     match clock (§2.8), and **🏁 Tonight's results** (`ResultsPanel.tsx`) to file the night.
      **← Back to teams** returns to the editable board above without losing anything, in case the
      teams need another look.
 3. **History** (`src/components/History.tsx`) — past nights (expandable to the team sheets and

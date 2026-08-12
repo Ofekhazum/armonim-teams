@@ -3,6 +3,7 @@ import type { DraftTeamWins, FixtureRecord, Player, TeamColor, Teams } from '../
 import { roleBadge } from '../types';
 import { TEAM_COLORS, lineupOrder, teamStats } from '../balancer';
 import { tonightsMilestones } from '../milestones';
+import { duoFacts } from '../duos';
 import { Name, STYLE_META, TEAM_META } from './ui';
 import MatchClock from './MatchClock';
 import ResultsPanel from './ResultsPanel';
@@ -16,6 +17,7 @@ interface Props {
   onChangeWins: (wins: DraftTeamWins) => void;
   onSaveResults: () => void;
   saved: boolean;
+  savedFixtureId: string | null;
   isAdmin: boolean;
   // unlocks admin without leaving for the Roster tab (see ResultsPanel)
   onUnlockAdmin?: () => void;
@@ -36,6 +38,7 @@ export default function FixturePage({
   onChangeWins,
   onSaveResults,
   saved,
+  savedFixtureId,
   isAdmin,
   onUnlockAdmin,
   unlocking,
@@ -46,7 +49,16 @@ export default function FixturePage({
   const stats = Object.fromEntries(
     TEAM_COLORS.map((c) => [c, teamStats(teams[c], byId, gkSet)]),
   ) as Record<TeamColor, ReturnType<typeof teamStats>>;
-  const milestones = useMemo(() => tonightsMilestones(players, history), [players, history]);
+  const milestones = useMemo(
+    // savedFixtureId so tonight isn't double-counted as a past night once the
+    // result goes in — and so career-win crossings can see tonight's wins
+    () => tonightsMilestones(players, history, savedFixtureId),
+    [players, history, savedFixtureId],
+  );
+  const duos = useMemo(
+    () => duoFacts(players, history, savedFixtureId),
+    [players, history, savedFixtureId],
+  );
 
   return (
     <div className="space-y-4">
@@ -100,21 +112,58 @@ export default function FixturePage({
         })}
       </div>
 
-      {milestones.length > 0 && (
+      {(milestones.length > 0 || duos.length > 0) && (
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-2xl border border-amber-900/15 bg-[#fffdf4]/70 px-4 py-2.5 text-sm text-amber-900">
-          {milestones.map((m) =>
-            m.kind === 'debut-group' ? (
-              <span key="debuts">✨ {m.count} first nights tonight</span>
-            ) : m.kind === 'debut' ? (
-              <span key={m.id}>
-                ✨ First night for <Name className="font-bold">{m.name}</Name>
-              </span>
-            ) : (
-              <span key={m.id}>
-                🎉 <Name className="font-bold">{m.name}</Name>'s {m.nights}th night
-              </span>
-            ),
-          )}
+          {/* Wording stays factual on purpose — "won 3 nights running" is a
+              count, "on fire" would be a claim about how they're playing that
+              a night's three win totals can't back up (§2.9). */}
+          {milestones.map((m) => {
+            switch (m.kind) {
+              case 'debut-group':
+                return <span key="debuts">✨ {m.count} first nights tonight</span>;
+              case 'debut':
+                return (
+                  <span key={m.id}>
+                    ✨ First night for <Name className="font-bold">{m.name}</Name>
+                  </span>
+                );
+              case 'nth-night':
+                return (
+                  <span key={m.id}>
+                    🎉 <Name className="font-bold">{m.name}</Name>'s {m.nights}th night
+                  </span>
+                );
+              case 'nth-win':
+                return (
+                  <span key={`w${m.id}`}>
+                    🏆 <Name className="font-bold">{m.name}</Name>'s {m.wins}th win
+                  </span>
+                );
+              case 'win-streak':
+                return (
+                  <span key={`s${m.id}`}>
+                    📈 <Name className="font-bold">{m.name}</Name> has won {m.nights} nights running
+                  </span>
+                );
+              case 'winless':
+                return (
+                  <span key={`l${m.id}`}>
+                    💤 <Name className="font-bold">{m.name}</Name> hasn't won in {m.nights} nights
+                  </span>
+                );
+            }
+          })}
+          {/* Always the raw record ("won 5 of 8 nights together"), never a
+              verdict like "these two click" — see the sample-size note in
+              duos.ts for why the stronger claim isn't available. */}
+          {duos.map((d) => (
+            <span key={`${d.kind}${d.aName}${d.bName}`}>
+              {d.kind === 'together-better' ? '🤝' : '🙃'}{' '}
+              <Name className="font-bold">{d.aName}</Name> &{' '}
+              <Name className="font-bold">{d.bName}</Name> have won {d.won} of their{' '}
+              {d.together} nights together
+            </span>
+          ))}
         </div>
       )}
 
