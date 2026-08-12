@@ -55,8 +55,8 @@ const NAME_BOXES: Box[] = [
 ];
 
 // Where a jersey number goes — the open center of the shirt, below the name
-// — measured at the same time as NAME_BOXES. Only drawn for players who
-// have one set (Player.number); most won't.
+// — measured at the same time as NAME_BOXES. Drawn for every shirt: players
+// with no Player.number set get a "?" rather than an empty box.
 const NUMBER_BOXES: Box[] = [
   { x: 287, y: 365, width: 51, height: 52 }, // top
   { x: 125, y: 478, width: 51, height: 52 }, // middle-left
@@ -171,9 +171,11 @@ export async function renderShirtImage(
 
   ctx.direction = 'ltr'; // pure digits, but keep it explicit rather than inheriting 'rtl'
   players.slice(0, NUMBER_BOXES.length).forEach((player, i) => {
-    if (player.number == null) return;
     const box = NUMBER_BOXES[i];
-    const text = String(player.number);
+    // Nobody's shirt is blank: a player with no number set gets a "?" in the
+    // same box, so every shirt in the picture reads as a shirt rather than
+    // looking half-finished.
+    const text = player.number == null ? '?' : String(player.number);
     const size = fitNumberSize(ctx, text, box.width * scale, box.height * scale, scale);
     ctx.font = font(size, '900');
     ctx.lineWidth = size * 0.16;

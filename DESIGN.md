@@ -180,12 +180,17 @@ rather than minting a new room).
 
 Recording what actually happened, and using it to question the ratings.
 
-**What gets recorded.** At the end of the night the organiser types **three numbers: how many
+**What gets recorded.** At the end of the night the organiser enters **three numbers: how many
 matches each team won**. Half-steps are ordinary — the house rule is that taking a shootout is
 worth *half* a win, so `3.5` is a normal entry. That's the whole result: no per-match scores, no
 head-to-head record, and no count of how many matches were played. It's deliberately what actually
 gets written down rather than what would be most convenient to analyse, and §2.6's last part is
 honest about what that costs.
+
+Each team's count has **−/+ buttons stepping by half a win**, alongside the number field. Typing
+`2.5` on a phone means switching to the numeric pad and finding the decimal key; two taps on **+**
+doesn't. The field stays for direct entry, and both paths snap to the nearest half — anything finer
+is a typo.
 
 **Model** (`types.ts`): `TeamWins = Record<TeamColor, number>` on a `FixtureRecord`
 (`{ id, date, teams, players, wins }`), with `DraftTeamWins` (nullable) for the tally while it's
@@ -337,6 +342,65 @@ to verify a word against.
 `session.fixtureStarted` persists in `localStorage` like the rest of the session, so a page refresh
 while the fixture is open reopens the fixture page rather than dropping back to the teams board.
 
+**What else is on the page**, top to bottom: tonight's milestones (§2.9), the match clock (§2.8),
+and the results panel. Everything here is either read-only or costs a single tap — a deliberate
+constraint, since anything needing steady input during a match (live scores, goal scorers) gets
+abandoned after a few weeks and leaves half-complete data behind, which is worse than none.
+
+### 2.8 The match clock (and the rules of a match)
+
+**The house rules**, which this is the app's record of:
+
+- A match is **8 minutes**, or ends early at a **two-goal lead** — 2:0, 3:1, and so on.
+- **Level after 8 minutes** → **2 minutes of added time**, played as **golden goal**: the next goal
+  ends the match immediately.
+- **Still level after added time** → **penalties**.
+- **The team that isn't playing shouts when there's a minute left.** It's their job, not the
+  players', because they're the only ones not busy.
+
+`MatchClock.tsx` automates the **time** half only, and knows nothing about the score — the app
+deliberately doesn't collect one live (see the constraint above). So:
+
+- ▶️ Start runs the 8 minutes down. At **1:00 remaining** the clock turns red, says *"One minute —
+  resting team shouts!"* and beeps twice. That's a prompt for the resting team to do their job, not
+  a replacement for it; the shout is what the players on the pitch actually hear.
+- At **0:00** it beeps three times and offers the one decision the score governs: **⚽ Level — added
+  time** (2:00, golden goal), or **⏭ Next match** if the match was already settled. One tap, at a
+  natural break — not a running tally.
+- Added time expiring lands on *"Still level — penalties"*.
+- A match ending early on a two-goal lead just ends with **⏭ Next match**, same as any other.
+
+Implementation notes: the countdown is computed from a wall-clock `endsAt` timestamp rather than by
+decrementing a counter, so a backgrounded/throttled tab doesn't quietly lose time. Beeps are
+synthesised with Web Audio (no audio asset to ship), and the `AudioContext` is created on the first
+Start press — a user gesture — because iOS won't let it make sound otherwise. A screen wake lock is
+held while the clock runs, since a pitch-side timer the phone blanks after 30 seconds isn't one;
+browsers without `navigator.wakeLock` simply don't get it.
+
+**This one is on trial.** It's the most speculative thing on the page, so it's kept trivially
+removable: `MatchClock.tsx` is entirely self-contained (no props, no session state, nothing
+persisted), so backing it out is deleting that file and its two lines in `FixturePage.tsx`.
+
+### 2.9 Tonight's milestones
+
+`src/milestones.ts` (+ `milestones.test.ts`) turns `AppState.history` into a one-line note above the
+clock: *"🎉 אופק's 50th night · ✨ First night for דור"*. Zero input — it's counting, not tracking.
+
+Deliberately **only counts and firsts**: nothing about form, streaks or who's playing well. Those
+read as claims about a player, and the same reasoning that keeps rating suggestions behind
+`MIN_NIGHTS` (§2.6) says a handful of three-numbers-a-night results can't support one. Milestone
+numbers are 10, 25, then every 50 — roughly a mention a year once you're established.
+
+Three details that are each a bug someone would otherwise hit:
+
+- **Guests are skipped entirely.** A guest gets a fresh `uid` every visit, so their history never
+  matches and they'd be "making their debut" every single week.
+- **No debuts claimed until there are `MIN_HISTORY_FOR_DEBUTS` (5) nights on record.** A debut means
+  something only if the history is deep enough that *absence* from it is informative; on a fresh
+  install everyone is trivially absent, which tagged the entire squad at once.
+- **More than `MAX_NAMED_DEBUTS` (3) first-timers collapse to one line** ("✨ 13 first nights
+  tonight"). Past that it stops reading as a milestone and starts reading as a list.
+
 ## 3. Team generation algorithm
 
 Balancing is a small constrained optimization. With ≤15 players, brute force is too big
@@ -413,9 +477,10 @@ panel is unaffected — the organizer still sees the plan, it just doesn't go in
      button copies WhatsApp-ready text (`shareText`/`copy` in `TeamsBoard.tsx`). Optionally,
      **🔴 Go live** turns this board into a shared live room others can join and drag in — see §2.5.
    - **▶️ Start fixture** → `src/components/FixturePage.tsx`: locks tonight's teams in and shows
-     them read-only, plus **🏁 Tonight's results** (`ResultsPanel.tsx`) to file the night into
-     history — see §2.7. **← Back to teams** returns to the editable board above without losing
-     anything, in case the teams need another look.
+     them read-only (§2.7), with tonight's milestones (§2.9), the 8-minute match clock (§2.8), and
+     **🏁 Tonight's results** (`ResultsPanel.tsx`) to file the night into history.
+     **← Back to teams** returns to the editable board above without losing anything, in case the
+     teams need another look.
 3. **History** (`src/components/History.tsx`) — past nights (expandable to the team sheets and
    each team's wins), a standings table of nights / wins / wins-per-night where a shootout counts
    as half, and, in admin mode, rating suggestions with Apply/Dismiss. Empty until the first
@@ -495,7 +560,10 @@ saved nights accumulate in the History tab (§2.6).
 - **Shirt numbers** (`Player.number`, optional): set from the Roster tab's edit-player form only —
   never shown in the roster list, on the board, in the WhatsApp text, or in history, purely
   cosmetic and only surfaces on the shirt-image export above. No uniqueness check; two players
-  sharing a number is fine since nothing depends on it being distinct.
+  sharing a number is fine since nothing depends on it being distinct. A player with **no** number
+  set gets a **"?"** drawn in the box rather than an empty one, so every shirt in the picture reads
+  as a finished shirt — most players have no number, and a grid of blank centres looked like the
+  export had failed halfway.
 - **Build version marker**: `vite.config.ts` runs `git rev-parse --short HEAD` at build time and
   injects it as the `__GIT_HASH__` global (declared in `src/vite-env.d.ts`, falls back to `'dev'`
   if git isn't available). Shown top-right of the Roster page — since GitHub Pages rebuilds on

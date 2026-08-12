@@ -1,13 +1,16 @@
 import { useMemo } from 'react';
-import type { DraftTeamWins, Player, TeamColor, Teams } from '../types';
+import type { DraftTeamWins, FixtureRecord, Player, TeamColor, Teams } from '../types';
 import { roleBadge } from '../types';
 import { TEAM_COLORS, lineupOrder, teamStats } from '../balancer';
+import { tonightsMilestones } from '../milestones';
 import { Name, STYLE_META, TEAM_META } from './ui';
+import MatchClock from './MatchClock';
 import ResultsPanel from './ResultsPanel';
 
 interface Props {
   teams: Teams;
   players: Player[];
+  history: FixtureRecord[];
   gkIds: string[];
   wins: DraftTeamWins;
   onChangeWins: (wins: DraftTeamWins) => void;
@@ -27,6 +30,7 @@ interface Props {
 export default function FixturePage({
   teams,
   players,
+  history,
   gkIds,
   wins,
   onChangeWins,
@@ -42,6 +46,7 @@ export default function FixturePage({
   const stats = Object.fromEntries(
     TEAM_COLORS.map((c) => [c, teamStats(teams[c], byId, gkSet)]),
   ) as Record<TeamColor, ReturnType<typeof teamStats>>;
+  const milestones = useMemo(() => tonightsMilestones(players, history), [players, history]);
 
   return (
     <div className="space-y-4">
@@ -94,6 +99,26 @@ export default function FixturePage({
           );
         })}
       </div>
+
+      {milestones.length > 0 && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-2xl border border-amber-900/15 bg-[#fffdf4]/70 px-4 py-2.5 text-sm text-amber-900">
+          {milestones.map((m) =>
+            m.kind === 'debut-group' ? (
+              <span key="debuts">✨ {m.count} first nights tonight</span>
+            ) : m.kind === 'debut' ? (
+              <span key={m.id}>
+                ✨ First night for <Name className="font-bold">{m.name}</Name>
+              </span>
+            ) : (
+              <span key={m.id}>
+                🎉 <Name className="font-bold">{m.name}</Name>'s {m.nights}th night
+              </span>
+            ),
+          )}
+        </div>
+      )}
+
+      <MatchClock />
 
       <ResultsPanel
         wins={wins}

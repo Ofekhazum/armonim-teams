@@ -212,6 +212,7 @@ export default function App() {
         <MatchDay
           players={state.players}
           session={state.session}
+          history={state.history}
           setSession={setSession}
           isAdmin={adminWord !== null}
           setAdminWord={setAdminWord}
