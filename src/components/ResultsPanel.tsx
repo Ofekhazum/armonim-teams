@@ -32,14 +32,21 @@ export default function ResultsPanel({
   onUnlockAdmin,
   unlocking,
 }: Props) {
+  // half-steps are meaningful (a shootout is worth half a win); anything finer
+  // is a typo, so snap to the nearest half
+  const clamp = (n: number) => Math.max(0, Math.min(99, Math.round(n * 2) / 2));
+
   const set = (c: TeamColor, raw: string) => {
     if (raw === '') return onChange({ ...wins, [c]: null });
     const n = Number(raw);
     if (!Number.isFinite(n) || n < 0) return;
-    // half-steps are meaningful (a shootout is worth half a win); anything
-    // finer is a typo, so snap to the nearest half
-    onChange({ ...wins, [c]: Math.min(99, Math.round(n * 2) / 2) });
+    onChange({ ...wins, [c]: clamp(n) });
   };
+
+  // −/+ in half-win steps, so the common entry needs no keyboard at all —
+  // typing "2.5" on a phone means switching to the numeric pad for the decimal
+  const bump = (c: TeamColor, by: number) =>
+    onChange({ ...wins, [c]: clamp((wins[c] ?? 0) + by) });
 
   const entered = TEAM_COLORS.filter((c) => wins[c] != null);
   const total = entered.reduce((n, c) => n + (wins[c] ?? 0), 0);
@@ -72,34 +79,53 @@ export default function ResultsPanel({
         )}
       </div>
       <p className="mb-3 text-xs text-amber-900/60">
-        How many matches each team won. Won it on penalties? That's half a win — type{' '}
-        <b>0.5</b>, <b>1.5</b>, and so on. Saving shares the result with everyone, the same as
-        publishing the roster.
+        How many matches each team won. Won it on penalties? That's half a win — tap <b>+</b> twice,
+        or type <b>0.5</b> directly. Saving shares the result with everyone, the same as publishing
+        the roster.
       </p>
 
       <div className="grid gap-2 sm:grid-cols-3">
-        {TEAM_COLORS.map((c) => (
-          <label
-            key={c}
-            className="flex items-center gap-3 rounded-xl border border-amber-900/10 bg-white/60 px-3 py-2.5"
-          >
-            <span className="flex-1 font-bold text-amber-950">
-              {TEAM_META[c].emoji} {TEAM_META[c].label}
-            </span>
-            <input
-              type="number"
-              inputMode="decimal"
-              min={0}
-              max={99}
-              step={0.5}
-              value={wins[c] ?? ''}
-              onChange={(e) => set(c, e.target.value)}
-              placeholder="–"
-              aria-label={`Matches won by ${TEAM_META[c].label}`}
-              className="w-20 rounded-lg border border-amber-900/25 bg-white px-2 py-1 text-center text-lg font-bold text-amber-950"
-            />
-          </label>
-        ))}
+        {TEAM_COLORS.map((c) => {
+          const step = 'grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-amber-900/25 bg-white text-lg font-black text-amber-900 enabled:hover:border-orange-500 disabled:opacity-30';
+          return (
+            <div
+              key={c}
+              className="flex items-center gap-2 rounded-xl border border-amber-900/10 bg-white/60 px-3 py-2.5"
+            >
+              <span className="min-w-0 flex-1 truncate font-bold text-amber-950">
+                {TEAM_META[c].emoji} {TEAM_META[c].label}
+              </span>
+              <button
+                onClick={() => bump(c, -0.5)}
+                disabled={(wins[c] ?? 0) <= 0}
+                aria-label={`Half a win fewer for ${TEAM_META[c].label}`}
+                className={step}
+              >
+                −
+              </button>
+              <input
+                type="number"
+                inputMode="decimal"
+                min={0}
+                max={99}
+                step={0.5}
+                value={wins[c] ?? ''}
+                onChange={(e) => set(c, e.target.value)}
+                placeholder="–"
+                aria-label={`Matches won by ${TEAM_META[c].label}`}
+                className="w-14 rounded-lg border border-amber-900/25 bg-white px-1 py-1 text-center text-lg font-bold text-amber-950"
+              />
+              <button
+                onClick={() => bump(c, 0.5)}
+                disabled={(wins[c] ?? 0) >= 99}
+                aria-label={`Half a win more for ${TEAM_META[c].label}`}
+                className={step}
+              >
+                +
+              </button>
+            </div>
+          );
+        })}
       </div>
 
       {canSave && (

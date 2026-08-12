@@ -28,6 +28,7 @@ const ACTIVITY_MS = 750;
 interface Props {
   players: Player[];
   session: Session;
+  history: FixtureRecord[]; // past nights — the fixture page counts milestones off these
   setSession: (s: Session) => void;
   isAdmin: boolean; // gates the private "keep apart" notes on the teams board
   setAdminWord: (word: string | null) => void; // lets the fixture page unlock admin in place
@@ -40,6 +41,7 @@ const IDEAL_PLAYERS = 15;
 export default function MatchDay({
   players,
   session,
+  history,
   setSession,
   isAdmin,
   setAdminWord,
@@ -341,11 +343,13 @@ export default function MatchDay({
       <FixturePage
         teams={session.teams}
         players={todays}
+        history={history}
         gkIds={effectiveGkIds}
         wins={session.wins}
         onChangeWins={(wins) => setSession({ ...session, wins })}
         onSaveResults={saveNight}
         saved={session.savedFixtureId !== null}
+        savedFixtureId={session.savedFixtureId}
         isAdmin={isAdmin}
         // nothing to unlock against when the shared Worker isn't configured
         onUnlockAdmin={REMOTE_URL ? unlockAdmin : undefined}
