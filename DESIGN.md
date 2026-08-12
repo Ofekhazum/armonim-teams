@@ -56,6 +56,7 @@ point*, expected to be tuned by hand afterwards.
 | teams | the generated/edited assignment (`Record<'black'\|'white'\|'blue', string[]>`), or `null` before generation |
 | teamAlts | the top-N balanced variations generated alongside `teams`, for "re-roll" |
 | altIndex | which variation is currently shown |
+| fixtureStarted | true once **▶️ Start fixture** is clicked — switches from the editable teams board to the read-only fixture page (§2.7). Reversible: **← Back to teams** just flips it off, `teams`/`wins` are untouched |
 | wins | tonight's win tally per team as typed, before it's filed (§2.6) |
 | savedFixtureId | set once tonight is saved, so re-saving updates that record instead of adding another |
 
@@ -192,8 +193,8 @@ still being typed. `players` is a **snapshot** (`FixturePlayer`: id/name/rating 
 than a pointer into the roster, because guests are one-off and both names and ratings move; history
 has to still read correctly years later.
 
-**Entry**: `ResultsPanel.tsx`, rendered by `MatchDay` *below* the board rather than inside
-`TeamsBoard` — deliberately, since a live-room guest renders that same board and must not be able
+**Entry**: `ResultsPanel.tsx`, rendered on the fixture page (§2.7) rather than inside `TeamsBoard`
+itself — deliberately, since a live-room guest renders that same `TeamsBoard` and must not be able
 to file a night into the host's history. Re-saving updates the same record
 (`session.savedFixtureId`) instead of appending a duplicate; generating fresh teams clears both,
 since an old tally no longer describes the new sheet.
@@ -304,6 +305,38 @@ suggestions: blank below four nights, then greyed until `|z| ≥ 1.5`. Showing a
 with one night behind them read as the app passing judgement on them, which is exactly the
 impression the floor exists to avoid.
 
+### 2.7 The fixture page
+
+Once the organizer is happy with tonight's teams, **▶️ Start fixture** on the teams board
+(`TeamsBoard.tsx`) locks them in: `session.fixtureStarted` flips to `true` and `MatchDay.tsx` swaps
+from the editable teams board to `FixturePage.tsx` — teams shown **read-only** (no drag-and-drop, no
+re-roll, no live-room controls) plus **🏁 Tonight's results** (`ResultsPanel.tsx`, moved here from
+directly under the board — see the "Entry" note in §2.6). This is meant to be the page open *during*
+the match, separate from the team-building page before it, and the natural place to add more
+once-the-teams-are-set features later.
+
+**The team display here is deliberately compact** — names as small wrapped chips (one line per team,
+~78px for all three) rather than the board's one-tall-row-per-player (~270px). On this page the
+teams are a reference you glance at, not something you work on, so they yield vertical space to
+whatever else the page carries; the results panel stays above the fold on a phone, which it did not
+when the full board was reproduced here. Kept in the chip: the 🧤 keeper marker (worth knowing
+mid-match) and a small ★ for guests. Dropped: per-player role icons, which are a team-building
+input rather than something you check during the match.
+
+**Unlocking admin here.** Saving a result needs the admin word (§2.6), so the fixture page offers
+**🔒 Unlock admin to save** in place of the results panel's old "unlock on the Roster tab" text —
+same prompt, same server-side check, just without the trip to another tab and back mid-match. The
+logic is shared, not copied: `useAdminUnlock` (`src/useAdminUnlock.ts`) now backs both this button
+and the Roster tab's 🔒 Admin. `ResultsPanel` falls back to the old static text when no
+`onUnlockAdmin` is passed, which is what happens when `REMOTE_URL` is empty and there is no server
+to verify a word against.
+
+**← Back to teams** undoes a mistaken click without losing anything: it just flips
+`fixtureStarted` back to `false`, landing back on the same teams board (still editable, re-rollable,
+`Go live`-able) with whatever result was already typed in still there — nothing is cleared.
+`session.fixtureStarted` persists in `localStorage` like the rest of the session, so a page refresh
+while the fixture is open reopens the fixture page rather than dropping back to the teams board.
+
 ## 3. Team generation algorithm
 
 Balancing is a small constrained optimization. With ≤15 players, brute force is too big
@@ -379,8 +412,10 @@ panel is unaffected — the organizer still sees the plan, it just doesn't go in
      numbers update live. "Re-roll" cycles through the alternative generated results. A **Share**
      button copies WhatsApp-ready text (`shareText`/`copy` in `TeamsBoard.tsx`). Optionally,
      **🔴 Go live** turns this board into a shared live room others can join and drag in — see §2.5.
-   Below the board, **🏁 Tonight's results** (`ResultsPanel.tsx`) takes each team's win count
-   and files the night into history — see §2.6.
+   - **▶️ Start fixture** → `src/components/FixturePage.tsx`: locks tonight's teams in and shows
+     them read-only, plus **🏁 Tonight's results** (`ResultsPanel.tsx`) to file the night into
+     history — see §2.7. **← Back to teams** returns to the editable board above without losing
+     anything, in case the teams need another look.
 3. **History** (`src/components/History.tsx`) — past nights (expandable to the team sheets and
    each team's wins), a standings table of nights / wins / wins-per-night where a shootout counts
    as half, and, in admin mode, rating suggestions with Apply/Dismiss. Empty until the first
@@ -403,8 +438,9 @@ saved nights accumulate in the History tab (§2.6).
 - **Shared roster (optional)**: `src/remote.ts` + `worker/roster-worker.js`, a small Cloudflare
   Worker storing the roster as versioned JSON in KV, behind a secret admin word
   (`/verify`, `/roster` endpoints). On load, `App.tsx` pulls the remote roster and adopts it if
-  its version is newer than what this device last applied. Unlocking admin mode
-  (`Roster.tsx`'s 🔒 Admin button) lets you edit ratings and 📢 Publish the roster for everyone;
+  its version is newer than what this device last applied. Unlocking admin mode (`Roster.tsx`'s
+  🔒 Admin button, or the fixture page's 🔒 Unlock admin to save — both via the shared
+  `useAdminUnlock` hook, §2.7) lets you edit ratings and 📢 Publish the roster for everyone;
   without it the app works fully offline from local/default data. Configure by setting
   `REMOTE_URL` in `remote.ts`; leave it `''` to disable.
   Both POSTs are **rate-limited per client IP** by a `RateLimiter` Durable Object

@@ -81,6 +81,10 @@ export interface Session {
   teams: Teams | null;
   teamAlts: Teams[]; // balanced variations generated alongside `teams`, for re-roll
   altIndex: number; // which variation is currently shown
+  // true once "Start fixture" is clicked: locks the teams in and switches from
+  // the editable teams board to the read-only fixture page (see FixturePage.tsx).
+  // Reversible — going back just flips this off, teams/wins are untouched.
+  fixtureStarted: boolean;
   wins: DraftTeamWins; // tonight's win tally as entered, before it's filed
   savedFixtureId: string | null; // set once tonight is saved, so re-saving updates
 }

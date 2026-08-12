@@ -13,11 +13,14 @@ import {
 import { generateTeams, targetSizes } from '../balancer';
 import { parseImportList, resolveImportedNames } from '../importRoster';
 import { ROOMS_ENABLED, hostRoom, roomShareUrl } from '../liveRoom';
+import { REMOTE_URL } from '../remote';
+import { useAdminUnlock } from '../useAdminUnlock';
 import type { ActivityEvent, PresenceMember, RoomConnection } from '../liveRoom';
 import { createUserColorTracker } from '../userColor';
 import LiveRoomBar from './LiveRoomBar';
 import TeamsBoard from './TeamsBoard';
-import ResultsPanel, { emptyWins } from './ResultsPanel';
+import FixturePage from './FixturePage';
+import { emptyWins } from './ResultsPanel';
 import { fmtRating, Name, RATING_STEPS, STYLE_META } from './ui';
 
 const ACTIVITY_MS = 750;
@@ -27,6 +30,7 @@ interface Props {
   session: Session;
   setSession: (s: Session) => void;
   isAdmin: boolean; // gates the private "keep apart" notes on the teams board
+  setAdminWord: (word: string | null) => void; // lets the fixture page unlock admin in place
   onSaveFixture: (fixture: FixtureRecord) => void;
 }
 
@@ -38,8 +42,10 @@ export default function MatchDay({
   session,
   setSession,
   isAdmin,
+  setAdminWord,
   onSaveFixture,
 }: Props) {
+  const { unlockAdmin, unlocking } = useAdminUnlock(setAdminWord);
   const [step, setStep] = useState<'players' | 'gk'>('players');
 
   // guest form
@@ -231,6 +237,11 @@ export default function MatchDay({
     room?.sendSync(teams);
   };
 
+  // Locks tonight's teams in and switches to the read-only fixture page.
+  // Reversible — "back to teams" just flips this off again.
+  const startFixture = () => setSession({ ...session, fixtureStarted: true });
+  const backToTeams = () => setSession({ ...session, fixtureStarted: false });
+
   // Files tonight into history. Re-saving updates the same record instead of
   // piling up duplicates, so correcting a typo doesn't invent a second night.
   // The team sheet and everyone's name/rating are snapshotted, because guests
@@ -325,6 +336,25 @@ export default function MatchDay({
     }
   };
 
+  if (session.teams && session.fixtureStarted) {
+    return (
+      <FixturePage
+        teams={session.teams}
+        players={todays}
+        gkIds={effectiveGkIds}
+        wins={session.wins}
+        onChangeWins={(wins) => setSession({ ...session, wins })}
+        onSaveResults={saveNight}
+        saved={session.savedFixtureId !== null}
+        isAdmin={isAdmin}
+        // nothing to unlock against when the shared Worker isn't configured
+        onUnlockAdmin={REMOTE_URL ? unlockAdmin : undefined}
+        unlocking={unlocking}
+        onBack={backToTeams}
+      />
+    );
+  }
+
   if (session.teams) {
     return (
       <div className="space-y-3">
@@ -387,13 +417,7 @@ export default function MatchDay({
             setSession(emptySession());
             setStep('players');
           }}
-        />
-        <ResultsPanel
-          wins={session.wins}
-          onChange={(wins) => setSession({ ...session, wins })}
-          onSave={saveNight}
-          saved={session.savedFixtureId !== null}
-          isAdmin={isAdmin}
+          onStartFixture={startFixture}
         />
       </div>
     );

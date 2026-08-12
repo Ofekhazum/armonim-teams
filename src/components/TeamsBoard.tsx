@@ -23,6 +23,7 @@ interface Props {
   // omitted entirely for the read/drag-only guest view of a live room
   onBack?: () => void;
   onNewFixture?: () => void;
+  onStartFixture?: () => void;
   // live room only: briefly rings the row(s) a remote change just moved, in
   // the mover's identity color
   highlight?: { ids: string[]; color: string } | null;
@@ -40,6 +41,7 @@ export default function TeamsBoard({
   rerollLabel,
   onBack,
   onNewFixture,
+  onStartFixture,
   highlight,
   showPrivateNotes = false,
 }: Props) {
@@ -242,6 +244,14 @@ export default function TeamsBoard({
         >
           {copied ? '✓ Copied!' : '📋 Copy for WhatsApp'}
         </button>
+        {onStartFixture && (
+          <button
+            onClick={onStartFixture}
+            className="rounded-xl bg-green-700 px-4 py-2 text-sm font-bold text-amber-50 shadow-sm transition-transform hover:scale-105"
+          >
+            ▶️ Start fixture
+          </button>
+        )}
       </div>
 
       <p className="text-xs text-amber-900/60">

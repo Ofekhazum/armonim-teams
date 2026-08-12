@@ -10,6 +10,10 @@ interface Props {
   // saving now publishes to everyone's history, not just this device, so it
   // needs the same admin word as any other organiser action
   isAdmin: boolean;
+  // unlocks admin right here rather than sending the organiser to the Roster
+  // tab and back. Omitted where there's nowhere to unlock from (no REMOTE_URL).
+  onUnlockAdmin?: () => void;
+  unlocking?: boolean;
 }
 
 // Nothing entered yet.
@@ -19,7 +23,15 @@ export const emptyWins = (): DraftTeamWins => ({ black: null, white: null, blue:
 // host's Match Day page rather than inside TeamsBoard, so a live-room guest —
 // who renders that same board — never sees it and can't file a night into
 // someone else's history.
-export default function ResultsPanel({ wins, onChange, onSave, saved, isAdmin }: Props) {
+export default function ResultsPanel({
+  wins,
+  onChange,
+  onSave,
+  saved,
+  isAdmin,
+  onUnlockAdmin,
+  unlocking,
+}: Props) {
   const set = (c: TeamColor, raw: string) => {
     if (raw === '') return onChange({ ...wins, [c]: null });
     const n = Number(raw);
@@ -44,6 +56,14 @@ export default function ResultsPanel({ wins, onChange, onSave, saved, isAdmin }:
             className="rounded-xl bg-orange-600 px-4 py-1.5 text-sm font-bold text-amber-50 shadow-sm transition-transform enabled:hover:scale-105 disabled:cursor-not-allowed disabled:opacity-40"
           >
             {saved ? '✓ Saved — update' : '💾 Save to history'}
+          </button>
+        ) : onUnlockAdmin ? (
+          <button
+            onClick={onUnlockAdmin}
+            disabled={unlocking}
+            className="rounded-xl border border-amber-900/30 px-4 py-1.5 text-sm font-bold text-amber-900 hover:border-orange-500 disabled:opacity-50"
+          >
+            {unlocking ? 'Checking…' : '🔒 Unlock admin to save'}
           </button>
         ) : (
           <span className="text-xs text-amber-900/40">
