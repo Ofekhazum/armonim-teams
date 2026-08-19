@@ -633,6 +633,21 @@ A 🔴 **Live** tab appears in the top nav while one is on — pulsing dot rathe
 because on a phone in a car park it has to read as *now* at a glance — and the app lands on it the
 first time it hears about a fixture, once, never over a tab the user picked themselves.
 
+**For the organiser running tonight, that tab *is* the fixture page** — the same milestones, MVP
+picker, result panel and End fixture they get from Match day, rendered by the same component rather
+than duplicated. Two tabs showing two different views of the match you are standing in the middle of
+is a worse answer than two tabs showing the same one. It is gated on this device actually holding
+the night (`session.fixtureStarted` and teams present), not merely on being admin: an organiser who
+opens the app on a second phone has no teams, ratings or history for it locally — the published
+payload deliberately carries none of that — so there is nothing to build a fixture page from and
+they correctly get the read-only view like everyone else.
+
+Both ways out of that page (**← Back to teams**, **⏹️ End fixture**) leave the Live tab with nothing
+to show, so whoever was running it here is moved to Match day, where everything they would do next
+lives. Keyed on *having been* the device running it rather than on being admin, so the second-phone
+organiser above keeps the read-only view they asked for. Ending also drops the fixture from local
+state immediately (`forget()`) instead of waiting a poll cycle to be told what they just did.
+
 **What travels is deliberately thin.** `LivePlayer` is `{id, name, isGk?, isGuest?}` — no rating, no
 attack value, nothing the balancer used. The team cards show how many players, never the average
 rating that sits in the same corner on the organiser's board. This is privacy by *payload*, not by

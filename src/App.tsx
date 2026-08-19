@@ -45,8 +45,20 @@ export default function App() {
   // The fixture being played right now, polled from the Worker (§2.14). This
   // is how a player finds out there's a game on and what team they're on,
   // given Match day is hidden from them.
-  const { fixture: liveFixture, setClock: setLiveClock } = useLiveFixture(true);
+  const { fixture: liveFixture, setClock: setLiveClock, forget: forgetLive } = useLiveFixture(true);
   const offeredLive = useRef(false);
+
+  // An organiser tapping Live during their own night wants their own screen —
+  // milestones, MVP, the result, End fixture — not the spectator cut of it. So
+  // for them the Live tab *is* the fixture page, rather than a second, thinner
+  // rendering of the same match they are standing in the middle of.
+  //
+  // Gated on this device actually holding the night rather than on being admin:
+  // an organiser opening the app on a second phone has no teams, ratings or
+  // history for it locally (the published payload deliberately carries none of
+  // that, §2.15), so there is nothing to render a fixture page from and they
+  // correctly get the read-only view like everyone else.
+  const runningLocally = isAdmin && state.session.fixtureStarted && state.session.teams !== null;
 
   // Land on the live fixture the first time we hear about one — on a match
   // night that is the only thing anyone opened the app for. Only ever done
@@ -56,6 +68,18 @@ export default function App() {
     offeredLive.current = true;
     setTab((t) => (t === 'roster' ? 'live' : t));
   }, [liveFixture]);
+
+  // The organiser has just ended their night, or stepped back to re-pick teams,
+  // while standing on Live. That tab is about to be empty and everything they
+  // would do next is on Match day, so take them there. Deliberately keyed on
+  // *having been* the device running it rather than on being admin: an
+  // organiser watching from a second phone should keep the read-only view they
+  // asked for, not be thrown onto a Match day they aren't running.
+  const wasRunningHere = useRef(false);
+  useEffect(() => {
+    if (wasRunningHere.current && !runningLocally && tab === 'live') setTab('match');
+    wasRunningHere.current = runningLocally;
+  }, [runningLocally, tab]);
 
   // Publishing the live fixture is an admin write like any other, so it needs
   // the word. A failed clock update is deliberately quiet — the organiser's own
@@ -67,6 +91,8 @@ export default function App() {
   // believes everyone can see tonight's teams when nobody can — so they say so.
   const shareLive = async (fixture: LiveFixture | null, critical = false) => {
     if (adminWord == null) return;
+    // the organiser doesn't need a poll to tell them their own night is over
+    if (fixture === null) forgetLive();
     const result = await publishLive(fixture, adminWord);
     if (result === 'ok' || !critical) return;
     alert(
@@ -289,6 +315,24 @@ export default function App() {
     </button>
   );
 
+  // Match day, which renders the organiser's fixture page once a night has
+  // started. Held as an element because the Live tab shows the very same thing
+  // for an admin running tonight — see runningLocally below.
+  const matchDay = (
+    <MatchDay
+      players={state.players}
+      session={state.session}
+      history={state.history}
+      setSession={setSession}
+      isAdmin={isAdmin}
+      setAdminWord={setAdminWord}
+      onSaveFixture={saveFixture}
+      onShareLive={shareLive}
+      liveClock={liveFixture?.clock ?? null}
+      onShareClock={setLiveClock}
+    />
+  );
+
   return (
     <div className="mx-auto max-w-5xl px-3 pb-16 sm:px-6">
       <header className="flex flex-wrap items-center justify-between gap-3 py-5">
@@ -304,7 +348,7 @@ export default function App() {
           )}
         </h1>
         <nav className="flex gap-1 rounded-full border border-amber-900/20 bg-[#fffdf4]/70 p-1 shadow-sm">
-          {liveFixture && liveTabBtn}
+          {(liveFixture || tab === 'live') && liveTabBtn}
           {isAdmin && tabBtn('match', 'Match day')}
           {tabBtn('roster', `Roster (${state.players.length})`)}
           {tabBtn('history', 'History')}
@@ -312,7 +356,9 @@ export default function App() {
       </header>
 
       {tab === 'live' ? (
-        liveFixture ? (
+        runningLocally ? (
+          matchDay
+        ) : liveFixture ? (
           <LiveFixtureView fixture={liveFixture} onChangeClock={setLiveClock} />
         ) : (
           // the night ended while this tab was open — say so rather than
@@ -342,18 +388,7 @@ export default function App() {
           onEditFixture={editFixture}
         />
       ) : (
-        <MatchDay
-          players={state.players}
-          session={state.session}
-          history={state.history}
-          setSession={setSession}
-          isAdmin={isAdmin}
-          setAdminWord={setAdminWord}
-          onSaveFixture={saveFixture}
-          onShareLive={shareLive}
-          liveClock={liveFixture?.clock ?? null}
-          onShareClock={setLiveClock}
-        />
+        matchDay
       )}
     </div>
   );

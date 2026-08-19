@@ -102,6 +102,10 @@ export interface LiveState {
   // Applies a clock press everywhere: on this screen immediately, and to
   // everyone else's on their next poll.
   setClock: (clock: ClockState) => void;
+  // For the device that just ended the night: drop it now rather than showing
+  // a Live tab for another poll cycle after the organiser pressed End fixture.
+  // They already know; everyone else finds out on their next poll.
+  forget: () => void;
 }
 
 // Watches for a fixture starting, running and ending. Returns whatever the
@@ -111,6 +115,9 @@ export interface LiveState {
 export function useLiveFixture(enabled: boolean): LiveState {
   const [fixture, setFixture] = useState<LiveFixture | null>(null);
   const pressedAt = useRef(0);
+  // set by forget(), so a poll that was already in flight when the night ended
+  // can't put the fixture back on screen for one cycle
+  const forgotten = useRef(false);
 
   useEffect(() => {
     if (!enabled || !REMOTE_URL) return;
@@ -130,16 +137,23 @@ export function useLiveFixture(enabled: boolean): LiveState {
         const remote = await fetchLive();
         if (cancelled) return;
         if (remote) {
-          live = remote.fixture !== null;
-          setFixture((prev) => {
-            // keep a just-pressed clock, but take everything else the poll
-            // brought — teams can still change under us, and a fixture that
-            // has *ended* wins outright over any local press
-            if (prev && remote.fixture && Date.now() - pressedAt.current < LOCAL_CLOCK_GRACE_MS) {
-              return { ...remote.fixture, clock: prev.clock };
-            }
-            return remote.fixture;
-          });
+          const fresh = Date.now() - pressedAt.current < LOCAL_CLOCK_GRACE_MS;
+          // we ended the night a moment ago; this response predates that
+          if (forgotten.current && fresh && remote.fixture) {
+            live = false;
+          } else {
+            forgotten.current = false;
+            live = remote.fixture !== null;
+            setFixture((prev) => {
+              // keep a just-pressed clock, but take everything else the poll
+              // brought — teams can still change under us, and a fixture that
+              // has *ended* wins outright over any local press
+              if (prev && remote.fixture && fresh) {
+                return { ...remote.fixture, clock: prev.clock };
+              }
+              return remote.fixture;
+            });
+          }
         }
       }
       timer = setTimeout(poll, live ? POLL_LIVE_MS : POLL_IDLE_MS);
@@ -170,5 +184,11 @@ export function useLiveFixture(enabled: boolean): LiveState {
     void publishClock(clock);
   }, []);
 
-  return { fixture, setClock };
+  const forget = useCallback(() => {
+    pressedAt.current = Date.now();
+    forgotten.current = true;
+    setFixture(null);
+  }, []);
+
+  return { fixture, setClock, forget };
 }
