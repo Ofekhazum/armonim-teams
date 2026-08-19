@@ -3,8 +3,7 @@ import type { CSSProperties } from 'react';
 import type { Player } from '../types';
 import { ATTACK_DEFAULT, ATTACK_STEP, attackLabel, badgeForAttack, roleBadge } from '../types';
 import { uid } from '../storage';
-import { publishRemoteRoster, setLocalRosterVersion, REMOTE_URL } from '../remote';
-import { useAdminUnlock } from '../useAdminUnlock';
+import { publishRemoteRoster, setLocalRosterVersion } from '../remote';
 import {
   fmtRating,
   Name,
@@ -50,7 +49,6 @@ export default function Roster({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [publishing, setPublishing] = useState(false);
   const isAdmin = adminWord !== null;
-  const { unlockAdmin, unlocking } = useAdminUnlock(setAdminWord);
 
   // Push the current roster to everyone, using the already-unlocked word.
   const publish = async () => {
@@ -429,16 +427,8 @@ export default function Roster({
         </p>
         {!draft && (
           <div className="flex gap-2">
-            {REMOTE_URL && !isAdmin && (
-              <button
-                onClick={unlockAdmin}
-                disabled={unlocking}
-                className="rounded-lg border border-amber-900/30 px-3 py-2 text-sm font-semibold text-amber-900 hover:border-orange-500 disabled:opacity-50"
-                title="Unlock admin mode to edit ratings and publish"
-              >
-                {unlocking ? 'Checking…' : '🔒 Admin'}
-              </button>
-            )}
+            {/* Unlocking and leaving admin both moved to the header, where
+                they are reachable from every tab — see App.tsx. */}
             {isAdmin && players.length > 0 && (
               <button
                 onClick={publish}
@@ -447,15 +437,6 @@ export default function Roster({
                 title="Update the roster for everyone"
               >
                 {publishing ? 'Publishing…' : '📢 Publish'}
-              </button>
-            )}
-            {isAdmin && (
-              <button
-                onClick={() => setAdminWord(null)}
-                className="rounded-lg border border-amber-900/30 px-3 py-2 text-sm font-semibold text-amber-900 hover:border-orange-500"
-                title="Leave admin mode"
-              >
-                Exit
               </button>
             )}
             {/* Adding, editing and removing players are all the same act —

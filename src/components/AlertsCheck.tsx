@@ -1,6 +1,13 @@
 import { useState } from 'react';
 import { testPush, type PushReport } from '../push';
 
+// NOT CURRENTLY RENDERED. It found the bug it was built for (Apple was
+// rejecting the VAPID token) and was taken out of the header once alerts
+// worked, rather than deleted: the failure it diagnoses is silence, so the
+// next time there is nothing to look at, this is the thing to put back. One
+// import in App.tsx. The `POST /push/test` endpoint behind it is still live
+// and still admin-gated, so it remains usable from curl in the meantime.
+//
 // Why this exists: a push notification that doesn't arrive leaves no trace
 // anywhere a person can look. The browser reports success, the Worker reports
 // success, the push service returns 201, and the phone stays quiet — and there

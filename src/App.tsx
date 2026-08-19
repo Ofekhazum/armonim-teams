@@ -12,13 +12,14 @@ import {
   localHistoryVersion,
   localRosterVersion,
   publishRemoteHistory,
+  REMOTE_URL,
   setLocalHistoryVersion,
   setLocalRosterVersion,
 } from './remote';
 import Roster from './components/Roster';
 import MatchDay from './components/MatchDay';
 import History from './components/History';
-import AlertsCheck from './components/AlertsCheck';
+import { useAdminUnlock } from './useAdminUnlock';
 
 type Tab = 'live' | 'match' | 'roster' | 'history';
 
@@ -31,6 +32,7 @@ export default function App() {
   // server since unlocking — see the fetchFullRoster effect below
   const [rosterHydrated, setRosterHydrated] = useState(false);
   const isAdmin = adminWord !== null;
+  const { unlockAdmin, unlocking } = useAdminUnlock(setAdminWord);
 
   useEffect(() => saveState(state), [state]);
 
@@ -409,20 +411,39 @@ export default function App() {
           <span className="bg-gradient-to-r from-orange-600 to-amber-800 bg-clip-text text-transparent">
             Armonim FC
           </span>
-          {adminWord && (
-            <span className="ml-2 rounded-full bg-orange-600 px-2 py-0.5 align-middle text-xs font-bold text-amber-50">
+          {/* The badge is also the way out: it is the one thing on screen that
+              says you are in admin mode, so it is where you would press to
+              stop being. */}
+          {isAdmin && (
+            <button
+              onClick={() => setAdminWord(null)}
+              title="Leave admin mode"
+              className="ml-2 rounded-full bg-orange-600 px-2 py-0.5 align-middle text-xs font-bold text-amber-50 transition-colors hover:bg-orange-700"
+            >
               ADMIN
-            </span>
+            </button>
           )}
         </h1>
-        {/* Sits in the header rather than beside the 🔔 toggle because it is an
-            organiser's tool, and the toggle is everyone's. */}
-        {adminWord && <AlertsCheck adminWord={adminWord} />}
-        <nav className="flex gap-1 rounded-full border border-amber-900/20 bg-[#fffdf4]/70 p-1 shadow-sm">
+        <nav className="flex items-center gap-1 rounded-full border border-amber-900/20 bg-[#fffdf4]/70 p-1 shadow-sm">
           {(liveFixture || tab === 'live') && liveTabBtn}
           {isAdmin && tabBtn('match', 'Match day')}
           {tabBtn('roster', `Roster (${state.players.length})`)}
           {tabBtn('history', 'History')}
+          {/* Unlocking lives in the header rather than on the Roster tab
+              because what it gates is spread across all of them — Match day,
+              the rating column in History, ending a live fixture — and having
+              to go and find the Roster page first was a step that taught
+              nobody anything. */}
+          {REMOTE_URL && !isAdmin && (
+            <button
+              onClick={unlockAdmin}
+              disabled={unlocking}
+              title="Unlock admin mode"
+              className="rounded-full px-3 py-1.5 text-sm font-semibold text-amber-900/70 transition-colors hover:text-orange-700 disabled:opacity-50"
+            >
+              {unlocking ? '…' : '🔒'}
+            </button>
+          )}
         </nav>
       </header>
 
