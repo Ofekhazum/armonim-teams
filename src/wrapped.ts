@@ -24,7 +24,12 @@ export interface WrappedStats {
   label: string; // e.g. 'August 2026'
   nightsRecorded: number;
   totalWins: number;
-  mostNights: { name: string; nights: number } | null;
+  // Everyone who played *every* recorded night this month — not just
+  // whoever happened to have the highest count. The old version of this
+  // stat picked the single top attendee and unconditionally labelled them
+  // "never missed", which was wrong whenever even the best attendance that
+  // month fell short of a clean sweep.
+  perfectAttendance: { names: string[]; nights: number } | null;
   // Two different questions, deliberately kept apart rather than collapsed
   // into one "top scorer" — there's no goal tally in this app (§2.6), so
   // "scorer" was never the right word. A *match* win is the three-numbers-a-
@@ -111,8 +116,14 @@ export function buildWrapped(history: FixtureRecord[], period: string): WrappedS
   // total, once per night — what "wins banked by the squad" should mean.
   const totalWins = chronological.reduce((n, fx) => n + fixtureWins(fx.wins), 0);
 
-  const [mostNightsId, mostNightsCount] =
-    [...nights.entries()].sort((a, b) => b[1] - a[1])[0] ?? [];
+  const perfectNames = [...nights.entries()]
+    .filter(([, n]) => n === chronological.length)
+    .map(([id]) => nameOf.get(id)!)
+    .sort((a, b) => a.localeCompare(b, 'he'));
+  const perfectAttendance =
+    chronological.length > 0 && perfectNames.length > 0
+      ? { names: perfectNames, nights: chronological.length }
+      : null;
 
   const topMatchWinners = [...wins.entries()]
     .filter(([, w]) => w > 0)
@@ -163,7 +174,7 @@ export function buildWrapped(history: FixtureRecord[], period: string): WrappedS
     label: periodLabel(period),
     nightsRecorded: chronological.length,
     totalWins,
-    mostNights: mostNightsId ? { name: nameOf.get(mostNightsId)!, nights: mostNightsCount } : null,
+    perfectAttendance,
     topMatchWinners,
     topFixtureWinners,
     bottomScorer: bottomScorerId

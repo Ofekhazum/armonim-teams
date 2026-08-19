@@ -22,7 +22,7 @@ const PAD = 44;
 // on a full one.
 const HEADER_H = 172;
 const HERO_H = 200;
-const TILE_H = 178;
+const TILE_H = 188;
 const DUO_H = 168;
 const LEADERBOARD_ROW_H = 52;
 const LEADERBOARD_TITLE_H = 58;
@@ -92,14 +92,6 @@ interface Tile {
 
 function buildPositiveTiles(stats: WrappedStats): Tile[] {
   const tiles: Tile[] = [];
-  if (stats.mostNights) {
-    tiles.push({
-      emoji: '🦾',
-      value: stats.mostNights.name,
-      label: `never missed — ${stats.mostNights.nights} nights`,
-      colors: ['#7dd3fc', '#1d4ed8'],
-    });
-  }
   if (stats.longestStreak) {
     tiles.push({
       emoji: '📈',
@@ -194,6 +186,88 @@ function drawLeaderboard(
   return h;
 }
 
+interface AttendanceCard {
+  title: string;
+  subtitle: string;
+  names: string[];
+  colors: [string, string];
+}
+
+const ATTENDANCE_NAME_SIZE = 21;
+const ATTENDANCE_TITLE_H = 100;
+const ATTENDANCE_LINE_H = 32;
+const ATTENDANCE_BOTTOM_PAD = 24;
+
+// Groups names into lines that fit within maxWidth, each line kept as a
+// plain array (joined with ', ' only at draw time — see drawAttendanceCard
+// for why it's never joined with a *trailing* comma). Unlike the tile label
+// wrapper this never truncates: the whole point of this card is showing
+// everyone who qualifies, not a sample.
+function wrapNames(ctx: CanvasRenderingContext2D, names: string[], maxWidth: number): string[][] {
+  const lines: string[][] = [];
+  let line: string[] = [];
+  names.forEach((name) => {
+    const test = [...line, name].join(', ');
+    if (line.length > 0 && ctx.measureText(test).width > maxWidth) {
+      lines.push(line);
+      line = [name];
+    } else {
+      line.push(name);
+    }
+  });
+  if (line.length > 0) lines.push(line);
+  return lines;
+}
+
+// A full-width card listing every player who cleared a bar, not just the
+// top one — currently only used for perfect attendance (§2.9's rewrite: the
+// old single-name "never missed" tile was wrong whenever the best month
+// still fell short of a clean sweep). Height depends on how many names wrap
+// to how many lines, so the caller measures with `wrapNames` first and
+// passes the already-wrapped lines in.
+//
+// Each line renders as one joined "name, name, name" string, direction=rtl,
+// textAlign=right — checked against native `dir="rtl"` DOM rendering as
+// ground truth, for pure-Hebrew, pure-Latin, and mixed lists alike, and it
+// matches. The one thing that *doesn't* work is a trailing comma with
+// nothing after it: at the true end of an RTL-direction string, a bare
+// trailing comma has no adjacent strong character to attach to, so it
+// resolves to the paragraph's own direction and visually jumps to the
+// front instead of staying after the last name. `Array.join(', ')` already
+// never produces one (it only inserts commas *between* items), which is
+// exactly why this is correct and the multi-call version tried earlier
+// wasn't.
+function drawAttendanceCard(
+  ctx: CanvasRenderingContext2D,
+  card: AttendanceCard,
+  lines: string[][],
+  y: number,
+  cardW: number,
+): number {
+  const h = ATTENDANCE_TITLE_H + lines.length * ATTENDANCE_LINE_H + ATTENDANCE_BOTTOM_PAD;
+  fillGradientRoundRect(ctx, PAD, y, cardW, h, 24, card.colors);
+
+  ctx.direction = 'ltr';
+  ctx.textAlign = 'left';
+  ctx.font = font(26, '800');
+  ctx.fillStyle = 'rgba(0,0,0,0.32)';
+  ctx.fillText(card.title, PAD + 24, y + 38);
+
+  ctx.font = font(17, '700');
+  ctx.fillStyle = 'rgba(28,19,16,0.6)';
+  ctx.fillText(card.subtitle, PAD + 24, y + 64);
+
+  ctx.direction = 'rtl';
+  ctx.textAlign = 'right';
+  ctx.font = font(ATTENDANCE_NAME_SIZE, '800');
+  ctx.fillStyle = '#1c1310';
+  lines.forEach((names, i) => {
+    const lineY = y + ATTENDANCE_TITLE_H + i * ATTENDANCE_LINE_H;
+    ctx.fillText(names.join(', '), PAD + cardW - 24, lineY);
+  });
+  return h;
+}
+
 // Draws a 2-column tile grid starting at `y`, returns the height it used.
 function drawTileGrid(
   ctx: CanvasRenderingContext2D,
@@ -231,8 +305,8 @@ function drawTileGrid(
     if (name !== tile.value) name = name.trimEnd() + '…';
     ctx.fillText(name, x + w - 20, rowY + 100);
 
-    ctx.font = font(15, '700');
-    ctx.fillStyle = 'rgba(28,19,16,0.65)';
+    ctx.font = font(18, '700');
+    ctx.fillStyle = 'rgba(28,19,16,0.7)';
     // the label is plain English, so it stays LTR even inside an RTL card
     ctx.direction = 'ltr';
     ctx.textAlign = 'left';
@@ -250,7 +324,7 @@ function drawTileGrid(
     }
     if (line) lines.push(line);
     lines.slice(0, 2).forEach((l, li) => {
-      ctx.fillText(l, x + 20, rowY + 130 + li * 20);
+      ctx.fillText(l, x + 20, rowY + 132 + li * 24);
     });
   });
 
@@ -280,8 +354,8 @@ function drawDuoCard(
 
   ctx.direction = 'ltr';
   ctx.textAlign = 'left';
-  ctx.font = font(18, '700');
-  ctx.fillStyle = 'rgba(255,250,240,0.85)';
+  ctx.font = font(20, '700');
+  ctx.fillStyle = 'rgba(255,250,240,0.9)';
   ctx.fillText(`won ${duo.won} of their ${duo.together} nights together`, PAD + 24, y + 128);
 }
 
@@ -309,6 +383,28 @@ export function renderWrappedImage(stats: WrappedStats): HTMLCanvasElement {
   const posTiles = buildPositiveTiles(stats);
   const negTiles = buildNegativeTiles(stats);
   const hasNegSection = negTiles.length > 0 || !!stats.worstDuo;
+  const cardW = W - PAD * 2;
+
+  const attendance: AttendanceCard | null = stats.perfectAttendance
+    ? {
+        title: '🦾 Never missed a night',
+        subtitle: `${stats.perfectAttendance.nights} for ${stats.perfectAttendance.nights} this month`,
+        names: stats.perfectAttendance.names,
+        colors: ['#7dd3fc', '#1d4ed8'],
+      }
+    : null;
+  // Attendance card height depends on how many names wrap to how many
+  // lines, so it has to be measured before the real canvas (and its H)
+  // exist — a throwaway context has the same font metrics.
+  let attendanceLines: string[][] = [];
+  if (attendance) {
+    const measure = document.createElement('canvas').getContext('2d')!;
+    measure.font = font(ATTENDANCE_NAME_SIZE, '800');
+    attendanceLines = wrapNames(measure, attendance.names, cardW - 48);
+  }
+  const attendanceH = attendance
+    ? ATTENDANCE_TITLE_H + attendanceLines.length * ATTENDANCE_LINE_H + ATTENDANCE_BOTTOM_PAD + GAP
+    : 0;
 
   const matchBoardH = matchBoard ? leaderboardHeight(matchBoard) + GAP : 0;
   const fixtureBoardH = fixtureBoard ? leaderboardHeight(fixtureBoard) + GAP : 0;
@@ -325,6 +421,7 @@ export function renderWrappedImage(stats: WrappedStats): HTMLCanvasElement {
     GAP +
     matchBoardH +
     fixtureBoardH +
+    attendanceH +
     posTilesH +
     posDuoH +
     negLabelH +
@@ -372,7 +469,6 @@ export function renderWrappedImage(stats: WrappedStats): HTMLCanvasElement {
   ctx.fillText('R E C A P', PAD, PAD + 132);
 
   let y = PAD + HEADER_H;
-  const cardW = W - PAD * 2;
 
   // hero: one big number, the headline stat, in its own bold gradient card
   fillGradientRoundRect(ctx, PAD, y, cardW, HERO_H, 28, ['#fb923c', '#c2410c']);
@@ -394,6 +490,9 @@ export function renderWrappedImage(stats: WrappedStats): HTMLCanvasElement {
   }
   if (fixtureBoard) {
     y += drawLeaderboard(ctx, fixtureBoard, y, cardW) + GAP;
+  }
+  if (attendance) {
+    y += drawAttendanceCard(ctx, attendance, attendanceLines, y, cardW) + GAP;
   }
 
   y += drawTileGrid(ctx, posTiles, y, cardW);
@@ -421,8 +520,8 @@ export function renderWrappedImage(stats: WrappedStats): HTMLCanvasElement {
 
   ctx.textAlign = 'center';
   ctx.direction = 'ltr';
-  ctx.font = font(15, '600');
-  ctx.fillStyle = 'rgba(253,250,243,0.4)';
+  ctx.font = font(16, '600');
+  ctx.fillStyle = 'rgba(253,250,243,0.45)';
   ctx.fillText('Every number here is a count, not a verdict.', W / 2, y + 16);
 
   return canvas;

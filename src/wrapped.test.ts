@@ -71,14 +71,27 @@ describe('buildWrapped', () => {
     expect(buildWrapped(history, '2026-08').totalWins).toBe(4);
   });
 
-  it('finds who played the most nights', () => {
+  it('lists everyone with perfect attendance, not just the single top attendee', () => {
     const history = [
-      night('2026-08-01', ['a', 'c'], ['b'], { black: 3, white: 1, blue: 0 }),
-      night('2026-08-08', ['a'], ['b'], { black: 3, white: 1, blue: 0 }),
-      night('2026-08-15', ['a'], ['b'], { black: 3, white: 1, blue: 0 }),
+      night('2026-08-01', ['a', 'b', 'c'], ['x'], { black: 3, white: 1, blue: 0 }),
+      night('2026-08-08', ['a', 'b'], ['x'], { black: 3, white: 1, blue: 0 }),
+      night('2026-08-15', ['a', 'b'], ['x'], { black: 3, white: 1, blue: 0 }),
     ];
+    // a, b and x played all 3 nights; c only played 1 — not a perfect month for c
     const stats = buildWrapped(history, '2026-08');
-    expect(stats.mostNights).toEqual({ name: 'a', nights: 3 });
+    expect(stats.perfectAttendance).toEqual({ names: ['a', 'b', 'x'], nights: 3 });
+  });
+
+  it('does not call the month\'s best attendance "perfect" if it still fell short', () => {
+    // regression: the old version always labelled the single highest
+    // attendee "never missed", even when they'd actually missed a night —
+    // everyone here missed at least one, so nobody should be listed
+    const history = [
+      night('2026-08-01', ['a'], ['b'], { black: 3, white: 1, blue: 0 }),
+      night('2026-08-08', ['a'], ['x'], { black: 3, white: 1, blue: 0 }),
+      night('2026-08-15', ['x'], ['b'], { black: 3, white: 1, blue: 0 }),
+    ];
+    expect(buildWrapped(history, '2026-08').perfectAttendance).toBeNull();
   });
 
   it('ranks the top 3 by individual match wins, not by goals — this app has none', () => {
@@ -174,7 +187,7 @@ describe('buildWrapped', () => {
     expect(stats).toMatchObject({
       nightsRecorded: 0,
       totalWins: 0,
-      mostNights: null,
+      perfectAttendance: null,
       topMatchWinners: [],
       topFixtureWinners: [],
       bottomScorer: null,
