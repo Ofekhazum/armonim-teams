@@ -7,6 +7,7 @@ import { duoFacts } from '../duos';
 import { Name, STYLE_META, TEAM_META } from './ui';
 import MatchClock from './MatchClock';
 import ResultsPanel from './ResultsPanel';
+import MvpPicker from './MvpPicker';
 
 interface Props {
   teams: Teams;
@@ -15,6 +16,8 @@ interface Props {
   gkIds: string[];
   wins: DraftTeamWins;
   onChangeWins: (wins: DraftTeamWins) => void;
+  mvpId: string | null;
+  onChangeMvp: (id: string | null) => void;
   onSaveResults: () => void;
   saved: boolean;
   savedFixtureId: string | null;
@@ -40,6 +43,8 @@ export default function FixturePage({
   gkIds,
   wins,
   onChangeWins,
+  mvpId,
+  onChangeMvp,
   onSaveResults,
   saved,
   savedFixtureId,
@@ -199,6 +204,8 @@ export default function FixturePage({
       )}
 
       <MatchClock />
+
+      <MvpPicker players={players} mvpId={mvpId} onChange={onChangeMvp} />
 
       <ResultsPanel
         wins={wins}

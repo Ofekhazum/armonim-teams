@@ -9,6 +9,7 @@ import { hasResult, totalWins as fixtureWins } from './calibration';
 import { TEAM_COLORS } from './balancer';
 import { appearances, MIN_WIN_STREAK, MIN_WINLESS_RUN } from './milestones';
 import { computeDuoRecords, type DuoFact } from './duos';
+import { mvpCounts } from './mvp';
 
 // A little banter alongside the honest counts — same "it's a count, not a
 // verdict" rule applies (the copy says "fewest wins", not "worst player"),
@@ -39,6 +40,9 @@ export interface WrappedStats {
   // on a team that still didn't top many actual nights, or vice versa.
   topMatchWinners: { name: string; wins: number }[]; // top 3, most individual match wins
   topFixtureWinners: { name: string; nights: number }[]; // top 3, most nights their team outright won
+  // The one stat here that isn't derived from a result — the organiser's own
+  // pick, just counted (see src/mvp.ts).
+  topMvps: { name: string; count: number }[]; // top 3, most nights named MVP
   bottomScorer: { name: string; wins: number; nights: number } | null;
   longestStreak: { name: string; nights: number } | null;
   longestWinless: { name: string; nights: number } | null;
@@ -144,6 +148,10 @@ export function buildWrapped(history: FixtureRecord[], period: string): WrappedS
     .slice(0, 3)
     .map(([id, n]) => ({ name: nameOf.get(id)!, nights: n }));
 
+  const topMvps = mvpCounts(chronological)
+    .slice(0, 3)
+    .map((m) => ({ name: m.name, count: m.count }));
+
   const [bottomScorerId, bottomScorerWins] =
     [...wins.entries()]
       .filter(([id]) => (nights.get(id) ?? 0) >= MIN_NIGHTS_FOR_ROAST)
@@ -177,6 +185,7 @@ export function buildWrapped(history: FixtureRecord[], period: string): WrappedS
     perfectAttendance,
     topMatchWinners,
     topFixtureWinners,
+    topMvps,
     bottomScorer: bottomScorerId
       ? {
           name: nameOf.get(bottomScorerId)!,

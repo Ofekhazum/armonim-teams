@@ -1,14 +1,19 @@
-// Renders a month's WrappedStats as a shareable "story" card — a Spotify-
-// Wrapped-style poster, not a plain list: one big headline number, then a
-// grid of colored stat tiles so it actually looks like something worth
-// sending to the group chat instead of a settings screen. Canvas rather than
-// a chart library, same reason as shareImage.ts/shirtImage.ts: this app
-// ships React + Tailwind and nothing else.
+// Renders a month's WrappedStats as one or two shareable "story" cards — a
+// Spotify-Wrapped-style poster, not a plain list: one big headline number,
+// then a grid of colored stat tiles so it actually looks like something
+// worth sending to the group chat instead of a settings screen. Canvas
+// rather than a chart library, same reason as shareImage.ts/shirtImage.ts:
+// this app ships React + Tailwind and nothing else.
 //
-// The bottom half is banter — fewest wins, longest winless run, worst duo —
-// same "it's a count, not a verdict" rule as the rest of the app (the copy
-// says "fewest wins", never "worst player"), but a recap that's all good
-// news reads as a highlight reel, not a record of the month.
+// Split into two images rather than one long scroll: a "highlights" card
+// (hero, MVP/match/fixture leaderboards, attendance, streak, best pair) and,
+// only when there's anything to say, an "also happened" card — the banter
+// side (fewest wins, longest winless run, worst duo). Same "it's a count,
+// not a verdict" rule as the rest of the app applies to that second card
+// (the copy says "fewest wins", never "worst player"), but a recap that's
+// all good news reads as a highlight reel, not a record of the month. Both
+// go out together as a single multi-file share, the same pattern
+// shirtImage.ts already uses for the three team shirts.
 
 import type { WrappedStats } from './wrapped';
 import type { ShareImageResult } from './shareImage';
@@ -17,16 +22,16 @@ const W = 720;
 const PAD = 44;
 
 // Layout constants shared between the height calculation and the drawing
-// pass below, so the canvas is always sized to exactly what gets drawn —
+// pass below, so each canvas is always sized to exactly what gets drawn —
 // no dead space on a quiet month with only a couple of stats, no clipping
 // on a full one.
 const HEADER_H = 172;
+const PAGE2_HEADER_H = 108;
 const HERO_H = 200;
 const TILE_H = 188;
 const DUO_H = 168;
 const LEADERBOARD_ROW_H = 52;
 const LEADERBOARD_TITLE_H = 58;
-const SECTION_LABEL_H = 46;
 const GAP = 18;
 const FOOTER_H = 36;
 
@@ -61,6 +66,22 @@ function glow(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, co
   ctx.beginPath();
   ctx.arc(x, y, r, 0, Math.PI * 2);
   ctx.fill();
+}
+
+// Dark base + a few soft color glows, shared by both pages so the two
+// images read as one set rather than two differently-styled cards.
+function drawPageBackground(ctx: CanvasRenderingContext2D, w: number, h: number) {
+  const bg = ctx.createLinearGradient(0, 0, 0, h);
+  bg.addColorStop(0, '#2a1608');
+  bg.addColorStop(1, '#150d0a');
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, w, h);
+
+  glow(ctx, w * 0.85, h * 0.05, 320, 'rgba(234,88,12,0.35)');
+  glow(ctx, w * 0.1, h * 0.28, 260, 'rgba(29,78,216,0.22)');
+  glow(ctx, w * 0.9, h * 0.55, 300, 'rgba(21,128,61,0.18)');
+  glow(ctx, w * 0.12, h * 0.78, 280, 'rgba(124,58,237,0.16)');
+  glow(ctx, w * 0.88, h * 0.95, 260, 'rgba(220,38,38,0.14)');
 }
 
 function fillGradientRoundRect(
@@ -359,7 +380,31 @@ function drawDuoCard(
   ctx.fillText(`won ${duo.won} of their ${duo.together} nights together`, PAD + 24, y + 128);
 }
 
-export function renderWrappedImage(stats: WrappedStats): HTMLCanvasElement {
+function drawFooter(ctx: CanvasRenderingContext2D, y: number) {
+  ctx.textAlign = 'center';
+  ctx.direction = 'ltr';
+  ctx.font = font(16, '600');
+  ctx.fillStyle = 'rgba(253,250,243,0.45)';
+  ctx.fillText('Every number here is a count, not a verdict.', W / 2, y + 16);
+}
+
+function buildMvpBoard(stats: WrappedStats): Leaderboard | null {
+  return stats.topMvps.length > 0
+    ? {
+        title: '🌟 Most MVP picks',
+        colors: ['#fbcfe8', '#be185d'],
+        entries: stats.topMvps.map((m) => ({
+          name: m.name,
+          stat: `${m.count} MVP${m.count === 1 ? '' : 's'}`,
+        })),
+      }
+    : null;
+}
+
+// Page 1: the highlights — hero, MVP/match/fixture leaderboards, attendance,
+// longest streak, best pair.
+function renderHighlightsImage(stats: WrappedStats): HTMLCanvasElement {
+  const mvpBoard = buildMvpBoard(stats);
   const matchBoard: Leaderboard | null =
     stats.topMatchWinners.length > 0
       ? {
@@ -381,8 +426,6 @@ export function renderWrappedImage(stats: WrappedStats): HTMLCanvasElement {
       : null;
 
   const posTiles = buildPositiveTiles(stats);
-  const negTiles = buildNegativeTiles(stats);
-  const hasNegSection = negTiles.length > 0 || !!stats.worstDuo;
   const cardW = W - PAD * 2;
 
   const attendance: AttendanceCard | null = stats.perfectAttendance
@@ -406,27 +449,23 @@ export function renderWrappedImage(stats: WrappedStats): HTMLCanvasElement {
     ? ATTENDANCE_TITLE_H + attendanceLines.length * ATTENDANCE_LINE_H + ATTENDANCE_BOTTOM_PAD + GAP
     : 0;
 
+  const mvpBoardH = mvpBoard ? leaderboardHeight(mvpBoard) + GAP : 0;
   const matchBoardH = matchBoard ? leaderboardHeight(matchBoard) + GAP : 0;
   const fixtureBoardH = fixtureBoard ? leaderboardHeight(fixtureBoard) + GAP : 0;
   const posTilesH = posTiles.length > 0 ? tileRows(posTiles.length) * (TILE_H + GAP) : 0;
   const posDuoH = stats.bestDuo ? DUO_H + GAP : 0;
-  const negLabelH = hasNegSection ? SECTION_LABEL_H : 0;
-  const negTilesH = negTiles.length > 0 ? tileRows(negTiles.length) * (TILE_H + GAP) : 0;
-  const negDuoH = stats.worstDuo ? DUO_H + GAP : 0;
 
   const H =
     PAD +
     HEADER_H +
     HERO_H +
     GAP +
+    mvpBoardH +
     matchBoardH +
     fixtureBoardH +
     attendanceH +
     posTilesH +
     posDuoH +
-    negLabelH +
-    negTilesH +
-    negDuoH +
     FOOTER_H +
     PAD;
 
@@ -435,19 +474,7 @@ export function renderWrappedImage(stats: WrappedStats): HTMLCanvasElement {
   canvas.height = H;
   const ctx = canvas.getContext('2d')!;
 
-  // page background: a dark base with a few soft color glows behind
-  // everything, so the poster has depth instead of a flat fill
-  const bg = ctx.createLinearGradient(0, 0, 0, H);
-  bg.addColorStop(0, '#2a1608');
-  bg.addColorStop(1, '#150d0a');
-  ctx.fillStyle = bg;
-  ctx.fillRect(0, 0, W, H);
-
-  glow(ctx, W * 0.85, H * 0.05, 320, 'rgba(234,88,12,0.35)');
-  glow(ctx, W * 0.1, H * 0.28, 260, 'rgba(29,78,216,0.22)');
-  glow(ctx, W * 0.9, H * 0.55, 300, 'rgba(21,128,61,0.18)');
-  glow(ctx, W * 0.12, H * 0.78, 280, 'rgba(124,58,237,0.16)');
-  glow(ctx, W * 0.88, H * 0.95, 260, 'rgba(220,38,38,0.14)');
+  drawPageBackground(ctx, W, H);
 
   // brand row
   ctx.direction = 'ltr';
@@ -485,6 +512,9 @@ export function renderWrappedImage(stats: WrappedStats): HTMLCanvasElement {
   ctx.fillText(`⚽ ${stats.totalWins} wins banked by the squad`, PAD + 32, y + 178);
   y += HERO_H + GAP;
 
+  if (mvpBoard) {
+    y += drawLeaderboard(ctx, mvpBoard, y, cardW) + GAP;
+  }
   if (matchBoard) {
     y += drawLeaderboard(ctx, matchBoard, y, cardW) + GAP;
   }
@@ -502,56 +532,104 @@ export function renderWrappedImage(stats: WrappedStats): HTMLCanvasElement {
     y += DUO_H + GAP;
   }
 
-  if (hasNegSection) {
-    ctx.direction = 'ltr';
-    ctx.textAlign = 'left';
-    ctx.font = font(22, '800');
-    ctx.fillStyle = 'rgba(253,250,243,0.8)';
-    ctx.fillText('😬 ALSO HAPPENED', PAD, y + 26);
-    y += SECTION_LABEL_H;
-
-    y += drawTileGrid(ctx, negTiles, y, cardW);
-
-    if (stats.worstDuo) {
-      drawDuoCard(ctx, stats.worstDuo, '🙃 Worst pair', ['#fca5a5', '#7f1d1d'], y, cardW);
-      y += DUO_H + GAP;
-    }
-  }
-
-  ctx.textAlign = 'center';
-  ctx.direction = 'ltr';
-  ctx.font = font(16, '600');
-  ctx.fillStyle = 'rgba(253,250,243,0.45)';
-  ctx.fillText('Every number here is a count, not a verdict.', W / 2, y + 16);
+  drawFooter(ctx, y);
 
   return canvas;
+}
+
+// Page 2: the banter — only rendered when there's actually something to
+// say (see hasAlsoHappened below). Its own lighter header rather than a
+// repeat of the full brand/hero treatment, since it's the second half of
+// one set, not a standalone poster.
+function renderAlsoHappenedImage(stats: WrappedStats): HTMLCanvasElement {
+  const negTiles = buildNegativeTiles(stats);
+  const cardW = W - PAD * 2;
+
+  const negTilesH = negTiles.length > 0 ? tileRows(negTiles.length) * (TILE_H + GAP) : 0;
+  const negDuoH = stats.worstDuo ? DUO_H + GAP : 0;
+
+  const H = PAD + PAGE2_HEADER_H + negTilesH + negDuoH + FOOTER_H + PAD;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext('2d')!;
+
+  drawPageBackground(ctx, W, H);
+
+  ctx.direction = 'ltr';
+  ctx.textAlign = 'left';
+  ctx.fillStyle = 'rgba(253,250,243,0.85)';
+  ctx.font = font(26, '800');
+  ctx.fillText('🦁 Armonim FC', PAD, PAD + 26);
+
+  ctx.font = font(38, '900');
+  ctx.fillStyle = '#f59e0b';
+  ctx.fillText(`${stats.label} — also happened 😬`, PAD, PAD + 74);
+
+  let y = PAD + PAGE2_HEADER_H;
+
+  y += drawTileGrid(ctx, negTiles, y, cardW);
+
+  if (stats.worstDuo) {
+    drawDuoCard(ctx, stats.worstDuo, '🙃 Worst pair', ['#fca5a5', '#7f1d1d'], y, cardW);
+    y += DUO_H + GAP;
+  }
+
+  drawFooter(ctx, y);
+
+  return canvas;
+}
+
+const hasAlsoHappened = (stats: WrappedStats): boolean =>
+  buildNegativeTiles(stats).length > 0 || !!stats.worstDuo;
+
+// The public entry point: one image, or two when there's banter to show.
+export function renderWrappedImages(stats: WrappedStats): HTMLCanvasElement[] {
+  const images = [renderHighlightsImage(stats)];
+  if (hasAlsoHappened(stats)) images.push(renderAlsoHappenedImage(stats));
+  return images;
 }
 
 const canvasBlob = (canvas: HTMLCanvasElement): Promise<Blob | null> =>
   new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
 
+// Shares every page in one go — on a phone, picking "Save Image"/"Save to
+// Photos" from the share sheet drops all of them into the gallery at once,
+// same pattern as shirtImage.ts's three team shirts.
 export async function shareWrappedImage(stats: WrappedStats): Promise<ShareImageResult> {
   try {
-    const canvas = renderWrappedImage(stats);
-    const blob = await canvasBlob(canvas);
-    if (!blob) return 'failed';
+    const canvases = renderWrappedImages(stats);
+    const files: File[] = [];
+    for (let i = 0; i < canvases.length; i++) {
+      const blob = await canvasBlob(canvases[i]);
+      if (!blob) continue;
+      const suffix = canvases.length > 1 ? `-${i + 1}` : '';
+      files.push(
+        new File([blob], `armonim-wrapped-${stats.period}${suffix}.png`, { type: 'image/png' }),
+      );
+    }
+    if (files.length === 0) return 'failed';
 
-    const file = new File([blob], `armonim-wrapped-${stats.period}.png`, { type: 'image/png' });
-    if (navigator.canShare?.({ files: [file] })) {
+    if (navigator.canShare?.({ files })) {
       try {
-        await navigator.share({ files: [file] });
+        await navigator.share({ files });
         return 'shared';
       } catch (err) {
         if (err instanceof DOMException && err.name === 'AbortError') return 'shared';
       }
     }
 
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = file.name;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 10_000);
+    files.forEach((file, i) => {
+      const url = URL.createObjectURL(file);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = file.name;
+      setTimeout(() => {
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(url), 10_000);
+      }, i * 300);
+    });
     return 'downloaded';
   } catch {
     return 'failed';

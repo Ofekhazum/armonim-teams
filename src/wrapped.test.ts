@@ -9,6 +9,7 @@ function night(
   black: string[],
   white: string[],
   wins: { black: number; white: number; blue: number },
+  mvpId?: string,
 ): FixtureRecord {
   const fx: FixtureRecord = {
     id: `f${seq}`,
@@ -16,6 +17,7 @@ function night(
     teams: { black, white, blue: [] },
     players: [...black, ...white].map((id) => ({ id, name: id, rating: 3 })),
     wins,
+    mvpId,
   };
   seq++;
   return fx;
@@ -168,6 +170,21 @@ describe('buildWrapped', () => {
     expect(buildWrapped(five, '2026-08').longestWinless).toEqual({ name: 'a', nights: 5 });
   });
 
+  it('ranks the top 3 by MVP picks — the one stat here that is not derived from a result', () => {
+    const history = [
+      night('2026-08-01', ['a'], ['b'], { black: 3, white: 1, blue: 0 }, 'a'),
+      night('2026-08-08', ['a'], ['b'], { black: 3, white: 1, blue: 0 }, 'a'),
+      night('2026-08-15', ['a'], ['b'], { black: 1, white: 3, blue: 0 }, 'b'),
+      // a night with no MVP recorded doesn't count for or against anyone
+      night('2026-08-22', ['a'], ['b'], { black: 3, white: 1, blue: 0 }),
+    ];
+    const stats = buildWrapped(history, '2026-08');
+    expect(stats.topMvps).toEqual([
+      { name: 'a', count: 2 },
+      { name: 'b', count: 1 },
+    ]);
+  });
+
   it('reports a worst duo alongside the best one', () => {
     const history = Array.from({ length: 20 }, (_, i) =>
       night(
@@ -190,6 +207,7 @@ describe('buildWrapped', () => {
       perfectAttendance: null,
       topMatchWinners: [],
       topFixtureWinners: [],
+      topMvps: [],
       bottomScorer: null,
       longestStreak: null,
       longestWinless: null,

@@ -12,6 +12,7 @@ import {
 import { buildWrapped, periodLabel, wrappedPeriods } from '../wrapped';
 import { shareWrappedImage } from '../wrappedImage';
 import { MIN_TRUST_NIGHTS, trustCorrelation, trustPoints, type TrustPoint } from '../trust';
+import { mvpCounts } from '../mvp';
 import { TEAM_META, Name, fmtRating } from './ui';
 
 interface Props {
@@ -111,12 +112,13 @@ interface Draft {
   date: string;
 }
 
-type SortKey = 'name' | 'nights' | 'wins' | 'perNight' | 'vsRating';
+type SortKey = 'name' | 'nights' | 'wins' | 'mvps' | 'perNight' | 'vsRating';
 
 const SORT_COLUMNS: { key: SortKey; label: string }[] = [
   { key: 'name', label: 'Player' },
   { key: 'nights', label: 'Nights' },
   { key: 'wins', label: 'Wins' },
+  { key: 'mvps', label: 'MVPs' },
   { key: 'perNight', label: 'Per night' },
   { key: 'vsRating', label: 'vs rating' },
 ];
@@ -197,6 +199,7 @@ export default function History({
   );
 
   const formById = new Map(form.map((f) => [f.id, f]));
+  const mvpById = new Map(mvpCounts(history).map((m) => [m.id, m.count]));
   const recordedNights = history.filter((fx) => hasResult(fx.wins)).length;
 
   // clicking the same header flips direction; a new column starts in whatever
@@ -217,6 +220,8 @@ export default function History({
         return dir * (a.nights - b.nights);
       case 'wins':
         return dir * (a.wins - b.wins);
+      case 'mvps':
+        return dir * ((mvpById.get(a.id) ?? 0) - (mvpById.get(b.id) ?? 0));
       case 'perNight':
         return dir * (a.perNight - b.perNight);
       case 'vsRating':
@@ -379,11 +384,13 @@ export default function History({
         <h3 className="mb-1 font-bold text-amber-950">🏆 Standings</h3>
         <p className="mb-3 text-xs text-amber-900/60">
           Wins a player's team collected while they were on it — a penalty shootout counts as
-          half. "vs rating" is a different measure, not a rescaling of per-night: it accounts for
-          the strength of who they played <i>with</i> and <i>against</i> each night, so it can
-          rank someone above a teammate with a higher per-night number if that teammate's wins
-          came from stronger sides. Blank until a player has {MIN_NIGHTS} nights behind them, and
-          greyed until there's enough of a pattern to read anything into it.
+          half. MVPs is the one column here that isn't derived from a result — it's just a tally
+          of the organiser's own pick for standout player, night by night. "vs rating" is a
+          different measure, not a rescaling of per-night: it accounts for the strength of who
+          they played <i>with</i> and <i>against</i> each night, so it can rank someone above a
+          teammate with a higher per-night number if that teammate's wins came from stronger
+          sides. Blank until a player has {MIN_NIGHTS} nights behind them, and greyed until
+          there's enough of a pattern to read anything into it.
         </p>
         <table className="w-full min-w-[26rem] text-sm">
           <thead>
@@ -424,6 +431,9 @@ export default function History({
                   <td className="py-1.5 text-right tabular-nums text-amber-900/70">{s.nights}</td>
                   <td className="py-1.5 text-right font-bold tabular-nums text-amber-950">
                     {fmtWins(s.wins)}
+                  </td>
+                  <td className="py-1.5 text-right tabular-nums text-amber-900/70">
+                    {mvpById.get(s.id) ? `🌟 ${mvpById.get(s.id)}` : '—'}
                   </td>
                   <td className="py-1.5 text-right tabular-nums text-amber-900/70">
                     {s.perNight.toFixed(2)}
