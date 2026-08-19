@@ -12,7 +12,6 @@ import {
 import { buildWrapped, periodLabel, wrappedPeriods } from '../wrapped';
 import { shareWrappedImage } from '../wrappedImage';
 import { MIN_TRUST_NIGHTS, trustCorrelation, trustPoints, type TrustPoint } from '../trust';
-import { compressPhoto } from '../photo';
 import { TEAM_META, Name, fmtRating } from './ui';
 
 interface Props {
@@ -22,7 +21,6 @@ interface Props {
   onApplyRating: (playerId: string, rating: number) => void;
   onDeleteFixture: (fixtureId: string) => void;
   onEditFixture: (fixtureId: string, patch: { wins: TeamWins; date: string }) => void;
-  onSetPhoto: (fixtureId: string, photo: string | null) => void;
 }
 
 // Predicted-vs-actual balance, one dot per recorded night — see src/trust.ts
@@ -132,7 +130,6 @@ export default function History({
   onApplyRating,
   onDeleteFixture,
   onEditFixture,
-  onSetPhoto,
 }: Props) {
   const [openId, setOpenId] = useState<string | null>(null);
   const periods = useMemo(() => wrappedPeriods(history), [history]);
@@ -596,42 +593,6 @@ export default function History({
                       <p className="text-xs text-amber-900/45">
                         {totalWins(fx.wins)} wins across the night · {fx.players.length} players
                       </p>
-                      {fx.photo && (
-                        <img
-                          src={fx.photo}
-                          alt={`Photo from the night of ${fx.date}`}
-                          className="max-h-48 rounded-lg border border-amber-900/15 object-cover"
-                        />
-                      )}
-                      {/* a keepsake, not a record — anyone can look, only an
-                          organiser can attach or replace one */}
-                      {isAdmin && (
-                        <div className="flex flex-wrap items-center gap-2">
-                          <label className="cursor-pointer rounded-lg border border-amber-900/25 px-3 py-1 text-xs font-bold text-amber-900 hover:border-orange-500">
-                            {fx.photo ? '📷 Change photo' : '📷 Add photo'}
-                            <input
-                              type="file"
-                              accept="image/*"
-                              className="hidden"
-                              onChange={async (e) => {
-                                const file = e.target.files?.[0];
-                                e.target.value = '';
-                                if (!file) return;
-                                const dataUrl = await compressPhoto(file);
-                                onSetPhoto(fx.id, dataUrl);
-                              }}
-                            />
-                          </label>
-                          {fx.photo && (
-                            <button
-                              onClick={() => onSetPhoto(fx.id, null)}
-                              className="rounded-lg border border-red-500/50 px-3 py-1 text-xs font-bold text-red-700 hover:bg-red-50"
-                            >
-                              Remove photo
-                            </button>
-                          )}
-                        </div>
-                      )}
                       {/* correcting the record is an organiser action, same as
                           editing ratings — so it sits behind admin mode */}
                       {isAdmin && (

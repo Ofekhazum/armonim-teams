@@ -193,21 +193,10 @@ doesn't. The field stays for direct entry, and both paths snap to the nearest ha
 is a typo.
 
 **Model** (`types.ts`): `TeamWins = Record<TeamColor, number>` on a `FixtureRecord`
-(`{ id, date, teams, players, wins, photo? }`), with `DraftTeamWins` (nullable) for the tally while
-it's still being typed. `players` is a **snapshot** (`FixturePlayer`: id/name/rating at the time)
-rather than a pointer into the roster, because guests are one-off and both names and ratings move;
-history has to still read correctly years later.
-
-**`photo`** is one optional keepsake image per night, set from the History tab's expanded-night view
-(admin only to attach/replace; visible to everyone once set). `src/photo.ts` downsizes and compresses
-whatever's picked to a small JPEG data URL (max 640px, quality 0.6) *before* it ever touches state —
-it rides along inside the same `FixtureRecord` that every other history write already pushes whole to
-the shared store (see "Shared, like the roster" below), so it has to stay small or every unrelated
-edit (fixing a score, deleting an old night) gets slower for everyone as more nights pick up a photo.
-Deliberately one photo, not a gallery — a memory of the night, not an album. **Known limitation**:
-there's no cap on how many nights end up with one, so the shared history payload grows slowly forever;
-fine for the foreseeable future, worth moving to object storage (Cloudflare R2, same Worker) if that
-growth is ever actually felt.
+(`{ id, date, teams, players, wins }`), with `DraftTeamWins` (nullable) for the tally while it's
+still being typed. `players` is a **snapshot** (`FixturePlayer`: id/name/rating at the time) rather
+than a pointer into the roster, because guests are one-off and both names and ratings move; history
+has to still read correctly years later.
 
 **Entry**: `ResultsPanel.tsx`, rendered on the fixture page (§2.7) rather than inside `TeamsBoard`
 itself — deliberately, since a live-room guest renders that same `TeamsBoard` and must not be able
@@ -622,10 +611,10 @@ panel is unaffected — the organizer still sees the plan, it just doesn't go in
      teams need another look; **⏹️ End fixture** wipes the night and starts over, the same action
      as the board's 🆕 New Fixture.
 3. **History** (`src/components/History.tsx`) — a **📊 Monthly recap** picker + share button
-   (§2.11), past nights (expandable to the team sheets, each team's wins, and a per-night keepsake
-   photo — admin can attach/replace, anyone can see it), a standings table of nights / wins /
-   wins-per-night where a shootout counts as half, and, in admin mode, the **⚖️ Balancer trust**
-   scatter (§2.12) and rating suggestions with Apply/Dismiss. Empty until the first night is saved.
+   (§2.11), past nights (expandable to the team sheets and each team's wins), a standings table of
+   nights / wins / wins-per-night where a shootout counts as half, and, in admin mode, the
+   **⚖️ Balancer trust** scatter (§2.12) and rating suggestions with Apply/Dismiss. Empty until the
+   first night is saved.
 4. **Live room guest view** (`src/components/RoomGuest.tsx`) — what a shared room link opens
    instead of the app above; see §2.5.
 

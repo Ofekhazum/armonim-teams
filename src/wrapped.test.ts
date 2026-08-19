@@ -58,6 +58,19 @@ describe('buildWrapped', () => {
     expect(buildWrapped(history, '2026-08').totalWins).toBe(8);
   });
 
+  it('counts each match once, not once per player on the winning team', () => {
+    // a 5-a-side team banking a 3-0 win is one "3 wins" fact, not fifteen —
+    // regression for a bug where this summed every player's personal credit
+    const history = [
+      night('2026-08-01', ['a', 'b', 'c', 'd', 'e'], ['f', 'g', 'h', 'i', 'j'], {
+        black: 3,
+        white: 1,
+        blue: 0,
+      }),
+    ];
+    expect(buildWrapped(history, '2026-08').totalWins).toBe(4);
+  });
+
   it('finds who played the most nights and who banked the most wins', () => {
     const history = [
       night('2026-08-01', ['a', 'c'], ['b'], { black: 3, white: 1, blue: 0 }),

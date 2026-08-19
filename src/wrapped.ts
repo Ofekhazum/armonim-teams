@@ -5,7 +5,7 @@
 // src/wrappedImage.ts.
 
 import type { FixtureRecord } from './types';
-import { hasResult } from './calibration';
+import { hasResult, totalWins as fixtureWins } from './calibration';
 import { TEAM_COLORS } from './balancer';
 import { appearances, MIN_WIN_STREAK } from './milestones';
 import { computeDuoRecords, type DuoFact } from './duos';
@@ -85,7 +85,11 @@ export function buildWrapped(history: FixtureRecord[], period: string): WrappedS
     }
   }
 
-  const totalWins = [...wins.values()].reduce((n, w) => n + w, 0);
+  // Not the same number as summing the `wins` map above — that map is each
+  // *player's* personal credit (their team's tally, once per player on it),
+  // so a single 3-0 night would count as 15 there. This is the actual match
+  // total, once per night — what "wins banked by the squad" should mean.
+  const totalWins = chronological.reduce((n, fx) => n + fixtureWins(fx.wins), 0);
 
   const [mostNightsId, mostNightsCount] =
     [...nights.entries()].sort((a, b) => b[1] - a[1])[0] ?? [];

@@ -152,16 +152,6 @@ export default function App() {
     void syncHistory(history);
   };
 
-  // Attaching/removing a night's keepsake photo — same admin-gated shared
-  // write as any other history correction (see editFixture above).
-  const setFixturePhoto = (id: string, photo: string | null) => {
-    const history = state.history.map((f) =>
-      f.id === id ? { ...f, photo: photo ?? undefined } : f,
-    );
-    setState((s) => ({ ...s, history }));
-    void syncHistory(history);
-  };
-
   // Accepting a rating suggestion is a normal roster edit — it goes through
   // setPlayers so the session stays consistent, and still needs publishing to
   // reach anyone else.
@@ -217,7 +207,6 @@ export default function App() {
           onApplyRating={applyRating}
           onDeleteFixture={deleteFixture}
           onEditFixture={editFixture}
-          onSetPhoto={setFixturePhoto}
         />
       ) : (
         <MatchDay
