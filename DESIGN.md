@@ -696,17 +696,47 @@ saved nights accumulate in the History tab (§2.6).
   🔒 Admin button, or the fixture page's 🔒 Unlock admin to save — both via the shared
   `useAdminUnlock` hook, §2.7) lets you edit ratings and 📢 Publish the roster for everyone;
   without it the app works fully offline from local/default data. Configure by setting
-  `REMOTE_URL` in `remote.ts`; leave it `''` to disable.
+  `REMOTE_URL` in `remote.ts` (or `VITE_REMOTE_URL` for a dev run, §7); leave it `''` to disable.
+
+  **The public read is not the whole roster.** `GET /roster` strips `avoid`, `chemistry` and
+  `aliases` (`PRIVATE_PLAYER_FIELDS` in `roster-worker.js`). That endpoint needs no password and
+  the Worker URL ships inside the app's public JavaScript, so whatever it returns is readable by
+  anyone who looks — and `avoid` is the keep-apart list, i.e. who won't play with whom. The app
+  had always treated it as admin-only on screen (Roster's per-player note, `showPrivateNotes` on
+  the board) and `match-room.js` already rebuilt player objects field-by-field to keep it off
+  guests' phones; the public endpoint was quietly undoing all of it. They are still *stored* —
+  `POST /roster/full` returns the roster intact for the price of the secret word, which is how a
+  newly set-up admin device recovers them (`fetchFullRoster`, called from `App.tsx` the moment
+  admin unlocks). Because a pull can therefore no longer be a straight replace, `src/rosterMerge.ts`
+  reconciles the two directions: `mergePublicRoster` keeps this device's private fields while
+  adopting shared names/ratings, `mergePrivateFields` fills them back in from the admin read.
+  If that read never succeeded, Roster's 📢 Publish asks before sending — empty lists mean "we
+  don't know", not "there aren't any", and publishing them would erase everyone's.
+
   Both POSTs are **rate-limited per client IP** by a `RateLimiter` Durable Object
   (`worker/rate-limit.js`): 10 wrong words inside 10 minutes and that IP gets `429` until the
-  window rolls over. Only *failures* count, so publishing repeatedly never locks the admin out.
-  A DO rather than KV because KV is eventually consistent and caps same-key writes at ~1/sec —
-  a counter on it would undercount exactly when it matters. Sharding by IP (`idFromName(ip)`)
-  keeps each client on its own counter instead of funnelling the world through one instance, and
-  the counter self-deletes via alarm once its window lapses. The client maps `429` to a
-  `'rate-limited'` `PublishResult` (`remote.ts`) so the app says "wait a few minutes" rather than
-  "check your connection". CORS stays `*` deliberately — the POSTs are gated on the secret, and an
-  origin rule would only inconvenience browsers while breaking `npm run dev`.
+  window rolls over. The attempt is **counted and judged in a single DO call** — this used to be a
+  read-only `/check` followed by a separate `/fail`, which is not the same thing: each call was
+  atomic but the pair wasn't, so a burst of simultaneous guesses all read the counter before any of
+  them incremented it and every one sailed through (verified — 20/20 against a budget of 10; the
+  fixed version holds at exactly 10, see `worker/rate-limit.test.js`). Counting first means correct
+  words are counted too, hence `/refund` once the word checks out, which preserves the original
+  property that only *failures* accumulate. A DO rather than KV because KV is eventually consistent
+  and caps same-key writes at ~1/sec — a counter on it would undercount exactly when it matters.
+  Sharding by IP (`idFromName(ip)`) keeps each client on its own counter, with a separate
+  `room:<ip>` counter so match-night traffic can't spend the budget guarding the password. The
+  client maps `429` to a `'rate-limited'` `PublishResult` (`remote.ts`) so the app says "wait a few
+  minutes" rather than "check your connection". CORS stays `*` deliberately — the POSTs are gated on
+  the secret and nothing authenticates with a cookie, so there is no ambient authority for another
+  origin to ride on and CSRF doesn't apply; an origin rule would only inconvenience browsers while
+  breaking `npm run dev`.
+
+  **Shape-checking is a durability concern, not just a security one.** A client drops the fetched
+  result straight into React state, so one malformed publish is a white screen for every device in
+  the club. The checks used to test `p?.id && p?.name` — truthiness, which an object passes as
+  happily as a name — and never looked inside `teams[color]` at all; they now type- and
+  length-check ids, names, aliases, team entries and `mvpId`, and the whole body is capped at
+  512 KB (`worker/validation.test.js`).
 - **Shared results history (optional)**: same Worker and KV namespace as the roster, under the
   `history` key instead of `roster` — `GET`/`POST /history` in `roster-worker.js`, `fetchRemoteHistory`
   / `publishRemoteHistory` in `remote.ts`. Same rate limiting, same secret, same version-timestamp
@@ -714,11 +744,30 @@ saved nights accumulate in the History tab (§2.6).
   manual Publish button — every admin save/edit/delete pushes the full fixture list immediately (see
   §2.6). Reading is public; a device with no `REMOTE_URL` configured just keeps recording locally,
   same empty-string-disables convention as everything else on this Worker.
+
+  Because both endpoints are a whole-list replace, they are also a whole-list **delete** if the
+  list is wrong — which has happened here for real: an automated check reused the admin word while
+  seeded test data was loaded, and published fifteen fake fixtures over a live season. Two things
+  now stand in the way. Every publish carries the `baseVersion` it believes it is replacing and is
+  refused with `409` (`'stale'`) if the stored version has moved on since this device last read it,
+  which is exactly the shape of that incident — a device holding version 0 replacing a live season.
+  And the copy a publish displaces is kept under `history:snapshot:<version>` /
+  `roster:snapshot:<version>` for 90 days, so recovery is a `wrangler kv key get` rather than
+  reconstructing a season from screenshots. Concurrent editors were never the risk at this scale;
+  a device publishing from a copy it never pulled was.
 - **Live match-day rooms (optional)**: see §2.5 — same Worker, a `MatchRoom` Durable Object per
   room. Free-tier limits (100k requests/day, 13,000 GB-s/day of active WebSocket duration, 5GB
   storage) are far beyond what a handful of people for a couple of hours a week would ever use —
   see [Cloudflare's Durable Objects pricing](https://developers.cloudflare.com/durable-objects/platform/pricing/).
   `ROOMS_ENABLED` in `liveRoom.ts` mirrors `REMOTE_URL`'s empty-string-to-disable convention.
+  The room id is a **credential, not a label**: anyone holding it can read the night's squad
+  (names and ratings) and drag players between teams, since guests are meant to. It is therefore
+  minted with `secureToken()` (`crypto.randomUUID()`) rather than `uid()` — `storage.ts` already
+  said as much about the host's `adminToken` and the room id had been getting `Math.random()`
+  anyway. Two limits back that up, because this route deliberately has no password: 120 upgrades
+  per IP per 10 minutes (every distinct id handed to it instantiates another Durable Object), and
+  40 messages per socket per 10 seconds — message *size* was bounded but the *rate* wasn't, and
+  every accepted `sync` is a storage write.
 - Drag-and-drop uses native HTML5 drag events (`draggable`/`onDragStart`/`onDrop`) — no dnd-kit
   or other DnD library is installed.
 - **Share as an image, card style** (`src/shareImage.ts`) — **written but not wired into the UI**.
@@ -766,14 +815,33 @@ saved nights accumulate in the History tab (§2.6).
 ```sh
 npm install
 npm run dev      # vite dev server
-npm test         # vitest run — see src/calibration.test.ts
+npm test         # vitest run — src/ and worker/
 npm run build    # tsc --noEmit && vite build  → dist/
 ```
 
-**There is no linter, and `src/calibration.ts` is the only file with real tests.** CI
+**`npm run dev` talks to the live Worker by default.** That is the club's real roster and real
+season — so anything in a dev run that saves, publishes, or clicks through admin is editing
+production, and that is not hypothetical: an automated verification script did exactly that and
+cost a season of results. Point dev at a throwaway Worker instead, which has its own storage and
+its own password:
+
+```sh
+cd worker && echo 'PUBLISH_SECRET = "local_test_word"' > .dev.vars && npx wrangler dev --local
+# then, from the repo root:
+echo 'VITE_REMOTE_URL=http://localhost:8787' > .env.local && npm run dev
+```
+
+Both files are gitignored. Delete `.env.local` to go back to the deployed Worker. `VITE_REMOTE_URL`
+exists specifically so this is a switch rather than an edit-and-remember-to-revert (see `REMOTE_URL`
+in `remote.ts`), and `worker/README.md` has the same instructions from the Worker side.
+
+**There is no linter, and the tests cover the pure logic, not the components.** CI
 (`.github/workflows/deploy.yml`) runs `npm test` then `npm run build` before deploying, so a broken
 rating-suggestion property fails the build now — but `src/balancer.ts` (the team-generation
-heuristic) and every component are still only checked by `tsc --noEmit` and manual verification. The
+heuristic) and every component are still only checked by `tsc --noEmit` and manual verification.
+The Worker has tests too (`worker/rate-limit.test.js`, `worker/validation.test.js`) — vitest picks
+up `worker/` as well as `src/`, so the limiter and the publish validators are covered even though
+the request handler itself is only exercised by hand against `wrangler dev`. The
 calibration tests are mostly statistical (many synthetic seasons with a known ground truth, asserted
 on the *rate* of correct/incorrect suggestions, seeded for reproducibility) rather than exact-output
 checks — the nature of a probabilistic estimator, not a style choice to copy for ordinary logic.

@@ -44,8 +44,18 @@ export interface RoomConnection {
 // when that isn't configured, in which case live rooms are simply disabled.
 export const ROOMS_ENABLED = !!REMOTE_URL;
 
+// A room id arrives from a query param, so it is whatever someone put in the
+// address bar — and it gets interpolated into a URL path. The worker's own
+// route only matches this same shape, so a hostile id was never going to reach
+// a room; the point of checking here is that `?room=../history` should fail as
+// a bad link rather than as a mystery socket error. Kept in sync with
+// ROOM_PATH in worker/roster-worker.js.
+const ROOM_ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
+
+export const isValidRoomId = (id: string): boolean => ROOM_ID_RE.test(id);
+
 function socketUrl(roomId: string): string | null {
-  if (!REMOTE_URL) return null;
+  if (!REMOTE_URL || !isValidRoomId(roomId)) return null;
   const u = new URL(`${REMOTE_URL}/room/${roomId}`);
   u.protocol = u.protocol === 'https:' ? 'wss:' : 'ws:';
   return u.toString();

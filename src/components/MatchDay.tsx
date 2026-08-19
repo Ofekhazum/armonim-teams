@@ -307,7 +307,11 @@ export default function MatchDay({
       setMyName(name);
     }
     const existing = getHostRoom();
-    const id = existing?.roomId ?? uid();
+    // secureToken, not uid: the room id is what a share link is made of, and
+    // it gates both reading the night's squad (names + ratings) and dragging
+    // players between teams — anyone who holds it can do both. That makes it a
+    // credential, and uid()'s Math.random() isn't one. See storage.ts.
+    const id = existing?.roomId ?? secureToken();
     // any already-live room keeps the token it was created with
     const token = existing?.adminToken ?? secureToken();
     setHostRoom({ roomId: id, adminToken: token });

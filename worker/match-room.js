@@ -37,6 +37,14 @@ const MAX_PLAYERS = 60;
 const MAX_NAME_CHARS = 60;
 const MAX_ID_CHARS = 64;
 
+// Size was bounded; rate was not. Every accepted 'sync' is a storage write, so
+// one socket sending them in a loop is an unbounded write amplifier on a room
+// it only had to guess the id of. Dragging players around is a human action —
+// a couple a second at most, and the client already coalesces a drag into one
+// message on drop — so this is far above any real board and far below abuse.
+const MAX_MESSAGES_PER_WINDOW = 40;
+const MESSAGE_WINDOW_MS = 10 * 1000;
+
 // A room is for one football night. Idle this long and it's abandoned — the
 // alarm below clears it so forgotten rooms don't pile up in storage forever.
 const ROOM_TTL_MS = 12 * 60 * 60 * 1000;
@@ -45,6 +53,7 @@ export class MatchRoom {
   constructor(state) {
     this.state = state;
     this.sessions = new Map(); // WebSocket -> { name, isHost }
+    this.budgets = new Map(); // WebSocket -> { count, start } — see MAX_MESSAGES_PER_WINDOW
     this.room = null; // { adminToken, players, teams, gkIds }
     this.state.blockConcurrencyWhile(async () => {
       this.room = (await this.state.storage.get('room')) ?? null;
@@ -63,9 +72,11 @@ export class MatchRoom {
   }
 
   attach(ws) {
+    this.budgets.set(ws, { count: 0, start: Date.now() });
     ws.addEventListener('message', (evt) => {
       // drop anything oversized before parsing it, let alone storing it
       if (typeof evt.data !== 'string' || evt.data.length > MAX_MESSAGE_CHARS) return;
+      if (!this.affordable(ws)) return;
       let msg;
       try {
         msg = JSON.parse(evt.data);
@@ -77,17 +88,39 @@ export class MatchRoom {
     });
     const leave = () => {
       this.sessions.delete(ws);
+      this.budgets.delete(ws);
       this.broadcastPresence();
     };
     ws.addEventListener('close', leave);
     ws.addEventListener('error', leave);
   }
 
+  // Silently ignores anything past the budget rather than closing the socket:
+  // a real client that somehow burst is better off with a dropped frame it
+  // will resend on the next drag than with a "disconnected" screen.
+  affordable(ws) {
+    const now = Date.now();
+    const budget = this.budgets.get(ws);
+    if (!budget) return false;
+    if (now - budget.start >= MESSAGE_WINDOW_MS) {
+      budget.count = 0;
+      budget.start = now;
+    }
+    budget.count += 1;
+    return budget.count <= MAX_MESSAGES_PER_WINDOW;
+  }
+
   async onMessage(ws, msg) {
     if (msg.type === 'init') {
       // creates the room, or resyncs it — only trusted because the admin
       // token is a random secret minted client-side, not derivable from the
-      // (shareable) room id
+      // (shareable) room id.
+      //
+      // An id with no room behind it yet accepts whichever token arrives
+      // first, so whoever inits an id owns it. That is how a host creates a
+      // room at all, and the only thing keeping someone from claiming an id
+      // before its host does is that both are now crypto.randomUUID() —
+      // see secureToken() in src/storage.ts.
       if (this.room && this.room.adminToken !== msg.adminToken) return;
       if (!isValidId(msg.adminToken)) return;
       const players = sanitizePlayers(msg.players);

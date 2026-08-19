@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import type { AppState, FixtureRecord, Player, Session, TeamWins } from './types';
-import { migratePlayer } from './types';
 import { loadState, saveState } from './storage';
+import { mergePrivateFields, mergePublicRoster } from './rosterMerge';
 import {
+  fetchFullRoster,
   fetchRemoteHistory,
   fetchRemoteRoster,
   localHistoryVersion,
@@ -22,6 +23,9 @@ export default function App() {
   const [tab, setTab] = useState<Tab>('roster');
   // the secret word once unlocked — null means normal (read-only) mode
   const [adminWord, setAdminWord] = useState<string | null>(null);
+  // whether this device has confirmed the roster's private fields against the
+  // server since unlocking — see the fetchFullRoster effect below
+  const [rosterHydrated, setRosterHydrated] = useState(false);
 
   useEffect(() => saveState(state), [state]);
 
@@ -32,18 +36,39 @@ export default function App() {
     let cancelled = false;
     fetchRemoteRoster().then((remote) => {
       if (cancelled || !remote || remote.version <= localRosterVersion()) return;
-      const normalized = remote.players.map((p) => ({
-        ...migratePlayer(p),
-        chemistry: p.chemistry ?? [],
-        avoid: p.avoid ?? [],
-      }));
-      setPlayers(normalized);
+      setPlayers((prev) => mergePublicRoster(prev, remote.players));
       setLocalRosterVersion(remote.version);
     });
     return () => {
       cancelled = true;
     };
   }, []);
+
+  // The public roster no longer carries chemistry/avoid/aliases, so an admin
+  // device that has never held them — a new phone, a cleared browser — would
+  // otherwise balance teams without the keep-apart lists and, worse, publish
+  // that emptiness back over everyone's copy. Unlocking admin is exactly the
+  // moment we're entitled to ask for them, so that's when we fetch them.
+  //
+  // Whether that succeeded is tracked, because "no private fields" and "no
+  // private fields *yet*" look identical from the roster screen and only one
+  // of them is safe to publish — a worker too old to serve /roster/full is
+  // exactly the case that would quietly erase them (see Roster's publish).
+  useEffect(() => {
+    if (adminWord == null) {
+      setRosterHydrated(false);
+      return;
+    }
+    let cancelled = false;
+    fetchFullRoster(adminWord).then((full) => {
+      if (cancelled) return;
+      setRosterHydrated(full !== null);
+      if (full) setPlayers((prev) => mergePrivateFields(prev, full.players));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [adminWord]);
 
   // Same pull-on-load as the roster above, for the shared results history.
   // Only pulled once at mount — an admin actively recording results mid-session
@@ -61,9 +86,12 @@ export default function App() {
   }, []);
 
   // Roster edits can invalidate parts of the session (deleted players, broken
-  // chemistry links, stale generated teams) — clean those up here.
-  const setPlayers = (players: Player[]) => {
+  // chemistry links, stale generated teams) — clean those up here. Takes an
+  // updater as well as a plain list, because the two remote merges below have
+  // to read the players already on this device to do their job.
+  const setPlayers = (next: Player[] | ((prev: Player[]) => Player[])) => {
     setState((s) => {
+      const players = typeof next === 'function' ? next(s.players) : next;
       const ids = new Set(players.map((p) => p.id));
       const clean = players.map((p) => ({
         ...p,
@@ -109,6 +137,12 @@ export default function App() {
     } else if (result === 'rate-limited') {
       alert(
         '❌ Too many failed attempts recently — this is saved on this device, but sharing is paused for a few minutes.',
+      );
+    } else if (result === 'stale') {
+      // someone else recorded a night since this device last looked. Sharing
+      // now would replace their results with a list that never had them.
+      alert(
+        '⚠️ Someone else has updated the shared history since this device last loaded it.\n\nThis is saved here, but not shared — reload the page to pull their version first, then re-enter this change.',
       );
     } else if (result !== 'not-configured') {
       alert("Could not share this — it's saved on this device, but others won't see it yet.");
@@ -205,6 +239,7 @@ export default function App() {
           onChange={setPlayers}
           adminWord={adminWord}
           setAdminWord={setAdminWord}
+          rosterHydrated={rosterHydrated}
         />
       ) : tab === 'history' ? (
         <History
