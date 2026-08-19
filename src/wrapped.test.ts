@@ -100,6 +100,45 @@ describe('buildWrapped', () => {
     expect(buildWrapped(history, '2026-08').bestDuo).toBeNull();
   });
 
+  it('finds who banked the fewest wins, but only once they have at least 2 nights', () => {
+    const history = [
+      night('2026-08-01', ['a'], ['b'], { black: 3, white: 1, blue: 0 }),
+      night('2026-08-08', ['a'], ['b'], { black: 1, white: 3, blue: 0 }),
+      // z only ever plays this one night with zero wins — a lower total than
+      // a's 4, but a single night is a mercy exemption, not a record
+      night('2026-08-15', ['z'], ['b'], { black: 0, white: 4, blue: 0 }),
+    ];
+    const stats = buildWrapped(history, '2026-08');
+    expect(stats.bottomScorer).toEqual({ name: 'a', wins: 4, nights: 2 });
+  });
+
+  it('reports the longest winless run in the month, gated the same as MIN_WINLESS_RUN', () => {
+    const four = Array.from({ length: 4 }, (_, i) =>
+      night(`2026-08-0${i + 1}`, ['a'], ['b'], { black: 1, white: 3, blue: 0 }),
+    );
+    expect(buildWrapped(four, '2026-08').longestWinless).toBeNull();
+
+    const five = [
+      ...four,
+      night('2026-08-05', ['a'], ['b'], { black: 1, white: 3, blue: 0 }),
+    ];
+    expect(buildWrapped(five, '2026-08').longestWinless).toEqual({ name: 'a', nights: 5 });
+  });
+
+  it('reports a worst duo alongside the best one', () => {
+    const history = Array.from({ length: 20 }, (_, i) =>
+      night(
+        `2026-08-${String(i + 1).padStart(2, '0')}`,
+        ['a', 'b'],
+        ['c', 'd'],
+        i < 15 ? { black: 3, white: 1, blue: 0 } : { black: 1, white: 3, blue: 0 },
+      ),
+    );
+    const stats = buildWrapped(history, '2026-08');
+    expect(stats.bestDuo).toMatchObject({ kind: 'together-better', aName: 'a', bName: 'b' });
+    expect(stats.worstDuo).toMatchObject({ kind: 'together-worse', aName: 'c', bName: 'd' });
+  });
+
   it('returns zeros and nulls for a month with nothing recorded', () => {
     const stats = buildWrapped([], '2026-08');
     expect(stats).toMatchObject({
@@ -107,8 +146,11 @@ describe('buildWrapped', () => {
       totalWins: 0,
       mostNights: null,
       topScorer: null,
+      bottomScorer: null,
       longestStreak: null,
+      longestWinless: null,
       bestDuo: null,
+      worstDuo: null,
     });
   });
 });

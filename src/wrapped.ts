@@ -7,8 +7,17 @@
 import type { FixtureRecord } from './types';
 import { hasResult, totalWins as fixtureWins } from './calibration';
 import { TEAM_COLORS } from './balancer';
-import { appearances, MIN_WIN_STREAK } from './milestones';
+import { appearances, MIN_WIN_STREAK, MIN_WINLESS_RUN } from './milestones';
 import { computeDuoRecords, type DuoFact } from './duos';
+
+// A little banter alongside the honest counts — same "it's a count, not a
+// verdict" rule applies (the copy says "fewest wins", not "worst player"),
+// but a recap with only good news reads as a highlight reel, not a record.
+// One asymmetry from the positive side: `bottomScorer` requires at least
+// this many nights before it's reported, so a newcomer's only night ever
+// isn't what gets them roasted — the same mercy the app already extends
+// elsewhere to small samples (debuts, MIN_NIGHTS on rating suggestions).
+const MIN_NIGHTS_FOR_ROAST = 2;
 
 export interface WrappedStats {
   period: string; // 'YYYY-MM'
@@ -17,8 +26,11 @@ export interface WrappedStats {
   totalWins: number;
   mostNights: { name: string; nights: number } | null;
   topScorer: { name: string; wins: number } | null;
+  bottomScorer: { name: string; wins: number; nights: number } | null;
   longestStreak: { name: string; nights: number } | null;
+  longestWinless: { name: string; nights: number } | null;
   bestDuo: DuoFact | null;
+  worstDuo: DuoFact | null;
 }
 
 const MONTH_NAMES = [
@@ -95,15 +107,30 @@ export function buildWrapped(history: FixtureRecord[], period: string): WrappedS
     [...nights.entries()].sort((a, b) => b[1] - a[1])[0] ?? [];
   const [topScorerId, topScorerWins] = [...wins.entries()].sort((a, b) => b[1] - a[1])[0] ?? [];
 
+  const [bottomScorerId, bottomScorerWins] =
+    [...wins.entries()]
+      .filter(([id]) => (nights.get(id) ?? 0) >= MIN_NIGHTS_FOR_ROAST)
+      .sort((a, b) => a[1] - b[1])[0] ?? [];
+
   let longestStreak: { name: string; nights: number } | null = null;
+  let longestWinless: { name: string; nights: number } | null = null;
   for (const id of nameOf.keys()) {
-    const run = longestRun(appearances(id, chronological), true);
-    if (run >= MIN_WIN_STREAK && (!longestStreak || run > longestStreak.nights)) {
-      longestStreak = { name: nameOf.get(id)!, nights: run };
+    const apps = appearances(id, chronological);
+    const won = longestRun(apps, true);
+    if (won >= MIN_WIN_STREAK && (!longestStreak || won > longestStreak.nights)) {
+      longestStreak = { name: nameOf.get(id)!, nights: won };
+    }
+    const lost = longestRun(apps, false);
+    if (lost >= MIN_WINLESS_RUN && (!longestWinless || lost > longestWinless.nights)) {
+      longestWinless = { name: nameOf.get(id)!, nights: lost };
     }
   }
 
-  const bestDuo = computeDuoRecords(chronological, new Set(nameOf.keys()), nameOf).best;
+  const { best: bestDuo, worst: worstDuo } = computeDuoRecords(
+    chronological,
+    new Set(nameOf.keys()),
+    nameOf,
+  );
 
   return {
     period,
@@ -112,7 +139,16 @@ export function buildWrapped(history: FixtureRecord[], period: string): WrappedS
     totalWins,
     mostNights: mostNightsId ? { name: nameOf.get(mostNightsId)!, nights: mostNightsCount } : null,
     topScorer: topScorerId ? { name: nameOf.get(topScorerId)!, wins: topScorerWins } : null,
+    bottomScorer: bottomScorerId
+      ? {
+          name: nameOf.get(bottomScorerId)!,
+          wins: bottomScorerWins,
+          nights: nights.get(bottomScorerId)!,
+        }
+      : null,
     longestStreak,
+    longestWinless,
     bestDuo,
+    worstDuo,
   };
 }

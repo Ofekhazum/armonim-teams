@@ -4,6 +4,11 @@
 // sending to the group chat instead of a settings screen. Canvas rather than
 // a chart library, same reason as shareImage.ts/shirtImage.ts: this app
 // ships React + Tailwind and nothing else.
+//
+// The bottom half is banter — fewest wins, longest winless run, worst duo —
+// same "it's a count, not a verdict" rule as the rest of the app (the copy
+// says "fewest wins", never "worst player"), but a recap that's all good
+// news reads as a highlight reel, not a record of the month.
 
 import type { WrappedStats } from './wrapped';
 import type { ShareImageResult } from './shareImage';
@@ -13,12 +18,13 @@ const PAD = 44;
 
 // Layout constants shared between the height calculation and the drawing
 // pass below, so the canvas is always sized to exactly what gets drawn —
-// no dead space on a quiet month with only one or two stats, no clipping on
-// a full one.
+// no dead space on a quiet month with only a couple of stats, no clipping
+// on a full one.
 const HEADER_H = 172;
 const HERO_H = 200;
 const TILE_H = 178;
 const DUO_H = 168;
+const SECTION_LABEL_H = 46;
 const GAP = 18;
 const FOOTER_H = 36;
 
@@ -72,6 +78,9 @@ function fillGradientRoundRect(
   ctx.fill();
 }
 
+// Pairs share a row; a leftover odd tile gets its own full-width row.
+const tileRows = (n: number) => Math.floor(n / 2) + (n % 2);
+
 interface Tile {
   emoji: string;
   value: string;
@@ -79,7 +88,7 @@ interface Tile {
   colors: [string, string];
 }
 
-function buildTiles(stats: WrappedStats): Tile[] {
+function buildPositiveTiles(stats: WrappedStats): Tile[] {
   const tiles: Tile[] = [];
   if (stats.topScorer) {
     tiles.push({
@@ -108,14 +117,141 @@ function buildTiles(stats: WrappedStats): Tile[] {
   return tiles;
 }
 
-export function renderWrappedImage(stats: WrappedStats): HTMLCanvasElement {
-  const tiles = buildTiles(stats);
-  // pairs share a row; a leftover odd tile gets its own full-width row
-  const tileRows = Math.floor(tiles.length / 2) + (tiles.length % 2);
-  const tilesBlockH = tiles.length > 0 ? tileRows * (TILE_H + GAP) : 0;
-  const duoBlockH = stats.bestDuo ? DUO_H + GAP : 0;
+function buildNegativeTiles(stats: WrappedStats): Tile[] {
+  const tiles: Tile[] = [];
+  if (stats.bottomScorer) {
+    tiles.push({
+      emoji: '🥶',
+      value: stats.bottomScorer.name,
+      label: `fewest wins — ${stats.bottomScorer.wins} in ${stats.bottomScorer.nights} nights`,
+      colors: ['#cbd5e1', '#475569'],
+    });
+  }
+  if (stats.longestWinless) {
+    tiles.push({
+      emoji: '📉',
+      value: stats.longestWinless.name,
+      label: `${stats.longestWinless.nights} nights without a win`,
+      colors: ['#fca5a5', '#991b1b'],
+    });
+  }
+  return tiles;
+}
 
-  const H = PAD + HEADER_H + HERO_H + GAP + tilesBlockH + duoBlockH + FOOTER_H + PAD;
+// Draws a 2-column tile grid starting at `y`, returns the height it used.
+function drawTileGrid(
+  ctx: CanvasRenderingContext2D,
+  tiles: Tile[],
+  y: number,
+  cardW: number,
+): number {
+  const halfW = (cardW - GAP) / 2;
+
+  tiles.forEach((tile, i) => {
+    const isLastOdd = i === tiles.length - 1 && tiles.length % 2 === 1;
+    const w = isLastOdd ? cardW : halfW;
+    const col = isLastOdd ? 0 : i % 2;
+    const row = Math.floor(i / 2);
+    const x = PAD + col * (halfW + GAP);
+    const rowY = y + row * (TILE_H + GAP);
+
+    fillGradientRoundRect(ctx, x, rowY, w, TILE_H, 22, tile.colors);
+
+    ctx.direction = 'ltr';
+    ctx.textAlign = 'left';
+    ctx.font = font(34, '700');
+    ctx.fillStyle = 'rgba(0,0,0,0.28)';
+    ctx.fillText(tile.emoji, x + 20, rowY + 44);
+
+    ctx.direction = 'rtl';
+    ctx.textAlign = 'right';
+    ctx.fillStyle = '#1c1310';
+    const maxTextW = w - 40;
+    let name = tile.value;
+    ctx.font = font(30, '900');
+    while (ctx.measureText(name).width > maxTextW && name.length > 1) {
+      name = name.slice(0, -1);
+    }
+    if (name !== tile.value) name = name.trimEnd() + '…';
+    ctx.fillText(name, x + w - 20, rowY + 100);
+
+    ctx.font = font(15, '700');
+    ctx.fillStyle = 'rgba(28,19,16,0.65)';
+    // the label is plain English, so it stays LTR even inside an RTL card
+    ctx.direction = 'ltr';
+    ctx.textAlign = 'left';
+    const words = tile.label.split(' ');
+    let line = '';
+    const lines: string[] = [];
+    for (const word of words) {
+      const test = line ? `${line} ${word}` : word;
+      if (ctx.measureText(test).width > w - 40 && line) {
+        lines.push(line);
+        line = word;
+      } else {
+        line = test;
+      }
+    }
+    if (line) lines.push(line);
+    lines.slice(0, 2).forEach((l, li) => {
+      ctx.fillText(l, x + 20, rowY + 130 + li * 20);
+    });
+  });
+
+  return tileRows(tiles.length) * (TILE_H + GAP);
+}
+
+function drawDuoCard(
+  ctx: CanvasRenderingContext2D,
+  duo: { aName: string; bName: string; won: number; together: number },
+  label: string,
+  colors: [string, string],
+  y: number,
+  cardW: number,
+) {
+  fillGradientRoundRect(ctx, PAD, y, cardW, DUO_H, 24, colors);
+  ctx.direction = 'ltr';
+  ctx.textAlign = 'left';
+  ctx.font = font(30, '700');
+  ctx.fillStyle = 'rgba(0,0,0,0.25)';
+  ctx.fillText(label, PAD + 24, y + 42);
+
+  ctx.direction = 'rtl';
+  ctx.textAlign = 'right';
+  ctx.font = font(32, '900');
+  ctx.fillStyle = '#fffaf0';
+  ctx.fillText(`${duo.aName} & ${duo.bName}`, PAD + cardW - 24, y + 92);
+
+  ctx.direction = 'ltr';
+  ctx.textAlign = 'left';
+  ctx.font = font(18, '700');
+  ctx.fillStyle = 'rgba(255,250,240,0.85)';
+  ctx.fillText(`won ${duo.won} of their ${duo.together} nights together`, PAD + 24, y + 128);
+}
+
+export function renderWrappedImage(stats: WrappedStats): HTMLCanvasElement {
+  const posTiles = buildPositiveTiles(stats);
+  const negTiles = buildNegativeTiles(stats);
+  const hasNegSection = negTiles.length > 0 || !!stats.worstDuo;
+
+  const posTilesH = posTiles.length > 0 ? tileRows(posTiles.length) * (TILE_H + GAP) : 0;
+  const posDuoH = stats.bestDuo ? DUO_H + GAP : 0;
+  const negLabelH = hasNegSection ? SECTION_LABEL_H : 0;
+  const negTilesH = negTiles.length > 0 ? tileRows(negTiles.length) * (TILE_H + GAP) : 0;
+  const negDuoH = stats.worstDuo ? DUO_H + GAP : 0;
+
+  const H =
+    PAD +
+    HEADER_H +
+    HERO_H +
+    GAP +
+    posTilesH +
+    posDuoH +
+    negLabelH +
+    negTilesH +
+    negDuoH +
+    FOOTER_H +
+    PAD;
 
   const canvas = document.createElement('canvas');
   canvas.width = W;
@@ -130,10 +266,11 @@ export function renderWrappedImage(stats: WrappedStats): HTMLCanvasElement {
   ctx.fillStyle = bg;
   ctx.fillRect(0, 0, W, H);
 
-  glow(ctx, W * 0.85, H * 0.06, 320, 'rgba(234,88,12,0.35)');
-  glow(ctx, W * 0.1, H * 0.35, 260, 'rgba(29,78,216,0.22)');
-  glow(ctx, W * 0.9, H * 0.65, 300, 'rgba(21,128,61,0.18)');
-  glow(ctx, W * 0.15, H * 0.9, 280, 'rgba(124,58,237,0.2)');
+  glow(ctx, W * 0.85, H * 0.05, 320, 'rgba(234,88,12,0.35)');
+  glow(ctx, W * 0.1, H * 0.28, 260, 'rgba(29,78,216,0.22)');
+  glow(ctx, W * 0.9, H * 0.55, 300, 'rgba(21,128,61,0.18)');
+  glow(ctx, W * 0.12, H * 0.78, 280, 'rgba(124,58,237,0.16)');
+  glow(ctx, W * 0.88, H * 0.95, 260, 'rgba(220,38,38,0.14)');
 
   // brand row
   ctx.direction = 'ltr';
@@ -172,89 +309,27 @@ export function renderWrappedImage(stats: WrappedStats): HTMLCanvasElement {
   ctx.fillText(`⚽ ${stats.totalWins} wins banked by the squad`, PAD + 32, y + 178);
   y += HERO_H + GAP;
 
-  // stat tiles — two per row, the odd one out (if any) goes full width so
-  // nothing sits half-empty
-  const halfW = (cardW - GAP) / 2;
+  y += drawTileGrid(ctx, posTiles, y, cardW);
 
-  tiles.forEach((tile, i) => {
-    const isLastOdd = i === tiles.length - 1 && tiles.length % 2 === 1;
-    const w = isLastOdd ? cardW : halfW;
-    const col = isLastOdd ? 0 : i % 2;
-    const row = Math.floor(i / 2);
-    const x = PAD + col * (halfW + GAP);
-    const rowY = y + row * (TILE_H + GAP);
-
-    fillGradientRoundRect(ctx, x, rowY, w, TILE_H, 22, tile.colors);
-
-    ctx.direction = 'ltr';
-    ctx.textAlign = 'left';
-    ctx.font = font(34, '700');
-    ctx.fillStyle = 'rgba(0,0,0,0.28)';
-    ctx.fillText(tile.emoji, x + 20, rowY + 44);
-
-    ctx.direction = 'rtl';
-    ctx.textAlign = 'right';
-    ctx.font = font(30, '900');
-    ctx.fillStyle = '#1c1310';
-    const maxTextW = w - 40;
-    let name = tile.value;
-    ctx.font = font(30, '900');
-    while (ctx.measureText(name).width > maxTextW && name.length > 1) {
-      name = name.slice(0, -1);
-    }
-    if (name !== tile.value) name = name.trimEnd() + '…';
-    ctx.fillText(name, x + w - 20, rowY + 100);
-
-    ctx.font = font(15, '700');
-    ctx.fillStyle = 'rgba(28,19,16,0.65)';
-    // the label is plain English, so it stays LTR even inside an RTL card
-    ctx.direction = 'ltr';
-    ctx.textAlign = 'left';
-    const words = tile.label.split(' ');
-    let line = '';
-    const lines: string[] = [];
-    for (const word of words) {
-      const test = line ? `${line} ${word}` : word;
-      if (ctx.measureText(test).width > w - 40 && line) {
-        lines.push(line);
-        line = word;
-      } else {
-        line = test;
-      }
-    }
-    if (line) lines.push(line);
-    lines.slice(0, 2).forEach((l, li) => {
-      ctx.fillText(l, x + 20, rowY + 130 + li * 20);
-    });
-  });
-
-  y += tileRows * (TILE_H + GAP);
-
-  // duo spotlight — its own wider treatment since it carries two names
   if (stats.bestDuo) {
-    fillGradientRoundRect(ctx, PAD, y, cardW, DUO_H, 24, ['#f0abfc', '#7c3aed']);
-    ctx.direction = 'ltr';
-    ctx.textAlign = 'left';
-    ctx.font = font(30, '700');
-    ctx.fillStyle = 'rgba(0,0,0,0.25)';
-    ctx.fillText('🤝 Best pair', PAD + 24, y + 42);
-
-    ctx.direction = 'rtl';
-    ctx.textAlign = 'right';
-    ctx.font = font(32, '900');
-    ctx.fillStyle = '#fffaf0';
-    ctx.fillText(`${stats.bestDuo.aName} & ${stats.bestDuo.bName}`, PAD + cardW - 24, y + 92);
-
-    ctx.direction = 'ltr';
-    ctx.textAlign = 'left';
-    ctx.font = font(18, '700');
-    ctx.fillStyle = 'rgba(255,250,240,0.85)';
-    ctx.fillText(
-      `won ${stats.bestDuo.won} of their ${stats.bestDuo.together} nights together`,
-      PAD + 24,
-      y + 128,
-    );
+    drawDuoCard(ctx, stats.bestDuo, '🤝 Best pair', ['#f0abfc', '#7c3aed'], y, cardW);
     y += DUO_H + GAP;
+  }
+
+  if (hasNegSection) {
+    ctx.direction = 'ltr';
+    ctx.textAlign = 'left';
+    ctx.font = font(22, '800');
+    ctx.fillStyle = 'rgba(253,250,243,0.55)';
+    ctx.fillText('😬 ALSO HAPPENED', PAD, y + 26);
+    y += SECTION_LABEL_H;
+
+    y += drawTileGrid(ctx, negTiles, y, cardW);
+
+    if (stats.worstDuo) {
+      drawDuoCard(ctx, stats.worstDuo, '🙃 Worst pair', ['#fca5a5', '#7f1d1d'], y, cardW);
+      y += DUO_H + GAP;
+    }
   }
 
   ctx.textAlign = 'center';
