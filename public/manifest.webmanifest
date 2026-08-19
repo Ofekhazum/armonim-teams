@@ -1,0 +1,33 @@
+{
+  "name": "Armonim FC",
+  "short_name": "Armonim FC",
+  "description": "Teams, results and tonight's fixture for Armonim FC",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#e5d5b3",
+  "theme_color": "#f3e5c3",
+  "lang": "he",
+  "dir": "auto",
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

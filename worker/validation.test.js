@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
+  isValidClock,
+  isValidSubscription,
   isValidFixtures,
+  isValidLive,
   isValidPlayers,
   publicPlayer,
   safeEqual,
@@ -127,6 +130,164 @@ describe('isValidFixtures', () => {
 
   it('accepts an empty history — that is how the season is cleared', () => {
     expect(isValidFixtures([])).toBe(true);
+  });
+});
+
+describe('isValidLive', () => {
+  const live = (over = {}) => ({
+    id: 'live-1787156380422',
+    startedAt: 1787156380422,
+    players: [
+      { id: 'p1', name: 'אופק', isGk: true },
+      { id: 'p2', name: 'ירין', isGuest: true },
+    ],
+    teams: { black: ['p1'], white: ['p2'], blue: [] },
+    gkIds: ['p1'],
+    clock: { period: 'regulation', endsAt: null, remaining: 480000, ended: false },
+    ...over,
+  });
+
+  it('accepts a fixture that has just kicked off', () => {
+    expect(isValidLive(live())).toBe(true);
+  });
+
+  it('accepts a running clock, where endsAt is an absolute time', () => {
+    expect(
+      isValidLive(live({ clock: { period: 'added', endsAt: 1787156500000, remaining: 0, ended: false } })),
+    ).toBe(true);
+  });
+
+  it('accepts null — that is how the night is ended', () => {
+    expect(isValidLive(null)).toBe(true);
+  });
+
+  it('rejects a clock period that is not one of the two the rules have', () => {
+    expect(
+      isValidLive(live({ clock: { period: 'extra-time', endsAt: null, remaining: 0, ended: false } })),
+    ).toBe(false);
+  });
+
+  it('rejects a clock missing its ended flag, rather than treating it as false', () => {
+    expect(isValidLive(live({ clock: { period: 'regulation', endsAt: null, remaining: 0 } }))).toBe(
+      false,
+    );
+  });
+
+  it('rejects a non-numeric endsAt, which would render as NaN on every phone', () => {
+    expect(
+      isValidLive(live({ clock: { period: 'regulation', endsAt: 'soon', remaining: 0, ended: false } })),
+    ).toBe(false);
+  });
+
+  it('rejects team entries that are not player ids', () => {
+    expect(isValidLive(live({ teams: { black: [{ id: 'p1' }], white: [], blue: [] } }))).toBe(false);
+  });
+
+  it('rejects a missing team colour', () => {
+    expect(isValidLive(live({ teams: { black: ['p1'], white: ['p2'] } }))).toBe(false);
+  });
+
+  it('rejects a player with no usable name', () => {
+    expect(isValidLive(live({ players: [{ id: 'p1', name: '' }] }))).toBe(false);
+    expect(isValidLive(live({ players: [{ id: 'p1', name: { first: 'x' } }] }))).toBe(false);
+  });
+
+  it('rejects a squad larger than any fixture', () => {
+    const players = Array.from({ length: 61 }, (_, i) => ({ id: `p${i}`, name: `n${i}` }));
+    expect(isValidLive(live({ players }))).toBe(false);
+  });
+
+  it('rejects a missing kickoff time', () => {
+    expect(isValidLive(live({ startedAt: 'tonight' }))).toBe(false);
+  });
+});
+
+// POST /live/clock is the one unauthenticated write in the Worker, so what it
+// accepts is the whole of its attack surface.
+describe('isValidClock', () => {
+  const clock = (over = {}) => ({
+    period: 'regulation',
+    endsAt: null,
+    remaining: 480000,
+    ended: false,
+    ...over,
+  });
+
+  it('accepts a stopped clock and a running one', () => {
+    expect(isValidClock(clock())).toBe(true);
+    expect(isValidClock(clock({ endsAt: 1787156500000, remaining: 0 }))).toBe(true);
+  });
+
+  it('accepts added time, the only other period the rules have', () => {
+    expect(isValidClock(clock({ period: 'added', remaining: 120000 }))).toBe(true);
+  });
+
+  it('rejects an invented period', () => {
+    expect(isValidClock(clock({ period: 'extra-time' }))).toBe(false);
+    expect(isValidClock(clock({ period: null }))).toBe(false);
+  });
+
+  it('rejects an endsAt that would render as NaN on every phone at once', () => {
+    expect(isValidClock(clock({ endsAt: 'soon' }))).toBe(false);
+    expect(isValidClock(clock({ endsAt: NaN }))).toBe(false);
+    expect(isValidClock(clock({ remaining: 'lots' }))).toBe(false);
+  });
+
+  it('rejects a missing ended flag rather than assuming false', () => {
+    const { ended, ...rest } = clock();
+    expect(isValidClock(rest)).toBe(false);
+    expect(isValidClock(clock({ ended: 'yes' }))).toBe(false);
+  });
+
+  it('rejects non-objects', () => {
+    expect(isValidClock(null)).toBe(false);
+    expect(isValidClock('regulation')).toBe(false);
+    expect(isValidClock([])).toBe(false);
+  });
+
+  it('ignores extra keys rather than letting them through as a payload', () => {
+    // a hostile POST can't smuggle teams or a secret in alongside the clock —
+    // the handler only ever copies the validated clock onto the stored fixture
+    expect(isValidClock(clock({ teams: { black: ['x'] }, secret: 'guess' }))).toBe(true);
+  });
+});
+
+describe('isValidSubscription', () => {
+  const sub = (over = {}) => ({
+    endpoint: 'https://fcm.googleapis.com/fcm/send/abc123',
+    keys: { p256dh: 'BDgBTGA8idqXEkJjIO5TqUx5Xdo7kLtbB5Guj120hrfbJeOqNo7e', auth: 'MDEyMzQ1Njc4OWFiY2Rl' },
+    ...over,
+  });
+
+  it('accepts what a browser actually hands over', () => {
+    expect(isValidSubscription(sub())).toBe(true);
+  });
+
+  it('refuses a non-https endpoint', () => {
+    // the worker POSTs to this URL; http would send the push in the clear, and
+    // anything else is not a push service at all
+    expect(isValidSubscription(sub({ endpoint: 'http://example.com/push' }))).toBe(false);
+    expect(isValidSubscription(sub({ endpoint: 'file:///etc/passwd' }))).toBe(false);
+  });
+
+  it('refuses an endpoint that is not a URL', () => {
+    expect(isValidSubscription(sub({ endpoint: 'not a url' }))).toBe(false);
+    expect(isValidSubscription(sub({ endpoint: '' }))).toBe(false);
+  });
+
+  it('refuses missing or malformed keys', () => {
+    expect(isValidSubscription(sub({ keys: undefined }))).toBe(false);
+    expect(isValidSubscription(sub({ keys: { p256dh: 'x' } }))).toBe(false);
+    expect(isValidSubscription(sub({ keys: { p256dh: 1, auth: 2 } }))).toBe(false);
+  });
+
+  it('refuses an endpoint long enough to be a payload rather than a URL', () => {
+    expect(isValidSubscription(sub({ endpoint: `https://a.com/${'x'.repeat(1100)}` }))).toBe(false);
+  });
+
+  it('refuses non-objects', () => {
+    expect(isValidSubscription(null)).toBe(false);
+    expect(isValidSubscription('subscribe me')).toBe(false);
   });
 });
 

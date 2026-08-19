@@ -88,6 +88,13 @@ export interface Session {
   wins: DraftTeamWins; // tonight's win tally as entered, before it's filed
   mvpId: string | null; // tonight's MVP pick, before it's filed — see FixtureRecord.mvpId
   savedFixtureId: string | null; // set once tonight is saved, so re-saving updates
+  // The match clock, lifted out of the component that draws it so the
+  // organiser's clock can be published to everyone watching (§2.14) and so a
+  // page refresh mid-match doesn't reset it.
+  clock: ClockState;
+  // epoch ms of the "Start fixture" press that made this night live, or null
+  // when nothing is live. Doubles as the live fixture's stable identity.
+  liveStartedAt: number | null;
 }
 
 // --- Results & history -----------------------------------------------------
@@ -132,4 +139,58 @@ export interface AppState {
   players: Player[];
   session: Session;
   history: FixtureRecord[]; // past fixtures, oldest first
+}
+
+// --- The fixture currently being played, as everyone else sees it -----------
+// Published by the organiser when they start a fixture and cleared when they
+// end it, so the rest of the group sees tonight's teams and the clock without
+// anyone having to send a link (§2.14). One key on the Worker, so exactly one
+// fixture can be live at a time.
+
+// Deliberately far less than a `Player`. This is the one payload in the app
+// that is read by people who are not the organiser, and a name and which
+// shirt they're wearing is the whole point of it — rating, attack spectrum,
+// chemistry and keep-apart lists are the organiser's working notes and none
+// of anyone else's business (same line the public roster read draws).
+export interface LivePlayer {
+  id: string;
+  name: string;
+  isGk?: boolean; // wearing the gloves tonight, not the permanent flag
+  isGuest?: boolean;
+}
+
+export type ClockPeriod = 'regulation' | 'added';
+
+// The house rules for a match, in milliseconds (see DESIGN.md §2.8). They live
+// here rather than in MatchClock.tsx because the clock's *state* is now part
+// of the session — persisted, and published to everyone watching — so the
+// modules that build a fresh session need them without importing a component.
+export const REGULATION_MS = 8 * 60 * 1000;
+export const ADDED_MS = 2 * 60 * 1000;
+
+// The match clock as a *fact about time*, not a ticking counter: `endsAt` is
+// an absolute epoch ms, so a viewer who receives this ten seconds late still
+// renders the correct number rather than one that's ten seconds behind. When
+// paused or not yet started, `endsAt` is null and `remaining` holds the value.
+export interface ClockState {
+  period: ClockPeriod;
+  endsAt: number | null;
+  remaining: number;
+  ended: boolean;
+}
+
+export const initialClock = (): ClockState => ({
+  period: 'regulation',
+  endsAt: null,
+  remaining: REGULATION_MS,
+  ended: false,
+});
+
+export interface LiveFixture {
+  id: string;
+  startedAt: number; // epoch ms, for "kicked off 42 minutes ago"
+  players: LivePlayer[];
+  teams: Teams;
+  gkIds: string[];
+  clock: ClockState;
 }

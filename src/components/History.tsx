@@ -13,6 +13,7 @@ import { buildWrapped, periodLabel, wrappedPeriods } from '../wrapped';
 import { shareWrappedImage } from '../wrappedImage';
 import { MIN_TRUST_NIGHTS, trustCorrelation, trustPoints, type TrustPoint } from '../trust';
 import { mvpCounts } from '../mvp';
+import { VETERAN_NIGHTS, playerAchievements, type AchievementKind } from '../achievements';
 import { TEAM_META, Name, fmtRating } from './ui';
 import MvpPicker from './MvpPicker';
 
@@ -117,18 +118,37 @@ interface Draft {
   mvpId: string | null;
 }
 
-type SortKey = 'name' | 'nights' | 'wins' | 'mvps' | 'perNight' | 'vsRating';
+type SortKey = 'name' | 'nights' | 'wins' | 'fixtures' | 'mvps' | 'perNight' | 'vsRating';
 
-const SORT_COLUMNS: { key: SortKey; label: string }[] = [
+// "vs rating" is the one column that is an opinion about a player rather than
+// a count of what happened — it says someone is over- or under-performing the
+// number the organiser gave them. That's a working note for whoever maintains
+// the ratings, not something to publish next to everyone's name, so the whole
+// column only exists in admin mode (§2.14).
+const sortColumns = (isAdmin: boolean): { key: SortKey; label: string }[] => [
   { key: 'name', label: 'Player' },
   { key: 'nights', label: 'Nights' },
   { key: 'wins', label: 'Wins' },
+  { key: 'fixtures', label: 'Fixtures' },
   { key: 'perNight', label: 'Per night' },
   { key: 'mvps', label: 'MVPs' },
-  { key: 'vsRating', label: 'vs rating' },
+  ...(isAdmin ? [{ key: 'vsRating' as SortKey, label: 'vs rating' }] : []),
 ];
 
 const fmtWins = (w: number) => (Number.isInteger(w) ? String(w) : w.toFixed(1));
+
+// The key under the standings. Deliberately worded as what was counted rather
+// than what it proves — "most wins in the club" and not "best player" — which
+// is the same line the milestones and duo records hold (§2.9).
+const BADGE_KEY: { kind: AchievementKind; icon: string; text: string }[] = [
+  { kind: 'most-wins', icon: '🥇', text: 'most wins' },
+  { kind: 'most-fixtures', icon: '🏅', text: 'most nights won' },
+  { kind: 'mvp', icon: '🌟', text: 'MVP picks' },
+  { kind: 'iron-man', icon: '🦾', text: 'never misses' },
+  { kind: 'win-streak', icon: '📈', text: 'winning run' },
+  { kind: 'ever-present', icon: '✨', text: 'played every night' },
+  { kind: 'veteran', icon: '🎖️', text: `${VETERAN_NIGHTS}+ nights` },
+];
 
 export default function History({
   history,
@@ -210,7 +230,16 @@ export default function History({
 
   const formById = new Map(form.map((f) => [f.id, f]));
   const mvpById = new Map(mvpCounts(history).map((m) => [m.id, m.count]));
+  const achievements = useMemo(() => playerAchievements(history), [history]);
+  const fixturesWon = (id: string) => achievements.get(id)?.fixturesWon ?? 0;
   const recordedNights = history.filter((fx) => hasResult(fx.wins)).length;
+  const columns = sortColumns(isAdmin);
+  const earnedBadges = BADGE_KEY.filter(({ kind }) =>
+    [...achievements.values()].some((a) => a.achievements.some((x) => x.kind === kind)),
+  );
+  // leaving admin while sorted by the admin-only column would sort the table
+  // by something no longer on screen
+  const sortKey: SortKey = !isAdmin && sort.key === 'vsRating' ? 'perNight' : sort.key;
 
   // clicking the same header flips direction; a new column starts in whatever
   // direction is useful first — biggest-first for numbers, A→Z for the name
@@ -223,13 +252,15 @@ export default function History({
 
   const sortedStandings = [...standings].sort((a, b) => {
     const dir = sort.dir === 'asc' ? 1 : -1;
-    switch (sort.key) {
+    switch (sortKey) {
       case 'name':
         return dir * a.name.localeCompare(b.name);
       case 'nights':
         return dir * (a.nights - b.nights);
       case 'wins':
         return dir * (a.wins - b.wins);
+      case 'fixtures':
+        return dir * (fixturesWon(a.id) - fixturesWon(b.id));
       case 'mvps':
         return dir * ((mvpById.get(a.id) ?? 0) - (mvpById.get(b.id) ?? 0));
       case 'perNight':
@@ -262,7 +293,11 @@ export default function History({
         )}
       </div>
 
-      {periods.length > 0 && (
+      {/* The recap is a produced thing — a shareable image the organiser sends
+          out when a month is done, complete with the banter records. Leaving
+          the generator on everyone's screen turns it from a monthly moment
+          into a button, so it lives in admin mode (§2.14). */}
+      {isAdmin && periods.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-amber-900/15 bg-[#fffdf4]/70 p-3 shadow-sm">
           <span className="text-sm font-bold text-amber-950">📊 Monthly recap</span>
           <select
@@ -393,32 +428,41 @@ export default function History({
       <div className="overflow-x-auto rounded-2xl border border-amber-900/15 bg-[#fffdf4]/70 p-4 shadow-sm">
         <h3 className="mb-1 font-bold text-amber-950">🏆 Standings</h3>
         <p className="mb-3 text-xs text-amber-900/60">
-          Wins a player's team collected while they were on it — a penalty shootout counts as
-          half. MVPs is the one column here that isn't derived from a result — it's just a tally
-          of the organiser's own pick for standout player, night by night. "vs rating" is a
-          different measure, not a rescaling of per-night: it accounts for the strength of who
-          they played <i>with</i> and <i>against</i> each night, so it can rank someone above a
-          teammate with a higher per-night number if that teammate's wins came from stronger
-          sides. Blank until a player has {MIN_NIGHTS} nights behind them, and greyed until
-          there's enough of a pattern to read anything into it.
+          <b>Wins</b> counts the matches a player's team collected while they were on it — a
+          penalty shootout counts as half. <b>Fixtures</b> is the bigger unit: whole nights their
+          team finished top of, which is a different question (a team can bank a big tally on one
+          blowout and still top fewer nights than one that edges every week). <b>MVPs</b> is the
+          one column here not derived from a result at all — just a tally of the organiser's own
+          pick for standout player, night by night. Badges next to a name are the same kind of
+          thing: counts worth noticing, never a verdict on how someone plays.
+          {isAdmin && (
+            <>
+              {' '}
+              "vs rating" is a different measure again, not a rescaling of per-night: it accounts
+              for the strength of who they played <i>with</i> and <i>against</i> each night, so it
+              can rank someone above a teammate with a higher per-night number if that teammate's
+              wins came from stronger sides. Blank until a player has {MIN_NIGHTS} nights behind
+              them, and greyed until there's enough of a pattern to read anything into it.
+            </>
+          )}
         </p>
         <table className="w-full min-w-[26rem] text-sm">
           <thead>
             <tr className="text-left text-xs uppercase tracking-wide text-amber-900/50">
-              {SORT_COLUMNS.map(({ key, label }) => (
+              {columns.map(({ key, label }) => (
                 <th key={key} className={`pb-1 font-bold ${key === 'name' ? '' : 'text-right'}`}>
                   <button
                     onClick={() => toggleSort(key)}
                     aria-sort={
-                      sort.key === key ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'
+                      sortKey === key ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'
                     }
                     className={`inline-flex items-center gap-0.5 hover:text-amber-900 ${
                       key !== 'name' ? 'flex-row-reverse' : ''
-                    } ${sort.key === key ? 'text-amber-900' : ''}`}
+                    } ${sortKey === key ? 'text-amber-900' : ''}`}
                   >
                     {label}
                     <span className="w-3 text-[9px]">
-                      {sort.key === key ? (sort.dir === 'asc' ? '▲' : '▼') : ''}
+                      {sortKey === key ? (sort.dir === 'asc' ? '▲' : '▼') : ''}
                     </span>
                   </button>
                 </th>
@@ -436,11 +480,26 @@ export default function History({
               return (
                 <tr key={s.id} className="border-t border-amber-900/10">
                   <td className="py-1.5">
-                    <Name className="font-semibold text-amber-950">{s.name}</Name>
+                    <div className="flex flex-wrap items-center gap-x-1.5">
+                      <Name className="font-semibold text-amber-950">{s.name}</Name>
+                      {/* every badge is a count with a sentence behind it —
+                          hover (or long-press) gives the sentence */}
+                      {(achievements.get(s.id)?.achievements ?? []).map((a) => (
+                        <span key={a.kind} title={a.label} className="text-xs leading-none">
+                          {a.icon}
+                        </span>
+                      ))}
+                    </div>
                   </td>
                   <td className="py-1.5 text-right tabular-nums text-amber-900/70">{s.nights}</td>
                   <td className="py-1.5 text-right font-bold tabular-nums text-amber-950">
                     {fmtWins(s.wins)}
+                  </td>
+                  <td
+                    className="py-1.5 text-right tabular-nums text-amber-900/70"
+                    title="Whole nights this player's team finished top of"
+                  >
+                    {fixturesWon(s.id) || '—'}
                   </td>
                   <td className="py-1.5 text-right tabular-nums text-amber-900/70">
                     {s.perNight.toFixed(2)}
@@ -448,29 +507,44 @@ export default function History({
                   <td className="py-1.5 text-right tabular-nums text-amber-900/70">
                     {mvpById.get(s.id) ? `🌟 ${mvpById.get(s.id)}` : '—'}
                   </td>
-                  <td
-                    className={`py-1.5 text-right tabular-nums ${
-                      !meaningful
-                        ? 'text-amber-900/30'
-                        : d > 0
-                          ? 'font-semibold text-green-700'
-                          : 'font-semibold text-red-700'
-                    }`}
-                    title={
-                      !rated
-                        ? `Needs ${MIN_NIGHTS} nights before this means anything`
-                        : meaningful
-                          ? 'Consistently over/under-performing their rating'
-                          : 'Not enough evidence to read anything into this yet'
-                    }
-                  >
-                    {rated ? `${d >= 0 ? '+' : ''}${d.toFixed(2)}` : '—'}
-                  </td>
+                  {isAdmin && (
+                    <td
+                      className={`py-1.5 text-right tabular-nums ${
+                        !meaningful
+                          ? 'text-amber-900/30'
+                          : d > 0
+                            ? 'font-semibold text-green-700'
+                            : 'font-semibold text-red-700'
+                      }`}
+                      title={
+                        !rated
+                          ? `Needs ${MIN_NIGHTS} nights before this means anything`
+                          : meaningful
+                            ? 'Consistently over/under-performing their rating'
+                            : 'Not enough evidence to read anything into this yet'
+                      }
+                    >
+                      {rated ? `${d >= 0 ? '+' : ''}${d.toFixed(2)}` : '—'}
+                    </td>
+                  )}
                 </tr>
               );
             })}
           </tbody>
         </table>
+
+        {/* A badge nobody can decode is decoration. Only the kinds actually
+            earned are listed, so the key stays short and every line on it
+            points at someone in the table above. */}
+        {earnedBadges.length > 0 && (
+          <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 border-t border-amber-900/10 pt-2 text-[11px] text-amber-900/55">
+            {earnedBadges.map(({ icon, text }) => (
+              <span key={icon}>
+                {icon} {text}
+              </span>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="space-y-2">

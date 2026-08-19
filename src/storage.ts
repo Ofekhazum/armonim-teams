@@ -1,5 +1,5 @@
 import type { AppState, Session } from './types';
-import { migratePlayer } from './types';
+import { initialClock, migratePlayer } from './types';
 import { DEFAULT_PLAYERS } from './defaultRoster';
 
 const KEY = 'armonim-teams-v1';
@@ -18,6 +18,8 @@ export const emptySession = (): Session => ({
   wins: { black: null, white: null, blue: null },
   mvpId: null,
   savedFixtureId: null,
+  clock: initialClock(),
+  liveStartedAt: null,
 });
 
 export function loadState(): AppState {

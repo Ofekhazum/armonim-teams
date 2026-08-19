@@ -6,6 +6,12 @@
 //   POST /roster/full  → read the roster *including* private fields; same word
 //   GET  /history      → public read of recorded fixtures (nights + win tallies)
 //   POST /history      → publish the fixture list; requires the secret word
+//   GET  /live         → public read of the fixture being played right now
+//   POST /live         → start/update/end it; requires the secret word
+//   POST /live/clock   → start/pause the match clock; NO password, see below
+//   GET  /push/key     → the VAPID public key a browser needs to subscribe
+//   POST /push/subscribe   → opt this device into match-clock notifications
+//   POST /push/unsubscribe → opt it out again
 //   POST /verify       → check the secret word (used to unlock admin mode)
 //   GET  /room/:id     → WebSocket upgrade into a live team-picking room
 //
@@ -24,6 +30,27 @@
 
 export { MatchRoom } from './match-room.js';
 export { RateLimiter } from './rate-limit.js';
+export { ClockNotifier } from './clock-notifier.js';
+
+import { bytesToB64u, publicKeyBytes } from './push.js';
+
+// One notifier for the whole club — there is only ever one clock.
+const notifier = (env) => env.CLOCK_NOTIFIER.get(env.CLOCK_NOTIFIER.idFromName('clock'));
+
+// Every write that moves the clock has to reach the notifier, because the
+// announcements are scheduled from `endsAt` rather than counted down to. Best
+// effort on purpose: failing to schedule a buzz must never fail the write that
+// actually runs the match.
+async function rescheduleNotifications(env, clock) {
+  try {
+    await notifier(env).fetch('https://notifier/schedule', {
+      method: 'POST',
+      body: JSON.stringify({ clock }),
+    });
+  } catch {
+    // notifications are a nicety; the fixture and the clock are not
+  }
+}
 
 // Deliberately open: GET /roster is meant to be readable by anyone with the
 // app, and the POSTs are gated on the secret word rather than on origin — a
@@ -74,9 +101,20 @@ const PUBLISH_WINDOW_MS = 10 * 60 * 1000;
 const ROOM_LIMIT = 120;
 const ROOM_WINDOW_MS = 10 * 60 * 1000;
 
+// Clock presses, which anyone at the pitch can make (see /live/clock). A match
+// is start, maybe a pause, then next-match — call it a handful each, times
+// however many people are prodding it, on one pitch behind one NAT.
+const CLOCK_LIMIT = 200;
+const CLOCK_WINDOW_MS = 10 * 60 * 1000;
+
 // How long the copy displaced by a publish is kept around. Long enough that a
 // bad write discovered weeks later is still recoverable.
 const SNAPSHOT_TTL_S = 90 * 24 * 60 * 60;
+
+// A live fixture is one evening. Same reasoning as the live rooms' 12-hour
+// idle expiry: a night nobody remembered to end shouldn't read as in progress
+// the next morning.
+const LIVE_TTL_S = 12 * 60 * 60;
 
 const ROOM_PATH = /^\/room\/([A-Za-z0-9_-]{1,64})$/;
 
@@ -130,6 +168,58 @@ export function isValidPlayers(players) {
     }
     return true;
   });
+}
+
+// The fixture currently being played (§2.14). Unlike the roster and the
+// history this is *transient* — one key, overwritten while a night is on and
+// deleted when it ends — so there's no version guard and no snapshot: there is
+// nothing here worth recovering an hour later. It does carry a TTL, because
+// the failure mode is an organiser closing the tab mid-night and leaving a
+// fixture that looks live forever.
+// A PushSubscription as the browser hands it over. The endpoint is a URL we
+// will POST to, so it is checked to be one — and to be https, since a push
+// service that isn't is not a push service.
+export function isValidSubscription(sub) {
+  if (!sub || typeof sub !== 'object') return false;
+  if (!isStr(sub.endpoint, 1024)) return false;
+  try {
+    if (new URL(sub.endpoint).protocol !== 'https:') return false;
+  } catch {
+    return false;
+  }
+  if (!sub.keys || typeof sub.keys !== 'object') return false;
+  // p256dh is a 65-byte point and auth is 16 bytes, both base64url
+  if (!isStr(sub.keys.p256dh, 128) || !isStr(sub.keys.auth, 64)) return false;
+  return true;
+}
+
+export function isValidClock(clock) {
+  if (!clock || typeof clock !== 'object') return false;
+  if (clock.period !== 'regulation' && clock.period !== 'added') return false;
+  if (clock.endsAt !== null && !Number.isFinite(clock.endsAt)) return false;
+  if (!Number.isFinite(clock.remaining)) return false;
+  if (typeof clock.ended !== 'boolean') return false;
+  return true;
+}
+
+export function isValidLive(live) {
+  if (live === null) return true; // clearing it
+  if (!live || typeof live !== 'object') return false;
+  if (!isStr(live.id, MAX_ID_CHARS)) return false;
+  if (!Number.isFinite(live.startedAt)) return false;
+  if (!Array.isArray(live.players) || live.players.length > MAX_FIXTURE_PLAYERS) return false;
+  if (
+    !live.players.every(
+      (p) => p && typeof p === 'object' && isStr(p.id, MAX_ID_CHARS) && isStr(p.name, MAX_NAME_CHARS),
+    )
+  ) {
+    return false;
+  }
+  if (!live.teams || typeof live.teams !== 'object') return false;
+  if (!TEAM_COLORS.every((c) => isIdList(live.teams[c], MAX_FIXTURE_PLAYERS))) return false;
+  if (!isIdList(live.gkIds, MAX_FIXTURE_PLAYERS)) return false;
+  if (!isValidClock(live.clock)) return false;
+  return true;
 }
 
 export function isValidFixtures(fixtures) {
@@ -277,8 +367,99 @@ export default {
       return json(current ? current.value : { version: 0, fixtures: null });
     }
 
+    // public read of the fixture being played right now, if any — this is the
+    // one everyone in the group polls on a match night
+    if (url.pathname === '/live' && request.method === 'GET') {
+      const current = await readRecord(env, 'live');
+      return json(current ? current.value : { version: 0, fixture: null });
+    }
+
+    // --- The one write in this Worker with no password on it ----------------
+    // Anyone at the pitch can start and pause the match clock, because at
+    // 8 minutes a match whoever is nearest the phone has to be able to, and
+    // routing that through the organiser makes the clock useless.
+    //
+    // Kept safe by being *narrow* rather than by being authenticated. It can
+    // only replace the `clock` field of a fixture that is already live: it
+    // cannot create one, cannot end one, and cannot touch teams, players,
+    // ratings, the roster or the history. The worst a stranger who read the
+    // Worker URL out of the public bundle can do is show a wrong number for a
+    // few minutes, which the next press of Reset undoes. Rate-limited per IP
+    // like the room upgrades, and shape-checked as strictly as everything else
+    // — a non-numeric endsAt would render as NaN on fifteen phones at once.
+    if (url.pathname === '/live/clock' && request.method === 'POST') {
+      const gate = await countAttempt(limiterFor(env, `clock:${ip}`), CLOCK_LIMIT, CLOCK_WINDOW_MS);
+      if (gate.blocked) {
+        return json({ error: 'too many attempts' }, 429, {
+          'Retry-After': String(gate.retryAfter),
+        });
+      }
+      const parsed = await readBody(request);
+      if (parsed.tooBig) return json({ error: 'too large' }, 413);
+      if (parsed.bad || !parsed.body || typeof parsed.body !== 'object') {
+        return json({ error: 'bad json' }, 400);
+      }
+      if (!isValidClock(parsed.body.clock)) return json({ error: 'bad clock' }, 400);
+
+      const current = await readRecord(env, 'live');
+      // no fixture on → nothing to run a clock for. Notably this is what stops
+      // this endpoint being a way to conjure one.
+      if (!current?.value?.fixture) return json({ error: 'no live fixture' }, 404);
+
+      const payload = {
+        version: Date.now(),
+        fixture: { ...current.value.fixture, clock: parsed.body.clock },
+      };
+      await env.ROSTER_KV.put('live', JSON.stringify(payload), { expirationTtl: LIVE_TTL_S });
+      await rescheduleNotifications(env, parsed.body.clock);
+      return json({ ok: true, version: payload.version });
+    }
+
+    // --- Match-clock notifications ------------------------------------------
+    // Opting in needs no password, for the same reason running the clock
+    // doesn't: it is a thing any of the fifteen people at the pitch might do.
+    // All a subscription can ever receive is the four fixed announcements in
+    // clock-notifier.js, which name a moment in a match and nothing else — so
+    // there is nothing here to leak by subscribing, only a phone to buzz.
+    if (url.pathname === '/push/key' && request.method === 'GET') {
+      if (!env.VAPID_JWK) return json({ key: null });
+      return json({ key: bytesToB64u(publicKeyBytes(JSON.parse(env.VAPID_JWK))) });
+    }
+
+    if (
+      (url.pathname === '/push/subscribe' || url.pathname === '/push/unsubscribe') &&
+      request.method === 'POST'
+    ) {
+      const gate = await countAttempt(limiterFor(env, `push:${ip}`), CLOCK_LIMIT, CLOCK_WINDOW_MS);
+      if (gate.blocked) {
+        return json({ error: 'too many attempts' }, 429, {
+          'Retry-After': String(gate.retryAfter),
+        });
+      }
+      const parsed = await readBody(request);
+      if (parsed.tooBig) return json({ error: 'too large' }, 413);
+      if (parsed.bad || !parsed.body || typeof parsed.body !== 'object') {
+        return json({ error: 'bad json' }, 400);
+      }
+      if (url.pathname === '/push/subscribe') {
+        if (!isValidSubscription(parsed.body.subscription)) {
+          return json({ error: 'bad subscription' }, 400);
+        }
+        await notifier(env).fetch('https://notifier/subscribe', {
+          method: 'POST',
+          body: JSON.stringify({ subscription: parsed.body.subscription }),
+        });
+      } else {
+        await notifier(env).fetch('https://notifier/unsubscribe', {
+          method: 'POST',
+          body: JSON.stringify({ endpoint: parsed.body.endpoint }),
+        });
+      }
+      return json({ ok: true });
+    }
+
     // everything below is a POST guarded by the secret word
-    const guarded = ['/roster', '/roster/full', '/history', '/verify'];
+    const guarded = ['/roster', '/roster/full', '/history', '/live', '/verify'];
     if (guarded.includes(url.pathname) && request.method === 'POST') {
       // checked before we do any other work, so a flood costs us as little as
       // possible. Counts the attempt in the same call that decides on it —
@@ -316,6 +497,30 @@ export default {
       if (url.pathname === '/roster/full') {
         const current = await readRecord(env, 'roster');
         return json(current ? current.value : { version: 0, players: null });
+      }
+
+      // start / update / end the fixture everyone is watching. Last write
+      // wins by design — there is exactly one organiser running one night,
+      // and a stale-version rejection mid-match would be the wrong answer.
+      if (url.pathname === '/live') {
+        const fixture = body.fixture ?? null;
+        if (!isValidLive(fixture)) {
+          return json({ error: 'bad live fixture' }, 400);
+        }
+        if (fixture === null) {
+          await env.ROSTER_KV.delete('live');
+          // the night is over; nothing left to announce
+          await rescheduleNotifications(env, null);
+          return json({ ok: true, version: Date.now() });
+        }
+        const payload = { version: Date.now(), fixture };
+        await env.ROSTER_KV.put('live', JSON.stringify(payload), {
+          // an organiser who closes the tab mid-night shouldn't leave a
+          // fixture that reads as live until someone notices
+          expirationTtl: LIVE_TTL_S,
+        });
+        await rescheduleNotifications(env, fixture.clock);
+        return json({ ok: true, version: payload.version });
       }
 
       if (url.pathname === '/history') {

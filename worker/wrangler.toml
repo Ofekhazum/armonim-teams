@@ -28,3 +28,13 @@ new_sqlite_classes = ["MatchRoom"]
 [[migrations]]
 tag = "v2-rate-limiter"
 new_sqlite_classes = ["RateLimiter"]
+
+# Holds who has opted into match-clock notifications, and the alarm that fires
+# them (see clock-notifier.js). One instance for the whole club.
+[[durable_objects.bindings]]
+name = "CLOCK_NOTIFIER"
+class_name = "ClockNotifier"
+
+[[migrations]]
+tag = "v3-clock-notifier"
+new_sqlite_classes = ["ClockNotifier"]

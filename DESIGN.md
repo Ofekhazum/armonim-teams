@@ -587,6 +587,223 @@ declaring it, recorded as what it actually is — the organiser's call — rathe
 data that was never rich enough to support it. The count is honest because it's counting a real,
 already-made judgment, not synthesizing one.
 
+### 2.14 Two audiences: the organiser and the group
+
+Everything above was written for one person with the app open on the touchline. Sending it to the
+rest of the team makes it a *read* surface for fifteen people and a *write* surface for one, and
+those want almost opposite things — so admin mode stops being "unlock to edit ratings" and becomes
+the line between the two audiences.
+
+What a normal user gets, and why:
+
+| Surface | Normal user | Admin only | Why |
+|---|---|---|---|
+| Roster | read the squad | add / edit / ✕ | who is in this club is the organiser's call |
+| Player ratings, attack spectrum, keep-apart lists | — | ✓ | already the line the public roster read draws (§6) |
+| Match day (availability, guests, balancer, teams board) | — | ✓ | the workbench, not the scoreboard |
+| History: nights, standings, fixture wins, MVPs, badges | ✓ | | the part worth sharing — see §2.15 |
+| History: "vs rating" column, rating suggestions, balancer trust | — | ✓ | opinions about players, not counts of what happened |
+| Monthly recap generator | — | ✓ | a produced thing the organiser sends out, not a button on everyone's screen |
+| Tonight's fixture: teams | ✓ | | the one thing a player actually opens the app for |
+| Starting / pausing the match clock | ✓ | | 8-minute matches; whoever is nearest the phone runs it (§2.15) |
+| Tonight's MVP, tonight's results | — | ✓ | the organiser's calls, recorded once |
+| Starting / ending a fixture | — | ✓ | exactly one night can be live at a time |
+
+The rule these follow: **a count of what happened is shareable, a judgement about a person is not.**
+Nights, wins, fixture wins, MVP picks and streaks are all counts. Ratings, the attack spectrum,
+"vs rating", keep-apart lists and rating suggestions are all somebody's opinion about a player, and
+they stay with the person whose opinion it is. This is the same line §6 draws on the wire for the
+public roster read, applied to the screen.
+
+Gating is by *absence*, not by disabling: a hidden tab has no route to it (`Tab` in `App.tsx`
+simply never renders `match` without admin, and switching admin off while standing on it moves you
+somewhere that still exists). Where a control's absence would read as a bug rather than a lock —
+correcting a past night — there's an explicit "🔒 Unlock admin" line instead.
+
+### 2.15 The live fixture (`src/live.ts`, `LiveFixtureView.tsx`)
+
+Match day is admin-only, which leaves everyone else with no way to find out what team they're on.
+So starting a fixture publishes it: `POST /live` on the same Worker, one KV key, read publicly by
+`GET /live`. One key is the whole "only one fixture can be live" rule — the app can never be in a
+position to ask which of two is the real one. Ending the night (or **← Back to teams**, since a
+night being re-picked is not one to read your team off) deletes the key. A 12-hour TTL covers the
+organiser who closes the tab mid-night, the same reasoning as the live rooms' idle expiry (§2.5).
+
+A 🔴 **Live** tab appears in the top nav while one is on — pulsing dot rather than the word alone,
+because on a phone in a car park it has to read as *now* at a glance — and the app lands on it the
+first time it hears about a fixture, once, never over a tab the user picked themselves.
+
+**For the organiser running tonight, that tab *is* the fixture page** — the same milestones, MVP
+picker, result panel and End fixture they get from Match day, rendered by the same component rather
+than duplicated. Two tabs showing two different views of the match you are standing in the middle of
+is a worse answer than two tabs showing the same one.
+
+Which device is holding the night decides only what can be *drawn*, never what is allowed. The
+fixture page needs ratings, guests and history that the deliberately-thin live payload doesn't
+carry, so a phone that didn't start the night has nothing to render it from — but that is a plumbing
+limit, not a permission, and it must not become one. So an admin device that lacks those simply goes
+and gets them: opening Live rebuilds the session from the live record plus this device's own roster
+and history (`adoptLive`), and the full page appears. No button, no "take over" step — adoption is
+purely local, publishes nothing, and two admin devices doing it cannot conflict. The only thing it
+can cost is a squad half-picked on that device, which needs a live match, a second admin phone and
+an in-progress selection all at once; making every organiser learn an extra concept to avoid that
+was the worse trade. The one real gap is guests: they exist only for tonight and are in nobody's
+roster, so they return with a name and an unknown rating — which moves the displayed team average
+and nothing that gets saved.
+
+**⏹️ End fixture** is offered to any admin on any device regardless, since ending needs no local
+state at all. It covers the moment before adoption, and the case where adoption can't help — an
+organiser whose browser was cleared must never be left watching a fixture they own with no way to
+stop it, which is exactly what happened once.
+
+Both ways out of that page (**← Back to teams**, **⏹️ End fixture**) leave the Live tab with nothing
+to show, so whoever was running it here is moved to Match day, where everything they would do next
+lives. Keyed on *having been* the device running it rather than on being admin, so the second-phone
+organiser above keeps the read-only view they asked for. Ending also drops the fixture from local
+state immediately (`forget()`) instead of waiting a poll cycle to be told what they just did.
+
+**What travels is deliberately thin.** `LivePlayer` is `{id, name, isGk?, isGuest?}` — no rating, no
+attack value, nothing the balancer used. The team cards show how many players, never the average
+rating that sits in the same corner on the organiser's board. This is privacy by *payload*, not by
+CSS: there is nothing in what a viewer receives to reveal, so no future change to the view can leak
+it.
+
+**Polled, not pushed.** The live rooms in `liveRoom.ts` already do WebSockets, but they exist for
+dragging players between teams, where lag is felt; this is a scoreboard. Polling needs no connection
+kept alive on fifteen backgrounded phones. Two rates — 10s while a fixture is on, 60s otherwise —
+and none at all on a hidden tab, with an immediate poll when the tab comes back, which is both when
+the answer is most likely to have changed and when it is about to be looked at.
+
+The delay for the *next* poll is taken from what the poll just returned, held in a plain local
+variable — never read back off React state. The next poll is scheduled synchronously after
+`setFixture`, before any re-render, so state there still holds the previous answer: reading it meant
+the first poll of a live fixture scheduled the *idle* rate, and the app dropped to one check a
+minute exactly when a clock was running. Caught by driving two browsers rather than by a test, and
+the reason the comment in `live.ts` is as long as it is.
+
+**The clock** (§2.8) moved out of `MatchClock.tsx` into shared state, so there is exactly one clock
+per night and everybody is looking at it — the organiser included, whose fixture page reads
+`liveClock` rather than keeping a private copy. What crosses the wire is `endsAt`, an absolute epoch
+ms, not a countdown, so a device whose poll lands ten seconds late still renders the correct time;
+only the *transition* is late, never the number. `Session.clock` survives as a local fallback for a
+refresh while offline. Publishing happens on start/pause/next-match — a handful a match, not one a
+tick, since the seconds in between are counted down locally by each device.
+
+**Anyone can run it**, which is the one place this app accepts an unauthenticated write. At 8
+minutes a match, whoever is nearest the phone has to be able to start it; routing that through the
+organiser makes the clock useless. `POST /live/clock` therefore takes no secret, and is kept safe by
+being *narrow* instead: it replaces only the `clock` field of a fixture that is **already live**, so
+it cannot create a fixture, cannot end one, and cannot touch teams, players, ratings, the roster or
+the history — the handler copies the validated clock onto the stored record and ignores everything
+else in the body. Rate-limited per IP on its own counter, and shape-checked as strictly as any
+authenticated write, because a non-numeric `endsAt` would render as `NaN` on fifteen phones at once.
+The worst a stranger who read the Worker URL out of the public bundle can do is show a wrong number
+for a few minutes, which the next press of Reset undoes.
+
+Two consequences of shared control worth naming. A press is applied **optimistically** and outranks
+incoming polls for `LOCAL_CLOCK_GRACE_MS` — a request already in flight when someone hits Start
+carries the *previous* clock, and letting it land afterwards would snap the button back. And
+`MatchClock` tracks whether anyone on *this* device has pressed anything: the beeps, the wake lock
+and the writing-down of "the match ended" all follow that, not merely having the controls. One phone
+beeping at the one-minute mark is a cue, fifteen is a mess — and pressing a button is also the
+gesture iOS requires before it will play audio at all, so the opt-in and the platform requirement
+turn out to be the same event.
+
+### 2.16 Achievement badges (`src/achievements.ts`)
+
+Small emoji badges beside each name in the standings, plus a **Fixtures** column — whole nights a
+player's team finished top of, which is a different question from match wins (a team can bank a
+blowout on one night and still top fewer nights than one that edges every week; the recap already
+splits these two, §2.11).
+
+Every badge is a count with a sentence behind it, readable on hover and listed in a key under the
+table so nothing is a mystery emoji: 🥇 most wins, 🏅 most nights won, 🌟 MVP picks, 🦾 hasn't missed
+a night in 8+, 📈 longest winning run, ✨ played every recorded night, 🎖️ 25+ nights. Ties **share** a
+badge rather than being broken — two players level on wins are exactly as level as the number says.
+Thresholds are the ones the app already uses elsewhere (`MIN_WIN_STREAK`, `MIN_ATTEND_STREAK`), so a
+badge and the fixture-page milestone that announces it agree.
+
+Nothing here is new data; it is all re-read from `history`. And nothing here is a verdict — "most
+wins in the club" is a fact about a column, "best player" is a claim three numbers a night cannot
+support, and it is not on the list (§2.9).
+
+### 2.17 Match-clock notifications (`src/push.ts`, `worker/push.js`, `worker/clock-notifier.js`)
+
+A buzz at one minute left and at the whistle, on any phone that opts in — including one that is
+locked, in a pocket, with the app closed.
+
+**Why this can't be a timer in the page.** It was asked for as a Dynamic Island widget, which no
+web app can have: Live Activities are native ActivityKit, with no web API. What *is* reachable is a
+notification — but only via a real push service. A backgrounded iOS Safari tab is suspended within
+seconds, so a `setTimeout` scheduled for seven minutes' time fires in exactly the cases nobody needs
+it (screen on, app open, clock visible) and never in the case they do. The scheduling therefore
+lives on the server, where nothing sleeps.
+
+**Four moments**, each announced once: one minute left and time up, in *both* regulation and added
+time. The added-time warning is new — the on-screen clock only ever beeped the one-minute shout in
+regulation (§2.8) — and matters because two minutes of golden goal is short enough that halfway
+through is worth knowing.
+
+**How the timing works.** The clock already travels as an absolute `endsAt` (§2.15), so the instant
+anyone presses Start every announcement time is known. `POST /live` and `POST /live/clock` both hand
+the new clock to a `ClockNotifier` Durable Object, which recomputes its triggers from scratch —
+pause, reset and next-match all land here, and "what is still to be announced" is always fully
+determined by the clock as it stands, never by what was pending before. A DO holds one alarm at a
+time, so the pending triggers are a list and the alarm is set to the earliest; firing the first
+arms the second. A late alarm fires everything now due rather than stranding it.
+
+**What it says** is deliberately generic — "⏱️ One minute left", "🏁 Full time" — because these land
+on lock screens that anyone standing nearby can read. Naming the teams would put tonight's line-up
+on fifteen strangers' screens for no gain, and the people who care are already at the pitch.
+
+**The crypto is hand-written and that is the risky part.** The Worker runtime has no Node built-ins,
+so `web-push` is unusable and `worker/push.js` implements VAPID (RFC 8292) and payload encryption
+(RFC 8291 over RFC 8188) directly on Web Crypto. This is the one file in the project where a wrong
+byte is *invisible*: the push service returns 201 Created and the phone simply never buzzes, with
+nothing thrown and nothing logged. So the test does not check it against itself — the expected
+ciphertext in `push.test.js` was produced by `http_ece`, the library `web-push` itself uses, from
+pinned keys and salt, and the two agreed byte-for-byte. A `TTL` of 120 seconds is deliberate: "one
+minute left" is worse than useless after the final whistle, so it expires rather than queues.
+
+**Opting in is per device and off by default** (`NotifyToggle`, rendered by `MatchClock` so the
+player's Live view and the organiser's fixture page get the identical control). Granting a browser
+permission once is not consent to be buzzed every Thursday forever, so the toggle — not the
+permission — is what decides, and turning it off drops the subscription server-side rather than
+just hiding a button. Subscribing needs no admin word, for the same reason running the clock
+doesn't: it is a thing any of the fifteen people at the pitch might do, and all a subscription can
+ever receive is those four fixed sentences. A push service answering 404/410 means that device is
+genuinely gone and it is pruned; a 5xx is a bad day and it keeps its place.
+
+**iOS requires the site to be added to the Home Screen** — Apple allows web notifications only for
+installed web apps. Hence `public/manifest.webmanifest` and the `apple-mobile-web-app-*` tags, and
+hence `pushSupport()` returning `needs-install` rather than `unsupported` when the API is absent on
+an iPhone, so the app can give the one instruction that fixes it instead of a dead toggle. That
+check is iOS-only on purpose: a desktop browser without push is missing it permanently, and "Add to
+Home Screen" there would be nonsense.
+
+**App icons** come from the club crest (`src/club_logo.jpg`), regenerated by
+`scripts/make-icons.py` into `public/`. Three sizes plus a *maskable* variant, which exists because
+Android crops icons to whatever shape the launcher uses and guarantees only the central 80% — the
+crest's outer ring sits at the very edge of the artwork, so a straight resize would have its top and
+bottom shaved off. That one is scaled onto the crest's own background colour, sampled from the image
+rather than guessed, since a cream one shade out shows as a visible ring. iOS ignores the manifest
+entirely and uses `apple-touch-icon.png`, without which the Home Screen icon would be a screenshot
+of the page. The source is a JPEG, so its flat areas carry compression noise that PNG can't compress
+away; quantising to 64 colours collapses that back to the handful the design actually uses and cuts
+the set from ~1MB to under 400KB with no visible difference.
+
+**Setup** is one secret. `node worker/generate-vapid-keys.mjs` prints a private JWK for
+`wrangler secret put VAPID_JWK`; the public half is derived from it and served at `GET /push/key`,
+so there is no key pasted into the source and no way for the two to drift apart. With no secret set,
+the whole feature is simply absent — the toggle doesn't render and the notifier stays quiet.
+
+**What is verified, and what isn't.** Byte-exact agreement with the reference implementation; a real
+subscriber decrypting a real `sendPush`; the alarm chain, pruning and the four messages, against the
+Durable Object itself; all four notifications rendering through the actual service worker. The one
+link that cannot be tested locally is `pushManager.subscribe()` — an automated Chromium has no push
+service to register with, so it fails there by construction. Everything on both sides of it is
+covered; that step needs a real device.
+
 ## 3. Team generation algorithm
 
 Balancing is a small constrained optimization. With ≤15 players, brute force is too big
@@ -641,14 +858,18 @@ today; the guard is equivalent to deleting the block, and is written as a thresh
 intent ("don't paste rotation into WhatsApp for a short-handed night") stays legible. The on-screen
 panel is unaffected — the organizer still sees the plan, it just doesn't go into the group chat.
 
-## 5. Screens (`src/App.tsx` — three tabs, no router)
+## 5. Screens (`src/App.tsx` — tabs, no router)
 
-1. **Roster** (`src/components/Roster.tsx`) — the permanent squad: add/edit name, aliases,
-   rating, role (GK toggle, or a 0–100 defence↔attack slider in steps of 5), chemistry/avoid
-   links. Ratings are only editable in **admin mode**
-   (§6 shared roster); everyone else sees roster info read-only plus their own local
-   availability picks. Top-right shows a small `v<hash>` build marker (§6) so you can confirm
-   a deploy actually landed after pushing.
+Which tabs exist depends on whether admin is unlocked (§2.14): a normal user gets **Roster** and
+**History**, plus **🔴 Live** while a fixture is on; the organiser additionally gets **Match day**.
+
+
+1. **Roster** (`src/components/Roster.tsx`) — the permanent squad. In **admin mode**: add/edit
+   name, aliases, rating, role (GK toggle, or a 0–100 defence↔attack slider in steps of 5),
+   chemistry/avoid links, ✕ to remove, and 📢 Publish. Everyone else sees the squad as a list to
+   read — no Edit, no ✕, no + Add player, and no ratings or keep-apart lists (§2.14). Top-right
+   shows a small `v<hash>` build marker (§6) so you can confirm a deploy actually landed after
+   pushing.
 2. **Match day** (`src/components/MatchDay.tsx`, the main flow):
    - Step 1 *(who's playing)*: tick available players from the roster grid, optionally use
      **📋 Import a pasted list** to bulk-mark attendance from pasted text (§2.4), and add/remove
@@ -665,16 +886,21 @@ panel is unaffected — the organizer still sees the plan, it just doesn't go in
    - **▶️ Start fixture** → `src/components/FixturePage.tsx`: locks tonight's teams in and shows
      them read-only (§2.7), with tonight's milestones and duo records (§2.9, §2.10), the 8-minute
      match clock (§2.8), **🌟 Tonight's MVP** (`MvpPicker.tsx`, §2.13, optional) and **🏁 Tonight's
-     results** (`ResultsPanel.tsx`) to file the night.
+     results** (`ResultsPanel.tsx`) to file the night. Starting also publishes the fixture to the
+     whole group (§2.15); ending it takes it back down.
      **← Back to teams** returns to the editable board above without losing anything, in case the
      teams need another look; **⏹️ End fixture** wipes the night and starts over, the same action
      as the board's 🆕 New Fixture.
-3. **History** (`src/components/History.tsx`) — a **📊 Monthly recap** picker + share button
-   (§2.11), past nights (expandable to the team sheets and each team's wins), a standings table of
-   nights / wins / MVPs (§2.13) / wins-per-night where a shootout counts as half, and, in admin
-   mode, the **⚖️ Balancer trust** scatter (§2.12) and rating suggestions with Apply/Dismiss. Empty
-   until the first night is saved.
-4. **Live room guest view** (`src/components/RoomGuest.tsx`) — what a shared room link opens
+3. **History** (`src/components/History.tsx`) — open to everyone: past nights (expandable to the
+   team sheets and each team's wins) and a standings table of nights / wins / fixture wins /
+   wins-per-night (a shootout counts as half) / MVPs (§2.13), with achievement badges beside each
+   name and a key beneath (§2.16). Admin mode adds the **📊 Monthly recap** picker + share button
+   (§2.11), the **vs rating** column, the **⚖️ Balancer trust** scatter (§2.12), rating suggestions
+   with Apply/Dismiss, and ✏️/🗑️ on a past night. Empty until the first night is saved.
+4. **🔴 Live** (`src/components/LiveFixtureView.tsx`) — only present while a fixture is on: tonight's
+   three teams (read-only, no ratings) and the shared match clock, which **anyone** can start and
+   pause. See §2.15.
+5. **Live room guest view** (`src/components/RoomGuest.tsx`) — what a shared room link opens
    instead of the app above; see §2.5.
 
 There is no settings screen — one in-progress session is kept and resets via "New fixture", while
@@ -755,8 +981,24 @@ saved nights accumulate in the History tab (§2.6).
   `roster:snapshot:<version>` for 90 days, so recovery is a `wrangler kv key get` rather than
   reconstructing a season from screenshots. Concurrent editors were never the risk at this scale;
   a device publishing from a copy it never pulled was.
+- **The live fixture (optional)**: `src/live.ts` + `GET`/`POST /live` on the same Worker, under a
+  `live` key alongside `roster` and `history` — see §2.15 for the design and why it's polled rather
+  than pushed. Unlike the other two this one is *transient*: no version guard and no snapshot
+  (there is nothing here worth recovering an hour later), a 12-hour KV TTL, and `POST` with a null
+  fixture deletes the key rather than storing an empty one, so "is anything live" stays a question
+  about existence. `isValidLive` in the Worker checks the clock's shape as strictly as the rest —
+  a non-numeric `endsAt` would render as `NaN` on fifteen phones at once. `POST /live/clock` is the
+  one route in this Worker with no password on it; see §2.15 for the reasoning and the limits that
+  make it safe.
+- **Match-clock notifications (optional)**: `src/push.ts` + `worker/push.js` +
+  `worker/clock-notifier.js`, a `ClockNotifier` Durable Object holding the subscriptions and one
+  alarm — see §2.17. `public/sw.js` is the only service worker in the project and deliberately does
+  nothing but receive pushes: no caching, no `fetch` handler, because an offline layer here would be
+  a fresh source of "why am I looking at last week's roster". Enabled by setting the `VAPID_JWK`
+  secret and nothing else; absent entirely without it.
 - **Live match-day rooms (optional)**: see §2.5 — same Worker, a `MatchRoom` Durable Object per
-  room. Free-tier limits (100k requests/day, 13,000 GB-s/day of active WebSocket duration, 5GB
+  room. Distinct from the live *fixture* above: rooms are an invite-only drag-and-drop surface for
+  picking teams, the live fixture is a public read-only view of a night already underway. Free-tier limits (100k requests/day, 13,000 GB-s/day of active WebSocket duration, 5GB
   storage) are far beyond what a handful of people for a couple of hours a week would ever use —
   see [Cloudflare's Durable Objects pricing](https://developers.cloudflare.com/durable-objects/platform/pricing/).
   `ROOMS_ENABLED` in `liveRoom.ts` mirrors `REMOTE_URL`'s empty-string-to-disable convention.

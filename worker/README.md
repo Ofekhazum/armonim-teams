@@ -76,6 +76,27 @@ cd worker
 npx wrangler secret put PUBLISH_SECRET
 ```
 
+## Match-clock notifications (optional)
+
+Buzzes anyone who opts in at one minute left and at the whistle, even with the phone locked. One
+secret turns it on:
+
+```sh
+node ../worker/generate-vapid-keys.mjs     # prints a private JWK
+cd worker
+npx wrangler secret put VAPID_JWK          # paste the JSON it printed
+npx wrangler secret put VAPID_SUBJECT      # e.g. mailto:you@example.com
+npx wrangler deploy
+```
+
+Without `VAPID_JWK` the feature is simply absent — no toggle in the app, nothing sent. Losing the
+key is survivable: generate a new pair, and every device re-subscribes the next time someone turns
+alerts on.
+
+**Tell iPhone users to add the site to their Home Screen** (Share → Add to Home Screen, then open it
+from there). Apple only allows web notifications for installed web apps — until they do, the app
+shows them that instruction instead of a toggle. Android and desktop need no install step.
+
 ## Working on it locally
 
 **Never point a dev run or a test at the deployed worker.** That URL is the
@@ -110,8 +131,19 @@ you publish over them, but deploying the worker first avoids the question.
 
 ## Notes
 
-- **Read** (`GET /roster`, `GET /history`) is public — anyone with the app can load
-  the roster and results.
+- **Read** (`GET /roster`, `GET /history`, `GET /live`) is public — anyone with the app can load
+  the roster, the results, and whatever fixture is being played right now.
+- **`/live` is the fixture in progress**, written when the organiser taps *Start fixture* and
+  deleted when they end it. One key, so exactly one night can ever be live. It expires on its own
+  after 12 hours in case a tab gets closed mid-match, and it carries names and shirts only — no
+  ratings — because everyone in the group reads it.
+- **`POST /live/clock` is the one route here with no password**, so that anyone at the pitch can
+  start and pause the match clock — at 8 minutes a match, waiting for the organiser to do it makes
+  the clock useless. It is deliberately narrow rather than authenticated: it replaces *only* the
+  clock on a fixture that is already live, so it can't create a fixture, can't end one, and can't
+  touch teams, players, the roster or the history. Rate-limited per IP and shape-checked like
+  everything else. The worst case is a wrong number on screen for a few minutes, undone by the next
+  press of *Next match*.
 - **The public roster read is not the whole roster.** `avoid` (the keep-apart
   list), `chemistry` and `aliases` are stripped from `GET /roster`, because that
   endpoint needs no password and this worker's URL ships inside the app's public
