@@ -45,7 +45,7 @@ export default function App() {
   // The fixture being played right now, polled from the Worker (§2.14). This
   // is how a player finds out there's a game on and what team they're on,
   // given Match day is hidden from them.
-  const liveFixture = useLiveFixture(true);
+  const { fixture: liveFixture, setClock: setLiveClock } = useLiveFixture(true);
   const offeredLive = useRef(false);
 
   // Land on the live fixture the first time we hear about one — on a match
@@ -313,7 +313,7 @@ export default function App() {
 
       {tab === 'live' ? (
         liveFixture ? (
-          <LiveFixtureView fixture={liveFixture} />
+          <LiveFixtureView fixture={liveFixture} onChangeClock={setLiveClock} />
         ) : (
           // the night ended while this tab was open — say so rather than
           // leaving the last frame of a finished match on screen
@@ -351,6 +351,8 @@ export default function App() {
           setAdminWord={setAdminWord}
           onSaveFixture={saveFixture}
           onShareLive={shareLive}
+          liveClock={liveFixture?.clock ?? null}
+          onShareClock={setLiveClock}
         />
       )}
     </div>

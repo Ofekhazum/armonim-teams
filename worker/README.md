@@ -116,6 +116,13 @@ you publish over them, but deploying the worker first avoids the question.
   deleted when they end it. One key, so exactly one night can ever be live. It expires on its own
   after 12 hours in case a tab gets closed mid-match, and it carries names and shirts only — no
   ratings — because everyone in the group reads it.
+- **`POST /live/clock` is the one route here with no password**, so that anyone at the pitch can
+  start and pause the match clock — at 8 minutes a match, waiting for the organiser to do it makes
+  the clock useless. It is deliberately narrow rather than authenticated: it replaces *only* the
+  clock on a fixture that is already live, so it can't create a fixture, can't end one, and can't
+  touch teams, players, the roster or the history. Rate-limited per IP and shape-checked like
+  everything else. The worst case is a wrong number on screen for a few minutes, undone by the next
+  press of *Next match*.
 - **The public roster read is not the whole roster.** `avoid` (the keep-apart
   list), `chemistry` and `aliases` are stripped from `GET /roster`, because that
   endpoint needs no password and this worker's URL ships inside the app's public

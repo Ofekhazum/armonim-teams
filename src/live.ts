@@ -14,8 +14,8 @@
 // an absolute `endsAt` rather than a countdown, a poll arriving late still
 // renders the right number — only the *transition* is late, never the time.
 
-import { useEffect, useState } from 'react';
-import type { LiveFixture } from './types';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import type { ClockState, LiveFixture } from './types';
 import { REMOTE_URL, type PublishResult } from './remote';
 
 export interface RemoteLive {
@@ -73,12 +73,44 @@ export async function publishLive(
   }
 }
 
+// Starting or pausing the clock, from any device at the pitch — no admin word
+// (see the /live/clock note in worker/roster-worker.js for why that's safe).
+export async function publishClock(clock: ClockState): Promise<PublishResult> {
+  if (!REMOTE_URL) return 'not-configured';
+  try {
+    const res = await fetch(`${REMOTE_URL}/live/clock`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ clock }),
+    });
+    if (res.status === 429) return 'rate-limited';
+    if (!res.ok) return 'error';
+    return 'ok';
+  } catch {
+    return 'error';
+  }
+}
+
+// How long a local clock press outranks whatever a poll brings back. A request
+// already in flight when someone hits Start carries the *previous* clock, and
+// landing it afterwards would snap the button back — the classic optimistic-
+// update race. Comfortably longer than a round trip, far shorter than a match.
+const LOCAL_CLOCK_GRACE_MS = 4000;
+
+export interface LiveState {
+  fixture: LiveFixture | null;
+  // Applies a clock press everywhere: on this screen immediately, and to
+  // everyone else's on their next poll.
+  setClock: (clock: ClockState) => void;
+}
+
 // Watches for a fixture starting, running and ending. Returns whatever the
 // last successful poll saw — a failed poll leaves the previous answer in place
 // rather than blanking the screen, since a dropped request mid-match is far
 // more likely than the night actually having ended.
-export function useLiveFixture(enabled: boolean): LiveFixture | null {
+export function useLiveFixture(enabled: boolean): LiveState {
   const [fixture, setFixture] = useState<LiveFixture | null>(null);
+  const pressedAt = useRef(0);
 
   useEffect(() => {
     if (!enabled || !REMOTE_URL) return;
@@ -99,7 +131,15 @@ export function useLiveFixture(enabled: boolean): LiveFixture | null {
         if (cancelled) return;
         if (remote) {
           live = remote.fixture !== null;
-          setFixture(remote.fixture);
+          setFixture((prev) => {
+            // keep a just-pressed clock, but take everything else the poll
+            // brought — teams can still change under us, and a fixture that
+            // has *ended* wins outright over any local press
+            if (prev && remote.fixture && Date.now() - pressedAt.current < LOCAL_CLOCK_GRACE_MS) {
+              return { ...remote.fixture, clock: prev.clock };
+            }
+            return remote.fixture;
+          });
         }
       }
       timer = setTimeout(poll, live ? POLL_LIVE_MS : POLL_IDLE_MS);
@@ -122,5 +162,13 @@ export function useLiveFixture(enabled: boolean): LiveFixture | null {
     };
   }, [enabled]);
 
-  return fixture;
+  const setClock = useCallback((clock: ClockState) => {
+    pressedAt.current = Date.now();
+    // shown on this device before the round trip — a timer that waits for the
+    // network to acknowledge a press is a timer nobody trusts
+    setFixture((prev) => (prev ? { ...prev, clock } : prev));
+    void publishClock(clock);
+  }, []);
+
+  return { fixture, setClock };
 }

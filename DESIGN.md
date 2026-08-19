@@ -604,7 +604,8 @@ What a normal user gets, and why:
 | History: nights, standings, fixture wins, MVPs, badges | ✓ | | the part worth sharing — see §2.15 |
 | History: "vs rating" column, rating suggestions, balancer trust | — | ✓ | opinions about players, not counts of what happened |
 | Monthly recap generator | — | ✓ | a produced thing the organiser sends out, not a button on everyone's screen |
-| Tonight's fixture: teams + clock | ✓ | | the one thing a player actually opens the app for |
+| Tonight's fixture: teams | ✓ | | the one thing a player actually opens the app for |
+| Starting / pausing the match clock | ✓ | | 8-minute matches; whoever is nearest the phone runs it (§2.15) |
 | Tonight's MVP, tonight's results | — | ✓ | the organiser's calls, recorded once |
 | Starting / ending a fixture | — | ✓ | exactly one night can be live at a time |
 
@@ -651,14 +652,33 @@ the first poll of a live fixture scheduled the *idle* rate, and the app dropped 
 minute exactly when a clock was running. Caught by driving two browsers rather than by a test, and
 the reason the comment in `live.ts` is as long as it is.
 
-**The clock** (§2.8) moved out of `MatchClock.tsx` into `Session.clock`, so the organiser's clock is
-the one everyone sees, and so a refresh mid-match doesn't reset it. What crosses the wire is
-`endsAt`, an absolute epoch ms — not a countdown — so a viewer whose poll lands ten seconds late
-still renders the correct time; only the *transition* is late, never the number. `MatchClock` takes
-`onChange` to mean "this device runs the clock": without it the controls aren't rendered, the wake
-lock isn't taken, and the beeps don't fire — one phone beeping at the one-minute mark is a cue,
-fifteen is a mess. Publishing happens on start/pause/next-match, a handful a match rather than one a
-tick.
+**The clock** (§2.8) moved out of `MatchClock.tsx` into shared state, so there is exactly one clock
+per night and everybody is looking at it — the organiser included, whose fixture page reads
+`liveClock` rather than keeping a private copy. What crosses the wire is `endsAt`, an absolute epoch
+ms, not a countdown, so a device whose poll lands ten seconds late still renders the correct time;
+only the *transition* is late, never the number. `Session.clock` survives as a local fallback for a
+refresh while offline. Publishing happens on start/pause/next-match — a handful a match, not one a
+tick, since the seconds in between are counted down locally by each device.
+
+**Anyone can run it**, which is the one place this app accepts an unauthenticated write. At 8
+minutes a match, whoever is nearest the phone has to be able to start it; routing that through the
+organiser makes the clock useless. `POST /live/clock` therefore takes no secret, and is kept safe by
+being *narrow* instead: it replaces only the `clock` field of a fixture that is **already live**, so
+it cannot create a fixture, cannot end one, and cannot touch teams, players, ratings, the roster or
+the history — the handler copies the validated clock onto the stored record and ignores everything
+else in the body. Rate-limited per IP on its own counter, and shape-checked as strictly as any
+authenticated write, because a non-numeric `endsAt` would render as `NaN` on fifteen phones at once.
+The worst a stranger who read the Worker URL out of the public bundle can do is show a wrong number
+for a few minutes, which the next press of Reset undoes.
+
+Two consequences of shared control worth naming. A press is applied **optimistically** and outranks
+incoming polls for `LOCAL_CLOCK_GRACE_MS` — a request already in flight when someone hits Start
+carries the *previous* clock, and letting it land afterwards would snap the button back. And
+`MatchClock` tracks whether anyone on *this* device has pressed anything: the beeps, the wake lock
+and the writing-down of "the match ended" all follow that, not merely having the controls. One phone
+beeping at the one-minute mark is a cue, fifteen is a mess — and pressing a button is also the
+gesture iOS requires before it will play audio at all, so the opt-in and the platform requirement
+turn out to be the same event.
 
 ### 2.16 Achievement badges (`src/achievements.ts`)
 
@@ -772,7 +792,8 @@ Which tabs exist depends on whether admin is unlocked (§2.14): a normal user ge
    (§2.11), the **vs rating** column, the **⚖️ Balancer trust** scatter (§2.12), rating suggestions
    with Apply/Dismiss, and ✏️/🗑️ on a past night. Empty until the first night is saved.
 4. **🔴 Live** (`src/components/LiveFixtureView.tsx`) — only present while a fixture is on: tonight's
-   three teams and the match clock, read-only, no ratings. See §2.15.
+   three teams (read-only, no ratings) and the shared match clock, which **anyone** can start and
+   pause. See §2.15.
 5. **Live room guest view** (`src/components/RoomGuest.tsx`) — what a shared room link opens
    instead of the app above; see §2.5.
 
@@ -860,7 +881,9 @@ saved nights accumulate in the History tab (§2.6).
   (there is nothing here worth recovering an hour later), a 12-hour KV TTL, and `POST` with a null
   fixture deletes the key rather than storing an empty one, so "is anything live" stays a question
   about existence. `isValidLive` in the Worker checks the clock's shape as strictly as the rest —
-  a non-numeric `endsAt` would render as `NaN` on fifteen phones at once.
+  a non-numeric `endsAt` would render as `NaN` on fifteen phones at once. `POST /live/clock` is the
+  one route in this Worker with no password on it; see §2.15 for the reasoning and the limits that
+  make it safe.
 - **Live match-day rooms (optional)**: see §2.5 — same Worker, a `MatchRoom` Durable Object per
   room. Distinct from the live *fixture* above: rooms are an invite-only drag-and-drop surface for
   picking teams, the live fixture is a public read-only view of a night already underway. Free-tier limits (100k requests/day, 13,000 GB-s/day of active WebSocket duration, 5GB

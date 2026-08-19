@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  isValidClock,
   isValidFixtures,
   isValidLive,
   isValidPlayers,
@@ -197,6 +198,56 @@ describe('isValidLive', () => {
 
   it('rejects a missing kickoff time', () => {
     expect(isValidLive(live({ startedAt: 'tonight' }))).toBe(false);
+  });
+});
+
+// POST /live/clock is the one unauthenticated write in the Worker, so what it
+// accepts is the whole of its attack surface.
+describe('isValidClock', () => {
+  const clock = (over = {}) => ({
+    period: 'regulation',
+    endsAt: null,
+    remaining: 480000,
+    ended: false,
+    ...over,
+  });
+
+  it('accepts a stopped clock and a running one', () => {
+    expect(isValidClock(clock())).toBe(true);
+    expect(isValidClock(clock({ endsAt: 1787156500000, remaining: 0 }))).toBe(true);
+  });
+
+  it('accepts added time, the only other period the rules have', () => {
+    expect(isValidClock(clock({ period: 'added', remaining: 120000 }))).toBe(true);
+  });
+
+  it('rejects an invented period', () => {
+    expect(isValidClock(clock({ period: 'extra-time' }))).toBe(false);
+    expect(isValidClock(clock({ period: null }))).toBe(false);
+  });
+
+  it('rejects an endsAt that would render as NaN on every phone at once', () => {
+    expect(isValidClock(clock({ endsAt: 'soon' }))).toBe(false);
+    expect(isValidClock(clock({ endsAt: NaN }))).toBe(false);
+    expect(isValidClock(clock({ remaining: 'lots' }))).toBe(false);
+  });
+
+  it('rejects a missing ended flag rather than assuming false', () => {
+    const { ended, ...rest } = clock();
+    expect(isValidClock(rest)).toBe(false);
+    expect(isValidClock(clock({ ended: 'yes' }))).toBe(false);
+  });
+
+  it('rejects non-objects', () => {
+    expect(isValidClock(null)).toBe(false);
+    expect(isValidClock('regulation')).toBe(false);
+    expect(isValidClock([])).toBe(false);
+  });
+
+  it('ignores extra keys rather than letting them through as a payload', () => {
+    // a hostile POST can't smuggle teams or a secret in alongside the clock —
+    // the handler only ever copies the validated clock onto the stored fixture
+    expect(isValidClock(clock({ teams: { black: ['x'] }, secret: 'guess' }))).toBe(true);
   });
 });
 

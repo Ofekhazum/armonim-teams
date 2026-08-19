@@ -1,10 +1,11 @@
-import type { LiveFixture } from '../types';
+import type { ClockState, LiveFixture } from '../types';
 import { TEAM_COLORS } from '../balancer';
 import { Name, TEAM_META } from './ui';
 import MatchClock from './MatchClock';
 
 interface Props {
   fixture: LiveFixture;
+  onChangeClock: (clock: ClockState) => void;
 }
 
 const agoLabel = (startedAt: number): string => {
@@ -15,16 +16,19 @@ const agoLabel = (startedAt: number): string => {
   return `${hours}h ${mins % 60}m ago`;
 };
 
-// What the rest of the group sees while a fixture is on (§2.14). Read-only by
-// construction, not by hiding buttons: the payload behind it (LivePlayer) has
-// no ratings in it to leak and no result to edit, so there is nothing on this
-// screen that an organiser's screen would have shown differently.
+// What the rest of the group sees while a fixture is on (§2.15). The teams
+// half is read-only by construction rather than by hiding buttons: the payload
+// behind it (LivePlayer) has no ratings in it to leak and no result to edit,
+// so there is nothing here an organiser's screen would have shown differently.
+//
+// The clock is the exception, and deliberately so — it's shared, and anyone
+// can run it.
 //
 // Deliberately not the teams board. That one is a work surface — drag targets,
 // rating averages, keep-apart warnings — and this is the answer to one
 // question a player has while walking to the pitch: which shirt am I in, and
 // how long is left.
-export default function LiveFixtureView({ fixture }: Props) {
+export default function LiveFixtureView({ fixture, onChangeClock }: Props) {
   const byId = new Map(fixture.players.map((p) => [p.id, p]));
   const gkSet = new Set(fixture.gkIds);
 
@@ -83,7 +87,7 @@ export default function LiveFixtureView({ fixture }: Props) {
         })}
       </div>
 
-      <MatchClock state={fixture.clock} />
+      <MatchClock state={fixture.clock} onChange={onChangeClock} />
     </div>
   );
 }

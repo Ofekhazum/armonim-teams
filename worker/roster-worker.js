@@ -8,6 +8,7 @@
 //   POST /history      → publish the fixture list; requires the secret word
 //   GET  /live         → public read of the fixture being played right now
 //   POST /live         → start/update/end it; requires the secret word
+//   POST /live/clock   → start/pause the match clock; NO password, see below
 //   POST /verify       → check the secret word (used to unlock admin mode)
 //   GET  /room/:id     → WebSocket upgrade into a live team-picking room
 //
@@ -75,6 +76,12 @@ const PUBLISH_WINDOW_MS = 10 * 60 * 1000;
 // needs (fifteen people, plus reconnects, often behind one NAT).
 const ROOM_LIMIT = 120;
 const ROOM_WINDOW_MS = 10 * 60 * 1000;
+
+// Clock presses, which anyone at the pitch can make (see /live/clock). A match
+// is start, maybe a pause, then next-match — call it a handful each, times
+// however many people are prodding it, on one pitch behind one NAT.
+const CLOCK_LIMIT = 200;
+const CLOCK_WINDOW_MS = 10 * 60 * 1000;
 
 // How long the copy displaced by a publish is kept around. Long enough that a
 // bad write discovered weeks later is still recoverable.
@@ -145,6 +152,15 @@ export function isValidPlayers(players) {
 // nothing here worth recovering an hour later. It does carry a TTL, because
 // the failure mode is an organiser closing the tab mid-night and leaving a
 // fixture that looks live forever.
+export function isValidClock(clock) {
+  if (!clock || typeof clock !== 'object') return false;
+  if (clock.period !== 'regulation' && clock.period !== 'added') return false;
+  if (clock.endsAt !== null && !Number.isFinite(clock.endsAt)) return false;
+  if (!Number.isFinite(clock.remaining)) return false;
+  if (typeof clock.ended !== 'boolean') return false;
+  return true;
+}
+
 export function isValidLive(live) {
   if (live === null) return true; // clearing it
   if (!live || typeof live !== 'object') return false;
@@ -161,12 +177,7 @@ export function isValidLive(live) {
   if (!live.teams || typeof live.teams !== 'object') return false;
   if (!TEAM_COLORS.every((c) => isIdList(live.teams[c], MAX_FIXTURE_PLAYERS))) return false;
   if (!isIdList(live.gkIds, MAX_FIXTURE_PLAYERS)) return false;
-  const clock = live.clock;
-  if (!clock || typeof clock !== 'object') return false;
-  if (clock.period !== 'regulation' && clock.period !== 'added') return false;
-  if (clock.endsAt !== null && !Number.isFinite(clock.endsAt)) return false;
-  if (!Number.isFinite(clock.remaining)) return false;
-  if (typeof clock.ended !== 'boolean') return false;
+  if (!isValidClock(live.clock)) return false;
   return true;
 }
 
@@ -320,6 +331,46 @@ export default {
     if (url.pathname === '/live' && request.method === 'GET') {
       const current = await readRecord(env, 'live');
       return json(current ? current.value : { version: 0, fixture: null });
+    }
+
+    // --- The one write in this Worker with no password on it ----------------
+    // Anyone at the pitch can start and pause the match clock, because at
+    // 8 minutes a match whoever is nearest the phone has to be able to, and
+    // routing that through the organiser makes the clock useless.
+    //
+    // Kept safe by being *narrow* rather than by being authenticated. It can
+    // only replace the `clock` field of a fixture that is already live: it
+    // cannot create one, cannot end one, and cannot touch teams, players,
+    // ratings, the roster or the history. The worst a stranger who read the
+    // Worker URL out of the public bundle can do is show a wrong number for a
+    // few minutes, which the next press of Reset undoes. Rate-limited per IP
+    // like the room upgrades, and shape-checked as strictly as everything else
+    // — a non-numeric endsAt would render as NaN on fifteen phones at once.
+    if (url.pathname === '/live/clock' && request.method === 'POST') {
+      const gate = await countAttempt(limiterFor(env, `clock:${ip}`), CLOCK_LIMIT, CLOCK_WINDOW_MS);
+      if (gate.blocked) {
+        return json({ error: 'too many attempts' }, 429, {
+          'Retry-After': String(gate.retryAfter),
+        });
+      }
+      const parsed = await readBody(request);
+      if (parsed.tooBig) return json({ error: 'too large' }, 413);
+      if (parsed.bad || !parsed.body || typeof parsed.body !== 'object') {
+        return json({ error: 'bad json' }, 400);
+      }
+      if (!isValidClock(parsed.body.clock)) return json({ error: 'bad clock' }, 400);
+
+      const current = await readRecord(env, 'live');
+      // no fixture on → nothing to run a clock for. Notably this is what stops
+      // this endpoint being a way to conjure one.
+      if (!current?.value?.fixture) return json({ error: 'no live fixture' }, 404);
+
+      const payload = {
+        version: Date.now(),
+        fixture: { ...current.value.fixture, clock: parsed.body.clock },
+      };
+      await env.ROSTER_KV.put('live', JSON.stringify(payload), { expirationTtl: LIVE_TTL_S });
+      return json({ ok: true, version: payload.version });
     }
 
     // everything below is a POST guarded by the secret word

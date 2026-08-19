@@ -39,6 +39,13 @@ interface Props {
   // transitions worth interrupting the organiser about if they fail — starting
   // and ending — as against a clock update, which can quietly miss a beat.
   onShareLive: (fixture: LiveFixture | null, critical?: boolean) => void;
+  // The shared clock, and the way to press it. While a fixture is live this is
+  // the *same* clock everyone at the pitch is looking at — the organiser has no
+  // private one — so the fixture page reads it from here rather than from the
+  // session (§2.15). Null when nothing is live, or when the publish failed and
+  // this device is on its own.
+  liveClock: ClockState | null;
+  onShareClock: (clock: ClockState) => void;
 }
 
 const MIN_PLAYERS = 13;
@@ -53,6 +60,8 @@ export default function MatchDay({
   setAdminWord,
   onSaveFixture,
   onShareLive,
+  liveClock,
+  onShareClock,
 }: Props) {
   const { unlockAdmin, unlocking } = useAdminUnlock(setAdminWord);
   const [step, setStep] = useState<'players' | 'gk'>('players');
@@ -285,12 +294,12 @@ export default function MatchDay({
 
   // Every start/pause/next-match is one publish — a handful a match, not one a
   // tick. The clock travels as an absolute end time, so the seconds in between
-  // are counted down by each watching device rather than sent to it.
+  // are counted down by each device rather than sent to it. The session copy is
+  // kept in step purely so a refresh while offline still has a sane clock to
+  // fall back on; the live record is what anyone actually reads.
   const changeClock = (clock: ClockState) => {
     setSession({ ...session, clock });
-    if (session.teams && session.liveStartedAt !== null) {
-      onShareLive(buildLive(session.teams, clock, session.liveStartedAt));
-    }
+    onShareClock(clock);
   };
 
   // Wipes the night and starts over from availability. Shared by the teams
@@ -417,7 +426,7 @@ export default function MatchDay({
         gkIds={effectiveGkIds}
         wins={session.wins}
         onChangeWins={(wins) => setSession({ ...session, wins })}
-        clock={session.clock}
+        clock={liveClock ?? session.clock}
         onChangeClock={changeClock}
         mvpId={session.mvpId}
         onChangeMvp={(mvpId) => setSession({ ...session, mvpId })}

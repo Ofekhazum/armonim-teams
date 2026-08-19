@@ -89,15 +89,16 @@ function useWakeLock(active: boolean) {
 
 interface Props {
   state: ClockState;
-  // Absent means read-only: this device is *watching* the clock rather than
-  // running it (§2.14). The controls disappear and nothing is published.
+  // Absent means read-only — only used where there is nowhere to publish to.
+  // Normally every device gets this: at 8 minutes a match, whoever is nearest
+  // the phone has to be able to start it (§2.15).
   onChange?: (next: ClockState) => void;
 }
 
-// State lives outside the component so the organiser's clock can be published
-// to everyone watching. What travels is `endsAt`, an absolute epoch ms, not a
-// countdown — so a viewer whose poll lands ten seconds late still shows the
-// correct time. Only the transition is late; the number never is.
+// State lives outside the component so one clock is shared by everyone at the
+// pitch. What travels is `endsAt`, an absolute epoch ms, not a countdown — so
+// a device whose poll lands ten seconds late still shows the correct time.
+// Only the transition is late; the number never is.
 export default function MatchClock({ state, onChange }: Props) {
   const controllable = onChange !== undefined;
   const { period, endsAt, ended } = state;
@@ -105,14 +106,20 @@ export default function MatchClock({ state, onChange }: Props) {
   // derived from `endsAt` rather than accumulated, so a throttled background
   // tab can't drift
   const [, setTick] = useState(0);
+  // Has anyone on *this* device touched the clock? Everyone can control it,
+  // but that mustn't mean fifteen phones all beep at the one-minute mark and
+  // all refuse to sleep for an hour. Pressing a button is the opt-in — which
+  // also happens to be the gesture iOS requires before it will play audio at
+  // all, so the two line up exactly.
+  const [engaged, setEngaged] = useState(false);
   const shoutedRef = useRef(false);
   const { unlock, beep } = useBeeper();
 
   const remaining = endsAt !== null ? Math.max(0, endsAt - Date.now()) : state.remaining;
-  // a viewer reaches zero on their own clock rather than waiting to be told
+  // every device reaches zero on its own clock rather than waiting to be told
   const finished = ended || (endsAt !== null && remaining <= 0);
   const running = endsAt !== null && !finished;
-  useWakeLock(running && controllable);
+  useWakeLock(running && engaged);
 
   useEffect(() => {
     if (endsAt === null) return;
@@ -120,10 +127,12 @@ export default function MatchClock({ state, onChange }: Props) {
     return () => clearInterval(t);
   }, [endsAt]);
 
-  // Whoever runs the clock is the one who writes down that it ended, and the
-  // one whose phone beeps. A viewer just watches the number reach 0:00.
+  // Only a device someone has actually used beeps, and only that device writes
+  // down that the match ended — otherwise every phone in the squad posts the
+  // same transition within a second of each other. Everyone still *sees* the
+  // clock hit 0:00, because `finished` above is derived locally from `endsAt`.
   useEffect(() => {
-    if (!controllable || endsAt === null) return;
+    if (!controllable || !engaged || endsAt === null) return;
     const left = endsAt - Date.now();
     if (period === 'regulation' && !shoutedRef.current && left <= SHOUT_AT_MS && left > 0) {
       shoutedRef.current = true;
@@ -135,15 +144,20 @@ export default function MatchClock({ state, onChange }: Props) {
     }
   });
 
+  const press = (next: ClockState) => {
+    setEngaged(true);
+    onChange?.(next);
+  };
+
   const start = () => {
     unlock();
-    onChange?.({ ...state, endsAt: Date.now() + remaining });
+    press({ ...state, endsAt: Date.now() + remaining });
   };
   const pause = () =>
-    onChange?.({ ...state, remaining: Math.max(0, (endsAt ?? 0) - Date.now()), endsAt: null });
+    press({ ...state, remaining: Math.max(0, (endsAt ?? 0) - Date.now()), endsAt: null });
   const toPeriod = (p: ClockPeriod) => {
     shoutedRef.current = false;
-    onChange?.({ period: p, endsAt: null, remaining: fullLength(p), ended: false });
+    press({ period: p, endsAt: null, remaining: fullLength(p), ended: false });
   };
 
   const shouting = period === 'regulation' && running && remaining <= SHOUT_AT_MS;
@@ -213,7 +227,7 @@ export default function MatchClock({ state, onChange }: Props) {
           </span>
         )}
 
-        {!controllable && running && (
+        {running && (
           <span className="flex items-center gap-1.5 text-xs font-bold text-red-700">
             <span className="relative flex h-2 w-2">
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-75" />
@@ -225,16 +239,13 @@ export default function MatchClock({ state, onChange }: Props) {
       </div>
 
       <p className="mt-2 text-xs text-amber-900/60">
-        {controllable ? (
+        8 minutes, or a two-goal lead (2:0, 3:1). Level at full time → 2 minutes golden goal, then
+        penalties. The clock doesn't know the score, so end a match early with <b>Next match</b>.
+        {controllable && (
           <>
-            8 minutes, or a two-goal lead (2:0, 3:1). Level at full time → 2 minutes golden goal,
-            then penalties. The clock doesn't know the score, so end a match early with{' '}
-            <b>Next match</b>.
-          </>
-        ) : (
-          <>
-            8 minutes a match, or a two-goal lead. The organiser runs the clock — this follows
-            along.
+            {' '}
+            Everyone at the pitch shares this clock — whoever is nearest the phone can start it, and
+            it shows the same time on everyone else's within a few seconds.
           </>
         )}
       </p>
