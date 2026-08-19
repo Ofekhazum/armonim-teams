@@ -163,7 +163,7 @@ function drawLeaderboard(
   ctx.direction = 'ltr';
   ctx.textAlign = 'left';
   ctx.font = font(26, '800');
-  ctx.fillStyle = 'rgba(0,0,0,0.32)';
+  ctx.fillStyle = 'rgba(0,0,0,0.6)';
   ctx.fillText(board.title, PAD + 24, y + 38);
 
   board.entries.forEach((entry, i) => {
@@ -250,7 +250,7 @@ function drawAttendanceCard(
   ctx.direction = 'ltr';
   ctx.textAlign = 'left';
   ctx.font = font(26, '800');
-  ctx.fillStyle = 'rgba(0,0,0,0.32)';
+  ctx.fillStyle = 'rgba(0,0,0,0.6)';
   ctx.fillText(card.title, PAD + 24, y + 38);
 
   ctx.font = font(17, '700');
@@ -343,7 +343,7 @@ function drawDuoCard(
   ctx.direction = 'ltr';
   ctx.textAlign = 'left';
   ctx.font = font(30, '700');
-  ctx.fillStyle = 'rgba(0,0,0,0.25)';
+  ctx.fillStyle = 'rgba(0,0,0,0.5)';
   ctx.fillText(label, PAD + 24, y + 42);
 
   ctx.direction = 'rtl';
@@ -506,7 +506,7 @@ export function renderWrappedImage(stats: WrappedStats): HTMLCanvasElement {
     ctx.direction = 'ltr';
     ctx.textAlign = 'left';
     ctx.font = font(22, '800');
-    ctx.fillStyle = 'rgba(253,250,243,0.55)';
+    ctx.fillStyle = 'rgba(253,250,243,0.8)';
     ctx.fillText('😬 ALSO HAPPENED', PAD, y + 26);
     y += SECTION_LABEL_H;
 
