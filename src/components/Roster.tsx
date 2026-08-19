@@ -458,12 +458,18 @@ export default function Roster({
                 Exit
               </button>
             )}
-            <button
-              onClick={startAdd}
-              className="rounded-lg bg-orange-600 px-4 py-2 text-sm font-bold text-amber-50 shadow-sm transition-transform hover:scale-105"
-            >
-              + Add player
-            </button>
+            {/* Adding, editing and removing players are all the same act —
+                deciding who is in this club — and that is the organiser's,
+                so the whole set sits behind admin (§2.14). Everyone else gets
+                the roster as a list to read. */}
+            {isAdmin && (
+              <button
+                onClick={startAdd}
+                className="rounded-lg bg-orange-600 px-4 py-2 text-sm font-bold text-amber-50 shadow-sm transition-transform hover:scale-105"
+              >
+                + Add player
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -526,18 +532,22 @@ export default function Roster({
                     )}
                   </div>
                 </div>
-                <button
-                  onClick={() => startEdit(p)}
-                  className="rounded-lg border border-amber-900/25 px-2.5 py-1 text-xs font-semibold text-amber-900 hover:border-orange-500"
-                >
-                  Edit
-                </button>
-                <button
-                  onClick={() => remove(p)}
-                  className="rounded-lg border border-amber-900/25 px-2.5 py-1 text-xs font-semibold text-red-600 hover:border-red-500"
-                >
-                  ✕
-                </button>
+                {isAdmin && (
+                  <>
+                    <button
+                      onClick={() => startEdit(p)}
+                      className="rounded-lg border border-amber-900/25 px-2.5 py-1 text-xs font-semibold text-amber-900 hover:border-orange-500"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => remove(p)}
+                      className="rounded-lg border border-amber-900/25 px-2.5 py-1 text-xs font-semibold text-red-600 hover:border-red-500"
+                    >
+                      ✕
+                    </button>
+                  </>
+                )}
               </li>
             ),
           )}

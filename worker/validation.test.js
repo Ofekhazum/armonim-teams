@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   isValidFixtures,
+  isValidLive,
   isValidPlayers,
   publicPlayer,
   safeEqual,
@@ -127,6 +128,75 @@ describe('isValidFixtures', () => {
 
   it('accepts an empty history — that is how the season is cleared', () => {
     expect(isValidFixtures([])).toBe(true);
+  });
+});
+
+describe('isValidLive', () => {
+  const live = (over = {}) => ({
+    id: 'live-1787156380422',
+    startedAt: 1787156380422,
+    players: [
+      { id: 'p1', name: 'אופק', isGk: true },
+      { id: 'p2', name: 'ירין', isGuest: true },
+    ],
+    teams: { black: ['p1'], white: ['p2'], blue: [] },
+    gkIds: ['p1'],
+    clock: { period: 'regulation', endsAt: null, remaining: 480000, ended: false },
+    ...over,
+  });
+
+  it('accepts a fixture that has just kicked off', () => {
+    expect(isValidLive(live())).toBe(true);
+  });
+
+  it('accepts a running clock, where endsAt is an absolute time', () => {
+    expect(
+      isValidLive(live({ clock: { period: 'added', endsAt: 1787156500000, remaining: 0, ended: false } })),
+    ).toBe(true);
+  });
+
+  it('accepts null — that is how the night is ended', () => {
+    expect(isValidLive(null)).toBe(true);
+  });
+
+  it('rejects a clock period that is not one of the two the rules have', () => {
+    expect(
+      isValidLive(live({ clock: { period: 'extra-time', endsAt: null, remaining: 0, ended: false } })),
+    ).toBe(false);
+  });
+
+  it('rejects a clock missing its ended flag, rather than treating it as false', () => {
+    expect(isValidLive(live({ clock: { period: 'regulation', endsAt: null, remaining: 0 } }))).toBe(
+      false,
+    );
+  });
+
+  it('rejects a non-numeric endsAt, which would render as NaN on every phone', () => {
+    expect(
+      isValidLive(live({ clock: { period: 'regulation', endsAt: 'soon', remaining: 0, ended: false } })),
+    ).toBe(false);
+  });
+
+  it('rejects team entries that are not player ids', () => {
+    expect(isValidLive(live({ teams: { black: [{ id: 'p1' }], white: [], blue: [] } }))).toBe(false);
+  });
+
+  it('rejects a missing team colour', () => {
+    expect(isValidLive(live({ teams: { black: ['p1'], white: ['p2'] } }))).toBe(false);
+  });
+
+  it('rejects a player with no usable name', () => {
+    expect(isValidLive(live({ players: [{ id: 'p1', name: '' }] }))).toBe(false);
+    expect(isValidLive(live({ players: [{ id: 'p1', name: { first: 'x' } }] }))).toBe(false);
+  });
+
+  it('rejects a squad larger than any fixture', () => {
+    const players = Array.from({ length: 61 }, (_, i) => ({ id: `p${i}`, name: `n${i}` }));
+    expect(isValidLive(live({ players }))).toBe(false);
+  });
+
+  it('rejects a missing kickoff time', () => {
+    expect(isValidLive(live({ startedAt: 'tonight' }))).toBe(false);
   });
 });
 

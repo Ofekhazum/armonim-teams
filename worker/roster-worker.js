@@ -6,6 +6,8 @@
 //   POST /roster/full  → read the roster *including* private fields; same word
 //   GET  /history      → public read of recorded fixtures (nights + win tallies)
 //   POST /history      → publish the fixture list; requires the secret word
+//   GET  /live         → public read of the fixture being played right now
+//   POST /live         → start/update/end it; requires the secret word
 //   POST /verify       → check the secret word (used to unlock admin mode)
 //   GET  /room/:id     → WebSocket upgrade into a live team-picking room
 //
@@ -78,6 +80,11 @@ const ROOM_WINDOW_MS = 10 * 60 * 1000;
 // bad write discovered weeks later is still recoverable.
 const SNAPSHOT_TTL_S = 90 * 24 * 60 * 60;
 
+// A live fixture is one evening. Same reasoning as the live rooms' 12-hour
+// idle expiry: a night nobody remembered to end shouldn't read as in progress
+// the next morning.
+const LIVE_TTL_S = 12 * 60 * 60;
+
 const ROOM_PATH = /^\/room\/([A-Za-z0-9_-]{1,64})$/;
 
 // --- The privacy line ------------------------------------------------------
@@ -130,6 +137,37 @@ export function isValidPlayers(players) {
     }
     return true;
   });
+}
+
+// The fixture currently being played (§2.14). Unlike the roster and the
+// history this is *transient* — one key, overwritten while a night is on and
+// deleted when it ends — so there's no version guard and no snapshot: there is
+// nothing here worth recovering an hour later. It does carry a TTL, because
+// the failure mode is an organiser closing the tab mid-night and leaving a
+// fixture that looks live forever.
+export function isValidLive(live) {
+  if (live === null) return true; // clearing it
+  if (!live || typeof live !== 'object') return false;
+  if (!isStr(live.id, MAX_ID_CHARS)) return false;
+  if (!Number.isFinite(live.startedAt)) return false;
+  if (!Array.isArray(live.players) || live.players.length > MAX_FIXTURE_PLAYERS) return false;
+  if (
+    !live.players.every(
+      (p) => p && typeof p === 'object' && isStr(p.id, MAX_ID_CHARS) && isStr(p.name, MAX_NAME_CHARS),
+    )
+  ) {
+    return false;
+  }
+  if (!live.teams || typeof live.teams !== 'object') return false;
+  if (!TEAM_COLORS.every((c) => isIdList(live.teams[c], MAX_FIXTURE_PLAYERS))) return false;
+  if (!isIdList(live.gkIds, MAX_FIXTURE_PLAYERS)) return false;
+  const clock = live.clock;
+  if (!clock || typeof clock !== 'object') return false;
+  if (clock.period !== 'regulation' && clock.period !== 'added') return false;
+  if (clock.endsAt !== null && !Number.isFinite(clock.endsAt)) return false;
+  if (!Number.isFinite(clock.remaining)) return false;
+  if (typeof clock.ended !== 'boolean') return false;
+  return true;
 }
 
 export function isValidFixtures(fixtures) {
@@ -277,8 +315,15 @@ export default {
       return json(current ? current.value : { version: 0, fixtures: null });
     }
 
+    // public read of the fixture being played right now, if any — this is the
+    // one everyone in the group polls on a match night
+    if (url.pathname === '/live' && request.method === 'GET') {
+      const current = await readRecord(env, 'live');
+      return json(current ? current.value : { version: 0, fixture: null });
+    }
+
     // everything below is a POST guarded by the secret word
-    const guarded = ['/roster', '/roster/full', '/history', '/verify'];
+    const guarded = ['/roster', '/roster/full', '/history', '/live', '/verify'];
     if (guarded.includes(url.pathname) && request.method === 'POST') {
       // checked before we do any other work, so a flood costs us as little as
       // possible. Counts the attempt in the same call that decides on it —
@@ -316,6 +361,27 @@ export default {
       if (url.pathname === '/roster/full') {
         const current = await readRecord(env, 'roster');
         return json(current ? current.value : { version: 0, players: null });
+      }
+
+      // start / update / end the fixture everyone is watching. Last write
+      // wins by design — there is exactly one organiser running one night,
+      // and a stale-version rejection mid-match would be the wrong answer.
+      if (url.pathname === '/live') {
+        const fixture = body.fixture ?? null;
+        if (!isValidLive(fixture)) {
+          return json({ error: 'bad live fixture' }, 400);
+        }
+        if (fixture === null) {
+          await env.ROSTER_KV.delete('live');
+          return json({ ok: true, version: Date.now() });
+        }
+        const payload = { version: Date.now(), fixture };
+        await env.ROSTER_KV.put('live', JSON.stringify(payload), {
+          // an organiser who closes the tab mid-night shouldn't leave a
+          // fixture that reads as live until someone notices
+          expirationTtl: LIVE_TTL_S,
+        });
+        return json({ ok: true, version: payload.version });
       }
 
       if (url.pathname === '/history') {

@@ -110,8 +110,12 @@ you publish over them, but deploying the worker first avoids the question.
 
 ## Notes
 
-- **Read** (`GET /roster`, `GET /history`) is public — anyone with the app can load
-  the roster and results.
+- **Read** (`GET /roster`, `GET /history`, `GET /live`) is public — anyone with the app can load
+  the roster, the results, and whatever fixture is being played right now.
+- **`/live` is the fixture in progress**, written when the organiser taps *Start fixture* and
+  deleted when they end it. One key, so exactly one night can ever be live. It expires on its own
+  after 12 hours in case a tab gets closed mid-match, and it carries names and shirts only — no
+  ratings — because everyone in the group reads it.
 - **The public roster read is not the whole roster.** `avoid` (the keep-apart
   list), `chemistry` and `aliases` are stripped from `GET /roster`, because that
   endpoint needs no password and this worker's URL ships inside the app's public

@@ -1,7 +1,9 @@
-import { useEffect, useState } from 'react';
-import type { AppState, FixtureRecord, Player, Session, TeamWins } from './types';
+import { useEffect, useRef, useState } from 'react';
+import type { AppState, FixtureRecord, LiveFixture, Player, Session, TeamWins } from './types';
 import { loadState, saveState } from './storage';
 import { mergePrivateFields, mergePublicRoster } from './rosterMerge';
+import { publishLive, useLiveFixture } from './live';
+import LiveFixtureView from './components/LiveFixtureView';
 import {
   fetchFullRoster,
   fetchRemoteHistory,
@@ -16,7 +18,7 @@ import Roster from './components/Roster';
 import MatchDay from './components/MatchDay';
 import History from './components/History';
 
-type Tab = 'match' | 'roster' | 'history';
+type Tab = 'live' | 'match' | 'roster' | 'history';
 
 export default function App() {
   const [state, setState] = useState<AppState>(() => loadState());
@@ -26,8 +28,43 @@ export default function App() {
   // whether this device has confirmed the roster's private fields against the
   // server since unlocking — see the fetchFullRoster effect below
   const [rosterHydrated, setRosterHydrated] = useState(false);
+  const isAdmin = adminWord !== null;
 
   useEffect(() => saveState(state), [state]);
+
+  // --- What this device is allowed to see ----------------------------------
+  // Match day is the organiser's workbench — availability, guests, ratings,
+  // the balancer, the result — and everyone else in the group gets the app to
+  // find out who they're playing with, not to run the night. So it's gated,
+  // and if admin is switched off while standing on it, the tab goes away
+  // underneath and this puts the user somewhere that still exists.
+  useEffect(() => {
+    if (!isAdmin && tab === 'match') setTab('roster');
+  }, [isAdmin, tab]);
+
+  // The fixture being played right now, polled from the Worker (§2.14). This
+  // is how a player finds out there's a game on and what team they're on,
+  // given Match day is hidden from them.
+  const liveFixture = useLiveFixture(true);
+  const offeredLive = useRef(false);
+
+  // Land on the live fixture the first time we hear about one — on a match
+  // night that is the only thing anyone opened the app for. Only ever done
+  // once, and never over a tab the user chose themselves.
+  useEffect(() => {
+    if (!liveFixture || offeredLive.current) return;
+    offeredLive.current = true;
+    setTab((t) => (t === 'roster' ? 'live' : t));
+  }, [liveFixture]);
+
+  // Publishing the live fixture is an admin write like any other, so it needs
+  // the word. Failures are deliberately quiet: the organiser's own screen is
+  // already correct, and an alert every time a phone drops a bar of signal
+  // mid-match would be worse than the group's clock being a poll behind.
+  const shareLive = async (fixture: LiveFixture | null) => {
+    if (adminWord == null) return;
+    await publishLive(fixture, adminWord);
+  };
 
   // On load, pull the shared roster and adopt it if it's newer than what this
   // device last applied. Failures (offline, not set up) are silently ignored,
@@ -201,6 +238,7 @@ export default function App() {
 
   const tabBtn = (t: Tab, label: string) => (
     <button
+      key={t}
       onClick={() => setTab(t)}
       className={`rounded-full px-4 py-1.5 text-sm font-bold transition-colors ${
         tab === t
@@ -209,6 +247,35 @@ export default function App() {
       }`}
     >
       {label}
+    </button>
+  );
+
+  // Only appears while a fixture is actually on, and leads with a pulsing dot
+  // rather than the word "live" alone — on a phone in a car park the tab has
+  // to read as "something is happening now" at a glance.
+  const liveTabBtn = (
+    <button
+      key="live"
+      onClick={() => setTab('live')}
+      className={`flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-bold transition-colors ${
+        tab === 'live'
+          ? 'bg-red-600 text-amber-50 shadow-sm'
+          : 'text-red-700 hover:bg-red-500/10'
+      }`}
+    >
+      <span className="relative flex h-2 w-2">
+        <span
+          className={`absolute inline-flex h-full w-full animate-ping rounded-full opacity-75 ${
+            tab === 'live' ? 'bg-amber-100' : 'bg-red-500'
+          }`}
+        />
+        <span
+          className={`relative inline-flex h-2 w-2 rounded-full ${
+            tab === 'live' ? 'bg-amber-50' : 'bg-red-600'
+          }`}
+        />
+      </span>
+      Live
     </button>
   );
 
@@ -227,13 +294,27 @@ export default function App() {
           )}
         </h1>
         <nav className="flex gap-1 rounded-full border border-amber-900/20 bg-[#fffdf4]/70 p-1 shadow-sm">
-          {tabBtn('match', 'Match day')}
+          {liveFixture && liveTabBtn}
+          {isAdmin && tabBtn('match', 'Match day')}
           {tabBtn('roster', `Roster (${state.players.length})`)}
           {tabBtn('history', 'History')}
         </nav>
       </header>
 
-      {tab === 'roster' ? (
+      {tab === 'live' ? (
+        liveFixture ? (
+          <LiveFixtureView fixture={liveFixture} />
+        ) : (
+          // the night ended while this tab was open — say so rather than
+          // leaving the last frame of a finished match on screen
+          <div className="rounded-2xl border border-amber-900/15 bg-[#fffdf4]/70 p-6 text-center shadow-sm">
+            <p className="text-lg font-bold text-amber-950">No fixture is live right now</p>
+            <p className="mt-1 text-sm text-amber-900/60">
+              This tab appears on its own the moment a night kicks off.
+            </p>
+          </div>
+        )
+      ) : tab === 'roster' ? (
         <Roster
           players={state.players}
           onChange={setPlayers}
@@ -245,7 +326,7 @@ export default function App() {
         <History
           history={state.history}
           players={state.players}
-          isAdmin={adminWord !== null}
+          isAdmin={isAdmin}
           onApplyRating={applyRating}
           onDeleteFixture={deleteFixture}
           onEditFixture={editFixture}
@@ -256,9 +337,10 @@ export default function App() {
           session={state.session}
           history={state.history}
           setSession={setSession}
-          isAdmin={adminWord !== null}
+          isAdmin={isAdmin}
           setAdminWord={setAdminWord}
           onSaveFixture={saveFixture}
+          onShareLive={shareLive}
         />
       )}
     </div>

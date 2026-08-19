@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import type { FixtureRecord, Player, Session } from '../types';
-import { ATTACK_DEFAULT, roleBadge } from '../types';
+import type { ClockState, FixtureRecord, LiveFixture, Player, Session, Teams } from '../types';
+import { ATTACK_DEFAULT, initialClock, roleBadge } from '../types';
 import {
   emptySession,
   getHostRoom,
@@ -33,6 +33,10 @@ interface Props {
   isAdmin: boolean; // gates the private "keep apart" notes on the teams board
   setAdminWord: (word: string | null) => void; // lets the fixture page unlock admin in place
   onSaveFixture: (fixture: FixtureRecord) => void;
+  // Publishes tonight's fixture to the rest of the group, or clears it with
+  // null when the night ends (§2.14). Match day is admin-only, so this is the
+  // only way anyone else finds out a game is on.
+  onShareLive: (fixture: LiveFixture | null) => void;
 }
 
 const MIN_PLAYERS = 13;
@@ -46,6 +50,7 @@ export default function MatchDay({
   isAdmin,
   setAdminWord,
   onSaveFixture,
+  onShareLive,
 }: Props) {
   const { unlockAdmin, unlocking } = useAdminUnlock(setAdminWord);
   const [step, setStep] = useState<'players' | 'gk'>('players');
@@ -240,10 +245,51 @@ export default function MatchDay({
     room?.sendSync(teams);
   };
 
-  // Locks tonight's teams in and switches to the read-only fixture page.
-  // Reversible — "back to teams" just flips this off again.
-  const startFixture = () => setSession({ ...session, fixtureStarted: true });
-  const backToTeams = () => setSession({ ...session, fixtureStarted: false });
+  // What the rest of the group is shown while the night is on. Rebuilt from
+  // scratch on every publish rather than patched, and deliberately thin: names
+  // and shirts, no ratings, no attack spectrum, no result (§2.14, LivePlayer).
+  const buildLive = (teams: Teams, clock: ClockState, startedAt: number): LiveFixture => ({
+    id: `live-${startedAt}`,
+    startedAt,
+    players: todays.map((p) => ({
+      id: p.id,
+      name: p.name,
+      // GK-tonight, not the permanent roster flag — that's what the glove on
+      // the team card means
+      ...(effectiveGkIds.includes(p.id) ? { isGk: true } : {}),
+      ...(p.isGuest ? { isGuest: true } : {}),
+    })),
+    teams: { black: [...teams.black], white: [...teams.white], blue: [...teams.blue] },
+    gkIds: effectiveGkIds,
+    clock,
+  });
+
+  // Locks tonight's teams in, switches to the read-only fixture page, and puts
+  // the night in front of everyone else. Reversible — "back to teams" flips it
+  // off and takes the fixture back down with it, because a night that's being
+  // re-picked is not one anyone should be reading their team off.
+  const startFixture = () => {
+    if (!isAdmin || !session.teams) return;
+    const startedAt = Date.now();
+    const clock = initialClock();
+    setSession({ ...session, fixtureStarted: true, liveStartedAt: startedAt, clock });
+    onShareLive(buildLive(session.teams, clock, startedAt));
+  };
+
+  const backToTeams = () => {
+    setSession({ ...session, fixtureStarted: false, liveStartedAt: null });
+    onShareLive(null);
+  };
+
+  // Every start/pause/next-match is one publish — a handful a match, not one a
+  // tick. The clock travels as an absolute end time, so the seconds in between
+  // are counted down by each watching device rather than sent to it.
+  const changeClock = (clock: ClockState) => {
+    setSession({ ...session, clock });
+    if (session.teams && session.liveStartedAt !== null) {
+      onShareLive(buildLive(session.teams, clock, session.liveStartedAt));
+    }
+  };
 
   // Wipes the night and starts over from availability. Shared by the teams
   // board's "New Fixture" and the fixture page's "End fixture" — the same
@@ -254,6 +300,9 @@ export default function MatchDay({
     room?.closeRoom();
     leaveRoom();
     setHostRoom(null);
+    // take the night down for everyone watching too — otherwise the group is
+    // left staring at a fixture that no longer exists on the organiser's phone
+    onShareLive(null);
     setSession(emptySession());
     setStep('players');
   };
@@ -366,6 +415,8 @@ export default function MatchDay({
         gkIds={effectiveGkIds}
         wins={session.wins}
         onChangeWins={(wins) => setSession({ ...session, wins })}
+        clock={session.clock}
+        onChangeClock={changeClock}
         mvpId={session.mvpId}
         onChangeMvp={(mvpId) => setSession({ ...session, mvpId })}
         onSaveResults={saveNight}

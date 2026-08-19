@@ -1,5 +1,12 @@
 import { useMemo } from 'react';
-import type { DraftTeamWins, FixtureRecord, Player, TeamColor, Teams } from '../types';
+import type {
+  ClockState,
+  DraftTeamWins,
+  FixtureRecord,
+  Player,
+  TeamColor,
+  Teams,
+} from '../types';
 import { roleBadge } from '../types';
 import { TEAM_COLORS, lineupOrder, teamStats } from '../balancer';
 import { tonightsMilestones } from '../milestones';
@@ -16,6 +23,10 @@ interface Props {
   gkIds: string[];
   wins: DraftTeamWins;
   onChangeWins: (wins: DraftTeamWins) => void;
+  // lifted out of MatchClock so the organiser's clock is what everyone
+  // watching sees (§2.14)
+  clock: ClockState;
+  onChangeClock: (clock: ClockState) => void;
   mvpId: string | null;
   onChangeMvp: (id: string | null) => void;
   onSaveResults: () => void;
@@ -43,6 +54,8 @@ export default function FixturePage({
   gkIds,
   wins,
   onChangeWins,
+  clock,
+  onChangeClock,
   mvpId,
   onChangeMvp,
   onSaveResults,
@@ -203,9 +216,15 @@ export default function FixturePage({
         </div>
       )}
 
-      <MatchClock />
+      <MatchClock state={clock} onChange={onChangeClock} />
 
-      <MvpPicker players={players} mvpId={mvpId} onChange={onChangeMvp} />
+      {/* Picking the standout player and tallying the result are the
+          organiser's calls, and both are hidden from the group's live view
+          (§2.14) — so on the rare occasion this page is reached without admin
+          unlocked, they stay behind the same lock rather than appearing here
+          and nowhere else. ResultsPanel keeps its own unlock prompt, which is
+          how you get from here to admin without leaving the page. */}
+      {isAdmin && <MvpPicker players={players} mvpId={mvpId} onChange={onChangeMvp} />}
 
       <ResultsPanel
         wins={wins}
