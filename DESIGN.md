@@ -193,10 +193,21 @@ doesn't. The field stays for direct entry, and both paths snap to the nearest ha
 is a typo.
 
 **Model** (`types.ts`): `TeamWins = Record<TeamColor, number>` on a `FixtureRecord`
-(`{ id, date, teams, players, wins }`), with `DraftTeamWins` (nullable) for the tally while it's
-still being typed. `players` is a **snapshot** (`FixturePlayer`: id/name/rating at the time) rather
-than a pointer into the roster, because guests are one-off and both names and ratings move; history
-has to still read correctly years later.
+(`{ id, date, teams, players, wins, photo? }`), with `DraftTeamWins` (nullable) for the tally while
+it's still being typed. `players` is a **snapshot** (`FixturePlayer`: id/name/rating at the time)
+rather than a pointer into the roster, because guests are one-off and both names and ratings move;
+history has to still read correctly years later.
+
+**`photo`** is one optional keepsake image per night, set from the History tab's expanded-night view
+(admin only to attach/replace; visible to everyone once set). `src/photo.ts` downsizes and compresses
+whatever's picked to a small JPEG data URL (max 640px, quality 0.6) *before* it ever touches state —
+it rides along inside the same `FixtureRecord` that every other history write already pushes whole to
+the shared store (see "Shared, like the roster" below), so it has to stay small or every unrelated
+edit (fixing a score, deleting an old night) gets slower for everyone as more nights pick up a photo.
+Deliberately one photo, not a gallery — a memory of the night, not an album. **Known limitation**:
+there's no cap on how many nights end up with one, so the shared history payload grows slowly forever;
+fine for the foreseeable future, worth moving to object storage (Cloudflare R2, same Worker) if that
+growth is ever actually felt.
 
 **Entry**: `ResultsPanel.tsx`, rendered on the fixture page (§2.7) rather than inside `TeamsBoard`
 itself — deliberately, since a live-room guest renders that same `TeamsBoard` and must not be able
@@ -410,9 +421,19 @@ The facts, and what each needs:
 |---|---|---|
 | 🎉 Nth night | 10, 25, then every 50 | roughly a mention a year once established |
 | 🏆 Nth win | crossing 50, 100, 250, then every 500 | wins are fractional, so it's a *crossing*, not equality |
+| 🦾 N nights straight | run ≥ `MIN_ATTEND_STREAK` (8) | attendance, not results — see below |
 | 📈 Won N nights running | run ≥ `MIN_WIN_STREAK` (3) | ~one player on any given night |
 | 💤 Hasn't won in N nights | run ≥ `MIN_WINLESS_RUN` (5) | the same maths inverted |
 | ✨ First night | see the debut rules below | |
+
+**🦾 is attendance, not results — a different axis from the streaks above it.** It counts
+consecutive nights *on the sheet*, whether or not a result was ever recorded that night, and breaks
+on a single missed night the way a win streak deliberately does not (win streaks skip a missed week
+rather than break on it, since the question there is "on nights they played, how did it go"; the
+question here is "did they show up", so missing is the one thing that has to end it). `MIN_ATTEND_STREAK`
+(8) is a starting guess, unlike the two ladders below it — those were also guessed first and only
+correct once real nights showed the true rate. This constant is due the same treatment once there's
+enough attendance history to look at.
 
 **The two ladders are calibrated against real results, not guessed.** The first recorded night
 finished 7 / 5 / 2 — **14 wins shared between the three teams**, so a player banks roughly 4–5 wins
@@ -475,6 +496,49 @@ Early records are still collected and ranked; they just can't win on the strengt
 Two smaller details: the base rate is **measured** from tonight's players rather than assumed to be
 a third (ties at the top drag it below that), and guests are excluded for the same id-churn reason
 as milestones.
+
+The scoring engine (`computeDuoRecords`) is factored out from `duoFacts` so it can also drive the
+monthly recap's best-pairing stat (§2.11) over a different set of ids/fixtures — same shrink-toward-
+base-rate math, applied to "everyone who played this month" instead of "tonight's squad".
+
+### 2.11 Monthly recap ("Wrapped")
+
+`src/wrapped.ts` (+ `wrapped.test.ts`) turns a calendar month of `AppState.history` into a small set
+of counts — nights played, total wins banked, most nights, top scorer, longest win streak, best duo
+— rendered as a shareable "story" image (`src/wrappedImage.ts`, same canvas-drawing approach as
+`shirtImage.ts`) via a **📊 Monthly recap** picker + **🖼️ Share recap** button at the top of the
+History tab. Visible to everyone, not just admins — sharing a recap is not a write.
+
+**Deliberately monthly, not seasonal or yearly.** The app has no notion of a "season" boundary, and a
+full year is a long wait for the first shareable moment; a month is close to the natural size of "a
+few weeks of Thursdays" and gives the picker something to show early. `wrappedPeriods` only lists
+months that actually have a recorded night, so the picker never offers an empty one.
+
+**Reuses existing engines rather than inventing new ones.** `mostNights`/`topScorer` are a simple
+tally over the month's fixtures; `longestStreak` reuses `appearances` (exported from `milestones.ts`
+for this purpose) and gates on the same `MIN_WIN_STREAK` (3) as tonight's own streak fact, so a
+month's longest run isn't reported as meaningful before tonight's own would be; `bestDuo` reuses
+`computeDuoRecords` (§2.10) with "everyone who played this month" as the relevant id set instead of
+"tonight's squad". Same honesty rule as §2.9/§2.10 throughout: every line is a count, never a claim
+about who's playing well — the closing line on the card says so directly.
+
+### 2.12 Balancer trust dashboard
+
+`src/trust.ts` (+ `trust.test.ts`), admin-only, in the History tab. The balancer (§3) optimizes for a
+small rating gap between teams, but nothing else in the app ever checks whether that prediction shows
+up in the result — this closes that loop by plotting, per recorded night, the **predicted** gap
+(spread between team-average ratings, derived from the `FixturePlayer` snapshot already on the
+record — no new data needed) against the **actual** gap (spread in win share). A scatter chart (inline
+SVG, no charting library — consistent with the rest of the app) plus a one-line Pearson correlation
+readout (`trustCorrelation`), gated at `MIN_TRUST_NIGHTS` (8) the same way `MIN_NIGHTS` gates rating
+suggestions (§2.6).
+
+**Purely descriptive, on purpose.** Nothing here feeds back into team generation — same posture as
+`calibration.ts`'s rating suggestions, a number to look at rather than an auto-tune loop. The
+correlation readout is written in tiers (tracks together / barely tracks / moves opposite) rather
+than a bare number, and the "barely tracks" case explicitly allows for the honest possibility that
+8-minute matches are just noisier than a rating gap can predict, rather than assuming the balancer
+must be wrong.
 
 ## 3. Team generation algorithm
 
@@ -557,10 +621,11 @@ panel is unaffected — the organizer still sees the plan, it just doesn't go in
      **← Back to teams** returns to the editable board above without losing anything, in case the
      teams need another look; **⏹️ End fixture** wipes the night and starts over, the same action
      as the board's 🆕 New Fixture.
-3. **History** (`src/components/History.tsx`) — past nights (expandable to the team sheets and
-   each team's wins), a standings table of nights / wins / wins-per-night where a shootout counts
-   as half, and, in admin mode, rating suggestions with Apply/Dismiss. Empty until the first
-   night is saved.
+3. **History** (`src/components/History.tsx`) — a **📊 Monthly recap** picker + share button
+   (§2.11), past nights (expandable to the team sheets, each team's wins, and a per-night keepsake
+   photo — admin can attach/replace, anyone can see it), a standings table of nights / wins /
+   wins-per-night where a shootout counts as half, and, in admin mode, the **⚖️ Balancer trust**
+   scatter (§2.12) and rating suggestions with Apply/Dismiss. Empty until the first night is saved.
 4. **Live room guest view** (`src/components/RoomGuest.tsx`) — what a shared room link opens
    instead of the app above; see §2.5.
 

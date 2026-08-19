@@ -11,6 +11,7 @@ import { hasResult } from './calibration';
 export type Milestone =
   | { kind: 'nth-night'; id: string; name: string; nights: number }
   | { kind: 'nth-win'; id: string; name: string; wins: number }
+  | { kind: 'iron-man'; id: string; name: string; nights: number }
   | { kind: 'win-streak'; id: string; name: string; nights: number }
   | { kind: 'winless'; id: string; name: string; nights: number }
   | { kind: 'debut'; id: string; name: string }
@@ -33,6 +34,16 @@ export const MAX_NAMED_DEBUTS = 3;
 // something. Anything shorter would fire constantly and stop being read.
 export const MIN_WIN_STREAK = 3;
 export const MIN_WINLESS_RUN = 5;
+
+// Consecutive nights *on the sheet* — attendance, not results. Turning up is a
+// much more common event than winning (it doesn't depend on how the balancer
+// happened to split five-a-side matches), so this needs a longer run before
+// it's worth a line. Unlike MIN_WIN_STREAK/MIN_WINLESS_RUN this hasn't been
+// checked against real attendance history yet — those two were originally
+// guessed as well, then recalibrated once real nights showed the true rate
+// (see the win-milestone ladder below); this constant is due the same
+// treatment once there's enough attendance history to look at.
+export const MIN_ATTEND_STREAK = 8;
 
 // However many fire, this many get shown. In practice it's usually nought or
 // one; the cap only exists so a freak night can't turn the line into a wall.
@@ -87,8 +98,10 @@ interface Appearance {
 
 // Every night this player was on the sheet, oldest first. Nights with no
 // result recorded are skipped rather than counted as a loss — they say
-// nothing either way, and letting them break a run would be a lie.
-function appearances(id: string, fixtures: FixtureRecord[]): Appearance[] {
+// nothing either way, and letting them break a run would be a lie. Exported
+// for src/wrapped.ts, which needs the same per-player win/loss record to find
+// a month's longest streak rather than just tonight's.
+export function appearances(id: string, fixtures: FixtureRecord[]): Appearance[] {
   const out: Appearance[] = [];
   for (const fx of fixtures) {
     const color = teamOf(fx, id);
@@ -97,6 +110,19 @@ function appearances(id: string, fixtures: FixtureRecord[]): Appearance[] {
     out.push({ won: winnerOf(fx) === color, wins: fx.wins[color] ?? 0 });
   }
   return out;
+}
+
+// Consecutive nights *in a row on the sheet* — every recorded night counts,
+// whether or not a result was ever typed in, since attendance doesn't depend
+// on whether anyone remembered to tally the score. Walks backward from the
+// most recent night and stops at the first one this id is absent from.
+function attendanceStreak(id: string, chronological: FixtureRecord[]): number {
+  let n = 0;
+  for (let i = chronological.length - 1; i >= 0; i--) {
+    if (!teamOf(chronological[i], id)) break;
+    n++;
+  }
+  return n;
 }
 
 // Length of the run at the end of the list, counting *nights played* — a week
@@ -113,14 +139,18 @@ const runLength = (apps: Appearance[], won: boolean): number => {
 const RANK: Record<Milestone['kind'], number> = {
   'nth-night': 0,
   'nth-win': 1,
-  'win-streak': 2,
-  winless: 3,
-  debut: 4,
-  'debut-group': 5,
+  'iron-man': 2,
+  'win-streak': 3,
+  winless: 4,
+  debut: 5,
+  'debut-group': 6,
 };
 
 const sizeOf = (m: Milestone): number =>
-  m.kind === 'nth-night' || m.kind === 'win-streak' || m.kind === 'winless'
+  m.kind === 'nth-night' ||
+  m.kind === 'win-streak' ||
+  m.kind === 'winless' ||
+  m.kind === 'iron-man'
     ? m.nights
     : m.kind === 'nth-win'
       ? m.wins
@@ -164,6 +194,14 @@ export function tonightsMilestones(
     const nightsPlayed = playedBefore + 1;
     if (isMilestoneNight(nightsPlayed)) {
       found.push({ kind: 'nth-night', id: p.id, name: p.name, nights: nightsPlayed });
+    }
+
+    // Tonight counts toward the streak too — showing up is what's being
+    // measured, and not playing tonight was never on the table for anyone in
+    // `todays`.
+    const attendStreak = attendanceStreak(p.id, past) + 1;
+    if (attendStreak >= MIN_ATTEND_STREAK) {
+      found.push({ kind: 'iron-man', id: p.id, name: p.name, nights: attendStreak });
     }
 
     // Career wins, and whether tonight is what carried them past a round

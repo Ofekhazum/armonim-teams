@@ -120,6 +120,12 @@ export interface FixtureRecord {
   teams: Teams;
   players: FixturePlayer[];
   wins: TeamWins;
+  // One optional keepsake photo for the night, as a compressed data URL (see
+  // src/photo.ts) — small enough to travel inline with the rest of the record
+  // through the same /history sync as everything else (§2.6), rather than
+  // needing separate object storage. Deliberately one photo, not a gallery:
+  // this is a memory of the night, not an album.
+  photo?: string;
 }
 
 export interface AppState {

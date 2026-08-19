@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { DraftTeamWins, FixtureRecord, Player, TeamColor, TeamWins } from '../types';
 import { TEAM_COLORS } from '../balancer';
 import {
@@ -9,6 +9,10 @@ import {
   suggestRatings,
   totalWins,
 } from '../calibration';
+import { buildWrapped, periodLabel, wrappedPeriods } from '../wrapped';
+import { shareWrappedImage } from '../wrappedImage';
+import { MIN_TRUST_NIGHTS, trustCorrelation, trustPoints, type TrustPoint } from '../trust';
+import { compressPhoto } from '../photo';
 import { TEAM_META, Name, fmtRating } from './ui';
 
 interface Props {
@@ -18,6 +22,90 @@ interface Props {
   onApplyRating: (playerId: string, rating: number) => void;
   onDeleteFixture: (fixtureId: string) => void;
   onEditFixture: (fixtureId: string, patch: { wins: TeamWins; date: string }) => void;
+  onSetPhoto: (fixtureId: string, photo: string | null) => void;
+}
+
+// Predicted-vs-actual balance, one dot per recorded night — see src/trust.ts
+// for what the two axes mean and why no chart library is pulled in for one
+// scatter plot.
+function TrustChart({ points }: { points: TrustPoint[] }) {
+  const W = 320;
+  const H = 190;
+  const PAD_L = 30;
+  const PAD_R = 10;
+  const PAD_T = 10;
+  const PAD_B = 22;
+  const plotW = W - PAD_L - PAD_R;
+  const plotH = H - PAD_T - PAD_B;
+  const maxX = Math.max(0.5, ...points.map((p) => p.predictedGap)) * 1.1;
+  const x = (v: number) => PAD_L + (v / maxX) * plotW;
+  const y = (v: number) => PAD_T + plotH - v * plotH;
+
+  return (
+    <svg
+      viewBox={`0 0 ${W} ${H}`}
+      className="w-full max-w-md"
+      role="img"
+      aria-label="Predicted rating gap versus actual win-share gap, one dot per recorded night"
+    >
+      {[0, 0.25, 0.5, 0.75, 1].map((v) => (
+        <line
+          key={v}
+          x1={PAD_L}
+          x2={W - PAD_R}
+          y1={y(v)}
+          y2={y(v)}
+          stroke="rgba(120,53,15,0.10)"
+          strokeWidth={1}
+        />
+      ))}
+      <line
+        x1={PAD_L}
+        x2={PAD_L}
+        y1={PAD_T}
+        y2={H - PAD_B}
+        stroke="rgba(120,53,15,0.35)"
+        strokeWidth={1}
+      />
+      <line
+        x1={PAD_L}
+        x2={W - PAD_R}
+        y1={H - PAD_B}
+        y2={H - PAD_B}
+        stroke="rgba(120,53,15,0.35)"
+        strokeWidth={1}
+      />
+      {[0, 0.5, 1].map((v) => (
+        <text key={v} x={PAD_L - 5} y={y(v) + 3} textAnchor="end" fontSize={8} fill="rgba(120,53,15,0.55)">
+          {v * 100}%
+        </text>
+      ))}
+      {points.map((p) => (
+        <circle
+          key={p.fixtureId}
+          cx={x(p.predictedGap)}
+          cy={y(p.actualGap)}
+          r={4.5}
+          fill="rgba(234,88,12,0.6)"
+          stroke="#ea580c"
+          strokeWidth={1}
+        >
+          <title>
+            {`${p.date} — predicted gap ${p.predictedGap.toFixed(2)}★, actual gap ${(p.actualGap * 100).toFixed(0)}%`}
+          </title>
+        </circle>
+      ))}
+      <text
+        x={(PAD_L + (W - PAD_R)) / 2}
+        y={H - 4}
+        textAnchor="middle"
+        fontSize={8}
+        fill="rgba(120,53,15,0.55)"
+      >
+        predicted rating gap (★) →
+      </text>
+    </svg>
+  );
 }
 
 interface Draft {
@@ -44,8 +132,19 @@ export default function History({
   onApplyRating,
   onDeleteFixture,
   onEditFixture,
+  onSetPhoto,
 }: Props) {
   const [openId, setOpenId] = useState<string | null>(null);
+  const periods = useMemo(() => wrappedPeriods(history), [history]);
+  const [wrappedPeriod, setWrappedPeriod] = useState('');
+  const [sharingWrapped, setSharingWrapped] = useState(false);
+  // periods only appear once a month's first night is saved — pick the newest
+  // as soon as one shows up, rather than leaving the picker on nothing
+  useEffect(() => {
+    if (!wrappedPeriod && periods.length > 0) setWrappedPeriod(periods[0]);
+  }, [periods, wrappedPeriod]);
+  const trust = useMemo(() => trustPoints(history), [history]);
+  const correlation = useMemo(() => trustCorrelation(trust), [trust]);
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
   // the night currently being corrected, and the values as typed so far
   const [editId, setEditId] = useState<string | null>(null);
@@ -150,6 +249,57 @@ export default function History({
           <span>{history.length - recordedNights} saved with no result</span>
         )}
       </div>
+
+      {periods.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-amber-900/15 bg-[#fffdf4]/70 p-3 shadow-sm">
+          <span className="text-sm font-bold text-amber-950">📊 Monthly recap</span>
+          <select
+            value={wrappedPeriod}
+            onChange={(e) => setWrappedPeriod(e.target.value)}
+            className="rounded-lg border border-amber-900/25 bg-white px-2 py-1.5 text-sm font-semibold text-amber-950 outline-none focus:border-orange-500"
+          >
+            {periods.map((p) => (
+              <option key={p} value={p}>
+                {periodLabel(p)}
+              </option>
+            ))}
+          </select>
+          <button
+            onClick={async () => {
+              if (!wrappedPeriod) return;
+              setSharingWrapped(true);
+              await shareWrappedImage(buildWrapped(history, wrappedPeriod));
+              setSharingWrapped(false);
+            }}
+            disabled={sharingWrapped || !wrappedPeriod}
+            className="rounded-lg bg-orange-600 px-3 py-1.5 text-xs font-bold text-amber-50 shadow-sm transition-transform enabled:hover:scale-105 disabled:opacity-40"
+          >
+            {sharingWrapped ? '…' : '🖼️ Share recap'}
+          </button>
+        </div>
+      )}
+
+      {isAdmin && trust.length > 0 && (
+        <div className="space-y-2 rounded-2xl border border-amber-900/15 bg-[#fffdf4]/70 p-4 shadow-sm">
+          <h3 className="font-bold text-amber-950">⚖️ Balancer trust</h3>
+          <p className="text-xs text-amber-900/60">
+            Does "balanced by rating" actually mean "close on the pitch"? Each dot is one
+            recorded night: further right means the ratings predicted a bigger gap between the
+            strongest and weakest team that night; further up means the result actually was
+            more lopsided.
+          </p>
+          <TrustChart points={trust} />
+          <p className="text-xs text-amber-900/60">
+            {correlation == null
+              ? `Needs ${MIN_TRUST_NIGHTS} recorded nights before a correlation means anything — ${trust.length} so far.`
+              : correlation > 0.3
+                ? `Predicted and actual gaps track together (r = ${correlation.toFixed(2)}) — the rating gap is a real signal for how close a night turns out.`
+                : correlation < -0.1
+                  ? `Predicted and actual gaps move in opposite directions (r = ${correlation.toFixed(2)}) — worth a second look at the balancer's weights.`
+                  : `Predicted and actual gaps barely track (r = ${correlation.toFixed(2)}) — at this match length, results may just be noisier than the rating gap can predict.`}
+          </p>
+        </div>
+      )}
 
       {isAdmin && suggestions.length > 0 && (
         <div className="space-y-2 rounded-2xl border border-orange-600/40 bg-orange-500/10 p-4 shadow-sm">
@@ -446,6 +596,42 @@ export default function History({
                       <p className="text-xs text-amber-900/45">
                         {totalWins(fx.wins)} wins across the night · {fx.players.length} players
                       </p>
+                      {fx.photo && (
+                        <img
+                          src={fx.photo}
+                          alt={`Photo from the night of ${fx.date}`}
+                          className="max-h-48 rounded-lg border border-amber-900/15 object-cover"
+                        />
+                      )}
+                      {/* a keepsake, not a record — anyone can look, only an
+                          organiser can attach or replace one */}
+                      {isAdmin && (
+                        <div className="flex flex-wrap items-center gap-2">
+                          <label className="cursor-pointer rounded-lg border border-amber-900/25 px-3 py-1 text-xs font-bold text-amber-900 hover:border-orange-500">
+                            {fx.photo ? '📷 Change photo' : '📷 Add photo'}
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={async (e) => {
+                                const file = e.target.files?.[0];
+                                e.target.value = '';
+                                if (!file) return;
+                                const dataUrl = await compressPhoto(file);
+                                onSetPhoto(fx.id, dataUrl);
+                              }}
+                            />
+                          </label>
+                          {fx.photo && (
+                            <button
+                              onClick={() => onSetPhoto(fx.id, null)}
+                              className="rounded-lg border border-red-500/50 px-3 py-1 text-xs font-bold text-red-700 hover:bg-red-50"
+                            >
+                              Remove photo
+                            </button>
+                          )}
+                        </div>
+                      )}
                       {/* correcting the record is an organiser action, same as
                           editing ratings — so it sits behind admin mode */}
                       {isAdmin && (

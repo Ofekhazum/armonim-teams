@@ -163,6 +163,13 @@ export default function FixturePage({
                     🏆 <Name className="font-bold">{m.name}</Name>'s {m.wins}th win
                   </span>
                 );
+              case 'iron-man':
+                return (
+                  <span key={`i${m.id}`}>
+                    🦾 <Name className="font-bold">{m.name}</Name> hasn't missed a night in{' '}
+                    {m.nights} straight
+                  </span>
+                );
               case 'win-streak':
                 return (
                   <span key={`s${m.id}`}>
