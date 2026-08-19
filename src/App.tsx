@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { AppState, FixtureRecord, LiveFixture, Player, Session, TeamWins } from './types';
-import { loadState, saveState } from './storage';
+import { ATTACK_DEFAULT } from './types';
+import { emptySession, loadState, saveState } from './storage';
 import { mergePrivateFields, mergePublicRoster } from './rosterMerge';
 import { publishLive, useLiveFixture } from './live';
 import LiveFixtureView from './components/LiveFixtureView';
@@ -68,6 +69,53 @@ export default function App() {
     offeredLive.current = true;
     setTab((t) => (t === 'roster' ? 'live' : t));
   }, [liveFixture]);
+
+  // Rebuild a full local session from the live record, so an organiser on any
+  // device can run the night — record the result, pick the MVP, end it — rather
+  // than only the phone that happened to start it. Being admin is what confers
+  // the right; which device you are holding was never supposed to.
+  //
+  // Everything the fixture page needs is either in the live record (teams, who
+  // is playing, the keeper, the clock) or already on this device (the roster,
+  // with ratings, and the history the milestones are counted from). The one
+  // genuine gap is guests, who exist only for tonight and are not in anybody's
+  // roster: they come back with a name and an unknown rating, which affects the
+  // team-average display and nothing that gets saved.
+  const adoptLive = (fixture: LiveFixture) => {
+    const known = new Map(state.players.map((p) => [p.id, p]));
+    const availableIds: string[] = [];
+    const guests: Player[] = [];
+    for (const p of fixture.players) {
+      if (known.has(p.id)) availableIds.push(p.id);
+      else {
+        guests.push({
+          id: p.id,
+          name: p.name,
+          rating: 3.5,
+          ratingUnknown: true,
+          attack: ATTACK_DEFAULT,
+          isGuest: true,
+          chemistry: [],
+        });
+      }
+    }
+    setSession({
+      ...emptySession(),
+      availableIds,
+      guests,
+      gkIds: [...fixture.gkIds],
+      teams: {
+        black: [...fixture.teams.black],
+        white: [...fixture.teams.white],
+        blue: [...fixture.teams.blue],
+      },
+      fixtureStarted: true,
+      liveStartedAt: fixture.startedAt,
+      clock: fixture.clock,
+    });
+    // no tab change needed: this device is now running the night, so the Live
+    // tab renders the full fixture page on the very next paint
+  };
 
   // The organiser has just ended their night, or stepped back to re-pick teams,
   // while standing on Live. That tab is about to be empty and everything they
@@ -359,7 +407,32 @@ export default function App() {
         runningLocally ? (
           matchDay
         ) : liveFixture ? (
-          <LiveFixtureView fixture={liveFixture} onChangeClock={setLiveClock} />
+          <LiveFixtureView
+            fixture={liveFixture}
+            onChangeClock={setLiveClock}
+            // an organiser looking at a night some other device started still
+            // owns it, and must be able to stop it — see the note in the view
+            onEndFixture={
+              isAdmin
+                ? () => {
+                    void shareLive(null, true);
+                    // a stale local flag would otherwise keep claiming this
+                    // device is mid-fixture after the shared one is gone
+                    setSession({
+                      ...state.session,
+                      fixtureStarted: false,
+                      liveStartedAt: null,
+                    });
+                  }
+                : undefined
+            }
+            onTakeOver={isAdmin ? () => adoptLive(liveFixture) : undefined}
+            // taking over replaces whatever this device had going, so warn if
+            // that is a squad someone was part-way through picking
+            takeOverWarning={
+              state.session.teams !== null || state.session.availableIds.length > 0
+            }
+          />
         ) : (
           // the night ended while this tab was open — say so rather than
           // leaving the last frame of a finished match on screen

@@ -6,6 +6,11 @@ import MatchClock from './MatchClock';
 interface Props {
   fixture: LiveFixture;
   onChangeClock: (clock: ClockState) => void;
+  // Present for an organiser who is *not* running the night on this device —
+  // see the notes on the buttons below. Absent for everyone else.
+  onEndFixture?: () => void;
+  onTakeOver?: () => void;
+  takeOverWarning?: boolean;
 }
 
 const agoLabel = (startedAt: number): string => {
@@ -28,9 +33,46 @@ const agoLabel = (startedAt: number): string => {
 // rating averages, keep-apart warnings — and this is the answer to one
 // question a player has while walking to the pitch: which shirt am I in, and
 // how long is left.
-export default function LiveFixtureView({ fixture, onChangeClock }: Props) {
+export default function LiveFixtureView({
+  fixture,
+  onChangeClock,
+  onEndFixture,
+  onTakeOver,
+  takeOverWarning,
+}: Props) {
   const byId = new Map(fixture.players.map((p) => [p.id, p]));
   const gkSet = new Set(fixture.gkIds);
+
+  // Ending a night must never depend on which phone the organiser happens to
+  // be holding. The rest of the fixture page needs local state to render —
+  // teams, ratings, milestones — so it is rightly limited to the device
+  // running the night; ending needs nothing but the admin word. Without this,
+  // an organiser whose browser was cleared, or who is on a second phone, can
+  // see a fixture they own and have no way to stop it.
+  // Rebuilds tonight on this device from what the live record carries, so the
+  // full fixture page — result, MVP, milestones — is available to whichever
+  // phone the organiser actually has on them.
+  const takeOver = () => {
+    if (
+      takeOverWarning &&
+      !confirm(
+        'Run tonight from this device?\n\nThis replaces the squad currently picked here. Nothing already saved to history is affected.',
+      )
+    ) {
+      return;
+    }
+    onTakeOver?.();
+  };
+
+  const end = () => {
+    if (
+      confirm(
+        "End tonight's fixture for everyone?\n\nThe live view disappears from the group's phones. Nothing already saved to history is affected.",
+      )
+    ) {
+      onEndFixture?.();
+    }
+  };
 
   return (
     <div className="space-y-4">
@@ -43,7 +85,35 @@ export default function LiveFixtureView({ fixture, onChangeClock }: Props) {
           Tonight's fixture
         </h2>
         <span className="text-sm text-amber-900/55">kicked off {agoLabel(fixture.startedAt)}</span>
+        {(onTakeOver || onEndFixture) && (
+          <>
+            <div className="flex-1" />
+            {onTakeOver && (
+              <button
+                onClick={takeOver}
+                className="rounded-xl bg-orange-600 px-4 py-2 text-sm font-bold text-amber-50 shadow-sm transition-transform hover:scale-105"
+              >
+                🎛️ Run it from here
+              </button>
+            )}
+            {onEndFixture && (
+              <button
+                onClick={end}
+                className="rounded-xl border border-red-500/60 px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-50"
+              >
+                ⏹️ End fixture
+              </button>
+            )}
+          </>
+        )}
       </div>
+      {onTakeOver && (
+        <p className="text-xs text-amber-900/50">
+          This night was started on another device. <b>Run it from here</b> rebuilds it on this one
+          so you get the result panel, the MVP pick and the milestones — anyone with the admin word
+          can run the night, from whichever phone they have on them.
+        </p>
+      )}
 
       <div className="grid gap-2 sm:grid-cols-3">
         {TEAM_COLORS.map((c) => {

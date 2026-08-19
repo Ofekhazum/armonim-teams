@@ -636,11 +636,18 @@ first time it hears about a fixture, once, never over a tab the user picked them
 **For the organiser running tonight, that tab *is* the fixture page** — the same milestones, MVP
 picker, result panel and End fixture they get from Match day, rendered by the same component rather
 than duplicated. Two tabs showing two different views of the match you are standing in the middle of
-is a worse answer than two tabs showing the same one. It is gated on this device actually holding
-the night (`session.fixtureStarted` and teams present), not merely on being admin: an organiser who
-opens the app on a second phone has no teams, ratings or history for it locally — the published
-payload deliberately carries none of that — so there is nothing to build a fixture page from and
-they correctly get the read-only view like everyone else.
+is a worse answer than two tabs showing the same one.
+
+Which device is holding the night decides only what can be *drawn*, never what is allowed. The
+fixture page needs ratings, guests and history that the deliberately-thin live payload doesn't
+carry, so a phone that didn't start the night has nothing to render it from — but that is a plumbing
+limit, not a permission, and it must not become one. Two things follow. **⏹️ End fixture** is offered
+to any admin on any device, because ending needs nothing local at all, and an organiser whose
+browser was cleared must never be left watching a fixture they own with no way to stop it. And
+**🎛️ Run it from here** rebuilds the session from the live record plus this device's own roster and
+history, after which the full page is available exactly as on the originating phone. The one real
+gap is guests: they exist only for tonight and are in nobody's roster, so they return with a name
+and an unknown rating — which moves the displayed team average and nothing that gets saved.
 
 Both ways out of that page (**← Back to teams**, **⏹️ End fixture**) leave the Live tab with nothing
 to show, so whoever was running it here is moved to Match day, where everything they would do next
