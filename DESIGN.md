@@ -371,6 +371,12 @@ abandoned after a few weeks and leaves half-complete data behind, which is worse
 - **The team that isn't playing shouts when there's a minute left.** It's their job, not the
   players', because they're the only ones not busy.
 
+> **Temporarily 2 minutes, not 8.** `REGULATION_MS` in `types.ts` is turned down while the
+> notifications of §2.17 are being tested on real phones — a round trip through Apple's push service
+> is worth waiting two minutes for, not eight. Every number the app says out loud is read from that
+> constant, so nothing on screen lies in the meantime. Put it back to `8 * 60 * 1000` when testing
+> is done; that is the only edit.
+
 `MatchClock.tsx` automates the **time** half only, and knows nothing about the score — the app
 deliberately doesn't collect one live (see the constraint above). So:
 
@@ -791,6 +797,19 @@ entirely and uses `apple-touch-icon.png`, without which the Home Screen icon wou
 of the page. The source is a JPEG, so its flat areas carry compression noise that PNG can't compress
 away; quantising to 64 colours collapses that back to the handful the design actually uses and cuts
 the set from ~1MB to under 400KB with no visible difference.
+
+**When nothing buzzes, there is nothing to look at** — and that is the feature's defining problem.
+Five links have to hold (the browser mints a subscription, the Worker stores it, an alarm fires
+minutes later, a push service accepts it, a service worker draws a banner) and *every one of them
+fails silently*. So `POST /push/test`, behind the admin word, walks the chain out loud: it sends one
+announcement now and reports whether the server has a key, whether the asking device is among the
+subscriptions, what the push service answered and with what message, and what is still pending with
+the alarm time. `AlertsCheck` in the header renders that as four ticks and crosses. Two deliberate
+narrowings: it buzzes only the device that asked — the common question is "why doesn't *mine* go
+off", and answering it must not set off fourteen pockets at the pitch — and no endpoint ever leaves
+the Worker, only the push service's host, which is the part that explains anything. The same
+rejections are `console.warn`ed from the alarm path, because otherwise a scheduled send has no
+witness at all: `wrangler tail` during a match is the only other place a 403 could ever appear.
 
 **Setup** is one secret. `node worker/generate-vapid-keys.mjs` prints a private JWK for
 `wrangler secret put VAPID_JWK`; the public half is derived from it and served at `GET /push/key`,

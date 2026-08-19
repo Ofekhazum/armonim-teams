@@ -172,5 +172,10 @@ export async function sendPush(subscription, payload, jwk, subject) {
     },
     body,
   });
-  return res.status;
+  // A push service that refuses says why in the body — "BadJwtToken",
+  // "UnregisteredEndpoint" — and this is the only place that ever hears it: the
+  // scheduled sends run inside an alarm with nobody watching. Read it on
+  // failure so a silent phone has something to explain it.
+  const detail = res.ok ? '' : ((await res.text().catch(() => '')) || '').slice(0, 200);
+  return { status: res.status, detail };
 }

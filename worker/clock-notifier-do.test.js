@@ -28,6 +28,7 @@ function fakeState() {
       put: async (k, v) => void map.set(k, v),
       delete: async (k) => void map.delete(k),
       setAlarm: async (t) => void (alarm = t),
+      getAlarm: async () => alarm,
       deleteAlarm: async () => void (alarm = null),
     },
   };
@@ -206,6 +207,54 @@ describe('the alarm chain', () => {
     vi.setSystemTime(NOW + 7 * MIN);
     await obj.alarm();
     expect(sent).toHaveLength(0);
+  });
+});
+
+// The feature's whole failure mode is silence, so the thing that explains the
+// silence has to be trustworthy — including the part where it refuses to buzz
+// fourteen other people to answer a question about the phone in your hand.
+describe('the test report', () => {
+  const report = (res) => res.json();
+
+  it('buzzes only the device that asked', async () => {
+    const { obj } = notifier();
+    for (const n of [1, 2, 3]) await post(obj, '/subscribe', { subscription: subscription(n) });
+    const res = await report(await post(obj, '/test', { endpoint: subscription(2).endpoint }));
+    expect(sent.map((s) => s.url)).toEqual([subscription(2).endpoint]);
+    expect(res).toMatchObject({ subscribers: 3, known: true, configured: true });
+    expect(res.sent).toEqual([{ host: 'push.example.com', status: 201, detail: '' }]);
+  });
+
+  it('buzzes nobody at all when the asking device never subscribed', async () => {
+    // the common case of "why don't I get these" — answering it must not set
+    // off every other phone at the pitch
+    const { obj } = notifier();
+    await post(obj, '/subscribe', { subscription: subscription(1) });
+    const res = await report(await post(obj, '/test', { endpoint: null }));
+    expect(sent).toHaveLength(0);
+    expect(res.known).toBe(false);
+    expect(res.sent).toEqual([]);
+  });
+
+  it('reports what the push service said when it refuses', async () => {
+    const { obj } = notifier();
+    await post(obj, '/subscribe', { subscription: subscription(1) });
+    nextStatus = () => 403;
+    const res = await report(await post(obj, '/test', { endpoint: subscription(1).endpoint }));
+    expect(res.sent[0].status).toBe(403);
+  });
+
+  it('shows what is still due, so a silent match can be told from a silent phone', async () => {
+    const { obj } = notifier();
+    await post(obj, '/schedule', { clock: running() });
+    const res = await report(await post(obj, '/test', {}));
+    expect(res.pending.map((t) => t.kind)).toEqual(['one-minute', 'time-up']);
+    expect(res.alarmAt).toBe(NOW + 7 * MIN);
+  });
+
+  it('says so plainly on a deployment with no key', async () => {
+    const obj = new ClockNotifier(fakeState(), {});
+    expect((await report(await post(obj, '/test', {}))).configured).toBe(false);
   });
 });
 

@@ -165,8 +165,18 @@ export type ClockPeriod = 'regulation' | 'added';
 // here rather than in MatchClock.tsx because the clock's *state* is now part
 // of the session — persisted, and published to everyone watching — so the
 // modules that build a fresh session need them without importing a component.
-export const REGULATION_MS = 8 * 60 * 1000;
+//
+// TEMPORARY — regulation is 2 minutes rather than the house 8 while the match
+// notifications are being tested on real phones: a round trip through Apple's
+// push service takes two minutes to observe instead of eight. Put it back to
+// `8 * 60 * 1000` when that's done; nothing else needs touching, the on-screen
+// copy below reads the number from here.
+export const REGULATION_MS = 2 * 60 * 1000;
 export const ADDED_MS = 2 * 60 * 1000;
+
+// For the copy that has to say the number out loud.
+export const REGULATION_MIN = REGULATION_MS / 60_000;
+export const ADDED_MIN = ADDED_MS / 60_000;
 
 // The match clock as a *fact about time*, not a ticking counter: `endsAt` is
 // an absolute epoch ms, so a viewer who receives this ten seconds late still

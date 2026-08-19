@@ -18,6 +18,7 @@ import {
 import Roster from './components/Roster';
 import MatchDay from './components/MatchDay';
 import History from './components/History';
+import AlertsCheck from './components/AlertsCheck';
 
 type Tab = 'live' | 'match' | 'roster' | 'history';
 
@@ -414,6 +415,9 @@ export default function App() {
             </span>
           )}
         </h1>
+        {/* Sits in the header rather than beside the 🔔 toggle because it is an
+            organiser's tool, and the toggle is everyone's. */}
+        {adminWord && <AlertsCheck adminWord={adminWord} />}
         <nav className="flex gap-1 rounded-full border border-amber-900/20 bg-[#fffdf4]/70 p-1 shadow-sm">
           {(liveFixture || tab === 'live') && liveTabBtn}
           {isAdmin && tabBtn('match', 'Match day')}
