@@ -811,6 +811,17 @@ the Worker, only the push service's host, which is the part that explains anythi
 rejections are `console.warn`ed from the alarm path, because otherwise a scheduled send has no
 witness at all: `wrangler tail` during a match is the only other place a 403 could ever appear.
 
+It earned its keep on the first real test, which came back `403 {"reason":"BadJwtToken"}` — Apple's
+answer to *every* complaint it has about a VAPID setup, and three different bugs wear it: a `sub`
+claim that isn't a `mailto:` or `https:` URL, a stored JWK whose public and private halves aren't
+each other's, and a subscription minted against a key the Worker has since replaced (a subscription
+is bound to its application server key for life). So the report tells them apart. The Worker signs
+a probe with the private half and verifies it against the public half `k=` is derived from, which
+settles the corrupt-secret case locally in a millisecond; it reports the subject, which is not a
+secret — it exists precisely so a push provider can make contact; and the *browser* compares its
+subscription's `applicationServerKey` with the key now served, since it is the only party holding
+both. Those three lines render only when a send actually failed.
+
 **Setup** is one secret. `node worker/generate-vapid-keys.mjs` prints a private JWK for
 `wrangler secret put VAPID_JWK`; the public half is derived from it and served at `GET /push/key`,
 so there is no key pasted into the source and no way for the two to drift apart. With no secret set,
