@@ -35,8 +35,10 @@ interface Props {
   onSaveFixture: (fixture: FixtureRecord) => void;
   // Publishes tonight's fixture to the rest of the group, or clears it with
   // null when the night ends (§2.14). Match day is admin-only, so this is the
-  // only way anyone else finds out a game is on.
-  onShareLive: (fixture: LiveFixture | null) => void;
+  // only way anyone else finds out a game is on. `critical` marks the two
+  // transitions worth interrupting the organiser about if they fail — starting
+  // and ending — as against a clock update, which can quietly miss a beat.
+  onShareLive: (fixture: LiveFixture | null, critical?: boolean) => void;
 }
 
 const MIN_PLAYERS = 13;
@@ -273,12 +275,12 @@ export default function MatchDay({
     const startedAt = Date.now();
     const clock = initialClock();
     setSession({ ...session, fixtureStarted: true, liveStartedAt: startedAt, clock });
-    onShareLive(buildLive(session.teams, clock, startedAt));
+    onShareLive(buildLive(session.teams, clock, startedAt), true);
   };
 
   const backToTeams = () => {
     setSession({ ...session, fixtureStarted: false, liveStartedAt: null });
-    onShareLive(null);
+    onShareLive(null, true);
   };
 
   // Every start/pause/next-match is one publish — a handful a match, not one a
@@ -302,7 +304,7 @@ export default function MatchDay({
     setHostRoom(null);
     // take the night down for everyone watching too — otherwise the group is
     // left staring at a fixture that no longer exists on the organiser's phone
-    onShareLive(null);
+    onShareLive(null, true);
     setSession(emptySession());
     setStep('players');
   };

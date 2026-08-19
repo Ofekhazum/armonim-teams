@@ -26,11 +26,18 @@ export interface RemoteLive {
 // How often to ask. Two rates rather than one because the cost is paid by
 // every phone with the app open: while a fixture is on, people are watching a
 // clock and want it to start when it starts; the rest of the week the only
-// question is "has anything begun yet", which can wait a minute. Polling stops
-// entirely on a hidden tab (see the hook) — a backgrounded phone in someone's
-// pocket has nobody to show it to.
+// question is "has anything begun yet". Polling stops entirely on a hidden tab
+// (see the hook) — a backgrounded phone in someone's pocket has nobody to show
+// it to — and resumes with an immediate poll when the tab comes back, which
+// covers the common case of someone *arriving* at the app on a match night.
+//
+// The idle rate was a minute at first, on the reasoning that nobody watches an
+// empty app. They do: the organiser starts the night with the tab already open
+// on their other phone, and a minute of nothing reads as broken even though
+// it isn't. Half a minute is still cheap — worst case one request per device
+// per 30s, and only while someone is actually looking at it.
 const POLL_LIVE_MS = 10_000;
-const POLL_IDLE_MS = 60_000;
+const POLL_IDLE_MS = 30_000;
 
 export async function fetchLive(): Promise<RemoteLive | null> {
   if (!REMOTE_URL) return null;

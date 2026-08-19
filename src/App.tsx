@@ -58,12 +58,22 @@ export default function App() {
   }, [liveFixture]);
 
   // Publishing the live fixture is an admin write like any other, so it needs
-  // the word. Failures are deliberately quiet: the organiser's own screen is
-  // already correct, and an alert every time a phone drops a bar of signal
-  // mid-match would be worse than the group's clock being a poll behind.
-  const shareLive = async (fixture: LiveFixture | null) => {
+  // the word. A failed clock update is deliberately quiet — the organiser's own
+  // screen is already correct, and an alert every time a phone drops a bar of
+  // signal would be worse than the group's clock being one poll behind.
+  //
+  // Starting and ending are not that. Those are the two moments the group's
+  // whole view hinges on, and a silent failure there means the organiser
+  // believes everyone can see tonight's teams when nobody can — so they say so.
+  const shareLive = async (fixture: LiveFixture | null, critical = false) => {
     if (adminWord == null) return;
-    await publishLive(fixture, adminWord);
+    const result = await publishLive(fixture, adminWord);
+    if (result === 'ok' || !critical) return;
+    alert(
+      fixture
+        ? "⚠️ Couldn't share this fixture with the group — they won't see tonight's teams.\n\nCheck your connection, then go back to the teams and press Start fixture again."
+        : "⚠️ Couldn't tell the group the fixture is over — it may still show as live on their phones.\n\nIt clears itself within 12 hours either way.",
+    );
   };
 
   // On load, pull the shared roster and adopt it if it's newer than what this
