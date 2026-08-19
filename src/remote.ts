@@ -19,7 +19,45 @@ const DEPLOYED_URL = 'https://armonim-roster.ofekh.workers.dev';
 // Set it to an empty string to run fully offline against the bundled roster.
 export const REMOTE_URL: string = import.meta.env?.VITE_REMOTE_URL ?? DEPLOYED_URL;
 
-const VERSION_KEY = 'armonim-roster-version';
+// Which shared copy a stored version number refers to. The version *is* a
+// Date.now() taken by whichever server wrote it, so two servers' versions are
+// two clocks, not two points on one timeline — and "is the remote newer than
+// what I have?" quietly becomes "was that server's clock ahead of this one's?".
+//
+// A device that has spoken to a local `wrangler dev` therefore carries a
+// timestamp from the moment it was seeded, which is almost certainly later than
+// whenever the deployed roster was last published. Point it back at the
+// deployed Worker and it concludes it already has something newer, and keeps
+// showing the throwaway data forever. That is exactly what happened, on a real
+// person's phone, from my own testing.
+//
+// Scoping the key by host means switching REMOTE_URL starts the comparison
+// fresh instead of racing two servers' clocks. Existing devices see a key they
+// have never written, read 0, and re-adopt the shared copy on next load —
+// which is the correct answer and also repairs anyone already stuck.
+const versionKey = (name: string): string => {
+  let host = 'none';
+  try {
+    if (REMOTE_URL) host = new URL(REMOTE_URL).host;
+  } catch {
+    // malformed REMOTE_URL — 'none' is as good a bucket as any
+  }
+  return `armonim-${name}-version@${host}`;
+};
+
+const VERSION_KEY = versionKey('roster');
+
+// The pre-scoping keys, left behind on every device that has ever run this app.
+// Dead weight rather than a hazard — nothing reads them any more — but they are
+// the record of a bug, and leaving them in people's browsers invites someone to
+// wonder later whether they still matter.
+for (const legacy of ['armonim-roster-version', 'armonim-history-version']) {
+  try {
+    localStorage.removeItem(legacy);
+  } catch {
+    // storage disabled (private mode, blocked cookies) — nothing to clean
+  }
+}
 
 // What the *public* roster read carries. The worker strips the three fields
 // that are statements about people rather than about football — `avoid` (who
@@ -150,7 +188,7 @@ export async function publishRemoteRoster(
 // device (or by one organiser) show up for everyone else, the same as the
 // roster and unlike the local-only history this replaced.
 
-const HISTORY_VERSION_KEY = 'armonim-history-version';
+const HISTORY_VERSION_KEY = versionKey('history');
 
 export interface RemoteHistory {
   version: number;
