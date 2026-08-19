@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   disableNotifications,
   enableNotifications,
+  notificationsConfigured,
   notifyEnabled,
   pushSupport,
 } from '../push';
@@ -15,9 +16,20 @@ export default function NotifyToggle() {
   const [on, setOn] = useState(notifyEnabled);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
+  // undefined while we're still asking — render nothing rather than flashing a
+  // control that might be about to disappear
+  const [configured, setConfigured] = useState<boolean | undefined>(undefined);
   const support = pushSupport();
 
-  if (support === 'not-configured') return null;
+  useEffect(() => {
+    let cancelled = false;
+    void notificationsConfigured().then((yes) => !cancelled && setConfigured(yes));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (support === 'not-configured' || configured !== true) return null;
 
   // On an iPhone the API simply isn't there until the site has been added to
   // the Home Screen, so saying "not supported" would be both wrong and a dead

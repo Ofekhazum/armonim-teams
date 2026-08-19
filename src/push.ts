@@ -54,19 +54,34 @@ const setEnabledFlag = (on: boolean) => {
 // worker has to be registered within that scope to control the page.
 const swUrl = () => `${import.meta.env.BASE_URL}sw.js`;
 
+// Asked for once per page load, not once per render: the answer is a
+// deployment fact, and the toggle sits on a component that re-renders every
+// time the clock ticks.
+let keyRequest: Promise<Uint8Array | null> | null = null;
+
 async function vapidKey(): Promise<Uint8Array | null> {
-  try {
-    const res = await fetch(`${REMOTE_URL}/push/key`, { cache: 'no-store' });
-    if (!res.ok) return null;
-    const { key } = (await res.json()) as { key: string | null };
-    if (!key) return null;
-    const padded = key.replace(/-/g, '+').replace(/_/g, '/');
-    const raw = atob(padded + '='.repeat((4 - (padded.length % 4)) % 4));
-    return Uint8Array.from(raw, (c) => c.charCodeAt(0));
-  } catch {
-    return null;
-  }
+  keyRequest ??= (async () => {
+    try {
+      const res = await fetch(`${REMOTE_URL}/push/key`, { cache: 'no-store' });
+      if (!res.ok) return null;
+      const { key } = (await res.json()) as { key: string | null };
+      if (!key) return null;
+      const padded = key.replace(/-/g, '+').replace(/_/g, '/');
+      const raw = atob(padded + '='.repeat((4 - (padded.length % 4)) % 4));
+      return Uint8Array.from(raw, (c) => c.charCodeAt(0));
+    } catch {
+      return null;
+    }
+  })();
+  return keyRequest;
 }
+
+// Whether this deployment can send at all. A Worker with no VAPID secret set
+// serves a null key, and without this the app would show everyone a toggle
+// that fails the moment it is pressed — worse than showing nothing, because it
+// reads as broken rather than as absent.
+export const notificationsConfigured = (): Promise<boolean> =>
+  vapidKey().then((k) => k !== null);
 
 export type EnableResult = 'ok' | 'denied' | 'unsupported' | 'not-configured' | 'error';
 
