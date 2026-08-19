@@ -123,8 +123,8 @@ const SORT_COLUMNS: { key: SortKey; label: string }[] = [
   { key: 'name', label: 'Player' },
   { key: 'nights', label: 'Nights' },
   { key: 'wins', label: 'Wins' },
-  { key: 'mvps', label: 'MVPs' },
   { key: 'perNight', label: 'Per night' },
+  { key: 'mvps', label: 'MVPs' },
   { key: 'vsRating', label: 'vs rating' },
 ];
 
@@ -443,10 +443,10 @@ export default function History({
                     {fmtWins(s.wins)}
                   </td>
                   <td className="py-1.5 text-right tabular-nums text-amber-900/70">
-                    {mvpById.get(s.id) ? `🌟 ${mvpById.get(s.id)}` : '—'}
+                    {s.perNight.toFixed(2)}
                   </td>
                   <td className="py-1.5 text-right tabular-nums text-amber-900/70">
-                    {s.perNight.toFixed(2)}
+                    {mvpById.get(s.id) ? `🌟 ${mvpById.get(s.id)}` : '—'}
                   </td>
                   <td
                     className={`py-1.5 text-right tabular-nums ${
