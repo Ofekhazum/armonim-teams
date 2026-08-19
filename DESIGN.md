@@ -564,7 +564,12 @@ whole history for a career total, an already-month-filtered list for the recap).
 results** (`FixturePage.tsx`) — same host-only, not-visible-to-a-live-room-guest placement as
 `ResultsPanel` (§2.6), and saved in the same `saveNight()` call rather than as a separate step.
 Optional; `session.mvpId` resets to `null` whenever fresh teams are generated, same as `session.wins`
-— an old pick against last week's sheet shouldn't survive onto a new one.
+— an old pick against last week's sheet shouldn't survive onto a new one. `MvpPicker` is reused (with
+different copy) inside History's **✏️ Edit result** form (below) to add or correct a pick on a past
+night — its `players` prop only ever needs id/name, so the same component works from a live squad
+(`Player[]`) or a saved night's `FixturePlayer[]` snapshot. That edit patch always carries `mvpId`
+explicitly, even as `undefined` for "no pick" — the field is how a wrong pick gets *cleared*, and
+omitting the key from the patch would leave the old id in place instead of clearing it.
 
 **Read**: two places.
 - **History's standings table** (§2.6's table) gains an **MVPs** column, sortable like the others,

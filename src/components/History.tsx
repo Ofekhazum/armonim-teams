@@ -14,6 +14,7 @@ import { shareWrappedImage } from '../wrappedImage';
 import { MIN_TRUST_NIGHTS, trustCorrelation, trustPoints, type TrustPoint } from '../trust';
 import { mvpCounts } from '../mvp';
 import { TEAM_META, Name, fmtRating } from './ui';
+import MvpPicker from './MvpPicker';
 
 interface Props {
   history: FixtureRecord[];
@@ -21,7 +22,10 @@ interface Props {
   isAdmin: boolean;
   onApplyRating: (playerId: string, rating: number) => void;
   onDeleteFixture: (fixtureId: string) => void;
-  onEditFixture: (fixtureId: string, patch: { wins: TeamWins; date: string }) => void;
+  onEditFixture: (
+    fixtureId: string,
+    patch: { wins: TeamWins; date: string; mvpId?: string },
+  ) => void;
 }
 
 // Predicted-vs-actual balance, one dot per recorded night — see src/trust.ts
@@ -110,6 +114,7 @@ function TrustChart({ points }: { points: TrustPoint[] }) {
 interface Draft {
   wins: DraftTeamWins;
   date: string;
+  mvpId: string | null;
 }
 
 type SortKey = 'name' | 'nights' | 'wins' | 'mvps' | 'perNight' | 'vsRating';
@@ -158,7 +163,7 @@ export default function History({
 
   const startEdit = (fx: FixtureRecord) => {
     setEditId(fx.id);
-    setDraft({ wins: { ...fx.wins }, date: fx.date });
+    setDraft({ wins: { ...fx.wins }, date: fx.date, mvpId: fx.mvpId ?? null });
   };
 
   const cancelEdit = () => {
@@ -176,6 +181,11 @@ export default function History({
         blue: draft.wins.blue ?? 0,
       },
       date: draft.date,
+      // always present, even as undefined — the edit form is how a wrong
+      // pick gets *cleared*, and if this key were simply omitted for "no
+      // pick" the patch spread in App.tsx would leave the old id in place
+      // instead of clearing it
+      mvpId: draft.mvpId ?? undefined,
     });
     cancelEdit();
   };
@@ -566,6 +576,13 @@ export default function History({
                           className="rounded-lg border border-amber-900/25 bg-white px-2 py-1 font-semibold text-amber-950"
                         />
                       </label>
+                      <MvpPicker
+                        players={fx.players}
+                        mvpId={draft.mvpId}
+                        onChange={(mvpId) => setDraft((d) => (d ? { ...d, mvpId } : d))}
+                        title="🌟 MVP"
+                        description="Add or correct the standout-player pick for this night."
+                      />
                       <p className="text-xs text-amber-900/50">
                         Half a win means it was taken on penalties. The team sheet can't be
                         changed — delete the night and save it again if the teams were wrong.
@@ -602,6 +619,12 @@ export default function History({
                       </div>
                       <p className="text-xs text-amber-900/45">
                         {totalWins(fx.wins)} wins across the night · {fx.players.length} players
+                        {fx.mvpId && nameOf(fx.mvpId) !== '?' && (
+                          <>
+                            {' '}
+                            · 🌟 MVP: <Name className="font-semibold text-amber-900/70">{nameOf(fx.mvpId)}</Name>
+                          </>
+                        )}
                       </p>
                       {/* correcting the record is an organiser action, same as
                           editing ratings — so it sits behind admin mode */}

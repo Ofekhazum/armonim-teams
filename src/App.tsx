@@ -141,13 +141,20 @@ export default function App() {
   // Correcting a night after the fact. If it happens to be the night still
   // open on Match Day, the in-progress tally is corrected with it — otherwise
   // saving again from there would quietly undo the edit.
-  const editFixture = (id: string, patch: { wins: TeamWins; date: string }) => {
+  const editFixture = (
+    id: string,
+    patch: { wins: TeamWins; date: string; mvpId?: string },
+  ) => {
+    // mvpId is spread as-is, including when it's explicitly undefined (that's
+    // how the edit form clears a wrong pick) — JSON.stringify drops it either way
     const history = state.history.map((f) => (f.id === id ? { ...f, ...patch } : f));
     setState((s) => ({
       ...s,
       history,
       session:
-        s.session.savedFixtureId === id ? { ...s.session, wins: patch.wins } : s.session,
+        s.session.savedFixtureId === id
+          ? { ...s.session, wins: patch.wins, mvpId: patch.mvpId ?? null }
+          : s.session,
     }));
     void syncHistory(history);
   };
