@@ -54,11 +54,10 @@ export default function App() {
   // for them the Live tab *is* the fixture page, rather than a second, thinner
   // rendering of the same match they are standing in the middle of.
   //
-  // Gated on this device actually holding the night rather than on being admin:
-  // an organiser opening the app on a second phone has no teams, ratings or
-  // history for it locally (the published payload deliberately carries none of
-  // that, §2.15), so there is nothing to render a fixture page from and they
-  // correctly get the read-only view like everyone else.
+  // This is a question of what can be *drawn*, never of what is allowed: the
+  // fixture page needs teams, ratings and history that the deliberately-thin
+  // live payload doesn't carry. An admin device that lacks them doesn't get
+  // shown less — it goes and gets them, in adoptLive just below.
   const runningLocally = isAdmin && state.session.fixtureStarted && state.session.teams !== null;
 
   // Land on the live fixture the first time we hear about one — on a match
@@ -74,6 +73,14 @@ export default function App() {
   // device can run the night — record the result, pick the MVP, end it — rather
   // than only the phone that happened to start it. Being admin is what confers
   // the right; which device you are holding was never supposed to.
+  //
+  // Done automatically rather than behind a "take over" button. Adoption is
+  // purely local — it publishes nothing, so two admin devices doing it cannot
+  // fight — and the only thing it can cost is a squad half-picked on this
+  // device, which requires a match to be live, you to be admin on a second
+  // phone, and that phone to be mid-selection, all at once. Weighed against
+  // making every organiser learn an extra concept to get controls they already
+  // had the right to, the button was the worse trade.
   //
   // Everything the fixture page needs is either in the live record (teams, who
   // is playing, the keeper, the clock) or already on this device (the roster,
@@ -116,6 +123,18 @@ export default function App() {
     // no tab change needed: this device is now running the night, so the Live
     // tab renders the full fixture page on the very next paint
   };
+
+  // Adopt once per fixture, and only while actually looking at the Live tab —
+  // an organiser glancing at the roster shouldn't have tonight quietly loaded
+  // underneath them. Keyed on the fixture id so stepping back to the teams (or
+  // ending and starting a new night) doesn't immediately re-adopt.
+  const adopted = useRef<string | null>(null);
+  useEffect(() => {
+    if (tab !== 'live' || !isAdmin || !liveFixture || runningLocally) return;
+    if (adopted.current === liveFixture.id) return;
+    adopted.current = liveFixture.id;
+    adoptLive(liveFixture);
+  });
 
   // The organiser has just ended their night, or stepped back to re-pick teams,
   // while standing on Live. That tab is about to be empty and everything they
@@ -425,12 +444,6 @@ export default function App() {
                     });
                   }
                 : undefined
-            }
-            onTakeOver={isAdmin ? () => adoptLive(liveFixture) : undefined}
-            // taking over replaces whatever this device had going, so warn if
-            // that is a squad someone was part-way through picking
-            takeOverWarning={
-              state.session.teams !== null || state.session.availableIds.length > 0
             }
           />
         ) : (

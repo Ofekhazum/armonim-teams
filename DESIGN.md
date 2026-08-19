@@ -641,13 +641,20 @@ is a worse answer than two tabs showing the same one.
 Which device is holding the night decides only what can be *drawn*, never what is allowed. The
 fixture page needs ratings, guests and history that the deliberately-thin live payload doesn't
 carry, so a phone that didn't start the night has nothing to render it from — but that is a plumbing
-limit, not a permission, and it must not become one. Two things follow. **⏹️ End fixture** is offered
-to any admin on any device, because ending needs nothing local at all, and an organiser whose
-browser was cleared must never be left watching a fixture they own with no way to stop it. And
-**🎛️ Run it from here** rebuilds the session from the live record plus this device's own roster and
-history, after which the full page is available exactly as on the originating phone. The one real
-gap is guests: they exist only for tonight and are in nobody's roster, so they return with a name
-and an unknown rating — which moves the displayed team average and nothing that gets saved.
+limit, not a permission, and it must not become one. So an admin device that lacks those simply goes
+and gets them: opening Live rebuilds the session from the live record plus this device's own roster
+and history (`adoptLive`), and the full page appears. No button, no "take over" step — adoption is
+purely local, publishes nothing, and two admin devices doing it cannot conflict. The only thing it
+can cost is a squad half-picked on that device, which needs a live match, a second admin phone and
+an in-progress selection all at once; making every organiser learn an extra concept to avoid that
+was the worse trade. The one real gap is guests: they exist only for tonight and are in nobody's
+roster, so they return with a name and an unknown rating — which moves the displayed team average
+and nothing that gets saved.
+
+**⏹️ End fixture** is offered to any admin on any device regardless, since ending needs no local
+state at all. It covers the moment before adoption, and the case where adoption can't help — an
+organiser whose browser was cleared must never be left watching a fixture they own with no way to
+stop it, which is exactly what happened once.
 
 Both ways out of that page (**← Back to teams**, **⏹️ End fixture**) leave the Live tab with nothing
 to show, so whoever was running it here is moved to Match day, where everything they would do next
