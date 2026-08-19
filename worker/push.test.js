@@ -4,6 +4,7 @@ import {
   bytesToB64u,
   encryptPayload,
   isGone,
+  keyIsConsistent,
   publicKeyBytes,
   vapidAuthorization,
 } from './push.js';
@@ -150,6 +151,28 @@ describe('vapidAuthorization', () => {
         new TextEncoder().encode(`${h}.${c}`),
       ),
     ).toBe(true);
+  });
+});
+
+describe('keyIsConsistent', () => {
+  // Exists to tell a corrupt secret apart from a rejected subject: Apple says
+  // "BadJwtToken" to both. It is only worth having if it can actually fail.
+  it('accepts a key whose halves belong to each other', async () => {
+    expect(await keyIsConsistent(VECTOR.senderJwk)).toBe(true);
+  });
+
+  it('rejects a key whose public half came from somewhere else', async () => {
+    const other = await crypto.subtle.exportKey(
+      'jwk',
+      (await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign']))
+        .publicKey,
+    );
+    const frankenkey = { ...VECTOR.senderJwk, x: other.x, y: other.y };
+    expect(await keyIsConsistent(frankenkey)).toBe(false);
+  });
+
+  it('rejects a secret that is not a key at all rather than throwing', async () => {
+    expect(await keyIsConsistent({ kty: 'EC', crv: 'P-256' })).toBe(false);
   });
 });
 

@@ -14,7 +14,7 @@
 // A DO holds exactly one alarm, so the pending triggers are kept as a list and
 // the alarm is always set to the earliest of them.
 
-import { isGone, sendPush } from './push.js';
+import { isGone, keyIsConsistent, sendPush } from './push.js';
 
 const ONE_MINUTE_MS = 60 * 1000;
 
@@ -127,10 +127,17 @@ export class ClockNotifier {
         title: '🔔 Test alert',
         body: 'This is what one minute left will look like',
       });
+      // The two pieces of VAPID configuration a push service can object to.
+      // The subject is not a secret — it exists precisely so a push provider
+      // can contact whoever runs this — and seeing it is the difference
+      // between fixing a typo and regenerating a key for nothing.
+      const jwk = this.env.VAPID_JWK ? JSON.parse(this.env.VAPID_JWK) : null;
       return Response.json({
         subscribers: subs.length,
         known,
         configured: Boolean(this.env.VAPID_JWK),
+        subject: this.env.VAPID_SUBJECT ?? 'mailto:armonim@example.com (default)',
+        keyOk: jwk ? await keyIsConsistent(jwk) : false,
         pending: (await this.state.storage.get('pending')) ?? [],
         alarmAt: (await this.state.storage.getAlarm?.()) ?? null,
         now: Date.now(),

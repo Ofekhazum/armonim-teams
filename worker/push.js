@@ -150,6 +150,36 @@ export async function vapidAuthorization(endpoint, jwk, subject, now = Date.now(
   return `vapid t=${signingInput}.${bytesToB64u(signature)}, k=${bytesToB64u(publicKeyBytes(jwk))}`;
 }
 
+// Signs a probe with the private half of the stored JWK and verifies it with
+// the public half that the `k=` parameter is derived from. Worth having because
+// Apple answers `BadJwtToken` to every VAPID complaint it has — a subject it
+// won't accept, a key that doesn't match the subscription, and a secret whose
+// x/y simply don't belong to its d are indistinguishable from outside. This
+// settles the last one locally, in a millisecond, with no push service involved.
+export async function keyIsConsistent(jwk) {
+  try {
+    const priv = await crypto.subtle.importKey(
+      'jwk',
+      jwk,
+      { name: 'ECDSA', namedCurve: 'P-256' },
+      false,
+      ['sign'],
+    );
+    const pub = await crypto.subtle.importKey(
+      'raw',
+      publicKeyBytes(jwk),
+      { name: 'ECDSA', namedCurve: 'P-256' },
+      false,
+      ['verify'],
+    );
+    const probe = enc('vapid self-check');
+    const sig = await crypto.subtle.sign({ name: 'ECDSA', hash: 'SHA-256' }, priv, probe);
+    return await crypto.subtle.verify({ name: 'ECDSA', hash: 'SHA-256' }, pub, sig, probe);
+  } catch {
+    return false;
+  }
+}
+
 // A push service that has never heard of this subscription, or has seen the
 // browser drop it, answers 404 or 410. Those are the only statuses worth acting
 // on — everything else is transient and the next match will try again.

@@ -46,6 +46,29 @@ function Report({ report }: { report: PushReport }) {
           {push.detail ? ` — ${push.detail}` : ''}
         </Line>
       )}
+      {/* A push service that dislikes the VAPID setup says so in one word for
+          three different faults. These are those three, told apart — shown
+          only when something actually went wrong, since on a working
+          deployment they are just noise. */}
+      {push && (push.status < 200 || push.status > 299) && (
+        <>
+          <Line ok={report.keyOk}>
+            {report.keyOk
+              ? 'signing key is self-consistent'
+              : 'the VAPID secret is corrupt — its public and private halves disagree'}
+          </Line>
+          <Line ok={/^(mailto:\S+@\S+|https:\/\/\S+)$/.test(report.subject)}>
+            subject: {report.subject}
+          </Line>
+          <Line ok={report.keyMatchesSubscription !== false}>
+            {report.keyMatchesSubscription === false
+              ? 'this subscription was made against a different key — turn 🔔 off, then on'
+              : report.keyMatchesSubscription === null
+                ? 'could not compare this subscription to the current key'
+                : 'subscription matches the current key'}
+          </Line>
+        </>
+      )}
       <Line ok={next !== null}>
         {next
           ? `next alert: ${next.kind} in ${seconds(next.at - report.now)}`

@@ -160,8 +160,35 @@ export interface PushReport {
   alarmAt: number | null;
   now: number;
   sent: { host: string; status: number; detail: string }[];
+  // the address a push provider would contact, and whether the stored key's
+  // public and private halves are actually each other's
+  subject: string;
+  keyOk: boolean;
   // set by the client, not the server: this device had no subscription to test
   noEndpoint?: boolean;
+  // ...nor can the server tell whether this subscription was minted against
+  // the key it now signs with. Only the browser holds that. null = couldn't
+  // tell (no subscription, or a browser that doesn't expose the options).
+  keyMatchesSubscription?: boolean | null;
+}
+
+// A push subscription is bound to the application server key it was created
+// with, permanently. Rotate the key on the Worker and every subscription made
+// before it keeps working right up until the moment it is used, when the push
+// service answers with the same generic complaint it gives a bad subject.
+// The browser is the only party that holds both halves of this comparison.
+async function subscriptionMatchesKey(): Promise<boolean | null> {
+  try {
+    const registration = await navigator.serviceWorker.getRegistration(import.meta.env.BASE_URL);
+    const subscription = await registration?.pushManager.getSubscription();
+    const applied = subscription?.options?.applicationServerKey;
+    const current = await vapidKey();
+    if (!applied || !current) return null;
+    const bytes = new Uint8Array(applied);
+    return bytes.length === current.length && bytes.every((b, i) => b === current[i]);
+  } catch {
+    return null;
+  }
 }
 
 export async function testPush(secret: string): Promise<PushReport | null> {
@@ -174,7 +201,11 @@ export async function testPush(secret: string): Promise<PushReport | null> {
       body: JSON.stringify({ secret, endpoint }),
     });
     if (!res.ok) return null;
-    return { ...((await res.json()) as PushReport), noEndpoint: endpoint === null };
+    return {
+      ...((await res.json()) as PushReport),
+      noEndpoint: endpoint === null,
+      keyMatchesSubscription: await subscriptionMatchesKey(),
+    };
   } catch {
     return null;
   }
