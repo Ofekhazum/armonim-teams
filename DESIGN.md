@@ -193,7 +193,8 @@ doesn't. The field stays for direct entry, and both paths snap to the nearest ha
 is a typo.
 
 **Model** (`types.ts`): `TeamWins = Record<TeamColor, number>` on a `FixtureRecord`
-(`{ id, date, teams, players, wins }`), with `DraftTeamWins` (nullable) for the tally while it's
+(`{ id, date, teams, players, wins, mvpId? }` — `mvpId` is §2.13's MVP pick, the one field here that
+isn't derived from the result), with `DraftTeamWins` (nullable) for the tally while it's
 still being typed. `players` is a **snapshot** (`FixturePlayer`: id/name/rating at the time) rather
 than a pointer into the roster, because guests are one-off and both names and ratings move; history
 has to still read correctly years later.
@@ -410,9 +411,19 @@ The facts, and what each needs:
 |---|---|---|
 | 🎉 Nth night | 10, 25, then every 50 | roughly a mention a year once established |
 | 🏆 Nth win | crossing 50, 100, 250, then every 500 | wins are fractional, so it's a *crossing*, not equality |
+| 🦾 N nights straight | run ≥ `MIN_ATTEND_STREAK` (8) | attendance, not results — see below |
 | 📈 Won N nights running | run ≥ `MIN_WIN_STREAK` (3) | ~one player on any given night |
 | 💤 Hasn't won in N nights | run ≥ `MIN_WINLESS_RUN` (5) | the same maths inverted |
 | ✨ First night | see the debut rules below | |
+
+**🦾 is attendance, not results — a different axis from the streaks above it.** It counts
+consecutive nights *on the sheet*, whether or not a result was ever recorded that night, and breaks
+on a single missed night the way a win streak deliberately does not (win streaks skip a missed week
+rather than break on it, since the question there is "on nights they played, how did it go"; the
+question here is "did they show up", so missing is the one thing that has to end it). `MIN_ATTEND_STREAK`
+(8) is a starting guess, unlike the two ladders below it — those were also guessed first and only
+correct once real nights showed the true rate. This constant is due the same treatment once there's
+enough attendance history to look at.
 
 **The two ladders are calibrated against real results, not guessed.** The first recorded night
 finished 7 / 5 / 2 — **14 wins shared between the three teams**, so a player banks roughly 4–5 wins
@@ -475,6 +486,106 @@ Early records are still collected and ranked; they just can't win on the strengt
 Two smaller details: the base rate is **measured** from tonight's players rather than assumed to be
 a third (ties at the top drag it below that), and guests are excluded for the same id-churn reason
 as milestones.
+
+The scoring engine (`computeDuoRecords`) is factored out from `duoFacts` so it can also drive the
+monthly recap's best-pairing stat (§2.11) over a different set of ids/fixtures — same shrink-toward-
+base-rate math, applied to "everyone who played this month" instead of "tonight's squad".
+
+### 2.11 Monthly recap ("Wrapped")
+
+`src/wrapped.ts` (+ `wrapped.test.ts`) turns a calendar month of `AppState.history` into a small set
+of counts, rendered as one or two shareable "story" images (`src/wrappedImage.ts`, same
+canvas-drawing approach as `shirtImage.ts`) via a **📊 Monthly recap** picker + **🖼️ Share recap**
+button at the top of the History tab. Visible to everyone, not just admins — sharing a recap is not
+a write.
+
+**Deliberately monthly, not seasonal or yearly.** The app has no notion of a "season" boundary, and a
+full year is a long wait for the first shareable moment; a month is close to the natural size of "a
+few weeks of Thursdays" and gives the picker something to show early. `wrappedPeriods` only lists
+months that actually have a recorded night, so the picker never offers an empty one.
+
+**Two images, not one long scroll.** `renderWrappedImages` always returns a "highlights" page (hero,
+MVP/match/fixture leaderboards, attendance, longest streak, best pair); a second "also happened" page
+— the banter side (§2.13) — only gets rendered when there's actually something to say
+(`hasAlsoHappened`), and both go out together as one multi-file share, same pattern as
+`shirtImage.ts`'s three team shirts. This is the split point the app already had for free: page 1 is
+everything already gated positive/neutral, page 2 is exactly the `buildNegativeTiles`/`worstDuo`
+content that used to live under an "😬 ALSO HAPPENED" divider on a single card. Splitting there means
+neither page needed new gating logic, just a second, lighter-headed canvas.
+
+**Every card's height is measured, not guessed.** A tile grid, a leaderboard, the attendance list —
+each has a `*Height`/`leaderboardHeight`/`wrapNames`-driven size computed before the canvas exists, so
+a quiet month (few stats) produces a short image and a busy one a tall one, never dead space or
+clipping. The attendance card is the trickiest case: how many lines a name list wraps to depends on
+the actual font metrics, so that one measurement pass runs against a throwaway `<canvas>` context
+before the real canvas (whose height depends on the answer) is even created.
+
+**Reuses existing engines rather than inventing new ones.** `topMatchWinners`/`topFixtureWinners` are
+top-3 tallies over the month's fixtures — kept as two separate rankings rather than one "top scorer"
+because this app has no goal tally (§2.6): a *match* win is the three-numbers-a-night team credit,
+a *fixture* win is whether that team was the strict top of the whole night (`winnerOf`, same
+definition milestones/duos already use), and a player can lead one without leading the other.
+`perfectAttendance` lists everyone whose night count equals the month's total, not just the single
+top attendee (an earlier version did that and mislabeled a merely-good month "never missed").
+`longestStreak`/`longestWinless` reuse `appearances` (exported from `milestones.ts` for this purpose)
+and gate on the same `MIN_WIN_STREAK`/`MIN_WINLESS_RUN` as tonight's own facts; `bestDuo`/`worstDuo`
+reuse `computeDuoRecords` (§2.10) with "everyone who played this month" as the relevant id set instead
+of "tonight's squad". `topMvps` is the one exception to "every line is a count, not a verdict" —
+see §2.13 for why that's fine.
+
+### 2.12 Balancer trust dashboard
+
+`src/trust.ts` (+ `trust.test.ts`), admin-only, in the History tab. The balancer (§3) optimizes for a
+small rating gap between teams, but nothing else in the app ever checks whether that prediction shows
+up in the result — this closes that loop by plotting, per recorded night, the **predicted** gap
+(spread between team-average ratings, derived from the `FixturePlayer` snapshot already on the
+record — no new data needed) against the **actual** gap (spread in win share). A scatter chart (inline
+SVG, no charting library — consistent with the rest of the app) plus a one-line Pearson correlation
+readout (`trustCorrelation`), gated at `MIN_TRUST_NIGHTS` (8) the same way `MIN_NIGHTS` gates rating
+suggestions (§2.6).
+
+**Purely descriptive, on purpose.** Nothing here feeds back into team generation — same posture as
+`calibration.ts`'s rating suggestions, a number to look at rather than an auto-tune loop. The
+correlation readout is written in tiers (tracks together / barely tracks / moves opposite) rather
+than a bare number, and the "barely tracks" case explicitly allows for the honest possibility that
+8-minute matches are just noisier than a rating gap can predict, rather than assuming the balancer
+must be wrong.
+
+### 2.13 MVP picks
+
+The one deliberately subjective input in the app, sitting next to a whole design rule (§2.9) built
+around never claiming more than the win tally supports. `FixtureRecord.mvpId` (optional, `types.ts`)
+is the organiser's own pick for tonight's standout player — any id from that night's `players`,
+guests included. `src/mvp.ts`'s `mvpCounts(fixtures)` is the one small piece of logic here: how many
+times each player has been picked, ranked most first, over whatever fixture list it's given (the
+whole history for a career total, an already-month-filtered list for the recap).
+
+**Entry**: `MvpPicker.tsx`, a single `<select>` on the fixture page, rendered above **🏁 Tonight's
+results** (`FixturePage.tsx`) — same host-only, not-visible-to-a-live-room-guest placement as
+`ResultsPanel` (§2.6), and saved in the same `saveNight()` call rather than as a separate step.
+Optional; `session.mvpId` resets to `null` whenever fresh teams are generated, same as `session.wins`
+— an old pick against last week's sheet shouldn't survive onto a new one. `MvpPicker` is reused (with
+different copy) inside History's **✏️ Edit result** form (below) to add or correct a pick on a past
+night — its `players` prop only ever needs id/name, so the same component works from a live squad
+(`Player[]`) or a saved night's `FixturePlayer[]` snapshot. That edit patch always carries `mvpId`
+explicitly, even as `undefined` for "no pick" — the field is how a wrong pick gets *cleared*, and
+omitting the key from the patch would leave the old id in place instead of clearing it.
+
+**Read**: two places.
+- **History's standings table** (§2.6's table) gains an **MVPs** column, sortable like the others,
+  built from `mvpCounts(history)` — a *career* total, since it isn't month-scoped there.
+- **The monthly recap** (§2.11) leads with a **🌟 Most MVP picks** leaderboard, `mvpCounts` given only
+  the month's fixtures. Deliberately **not** capped at 3 the way the match/fixture-win leaderboards
+  are: an MVP pick is one player a night, so it routinely spreads across more than three people in a
+  month, and cutting it off there would hide most of who actually got picked. The card just grows to
+  fit, same as the attendance list.
+
+**Why this is fine to just count, when nothing else in the app gets that treatment.** Every other
+fact here is derived from a win tally specifically *because* a human declaring "this player was good"
+is a claim the three-numbers-a-night record can't support. MVP inverts that: it *is* the human
+declaring it, recorded as what it actually is — the organiser's call — rather than manufactured from
+data that was never rich enough to support it. The count is honest because it's counting a real,
+already-made judgment, not synthesizing one.
 
 ## 3. Team generation algorithm
 
@@ -553,14 +664,16 @@ panel is unaffected — the organizer still sees the plan, it just doesn't go in
      **🔴 Go live** turns this board into a shared live room others can join and drag in — see §2.5.
    - **▶️ Start fixture** → `src/components/FixturePage.tsx`: locks tonight's teams in and shows
      them read-only (§2.7), with tonight's milestones and duo records (§2.9, §2.10), the 8-minute
-     match clock (§2.8), and **🏁 Tonight's results** (`ResultsPanel.tsx`) to file the night.
+     match clock (§2.8), **🌟 Tonight's MVP** (`MvpPicker.tsx`, §2.13, optional) and **🏁 Tonight's
+     results** (`ResultsPanel.tsx`) to file the night.
      **← Back to teams** returns to the editable board above without losing anything, in case the
      teams need another look; **⏹️ End fixture** wipes the night and starts over, the same action
      as the board's 🆕 New Fixture.
-3. **History** (`src/components/History.tsx`) — past nights (expandable to the team sheets and
-   each team's wins), a standings table of nights / wins / wins-per-night where a shootout counts
-   as half, and, in admin mode, rating suggestions with Apply/Dismiss. Empty until the first
-   night is saved.
+3. **History** (`src/components/History.tsx`) — a **📊 Monthly recap** picker + share button
+   (§2.11), past nights (expandable to the team sheets and each team's wins), a standings table of
+   nights / wins / MVPs (§2.13) / wins-per-night where a shootout counts as half, and, in admin
+   mode, the **⚖️ Balancer trust** scatter (§2.12) and rating suggestions with Apply/Dismiss. Empty
+   until the first night is saved.
 4. **Live room guest view** (`src/components/RoomGuest.tsx`) — what a shared room link opens
    instead of the app above; see §2.5.
 

@@ -57,9 +57,12 @@ describe('tonightsMilestones', () => {
   });
 
   it('counts tonight towards the total', () => {
-    // 49 nights behind them → tonight is the 50th
+    // 49 nights behind them → tonight is the 50th, and also their 50th in a row
     const out = tonightsMilestones([player('a', 'דור')], nights(49, ['a']));
-    expect(out).toEqual([{ id: 'a', name: 'דור', kind: 'nth-night', nights: 50 }]);
+    expect(out).toEqual([
+      { id: 'a', name: 'דור', kind: 'nth-night', nights: 50 },
+      { id: 'a', name: 'דור', kind: 'iron-man', nights: 50 },
+    ]);
   });
 
   it('says nothing on an ordinary night', () => {
@@ -95,6 +98,7 @@ describe('tonightsMilestones', () => {
     const out = tonightsMilestones(squad, nights(24, ['vet']));
     expect(out).toEqual([
       { kind: 'nth-night', id: 'vet', name: 'ותיק', nights: 25 },
+      { kind: 'iron-man', id: 'vet', name: 'ותיק', nights: 25 },
       { kind: 'debut-group', count: 4 },
     ]);
   });
@@ -102,15 +106,22 @@ describe('tonightsMilestones', () => {
   it('counts a fixture once even if a player is somehow listed twice on it', () => {
     const dupe = fixture(['a', 'a']);
     dupe.players.push({ id: 'a', name: 'a', rating: 3 });
-    // 9 clean nights + 1 duplicated one = 10 nights, so tonight is the 11th
-    expect(tonightsMilestones([player('a', 'דור')], [...nights(9, ['a']), dupe])).toEqual([]);
+    // 9 clean nights + 1 duplicated one = 10 nights, so tonight is the 11th —
+    // and also their 11th straight, since none of those nights were missed
+    expect(tonightsMilestones([player('a', 'דור')], [...nights(9, ['a']), dupe])).toEqual([
+      { kind: 'iron-man', id: 'a', name: 'דור', nights: 11 },
+    ]);
   });
 
   it('only counts the nights a player was actually on the sheet', () => {
     const history = [...nights(9, ['a']), ...nights(40, ['b'])];
-    // tonight is a's 10th, and only b's 41st
+    // tonight is a's 10th, and only b's 41st — and b's 41 have all been in a
+    // row, while a hasn't played since before b's run started
     const out = tonightsMilestones([player('a', 'דור'), player('b', 'עומרי')], history);
-    expect(out).toEqual([{ id: 'a', name: 'דור', kind: 'nth-night', nights: 10 }]);
+    expect(out).toEqual([
+      { id: 'a', name: 'דור', kind: 'nth-night', nights: 10 },
+      { id: 'b', name: 'עומרי', kind: 'iron-man', nights: 41 },
+    ]);
   });
 
   it('puts the bigger milestone first and debuts last', () => {
@@ -119,11 +130,42 @@ describe('tonightsMilestones', () => {
       [player('a', 'דור'), player('b', 'עומרי'), player('c', 'חדש')],
       history,
     );
+    // b's run is unbroken up to tonight; a's 24 nights are all *before* b's
+    // block, so a's attendance streak was broken long before tonight
     expect(out).toEqual([
       { kind: 'nth-night', id: 'b', name: 'עומרי', nights: 50 },
       { kind: 'nth-night', id: 'a', name: 'דור', nights: 25 },
+      { kind: 'iron-man', id: 'b', name: 'עומרי', nights: 50 },
       { kind: 'debut', id: 'c', name: 'חדש' },
     ]);
+  });
+});
+
+describe('attendance streaks', () => {
+  it('reports a run of eight nights running, including tonight, and stays quiet at seven', () => {
+    // 6 past + tonight = 7, one short
+    const six = tonightsMilestones([player('a', 'דור')], nights(6, ['a']));
+    expect(six.some((m) => m.kind === 'iron-man')).toBe(false);
+
+    // 7 past + tonight = 8, right at the bar
+    const seven = tonightsMilestones([player('a', 'דור')], nights(7, ['a']));
+    expect(seven).toContainEqual({ kind: 'iron-man', id: 'a', name: 'דור', nights: 8 });
+  });
+
+  it('breaks on a single missed night, unlike a win streak', () => {
+    const history = [
+      ...nights(8, ['a']),
+      ...nights(1, ['someone-else']), // a sat this one out
+      ...nights(3, ['a']),
+    ];
+    const out = tonightsMilestones([player('a', 'דור')], history);
+    // only the 3 clean nights since the miss, plus tonight, count
+    expect(out.some((m) => m.kind === 'iron-man')).toBe(false);
+  });
+
+  it('counts a night with no result recorded — attendance is not about winning', () => {
+    const out = tonightsMilestones([player('a', 'דור')], nights(7, ['a'], 'no-result'));
+    expect(out).toContainEqual({ kind: 'iron-man', id: 'a', name: 'דור', nights: 8 });
   });
 });
 

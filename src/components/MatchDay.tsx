@@ -227,6 +227,7 @@ export default function MatchDay({
       // these teams are new, so a tally typed against the old ones — and the
       // history record it was filed into — no longer describes them
       wins: emptyWins(),
+      mvpId: null,
       savedFixtureId: null,
     });
   };
@@ -279,6 +280,7 @@ export default function MatchDay({
         white: session.wins.white ?? 0,
         blue: session.wins.blue ?? 0,
       },
+      ...(session.mvpId ? { mvpId: session.mvpId } : {}),
     });
     setSession({ ...session, savedFixtureId: id });
   };
@@ -360,6 +362,8 @@ export default function MatchDay({
         gkIds={effectiveGkIds}
         wins={session.wins}
         onChangeWins={(wins) => setSession({ ...session, wins })}
+        mvpId={session.mvpId}
+        onChangeMvp={(mvpId) => setSession({ ...session, mvpId })}
         onSaveResults={saveNight}
         saved={session.savedFixtureId !== null}
         savedFixtureId={session.savedFixtureId}

@@ -86,6 +86,7 @@ export interface Session {
   // Reversible — going back just flips this off, teams/wins are untouched.
   fixtureStarted: boolean;
   wins: DraftTeamWins; // tonight's win tally as entered, before it's filed
+  mvpId: string | null; // tonight's MVP pick, before it's filed — see FixtureRecord.mvpId
   savedFixtureId: string | null; // set once tonight is saved, so re-saving updates
 }
 
@@ -120,6 +121,11 @@ export interface FixtureRecord {
   teams: Teams;
   players: FixturePlayer[];
   wins: TeamWins;
+  // The organiser's pick for tonight's standout player — optional, and
+  // unlike everything else here, a subjective call rather than something
+  // derived from the win tally. Any id from `players` (guests included);
+  // see src/mvp.ts for how it's tallied into a count.
+  mvpId?: string;
 }
 
 export interface AppState {

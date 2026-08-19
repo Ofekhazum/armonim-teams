@@ -51,36 +51,25 @@ interface PairRecord {
 const key = (a: string, b: string) => (a < b ? `${a}|${b}` : `${b}|${a}`);
 
 /**
- * The most and least successful pairing among tonight's players.
- *
- * `tonightId` is excluded the same way it is for milestones — tonight's own
- * result, if already saved, shouldn't be folded into "their record coming in".
- *
- * Returns at most one of each kind, and nothing at all until some pair clears
- * both MIN_TOGETHER and MIN_EDGE, which on a young history means nothing for
- * a good while. That's intended.
+ * The shared engine behind `duoFacts` (tonight's squad only) and the monthly
+ * recap's best-pairing stat (`src/wrapped.ts`, everyone who played that
+ * month) — same shrink-toward-base-rate scoring, different set of relevant
+ * ids/fixtures feeding it.
  */
-export function duoFacts(
-  todays: Player[],
-  history: FixtureRecord[],
-  tonightId?: string | null,
-): DuoFact[] {
-  const past = tonightId ? history.filter((f) => f.id !== tonightId) : history;
-  // guests carry a fresh id every visit, so a pair involving one can never
-  // accumulate a record — same reasoning as milestones
-  const squad = todays.filter((p) => !p.isGuest);
-  const inSquad = new Set(squad.map((p) => p.id));
-  const nameOf = new Map(squad.map((p) => [p.id, p.name]));
-
+export function computeDuoRecords(
+  fixtures: FixtureRecord[],
+  relevantIds: Set<string>,
+  nameOf: Map<string, string>,
+): { best: DuoFact | null; worst: DuoFact | null } {
   const pairs = new Map<string, PairRecord>();
   let nights = 0;
   let nightsWon = 0;
 
-  for (const fx of past) {
+  for (const fx of fixtures) {
     if (!hasResult(fx.wins)) continue;
     const winner = winnerOf(fx);
-    // only pairs who are both playing tonight are worth computing
-    const present = squad.map((p) => p.id).filter((id) => teamOf(fx, id));
+    // only pairs among the relevant ids are worth computing
+    const present = [...relevantIds].filter((id) => teamOf(fx, id));
     for (const id of present) {
       nights++;
       if (teamOf(fx, id) === winner) nightsWon++;
@@ -109,12 +98,12 @@ export function duoFacts(
   for (const [k, rec] of pairs) {
     if (rec.together < MIN_TOGETHER) continue;
     const [x, y] = k.split('|');
-    if (!inSquad.has(x) || !inSquad.has(y)) continue;
+    if (!relevantIds.has(x) || !relevantIds.has(y)) continue;
     const score = (rec.won + SHRINK_K * base) / (rec.together + SHRINK_K);
     const make = (kind: DuoFact['kind']): DuoFact => ({
       kind,
-      aName: nameOf.get(x)!,
-      bName: nameOf.get(y)!,
+      aName: nameOf.get(x) ?? '?',
+      bName: nameOf.get(y) ?? '?',
       together: rec.together,
       won: rec.won,
     });
@@ -126,5 +115,29 @@ export function duoFacts(
     }
   }
 
-  return [best?.fact, worst?.fact].filter((f): f is DuoFact => !!f);
+  return { best: best?.fact ?? null, worst: worst?.fact ?? null };
+}
+
+/**
+ * The most and least successful pairing among tonight's players.
+ *
+ * `tonightId` is excluded the same way it is for milestones — tonight's own
+ * result, if already saved, shouldn't be folded into "their record coming in".
+ *
+ * Returns at most one of each kind, and nothing at all until some pair clears
+ * both MIN_TOGETHER and MIN_EDGE, which on a young history means nothing for
+ * a good while. That's intended.
+ */
+export function duoFacts(
+  todays: Player[],
+  history: FixtureRecord[],
+  tonightId?: string | null,
+): DuoFact[] {
+  const past = tonightId ? history.filter((f) => f.id !== tonightId) : history;
+  // guests carry a fresh id every visit, so a pair involving one can never
+  // accumulate a record — same reasoning as milestones
+  const squad = todays.filter((p) => !p.isGuest);
+  const nameOf = new Map(squad.map((p) => [p.id, p.name]));
+  const { best, worst } = computeDuoRecords(past, new Set(squad.map((p) => p.id)), nameOf);
+  return [best, worst].filter((f): f is DuoFact => !!f);
 }
