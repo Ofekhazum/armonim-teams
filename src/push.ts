@@ -85,19 +85,29 @@ export const notificationsConfigured = (): Promise<boolean> =>
 
 export type EnableResult = 'ok' | 'denied' | 'unsupported' | 'not-configured' | 'error';
 
-export async function enableNotifications(): Promise<EnableResult> {
+// The reason travels with the result because the reason is the whole story.
+// `pushManager.subscribe()` is the step most likely to fail and the one that
+// says why — "AbortError: Registration failed" from a browser with no push
+// service behind it, for instance — and swallowing that into "try again" leaves
+// a person tapping a button that will never work.
+export interface EnableOutcome {
+  result: EnableResult;
+  message?: string;
+}
+
+export async function enableNotifications(): Promise<EnableOutcome> {
   const support = pushSupport();
-  if (support === 'not-configured') return 'not-configured';
-  if (support !== 'ok') return 'unsupported';
+  if (support === 'not-configured') return { result: 'not-configured' };
+  if (support !== 'ok') return { result: 'unsupported' };
 
   // Must be called from a user gesture, which is why this hangs off a button
   // press rather than running on load.
   const permission = await Notification.requestPermission();
-  if (permission !== 'granted') return 'denied';
+  if (permission !== 'granted') return { result: 'denied' };
 
   try {
     const key = await vapidKey();
-    if (!key) return 'not-configured';
+    if (!key) return { result: 'not-configured' };
 
     const registration = await navigator.serviceWorker.register(swUrl(), {
       scope: import.meta.env.BASE_URL,
@@ -116,12 +126,57 @@ export async function enableNotifications(): Promise<EnableResult> {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ subscription: subscription.toJSON() }),
     });
-    if (!res.ok) return 'error';
+    if (!res.ok) return { result: 'error', message: `server said ${res.status}` };
 
     setEnabledFlag(true);
-    return 'ok';
+    return { result: 'ok' };
+  } catch (err) {
+    return { result: 'error', message: String(err).slice(0, 120) };
+  }
+}
+
+// This device's subscription as the server knows it, or null if it never
+// subscribed. Read straight from the browser rather than remembered, because
+// the interesting failure is exactly the case where the two disagree.
+export async function currentEndpoint(): Promise<string | null> {
+  try {
+    const registration = await navigator.serviceWorker.getRegistration(import.meta.env.BASE_URL);
+    const subscription = await registration?.pushManager.getSubscription();
+    return subscription?.endpoint ?? null;
   } catch {
-    return 'error';
+    return null;
+  }
+}
+
+// What the round trip reported. Every field here answers one "did this link
+// work" question: `configured` the server key, `subscribers`/`known` the
+// subscription, `sent[].status` the push service, and a banner appearing on
+// the phone the last link — the one no server can see.
+export interface PushReport {
+  subscribers: number;
+  known: boolean;
+  configured: boolean;
+  pending: { at: number; kind: string; period: string }[];
+  alarmAt: number | null;
+  now: number;
+  sent: { host: string; status: number; detail: string }[];
+  // set by the client, not the server: this device had no subscription to test
+  noEndpoint?: boolean;
+}
+
+export async function testPush(secret: string): Promise<PushReport | null> {
+  if (!REMOTE_URL) return null;
+  const endpoint = await currentEndpoint();
+  try {
+    const res = await fetch(`${REMOTE_URL}/push/test`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ secret, endpoint }),
+    });
+    if (!res.ok) return null;
+    return { ...((await res.json()) as PushReport), noEndpoint: endpoint === null };
+  } catch {
+    return null;
   }
 }
 

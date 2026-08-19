@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ClockPeriod, ClockState } from '../types';
-import { ADDED_MS, REGULATION_MS } from '../types';
+import { ADDED_MIN, ADDED_MS, REGULATION_MIN, REGULATION_MS } from '../types';
 import NotifyToggle from './NotifyToggle';
 
 // The house rules this clock encodes (see DESIGN.md §2.8):
@@ -168,7 +168,10 @@ export default function MatchClock({ state, onChange }: Props) {
   const banner = finished
     ? addedTime
       ? { text: '🥅 Still level — penalties', cls: 'bg-red-600/15 text-red-800' }
-      : { text: "⏱️ Full time — level? 2 minutes, golden goal", cls: 'bg-amber-500/25 text-amber-900' }
+      : {
+          text: `⏱️ Full time — level? ${ADDED_MIN} minutes, golden goal`,
+          cls: 'bg-amber-500/25 text-amber-900',
+        }
     : shouting
       ? { text: '🔔 One minute — resting team shouts!', cls: 'bg-red-600/15 text-red-800' }
       : addedTime
@@ -246,8 +249,8 @@ export default function MatchClock({ state, onChange }: Props) {
       </div>
 
       <p className="mt-2 text-xs text-amber-900/60">
-        8 minutes, or a two-goal lead (2:0, 3:1). Level at full time → 2 minutes golden goal, then
-        penalties. The clock doesn't know the score, so end a match early with <b>Next match</b>.
+        {REGULATION_MIN} minutes, or a two-goal lead (2:0, 3:1). Level at full time → {ADDED_MIN}{' '}
+        minutes golden goal, then penalties. The clock doesn't know the score, so end a match early with <b>Next match</b>.
         {controllable && (
           <>
             {' '}

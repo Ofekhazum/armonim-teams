@@ -45,6 +45,16 @@ export function triggersFor(clock, now) {
 // What each moment says. Deliberately generic: these land on lock screens that
 // anyone nearby can read, so they name the moment in the match and never who is
 // playing in it.
+// Which push service a subscription belongs to — web.push.apple.com,
+// fcm.googleapis.com — which is the only part of an endpoint worth reporting.
+export function hostOf(endpoint) {
+  try {
+    return new URL(endpoint).host;
+  } catch {
+    return 'unknown';
+  }
+}
+
 export function messageFor(kind, period) {
   if (kind === 'one-minute') {
     return period === 'added'
@@ -90,6 +100,44 @@ export class ClockNotifier {
       return Response.json({ ok: true });
     }
 
+    // Push is a chain of links that each fail silently — the browser hands out
+    // a subscription, the Worker stores it, an alarm fires hours later, Apple
+    // or Google accepts or rejects it, a service worker draws a banner — and
+    // the only symptom of any of them breaking is a phone that doesn't buzz.
+    // This sends one announcement *now* and reports what every link said, so
+    // "no notification" becomes a status code instead of a mystery.
+    if (path === '/test') {
+      const subs = await this.subscriptions();
+      // Given an endpoint, only that device is buzzed: whoever is debugging is
+      // holding it, and the rest of the squad shouldn't feel their pocket for
+      // it. Without one, everyone — which is what the real announcements do.
+      // Strictly about the device that asked: with no endpoint there is
+      // nothing to have heard of, however many others are subscribed.
+      const known = Boolean(body.endpoint) && subs.some((s) => s.endpoint === body.endpoint);
+      // No endpoint means the caller has nothing to buzz — a device that never
+      // subscribed asking why it never buzzes. It gets the report and nobody
+      // else's pocket goes off. `all` is the deliberate fan-out, for checking
+      // the group rather than the device in your hand.
+      const targets = body.endpoint
+        ? subs.filter((s) => s.endpoint === body.endpoint)
+        : body.all
+          ? subs
+          : [];
+      const sent = await this.send(targets, {
+        title: '🔔 Test alert',
+        body: 'This is what one minute left will look like',
+      });
+      return Response.json({
+        subscribers: subs.length,
+        known,
+        configured: Boolean(this.env.VAPID_JWK),
+        pending: (await this.state.storage.get('pending')) ?? [],
+        alarmAt: (await this.state.storage.getAlarm?.()) ?? null,
+        now: Date.now(),
+        sent,
+      });
+    }
+
     return Response.json({ error: 'not found' }, { status: 404 });
   }
 
@@ -126,29 +174,51 @@ export class ClockNotifier {
   }
 
   async broadcast(message) {
+    return this.send(await this.subscriptions(), message);
+  }
+
+  // Returns one row per device — the push service it belongs to, what that
+  // service answered, and why if it refused. The alarm path throws the answer
+  // away; /test is what reads it. Endpoints themselves never leave here: the
+  // host is the part that explains anything, the rest is a device identifier.
+  async send(targets, message) {
     const jwk = this.env.VAPID_JWK;
-    if (!jwk) return; // notifications not configured on this deployment
+    if (!jwk) return []; // notifications not configured on this deployment
     const subject = this.env.VAPID_SUBJECT ?? 'mailto:armonim@example.com';
-    const subs = await this.subscriptions();
-    if (subs.length === 0) return;
+    if (targets.length === 0) return [];
 
     const payload = JSON.stringify({ ...message, tag: 'armonim-clock' });
     const results = await Promise.allSettled(
-      subs.map((s) => sendPush(s, payload, JSON.parse(jwk), subject)),
+      targets.map((s) => sendPush(s, payload, JSON.parse(jwk), subject)),
     );
+
+    const rows = results.map((r, i) => ({
+      host: hostOf(targets[i].endpoint),
+      status: r.status === 'fulfilled' ? r.value.status : 0,
+      detail: r.status === 'fulfilled' ? r.value.detail : String(r.reason).slice(0, 200),
+    }));
+    // The one trace an alarm leaves behind. `wrangler tail` during a match is
+    // otherwise blind to a push service quietly rejecting everything.
+    for (const row of rows) {
+      if (row.status < 200 || row.status > 299) {
+        console.warn(`push rejected by ${row.host}: ${row.status} ${row.detail}`);
+      }
+    }
 
     // A push service reporting 404/410 is telling us this device is gone for
     // good — the browser dropped the subscription or the app was uninstalled.
     // Anything else (a timeout, a 5xx) is transient and keeps its place.
     const dead = new Set();
-    results.forEach((r, i) => {
-      if (r.status === 'fulfilled' && isGone(r.value)) dead.add(subs[i].endpoint);
+    rows.forEach((row, i) => {
+      if (isGone(row.status)) dead.add(targets[i].endpoint);
     });
     if (dead.size > 0) {
+      const subs = await this.subscriptions();
       await this.state.storage.put(
         'subs',
         subs.filter((s) => !dead.has(s.endpoint)),
       );
     }
+    return rows;
   }
 }

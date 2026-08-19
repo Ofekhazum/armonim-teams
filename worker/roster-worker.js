@@ -12,6 +12,7 @@
 //   GET  /push/key     → the VAPID public key a browser needs to subscribe
 //   POST /push/subscribe   → opt this device into match-clock notifications
 //   POST /push/unsubscribe → opt it out again
+//   POST /push/test        → buzz now and report what the push service said
 //   POST /verify       → check the secret word (used to unlock admin mode)
 //   GET  /room/:id     → WebSocket upgrade into a live team-picking room
 //
@@ -459,7 +460,7 @@ export default {
     }
 
     // everything below is a POST guarded by the secret word
-    const guarded = ['/roster', '/roster/full', '/history', '/live', '/verify'];
+    const guarded = ['/roster', '/roster/full', '/history', '/live', '/verify', '/push/test'];
     if (guarded.includes(url.pathname) && request.method === 'POST') {
       // checked before we do any other work, so a flood costs us as little as
       // possible. Counts the attempt in the same call that decides on it —
@@ -489,6 +490,18 @@ export default {
       // word-only check, used to unlock admin mode in the app
       if (url.pathname === '/verify') {
         return json({ ok: true });
+      }
+
+      // Buzz a phone now and say what every link in the chain answered. Behind
+      // the word not because the report is sensitive — it names no player and
+      // no endpoint — but because sending a push is making other people's
+      // pockets vibrate, and that is an organiser's to do.
+      if (url.pathname === '/push/test') {
+        const res = await notifier(env).fetch('https://notifier/test', {
+          method: 'POST',
+          body: JSON.stringify({ endpoint: isStr(body.endpoint, 1024) ? body.endpoint : null }),
+        });
+        return json(await res.json());
       }
 
       // the organiser's own read: the roster as stored, private fields and

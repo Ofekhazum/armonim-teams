@@ -54,7 +54,7 @@ export default function NotifyToggle() {
       await disableNotifications();
       setOn(false);
     } else {
-      const result = await enableNotifications();
+      const { result, message } = await enableNotifications();
       if (result === 'ok') setOn(true);
       else {
         setOn(false);
@@ -63,7 +63,9 @@ export default function NotifyToggle() {
             ? 'Blocked in your browser settings'
             : result === 'not-configured'
               ? 'Not set up on the server yet'
-              : "Couldn't turn on — try again",
+              : // the browser's own words, because "try again" is advice that
+                // has never once fixed this
+                (message ?? "Couldn't turn on — try again"),
         );
       }
     }
@@ -89,7 +91,11 @@ export default function NotifyToggle() {
       >
         {busy ? '…' : on ? '🔔 Alerts on' : '🔕 Alerts off'}
       </button>
-      {note && <span className="text-[10px] text-red-700">{note}</span>}
+      {note && (
+        <span className="max-w-[16rem] text-right text-[10px] leading-tight text-red-700">
+          {note}
+        </span>
+      )}
     </div>
   );
 }
