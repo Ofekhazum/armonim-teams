@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ClockPeriod, ClockState } from '../types';
 import { ADDED_MS, REGULATION_MS } from '../types';
+import NotifyToggle from './NotifyToggle';
 
 // The house rules this clock encodes (see DESIGN.md §2.8):
 //   · a match is 8 minutes, or ends early at a two-goal lead (2:0, 3:1, …)
@@ -236,6 +237,12 @@ export default function MatchClock({ state, onChange }: Props) {
             match in progress
           </span>
         )}
+
+        <div className="flex-1" />
+        {/* Sits with the clock because that is the only thing it announces —
+            and lives here rather than in the two pages that render a clock, so
+            a player and the organiser get the identical control. */}
+        <NotifyToggle />
       </div>
 
       <p className="mt-2 text-xs text-amber-900/60">

@@ -1,0 +1,13 @@
+{
+  "name": "Armonim FC",
+  "short_name": "Armonim FC",
+  "description": "Teams, results and tonight's fixture for Armonim FC",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f3e5c3",
+  "theme_color": "#f3e5c3",
+  "lang": "he",
+  "dir": "auto"
+}

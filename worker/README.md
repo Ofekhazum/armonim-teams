@@ -76,6 +76,27 @@ cd worker
 npx wrangler secret put PUBLISH_SECRET
 ```
 
+## Match-clock notifications (optional)
+
+Buzzes anyone who opts in at one minute left and at the whistle, even with the phone locked. One
+secret turns it on:
+
+```sh
+node ../worker/generate-vapid-keys.mjs     # prints a private JWK
+cd worker
+npx wrangler secret put VAPID_JWK          # paste the JSON it printed
+npx wrangler secret put VAPID_SUBJECT      # e.g. mailto:you@example.com
+npx wrangler deploy
+```
+
+Without `VAPID_JWK` the feature is simply absent — no toggle in the app, nothing sent. Losing the
+key is survivable: generate a new pair, and every device re-subscribes the next time someone turns
+alerts on.
+
+**Tell iPhone users to add the site to their Home Screen** (Share → Add to Home Screen, then open it
+from there). Apple only allows web notifications for installed web apps — until they do, the app
+shows them that instruction instead of a toggle. Android and desktop need no install step.
+
 ## Working on it locally
 
 **Never point a dev run or a test at the deployed worker.** That URL is the

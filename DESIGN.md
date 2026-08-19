@@ -727,6 +727,72 @@ Nothing here is new data; it is all re-read from `history`. And nothing here is 
 wins in the club" is a fact about a column, "best player" is a claim three numbers a night cannot
 support, and it is not on the list (§2.9).
 
+### 2.17 Match-clock notifications (`src/push.ts`, `worker/push.js`, `worker/clock-notifier.js`)
+
+A buzz at one minute left and at the whistle, on any phone that opts in — including one that is
+locked, in a pocket, with the app closed.
+
+**Why this can't be a timer in the page.** It was asked for as a Dynamic Island widget, which no
+web app can have: Live Activities are native ActivityKit, with no web API. What *is* reachable is a
+notification — but only via a real push service. A backgrounded iOS Safari tab is suspended within
+seconds, so a `setTimeout` scheduled for seven minutes' time fires in exactly the cases nobody needs
+it (screen on, app open, clock visible) and never in the case they do. The scheduling therefore
+lives on the server, where nothing sleeps.
+
+**Four moments**, each announced once: one minute left and time up, in *both* regulation and added
+time. The added-time warning is new — the on-screen clock only ever beeped the one-minute shout in
+regulation (§2.8) — and matters because two minutes of golden goal is short enough that halfway
+through is worth knowing.
+
+**How the timing works.** The clock already travels as an absolute `endsAt` (§2.15), so the instant
+anyone presses Start every announcement time is known. `POST /live` and `POST /live/clock` both hand
+the new clock to a `ClockNotifier` Durable Object, which recomputes its triggers from scratch —
+pause, reset and next-match all land here, and "what is still to be announced" is always fully
+determined by the clock as it stands, never by what was pending before. A DO holds one alarm at a
+time, so the pending triggers are a list and the alarm is set to the earliest; firing the first
+arms the second. A late alarm fires everything now due rather than stranding it.
+
+**What it says** is deliberately generic — "⏱️ One minute left", "🏁 Full time" — because these land
+on lock screens that anyone standing nearby can read. Naming the teams would put tonight's line-up
+on fifteen strangers' screens for no gain, and the people who care are already at the pitch.
+
+**The crypto is hand-written and that is the risky part.** The Worker runtime has no Node built-ins,
+so `web-push` is unusable and `worker/push.js` implements VAPID (RFC 8292) and payload encryption
+(RFC 8291 over RFC 8188) directly on Web Crypto. This is the one file in the project where a wrong
+byte is *invisible*: the push service returns 201 Created and the phone simply never buzzes, with
+nothing thrown and nothing logged. So the test does not check it against itself — the expected
+ciphertext in `push.test.js` was produced by `http_ece`, the library `web-push` itself uses, from
+pinned keys and salt, and the two agreed byte-for-byte. A `TTL` of 120 seconds is deliberate: "one
+minute left" is worse than useless after the final whistle, so it expires rather than queues.
+
+**Opting in is per device and off by default** (`NotifyToggle`, rendered by `MatchClock` so the
+player's Live view and the organiser's fixture page get the identical control). Granting a browser
+permission once is not consent to be buzzed every Thursday forever, so the toggle — not the
+permission — is what decides, and turning it off drops the subscription server-side rather than
+just hiding a button. Subscribing needs no admin word, for the same reason running the clock
+doesn't: it is a thing any of the fifteen people at the pitch might do, and all a subscription can
+ever receive is those four fixed sentences. A push service answering 404/410 means that device is
+genuinely gone and it is pruned; a 5xx is a bad day and it keeps its place.
+
+**iOS requires the site to be added to the Home Screen** — Apple allows web notifications only for
+installed web apps. Hence `public/manifest.webmanifest` and the `apple-mobile-web-app-*` tags, and
+hence `pushSupport()` returning `needs-install` rather than `unsupported` when the API is absent on
+an iPhone, so the app can give the one instruction that fixes it instead of a dead toggle. That
+check is iOS-only on purpose: a desktop browser without push is missing it permanently, and "Add to
+Home Screen" there would be nonsense.
+
+**Setup** is one secret. `node worker/generate-vapid-keys.mjs` prints a private JWK for
+`wrangler secret put VAPID_JWK`; the public half is derived from it and served at `GET /push/key`,
+so there is no key pasted into the source and no way for the two to drift apart. With no secret set,
+the whole feature is simply absent — the toggle doesn't render and the notifier stays quiet.
+
+**What is verified, and what isn't.** Byte-exact agreement with the reference implementation; a real
+subscriber decrypting a real `sendPush`; the alarm chain, pruning and the four messages, against the
+Durable Object itself; all four notifications rendering through the actual service worker. The one
+link that cannot be tested locally is `pushManager.subscribe()` — an automated Chromium has no push
+service to register with, so it fails there by construction. Everything on both sides of it is
+covered; that step needs a real device.
+
 ## 3. Team generation algorithm
 
 Balancing is a small constrained optimization. With ≤15 players, brute force is too big
@@ -913,6 +979,12 @@ saved nights accumulate in the History tab (§2.6).
   a non-numeric `endsAt` would render as `NaN` on fifteen phones at once. `POST /live/clock` is the
   one route in this Worker with no password on it; see §2.15 for the reasoning and the limits that
   make it safe.
+- **Match-clock notifications (optional)**: `src/push.ts` + `worker/push.js` +
+  `worker/clock-notifier.js`, a `ClockNotifier` Durable Object holding the subscriptions and one
+  alarm — see §2.17. `public/sw.js` is the only service worker in the project and deliberately does
+  nothing but receive pushes: no caching, no `fetch` handler, because an offline layer here would be
+  a fresh source of "why am I looking at last week's roster". Enabled by setting the `VAPID_JWK`
+  secret and nothing else; absent entirely without it.
 - **Live match-day rooms (optional)**: see §2.5 — same Worker, a `MatchRoom` Durable Object per
   room. Distinct from the live *fixture* above: rooms are an invite-only drag-and-drop surface for
   picking teams, the live fixture is a public read-only view of a night already underway. Free-tier limits (100k requests/day, 13,000 GB-s/day of active WebSocket duration, 5GB

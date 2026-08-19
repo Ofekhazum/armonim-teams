@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   isValidClock,
+  isValidSubscription,
   isValidFixtures,
   isValidLive,
   isValidPlayers,
@@ -248,6 +249,45 @@ describe('isValidClock', () => {
     // a hostile POST can't smuggle teams or a secret in alongside the clock —
     // the handler only ever copies the validated clock onto the stored fixture
     expect(isValidClock(clock({ teams: { black: ['x'] }, secret: 'guess' }))).toBe(true);
+  });
+});
+
+describe('isValidSubscription', () => {
+  const sub = (over = {}) => ({
+    endpoint: 'https://fcm.googleapis.com/fcm/send/abc123',
+    keys: { p256dh: 'BDgBTGA8idqXEkJjIO5TqUx5Xdo7kLtbB5Guj120hrfbJeOqNo7e', auth: 'MDEyMzQ1Njc4OWFiY2Rl' },
+    ...over,
+  });
+
+  it('accepts what a browser actually hands over', () => {
+    expect(isValidSubscription(sub())).toBe(true);
+  });
+
+  it('refuses a non-https endpoint', () => {
+    // the worker POSTs to this URL; http would send the push in the clear, and
+    // anything else is not a push service at all
+    expect(isValidSubscription(sub({ endpoint: 'http://example.com/push' }))).toBe(false);
+    expect(isValidSubscription(sub({ endpoint: 'file:///etc/passwd' }))).toBe(false);
+  });
+
+  it('refuses an endpoint that is not a URL', () => {
+    expect(isValidSubscription(sub({ endpoint: 'not a url' }))).toBe(false);
+    expect(isValidSubscription(sub({ endpoint: '' }))).toBe(false);
+  });
+
+  it('refuses missing or malformed keys', () => {
+    expect(isValidSubscription(sub({ keys: undefined }))).toBe(false);
+    expect(isValidSubscription(sub({ keys: { p256dh: 'x' } }))).toBe(false);
+    expect(isValidSubscription(sub({ keys: { p256dh: 1, auth: 2 } }))).toBe(false);
+  });
+
+  it('refuses an endpoint long enough to be a payload rather than a URL', () => {
+    expect(isValidSubscription(sub({ endpoint: `https://a.com/${'x'.repeat(1100)}` }))).toBe(false);
+  });
+
+  it('refuses non-objects', () => {
+    expect(isValidSubscription(null)).toBe(false);
+    expect(isValidSubscription('subscribe me')).toBe(false);
   });
 });
 
