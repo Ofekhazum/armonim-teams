@@ -41,8 +41,11 @@ export interface WrappedStats {
   topMatchWinners: { name: string; wins: number }[]; // top 3, most individual match wins
   topFixtureWinners: { name: string; nights: number }[]; // top 3, most nights their team outright won
   // The one stat here that isn't derived from a result — the organiser's own
-  // pick, just counted (see src/mvp.ts).
-  topMvps: { name: string; count: number }[]; // top 3, most nights named MVP
+  // pick, just counted (see src/mvp.ts). Unlike the two leaderboards above,
+  // *not* capped at 3: an MVP pick is one player a night, so it's common
+  // for it to spread across many more people than "most matches won" ever
+  // does, and cutting that off would hide most of who actually got picked.
+  topMvps: { name: string; count: number }[]; // everyone with at least one MVP night, ranked
   bottomScorer: { name: string; wins: number; nights: number } | null;
   longestStreak: { name: string; nights: number } | null;
   longestWinless: { name: string; nights: number } | null;
@@ -148,9 +151,7 @@ export function buildWrapped(history: FixtureRecord[], period: string): WrappedS
     .slice(0, 3)
     .map(([id, n]) => ({ name: nameOf.get(id)!, nights: n }));
 
-  const topMvps = mvpCounts(chronological)
-    .slice(0, 3)
-    .map((m) => ({ name: m.name, count: m.count }));
+  const topMvps = mvpCounts(chronological).map((m) => ({ name: m.name, count: m.count }));
 
   const [bottomScorerId, bottomScorerWins] =
     [...wins.entries()]

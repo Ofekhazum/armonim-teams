@@ -575,7 +575,10 @@ omitting the key from the patch would leave the old id in place instead of clear
 - **History's standings table** (§2.6's table) gains an **MVPs** column, sortable like the others,
   built from `mvpCounts(history)` — a *career* total, since it isn't month-scoped there.
 - **The monthly recap** (§2.11) leads with a **🌟 Most MVP picks** leaderboard, `mvpCounts` given only
-  the month's fixtures.
+  the month's fixtures. Deliberately **not** capped at 3 the way the match/fixture-win leaderboards
+  are: an MVP pick is one player a night, so it routinely spreads across more than three people in a
+  month, and cutting it off there would hide most of who actually got picked. The card just grows to
+  fit, same as the attendance list.
 
 **Why this is fine to just count, when nothing else in the app gets that treatment.** Every other
 fact here is derived from a win tally specifically *because* a human declaring "this player was good"

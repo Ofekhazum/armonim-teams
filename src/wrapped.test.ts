@@ -170,7 +170,7 @@ describe('buildWrapped', () => {
     expect(buildWrapped(five, '2026-08').longestWinless).toEqual({ name: 'a', nights: 5 });
   });
 
-  it('ranks the top 3 by MVP picks — the one stat here that is not derived from a result', () => {
+  it('ranks by MVP picks — the one stat here that is not derived from a result', () => {
     const history = [
       night('2026-08-01', ['a'], ['b'], { black: 3, white: 1, blue: 0 }, 'a'),
       night('2026-08-08', ['a'], ['b'], { black: 3, white: 1, blue: 0 }, 'a'),
@@ -183,6 +183,18 @@ describe('buildWrapped', () => {
       { name: 'a', count: 2 },
       { name: 'b', count: 1 },
     ]);
+  });
+
+  it('lists every MVP, not just a top 3 — unlike match/fixture wins, one pick a night spreads thin', () => {
+    const history = [
+      night('2026-08-01', ['a'], ['e'], { black: 3, white: 1, blue: 0 }, 'a'),
+      night('2026-08-08', ['b'], ['e'], { black: 3, white: 1, blue: 0 }, 'b'),
+      night('2026-08-15', ['c'], ['e'], { black: 3, white: 1, blue: 0 }, 'c'),
+      night('2026-08-22', ['d'], ['e'], { black: 3, white: 1, blue: 0 }, 'd'),
+    ];
+    const stats = buildWrapped(history, '2026-08');
+    expect(stats.topMvps).toHaveLength(4);
+    expect(stats.topMvps.map((m) => m.name).sort()).toEqual(['a', 'b', 'c', 'd']);
   });
 
   it('reports a worst duo alongside the best one', () => {
