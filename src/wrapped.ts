@@ -25,7 +25,15 @@ export interface WrappedStats {
   nightsRecorded: number;
   totalWins: number;
   mostNights: { name: string; nights: number } | null;
-  topScorer: { name: string; wins: number } | null;
+  // Two different questions, deliberately kept apart rather than collapsed
+  // into one "top scorer" — there's no goal tally in this app (§2.6), so
+  // "scorer" was never the right word. A *match* win is the three-numbers-a-
+  // night tally credited to everyone on the team (§2.6); a *fixture* win is
+  // whether that team was the strict top of the whole night (winnerOf, same
+  // definition milestones/duos already use). A player can rack up match wins
+  // on a team that still didn't top many actual nights, or vice versa.
+  topMatchWinners: { name: string; wins: number }[]; // top 3, most individual match wins
+  topFixtureWinners: { name: string; nights: number }[]; // top 3, most nights their team outright won
   bottomScorer: { name: string; wins: number; nights: number } | null;
   longestStreak: { name: string; nights: number } | null;
   longestWinless: { name: string; nights: number } | null;
@@ -105,7 +113,25 @@ export function buildWrapped(history: FixtureRecord[], period: string): WrappedS
 
   const [mostNightsId, mostNightsCount] =
     [...nights.entries()].sort((a, b) => b[1] - a[1])[0] ?? [];
-  const [topScorerId, topScorerWins] = [...wins.entries()].sort((a, b) => b[1] - a[1])[0] ?? [];
+
+  const topMatchWinners = [...wins.entries()]
+    .filter(([, w]) => w > 0)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([id, w]) => ({ name: nameOf.get(id)!, wins: w }));
+
+  // Nights (not matches) this player's team was the strict top of the whole
+  // night — `appearances()` already carries that flag per night (`won`),
+  // computed the same way tonight's win-streak fact reads it.
+  const fixturesWon = new Map<string, number>();
+  for (const id of nameOf.keys()) {
+    fixturesWon.set(id, appearances(id, chronological).filter((a) => a.won).length);
+  }
+  const topFixtureWinners = [...fixturesWon.entries()]
+    .filter(([, n]) => n > 0)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([id, n]) => ({ name: nameOf.get(id)!, nights: n }));
 
   const [bottomScorerId, bottomScorerWins] =
     [...wins.entries()]
@@ -138,7 +164,8 @@ export function buildWrapped(history: FixtureRecord[], period: string): WrappedS
     nightsRecorded: chronological.length,
     totalWins,
     mostNights: mostNightsId ? { name: nameOf.get(mostNightsId)!, nights: mostNightsCount } : null,
-    topScorer: topScorerId ? { name: nameOf.get(topScorerId)!, wins: topScorerWins } : null,
+    topMatchWinners,
+    topFixtureWinners,
     bottomScorer: bottomScorerId
       ? {
           name: nameOf.get(bottomScorerId)!,

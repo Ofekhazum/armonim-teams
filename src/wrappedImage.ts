@@ -24,6 +24,8 @@ const HEADER_H = 172;
 const HERO_H = 200;
 const TILE_H = 178;
 const DUO_H = 168;
+const LEADERBOARD_ROW_H = 52;
+const LEADERBOARD_TITLE_H = 58;
 const SECTION_LABEL_H = 46;
 const GAP = 18;
 const FOOTER_H = 36;
@@ -90,14 +92,6 @@ interface Tile {
 
 function buildPositiveTiles(stats: WrappedStats): Tile[] {
   const tiles: Tile[] = [];
-  if (stats.topScorer) {
-    tiles.push({
-      emoji: '⭐',
-      value: stats.topScorer.name,
-      label: `top scorer — ${stats.topScorer.wins} wins`,
-      colors: ['#fde68a', '#d97706'],
-    });
-  }
   if (stats.mostNights) {
     tiles.push({
       emoji: '🦾',
@@ -136,6 +130,68 @@ function buildNegativeTiles(stats: WrappedStats): Tile[] {
     });
   }
   return tiles;
+}
+
+interface Leaderboard {
+  title: string;
+  entries: { name: string; stat: string }[];
+  colors: [string, string];
+}
+
+const MEDALS = ['🥇', '🥈', '🥉'];
+
+function leaderboardHeight(board: Leaderboard): number {
+  return LEADERBOARD_TITLE_H + board.entries.length * LEADERBOARD_ROW_H;
+}
+
+// Shrinks a name until it fits, same approach as the tile grid's name-fit
+// below — factored out since both a leaderboard row and a tile need it.
+function fitName(ctx: CanvasRenderingContext2D, name: string, maxWidth: number): string {
+  let out = name;
+  while (ctx.measureText(out).width > maxWidth && out.length > 1) {
+    out = out.slice(0, -1);
+  }
+  return out === name ? out : out.trimEnd() + '…';
+}
+
+// A full-width "top 3" card — one line per rank, medal + stat on the left,
+// name on the right. Used for the two leaderboards the recap leads with
+// (most individual match wins, most fixtures/nights outright won) — kept as
+// ranked lists rather than single-name tiles since the whole point is
+// showing 2nd and 3rd place too, not just who's first.
+function drawLeaderboard(
+  ctx: CanvasRenderingContext2D,
+  board: Leaderboard,
+  y: number,
+  cardW: number,
+): number {
+  const h = leaderboardHeight(board);
+  fillGradientRoundRect(ctx, PAD, y, cardW, h, 24, board.colors);
+
+  ctx.direction = 'ltr';
+  ctx.textAlign = 'left';
+  ctx.font = font(26, '800');
+  ctx.fillStyle = 'rgba(0,0,0,0.32)';
+  ctx.fillText(board.title, PAD + 24, y + 38);
+
+  board.entries.forEach((entry, i) => {
+    const rowY = y + LEADERBOARD_TITLE_H + i * LEADERBOARD_ROW_H + 32;
+
+    ctx.direction = 'ltr';
+    ctx.textAlign = 'left';
+    ctx.font = font(22, '800');
+    ctx.fillStyle = 'rgba(28,19,16,0.75)';
+    ctx.fillText(`${MEDALS[i] ?? `${i + 1}.`}  ${entry.stat}`, PAD + 24, rowY);
+
+    ctx.direction = 'rtl';
+    ctx.textAlign = 'right';
+    ctx.font = font(24, '900');
+    ctx.fillStyle = '#1c1310';
+    const name = fitName(ctx, entry.name, cardW * 0.5 - 24);
+    ctx.fillText(name, PAD + cardW - 24, rowY);
+  });
+
+  return h;
 }
 
 // Draws a 2-column tile grid starting at `y`, returns the height it used.
@@ -230,10 +286,32 @@ function drawDuoCard(
 }
 
 export function renderWrappedImage(stats: WrappedStats): HTMLCanvasElement {
+  const matchBoard: Leaderboard | null =
+    stats.topMatchWinners.length > 0
+      ? {
+          title: '🏅 Most matches won',
+          colors: ['#fde68a', '#d97706'],
+          entries: stats.topMatchWinners.map((w) => ({ name: w.name, stat: `${w.wins} wins` })),
+        }
+      : null;
+  const fixtureBoard: Leaderboard | null =
+    stats.topFixtureWinners.length > 0
+      ? {
+          title: '🏆 Most fixtures won',
+          colors: ['#5eead4', '#0f766e'],
+          entries: stats.topFixtureWinners.map((w) => ({
+            name: w.name,
+            stat: `${w.nights} fixtures`,
+          })),
+        }
+      : null;
+
   const posTiles = buildPositiveTiles(stats);
   const negTiles = buildNegativeTiles(stats);
   const hasNegSection = negTiles.length > 0 || !!stats.worstDuo;
 
+  const matchBoardH = matchBoard ? leaderboardHeight(matchBoard) + GAP : 0;
+  const fixtureBoardH = fixtureBoard ? leaderboardHeight(fixtureBoard) + GAP : 0;
   const posTilesH = posTiles.length > 0 ? tileRows(posTiles.length) * (TILE_H + GAP) : 0;
   const posDuoH = stats.bestDuo ? DUO_H + GAP : 0;
   const negLabelH = hasNegSection ? SECTION_LABEL_H : 0;
@@ -245,6 +323,8 @@ export function renderWrappedImage(stats: WrappedStats): HTMLCanvasElement {
     HEADER_H +
     HERO_H +
     GAP +
+    matchBoardH +
+    fixtureBoardH +
     posTilesH +
     posDuoH +
     negLabelH +
@@ -308,6 +388,13 @@ export function renderWrappedImage(stats: WrappedStats): HTMLCanvasElement {
   ctx.fillStyle = 'rgba(255,250,240,0.75)';
   ctx.fillText(`⚽ ${stats.totalWins} wins banked by the squad`, PAD + 32, y + 178);
   y += HERO_H + GAP;
+
+  if (matchBoard) {
+    y += drawLeaderboard(ctx, matchBoard, y, cardW) + GAP;
+  }
+  if (fixtureBoard) {
+    y += drawLeaderboard(ctx, fixtureBoard, y, cardW) + GAP;
+  }
 
   y += drawTileGrid(ctx, posTiles, y, cardW);
 

@@ -71,7 +71,7 @@ describe('buildWrapped', () => {
     expect(buildWrapped(history, '2026-08').totalWins).toBe(4);
   });
 
-  it('finds who played the most nights and who banked the most wins', () => {
+  it('finds who played the most nights', () => {
     const history = [
       night('2026-08-01', ['a', 'c'], ['b'], { black: 3, white: 1, blue: 0 }),
       night('2026-08-08', ['a'], ['b'], { black: 3, white: 1, blue: 0 }),
@@ -79,7 +79,37 @@ describe('buildWrapped', () => {
     ];
     const stats = buildWrapped(history, '2026-08');
     expect(stats.mostNights).toEqual({ name: 'a', nights: 3 });
-    expect(stats.topScorer).toEqual({ name: 'a', wins: 9 });
+  });
+
+  it('ranks the top 3 by individual match wins, not by goals — this app has none', () => {
+    const history = [
+      night('2026-08-01', ['a'], ['b'], { black: 4, white: 1, blue: 0 }),
+      night('2026-08-08', ['a'], ['c'], { black: 3, white: 1, blue: 0 }),
+      night('2026-08-15', ['a'], ['d'], { black: 2, white: 1, blue: 0 }),
+      night('2026-08-22', ['a'], ['e'], { black: 1, white: 1, blue: 0 }),
+    ];
+    // a racks up 4+3+2+1=10 across four nights; b, c, d, e each get one
+    // night's worth (1, 1, 1, 1) — only the top 3 of those make the cut
+    const stats = buildWrapped(history, '2026-08');
+    expect(stats.topMatchWinners[0]).toEqual({ name: 'a', wins: 10 });
+    expect(stats.topMatchWinners).toHaveLength(3);
+  });
+
+  it('ranks the top 3 by fixtures (whole nights) their team outright won, distinct from match wins', () => {
+    // a's team banks a huge tally on one blowout night but doesn't top the
+    // other two; b's team never blows anyone out, but narrowly tops every
+    // single night — fewer total matches, more fixtures actually won
+    const history = [
+      night('2026-08-01', ['a'], ['b'], { black: 5, white: 1, blue: 0 }), // a's team wins big
+      night('2026-08-08', ['a'], ['b'], { black: 0, white: 1, blue: 0 }), // b's team edges it
+      night('2026-08-15', ['a'], ['b'], { black: 0, white: 1, blue: 0 }), // b's team edges it
+    ];
+    const stats = buildWrapped(history, '2026-08');
+    // a: 5+0+0=5 match wins vs b: 1+1+1=3 — a leads on individual matches
+    expect(stats.topMatchWinners[0]).toEqual({ name: 'a', wins: 5 });
+    // but b's team (white) topped nights 2 and 3 outright, a's team only night 1
+    expect(stats.topFixtureWinners[0]).toEqual({ name: 'b', nights: 2 });
+    expect(stats.topFixtureWinners.find((w) => w.name === 'a')).toEqual({ name: 'a', nights: 1 });
   });
 
   it('reports the longest win streak in the month, gated the same as MIN_WIN_STREAK', () => {
@@ -145,7 +175,8 @@ describe('buildWrapped', () => {
       nightsRecorded: 0,
       totalWins: 0,
       mostNights: null,
-      topScorer: null,
+      topMatchWinners: [],
+      topFixtureWinners: [],
       bottomScorer: null,
       longestStreak: null,
       longestWinless: null,
