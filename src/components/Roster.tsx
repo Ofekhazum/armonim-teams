@@ -20,6 +20,9 @@ interface Props {
   onChange: (players: Player[]) => void;
   adminWord: string | null;
   setAdminWord: (word: string | null) => void;
+  // true once this device has read the roster's private fields back from the
+  // server since unlocking admin — see the publish guard below
+  rosterHydrated: boolean;
 }
 
 interface Draft {
@@ -36,7 +39,13 @@ interface Draft {
 const parseAliases = (raw: string): string[] =>
   [...new Set(raw.split(',').map((a) => a.trim()).filter(Boolean))];
 
-export default function Roster({ players, onChange, adminWord, setAdminWord }: Props) {
+export default function Roster({
+  players,
+  onChange,
+  adminWord,
+  setAdminWord,
+  rosterHydrated,
+}: Props) {
   const [draft, setDraft] = useState<Draft | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [publishing, setPublishing] = useState(false);
@@ -46,6 +55,21 @@ export default function Roster({ players, onChange, adminWord, setAdminWord }: P
   // Push the current roster to everyone, using the already-unlocked word.
   const publish = async () => {
     if (adminWord == null) return;
+    // A publish sends the whole player list, private fields included. If this
+    // device never managed to read those back from the server, the empty lists
+    // it is holding are "we don't know", not "there aren't any" — and sending
+    // them would erase everyone's keep-apart lists. Happens if the worker is
+    // older than this build, or the fetch simply failed.
+    if (
+      !rosterHydrated &&
+      !confirm(
+        "⚠️ Couldn't confirm the chemistry and keep-apart lists with the server.\n\n" +
+          'Publishing now would replace them with whatever is on this device — possibly nothing. ' +
+          'Reload and unlock admin again first if you want them kept.\n\nPublish anyway?',
+      )
+    ) {
+      return;
+    }
     setPublishing(true);
     const { result, version } = await publishRemoteRoster(players, adminWord);
     setPublishing(false);
@@ -58,6 +82,10 @@ export default function Roster({ players, onChange, adminWord, setAdminWord }: P
       setAdminWord(null);
     } else if (result === 'rate-limited') {
       alert('❌ Too many failed attempts. Please wait a few minutes and try again.');
+    } else if (result === 'stale') {
+      alert(
+        '⚠️ The shared roster has changed since this device last loaded it — publishing now would undo those changes.\n\nReload the page to pull the current roster first, then re-apply your edits.',
+      );
     } else {
       alert('Could not publish — check your connection and try again.');
     }

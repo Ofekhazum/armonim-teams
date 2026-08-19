@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ActivityEvent, PresenceMember, RoomConnection, RoomState } from '../liveRoom';
-import { joinRoom } from '../liveRoom';
+import { isValidRoomId, joinRoom } from '../liveRoom';
 import { getMyName, setMyName } from '../storage';
 import { createUserColorTracker } from '../userColor';
 import LiveRoomBar from './LiveRoomBar';
@@ -40,6 +40,12 @@ export default function RoomGuest({ roomId }: Props) {
 
   useEffect(() => {
     if (!name) return;
+    // a hand-edited or truncated link — same dead end as a room that expired,
+    // so say the same thing rather than leaking that the id looked wrong
+    if (!isValidRoomId(roomId)) {
+      setError('room-not-found');
+      return;
+    }
     // StrictMode runs this effect twice in dev (mount → cleanup → mount) —
     // without this guard, the first (intentionally torn-down) connection's
     // eventual onClose still fires and stomps the second, live one's state
