@@ -27,6 +27,9 @@ interface Props {
   // watching sees (§2.14)
   clock: ClockState;
   onChangeClock: (clock: ClockState) => void;
+  // the live fixture this page is running, if it has been published — what the
+  // alerts toggle attaches an opt-in to
+  liveFixtureId: string | null;
   mvpId: string | null;
   onChangeMvp: (id: string | null) => void;
   onSaveResults: () => void;
@@ -56,6 +59,7 @@ export default function FixturePage({
   onChangeWins,
   clock,
   onChangeClock,
+  liveFixtureId,
   mvpId,
   onChangeMvp,
   onSaveResults,
@@ -216,7 +220,7 @@ export default function FixturePage({
         </div>
       )}
 
-      <MatchClock state={clock} onChange={onChangeClock} />
+      <MatchClock state={clock} onChange={onChangeClock} fixtureId={liveFixtureId} />
 
       {/* Picking the standout player and tallying the result are the
           organiser's calls, and both are hidden from the group's live view

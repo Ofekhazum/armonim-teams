@@ -94,13 +94,16 @@ interface Props {
   // Normally every device gets this: at 8 minutes a match, whoever is nearest
   // the phone has to be able to start it (§2.15).
   onChange?: (next: ClockState) => void;
+  // Which night the alerts toggle is opting into — null before a fixture is
+  // published, when there is nothing to be alerted about.
+  fixtureId?: string | null;
 }
 
 // State lives outside the component so one clock is shared by everyone at the
 // pitch. What travels is `endsAt`, an absolute epoch ms, not a countdown — so
 // a device whose poll lands ten seconds late still shows the correct time.
 // Only the transition is late; the number never is.
-export default function MatchClock({ state, onChange }: Props) {
+export default function MatchClock({ state, onChange, fixtureId = null }: Props) {
   const controllable = onChange !== undefined;
   const { period, endsAt, ended } = state;
   // re-renders once a tick while the clock runs; the displayed value is
@@ -245,7 +248,7 @@ export default function MatchClock({ state, onChange }: Props) {
         {/* Sits with the clock because that is the only thing it announces —
             and lives here rather than in the two pages that render a clock, so
             a player and the organiser get the identical control. */}
-        <NotifyToggle />
+        <NotifyToggle fixtureId={fixtureId} />
       </div>
 
       <p className="mt-2 text-xs text-amber-900/60">

@@ -12,8 +12,11 @@ import {
 // consent to be buzzed every Thursday forever — this toggle is what decides,
 // and turning it off drops the subscription server-side rather than just
 // hiding the button.
-export default function NotifyToggle() {
-  const [on, setOn] = useState(notifyEnabled);
+// Alerts are asked for one night at a time (§2.17), so the toggle is about
+// *this* fixture: there is nothing to be alerted about without one, and last
+// week's yes is not this week's.
+export default function NotifyToggle({ fixtureId }: { fixtureId: string | null }) {
+  const [on, setOn] = useState(() => notifyEnabled(fixtureId));
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   // undefined while we're still asking — render nothing rather than flashing a
@@ -29,6 +32,14 @@ export default function NotifyToggle() {
     };
   }, []);
 
+  // A new night starting under a mounted toggle has to reset it — the opt-in
+  // it is reporting belongs to the fixture, not to the device.
+  useEffect(() => setOn(notifyEnabled(fixtureId)), [fixtureId]);
+
+  // Nothing live means nothing to be alerted about, and no night to attach an
+  // opt-in to. The organiser's clock exists before a fixture is published;
+  // this doesn't.
+  if (fixtureId === null) return null;
   if (support === 'not-configured' || configured !== true) return null;
 
   // On an iPhone the API simply isn't there until the site has been added to
@@ -54,7 +65,7 @@ export default function NotifyToggle() {
       await disableNotifications();
       setOn(false);
     } else {
-      const { result, message } = await enableNotifications();
+      const { result, message } = await enableNotifications(fixtureId);
       if (result === 'ok') setOn(true);
       else {
         setOn(false);

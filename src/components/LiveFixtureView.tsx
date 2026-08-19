@@ -118,7 +118,7 @@ export default function LiveFixtureView({ fixture, onChangeClock, onEndFixture }
         })}
       </div>
 
-      <MatchClock state={fixture.clock} onChange={onChangeClock} />
+      <MatchClock state={fixture.clock} onChange={onChangeClock} fixtureId={fixture.id} />
     </div>
   );
 }

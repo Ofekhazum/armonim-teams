@@ -53,6 +53,20 @@ async function rescheduleNotifications(env, clock) {
   }
 }
 
+// Which night the notifier is holding subscriptions for. Told on every write
+// to /live, so that ending a fixture — or starting a different one — drops
+// everyone who had opted into the last one. Same best-effort rule.
+async function notifyFixtureChanged(env, id) {
+  try {
+    await notifier(env).fetch('https://notifier/fixture', {
+      method: 'POST',
+      body: JSON.stringify({ id }),
+    });
+  } catch {
+    // ditto
+  }
+}
+
 // Deliberately open: GET /roster is meant to be readable by anyone with the
 // app, and the POSTs are gated on the secret word rather than on origin — a
 // CORS rule would only inconvenience browsers, never a scripted attacker, and
@@ -522,8 +536,10 @@ export default {
         }
         if (fixture === null) {
           await env.ROSTER_KV.delete('live');
-          // the night is over; nothing left to announce
+          // the night is over; nothing left to announce, and nobody left
+          // subscribed — alerts are asked for one night at a time
           await rescheduleNotifications(env, null);
+          await notifyFixtureChanged(env, null);
           return json({ ok: true, version: Date.now() });
         }
         const payload = { version: Date.now(), fixture };
@@ -533,6 +549,9 @@ export default {
           expirationTtl: LIVE_TTL_S,
         });
         await rescheduleNotifications(env, fixture.clock);
+        // a no-op for the many writes within one night; only a *different*
+        // fixture clears the subscriptions
+        await notifyFixtureChanged(env, fixture.id);
         return json({ ok: true, version: payload.version });
       }
 

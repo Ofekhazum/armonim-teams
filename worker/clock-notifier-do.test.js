@@ -112,6 +112,56 @@ describe('subscriptions', () => {
   });
 });
 
+// Alerts are asked for one night at a time, and the server is what makes that
+// true: a phone that was switched off when the night ended must not be able to
+// be buzzed next week, whatever its own settings still say.
+describe('a subscription lasts one fixture', () => {
+  it('forgets everyone when the night ends', async () => {
+    const { obj, state } = notifier();
+    await post(obj, '/fixture', { id: 'live-1' });
+    await post(obj, '/subscribe', { subscription: subscription(1) });
+    await post(obj, '/subscribe', { subscription: subscription(2) });
+
+    await post(obj, '/fixture', { id: null });
+    expect(await state.storage.get('subs')).toBeUndefined();
+  });
+
+  it('forgets everyone when a different fixture starts', async () => {
+    // the organiser who never pressed End fixture: the record expired on its
+    // own and the next night is simply a new id
+    const { obj, state } = notifier();
+    await post(obj, '/fixture', { id: 'live-1' });
+    await post(obj, '/subscribe', { subscription: subscription(1) });
+
+    await post(obj, '/fixture', { id: 'live-2' });
+    expect(await state.storage.get('subs')).toBeUndefined();
+  });
+
+  it('keeps them through the many writes of one night', async () => {
+    // teams change, the MVP is picked, the result is entered — /live is written
+    // repeatedly with the same id, and none of that is a new night
+    const { obj, state } = notifier();
+    await post(obj, '/fixture', { id: 'live-1' });
+    await post(obj, '/subscribe', { subscription: subscription(1) });
+
+    await post(obj, '/fixture', { id: 'live-1' });
+    await post(obj, '/fixture', { id: 'live-1' });
+    expect(await state.storage.get('subs')).toHaveLength(1);
+  });
+
+  it('does not buzz a squad that has been forgotten', async () => {
+    const { obj } = notifier();
+    await post(obj, '/fixture', { id: 'live-1' });
+    await post(obj, '/subscribe', { subscription: subscription(1) });
+    await post(obj, '/fixture', { id: null });
+
+    await post(obj, '/schedule', { clock: running() });
+    vi.setSystemTime(NOW + 7 * MIN);
+    await obj.alarm();
+    expect(sent).toHaveLength(0);
+  });
+});
+
 describe('scheduling', () => {
   it('arms the alarm for the one-minute warning first', async () => {
     const { obj, state } = notifier();

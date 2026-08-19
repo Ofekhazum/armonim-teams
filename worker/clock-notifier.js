@@ -100,6 +100,26 @@ export class ClockNotifier {
       return Response.json({ ok: true });
     }
 
+    // Consent lasts one night. Whenever the live fixture changes — ended, or
+    // replaced by a different one — every subscription is dropped, so being
+    // buzzed next Thursday requires asking to be, again. The alternative is a
+    // list that only ever grows: a phone that opted in once, months ago,
+    // buzzing for matches its owner long ago stopped coming to.
+    //
+    // Doing it here rather than in the app is what makes it true. A device
+    // that was switched off when the night ended never gets told anything —
+    // the server simply no longer has it, and its own toggle reads off again
+    // because that is keyed to the fixture id too.
+    if (path === '/fixture') {
+      const id = body.id ?? null;
+      const previous = (await this.state.storage.get('fixture')) ?? null;
+      if (id !== previous) {
+        await this.state.storage.put('fixture', id);
+        await this.state.storage.delete('subs');
+      }
+      return Response.json({ ok: true, cleared: id !== previous });
+    }
+
     // Push is a chain of links that each fail silently — the browser hands out
     // a subscription, the Worker stores it, an alarm fires hours later, Apple
     // or Google accepts or rejects it, a service worker draws a banner — and

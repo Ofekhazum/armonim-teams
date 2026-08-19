@@ -371,12 +371,6 @@ abandoned after a few weeks and leaves half-complete data behind, which is worse
 - **The team that isn't playing shouts when there's a minute left.** It's their job, not the
   players', because they're the only ones not busy.
 
-> **Temporarily 2 minutes, not 8.** `REGULATION_MS` in `types.ts` is turned down while the
-> notifications of §2.17 are being tested on real phones — a round trip through Apple's push service
-> is worth waiting two minutes for, not eight. Every number the app says out loud is read from that
-> constant, so nothing on screen lies in the meantime. Put it back to `8 * 60 * 1000` when testing
-> is done; that is the only edit.
-
 `MatchClock.tsx` automates the **time** half only, and knows nothing about the score — the app
 deliberately doesn't collect one live (see the constraint above). So:
 
@@ -771,11 +765,25 @@ ciphertext in `push.test.js` was produced by `http_ece`, the library `web-push` 
 pinned keys and salt, and the two agreed byte-for-byte. A `TTL` of 120 seconds is deliberate: "one
 minute left" is worse than useless after the final whistle, so it expires rather than queues.
 
-**Opting in is per device and off by default** (`NotifyToggle`, rendered by `MatchClock` so the
-player's Live view and the organiser's fixture page get the identical control). Granting a browser
-permission once is not consent to be buzzed every Thursday forever, so the toggle — not the
-permission — is what decides, and turning it off drops the subscription server-side rather than
-just hiding a button. Subscribing needs no admin word, for the same reason running the clock
+**Opting in is per device, per fixture, and off by default** (`NotifyToggle`, rendered by
+`MatchClock` so the player's Live view and the organiser's fixture page get the identical control).
+Granting a browser permission once is not consent to be buzzed every Thursday forever, so the toggle
+— not the permission — is what decides, and turning it off drops the subscription server-side rather
+than just hiding a button.
+
+**And the yes expires with the night.** Every write to `/live` tells the notifier which fixture it
+now holds subscriptions for, and any *change* of id — ended, or replaced — drops all of them. The
+alternative is a list that only ever grows: a phone that opted in once, months ago, buzzing for
+matches its owner stopped coming to. Doing it server-side is what makes it true rather than polite —
+a device that was switched off when the night ended is simply no longer there, and no message had to
+reach it. The local flag stores *which fixture* it said yes to rather than a bare yes, so that phone
+comes back to a toggle that already reads off, and the two ends agree without a handshake.
+
+This also settles where the toggle can live. It only renders beside a running clock, which for a
+player means only while a fixture is live — as a permanent setting that would be a discovery
+problem, since nobody could opt in during the week. As a per-night one it is exactly right: people
+open the app to see their team, tap 🔔, and pocket the phone. The cost is real and accepted —
+someone who forgets to tap gets nothing and won't be told why. Subscribing needs no admin word, for the same reason running the clock
 doesn't: it is a thing any of the fifteen people at the pitch might do, and all a subscription can
 ever receive is those four fixed sentences. A push service answering 404/410 means that device is
 genuinely gone and it is pruned; a 5xx is a bad day and it keeps its place.

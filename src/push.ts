@@ -43,10 +43,17 @@ export function pushSupport(): PushSupport {
   return isIOS() && !isStandalone() ? 'needs-install' : 'unsupported';
 }
 
-export const notifyEnabled = (): boolean => localStorage.getItem(ENABLED_KEY) === '1';
+// What is stored is *which fixture* this device opted into, not a bare yes.
+// Alerts last one night: the Worker drops every subscription when the live
+// fixture changes, and keying the local flag the same way is what keeps the
+// two from disagreeing. A phone that was switched off when the night ended
+// comes back to a toggle that reads off, because the id no longer matches —
+// no message had to reach it to make that true.
+export const notifyEnabled = (fixtureId: string | null): boolean =>
+  fixtureId !== null && localStorage.getItem(ENABLED_KEY) === fixtureId;
 
-const setEnabledFlag = (on: boolean) => {
-  if (on) localStorage.setItem(ENABLED_KEY, '1');
+const setEnabledFlag = (fixtureId: string | null) => {
+  if (fixtureId) localStorage.setItem(ENABLED_KEY, fixtureId);
   else localStorage.removeItem(ENABLED_KEY);
 };
 
@@ -95,7 +102,7 @@ export interface EnableOutcome {
   message?: string;
 }
 
-export async function enableNotifications(): Promise<EnableOutcome> {
+export async function enableNotifications(fixtureId: string): Promise<EnableOutcome> {
   const support = pushSupport();
   if (support === 'not-configured') return { result: 'not-configured' };
   if (support !== 'ok') return { result: 'unsupported' };
@@ -128,7 +135,7 @@ export async function enableNotifications(): Promise<EnableOutcome> {
     });
     if (!res.ok) return { result: 'error', message: `server said ${res.status}` };
 
-    setEnabledFlag(true);
+    setEnabledFlag(fixtureId);
     return { result: 'ok' };
   } catch (err) {
     return { result: 'error', message: String(err).slice(0, 120) };
@@ -214,7 +221,7 @@ export async function testPush(secret: string): Promise<PushReport | null> {
 export async function disableNotifications(): Promise<void> {
   // The local flag goes first: whatever happens to the network, a device that
   // has been switched off must read as switched off.
-  setEnabledFlag(false);
+  setEnabledFlag(null);
   try {
     const registration = await navigator.serviceWorker.getRegistration(import.meta.env.BASE_URL);
     const subscription = await registration?.pushManager.getSubscription();

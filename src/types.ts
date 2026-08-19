@@ -165,13 +165,7 @@ export type ClockPeriod = 'regulation' | 'added';
 // here rather than in MatchClock.tsx because the clock's *state* is now part
 // of the session — persisted, and published to everyone watching — so the
 // modules that build a fresh session need them without importing a component.
-//
-// TEMPORARY — regulation is 2 minutes rather than the house 8 while the match
-// notifications are being tested on real phones: a round trip through Apple's
-// push service takes two minutes to observe instead of eight. Put it back to
-// `8 * 60 * 1000` when that's done; nothing else needs touching, the on-screen
-// copy below reads the number from here.
-export const REGULATION_MS = 2 * 60 * 1000;
+export const REGULATION_MS = 8 * 60 * 1000;
 export const ADDED_MS = 2 * 60 * 1000;
 
 // For the copy that has to say the number out loud.
@@ -188,6 +182,11 @@ export interface ClockState {
   remaining: number;
   ended: boolean;
 }
+
+// A live fixture is identified by the moment it kicked off, which every device
+// running the night already knows. Derived rather than random so the organiser
+// can name tonight before a poll has told them what it is called.
+export const liveFixtureId = (startedAt: number): string => `live-${startedAt}`;
 
 export const initialClock = (): ClockState => ({
   period: 'regulation',

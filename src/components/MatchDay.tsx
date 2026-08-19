@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ClockState, FixtureRecord, LiveFixture, Player, Session, Teams } from '../types';
-import { ATTACK_DEFAULT, initialClock, roleBadge } from '../types';
+import { ATTACK_DEFAULT, initialClock, liveFixtureId, roleBadge } from '../types';
 import {
   emptySession,
   getHostRoom,
@@ -260,7 +260,7 @@ export default function MatchDay({
   // scratch on every publish rather than patched, and deliberately thin: names
   // and shirts, no ratings, no attack spectrum, no result (§2.14, LivePlayer).
   const buildLive = (teams: Teams, clock: ClockState, startedAt: number): LiveFixture => ({
-    id: `live-${startedAt}`,
+    id: liveFixtureId(startedAt),
     startedAt,
     players: todays.map((p) => ({
       id: p.id,
@@ -428,6 +428,9 @@ export default function MatchDay({
         onChangeWins={(wins) => setSession({ ...session, wins })}
         clock={liveClock ?? session.clock}
         onChangeClock={changeClock}
+        // derived locally rather than read off the poll, so the organiser's own
+        // toggle appears the instant they press Start rather than a poll later
+        liveFixtureId={session.liveStartedAt !== null ? liveFixtureId(session.liveStartedAt) : null}
         mvpId={session.mvpId}
         onChangeMvp={(mvpId) => setSession({ ...session, mvpId })}
         onSaveResults={saveNight}
