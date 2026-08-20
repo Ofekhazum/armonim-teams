@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ClockPeriod, ClockState } from '../types';
-import { ADDED_MIN, ADDED_MS, REGULATION_MIN, REGULATION_MS, withAddedTime } from '../types';
+import { ADDED_MIN, ADDED_MS, REGULATION_MS, withAddedTime } from '../types';
 import NotifyToggle from './NotifyToggle';
 import PitchMode from './PitchMode';
 
@@ -308,18 +308,6 @@ export default function MatchClock({ state, onChange, fixtureId = null }: Props)
             a player and the organiser get the identical control. */}
         <NotifyToggle fixtureId={fixtureId} />
       </div>
-
-      <p className="mt-2 text-xs text-amber-900/60">
-        {REGULATION_MIN} minutes, or a two-goal lead (2:0, 3:1). Level at full time → {ADDED_MIN}{' '}
-        minutes golden goal, then penalties. The clock doesn't know the score, so end a match early with <b>Next match</b>.
-        {controllable && (
-          <>
-            {' '}
-            Everyone at the pitch shares this clock — whoever is nearest the phone can start it, and
-            it shows the same time on everyone else's within a few seconds.
-          </>
-        )}
-      </p>
 
       {pitch && (
         <PitchMode

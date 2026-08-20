@@ -59,7 +59,9 @@ export default function ResultsPanel({
 
   return (
     <div className="rounded-2xl border border-amber-900/15 bg-[#fffdf4]/70 p-4 shadow-sm">
-      <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+      <div
+        className={`flex flex-wrap items-center justify-between gap-2 ${fromLog ? 'mb-3' : 'mb-1'}`}
+      >
         <h3 className="font-bold text-amber-950">🏁 Tonight's results</h3>
         {isAdmin ? (
           <button
@@ -83,21 +85,17 @@ export default function ResultsPanel({
           </span>
         )}
       </div>
-      <p className="mb-3 text-xs text-amber-900/60">
-        {fromLog ? (
-          <>
-            Counted from the matches above — a win before penalties is 1, taken on penalties is ½.
-            Undo a match up there to change it. Saving shares the result with everyone, the same as
-            publishing the roster.
-          </>
-        ) : (
-          <>
-            How many matches each team won. Won it on penalties? That's half a win — tap <b>+</b>{' '}
-            twice, or type <b>0.5</b> directly. Saving shares the result with everyone, the same as
-            publishing the roster.
-          </>
-        )}
-      </p>
+      {/* A logged night explains itself — the matches are listed directly above
+          and the boxes are read-only, so the note only repeated what the screen
+          already showed. Typed-in nights still need the half-win rule spelling
+          out, because nothing on screen says it. */}
+      {!fromLog && (
+        <p className="mb-3 text-xs text-amber-900/60">
+          How many matches each team won. Won it on penalties? That's half a win — tap <b>+</b>{' '}
+          twice, or type <b>0.5</b> directly. Saving shares the result with everyone, the same as
+          publishing the roster.
+        </p>
+      )}
 
       <div className="grid gap-2 sm:grid-cols-3">
         {TEAM_COLORS.map((c) => {
