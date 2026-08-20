@@ -780,6 +780,12 @@ panel shows counted numbers with its controls disabled, because a tally you can 
 that disagrees with it is two records and one of them is wrong. An empty log leaves the old
 end-of-night entry in charge, so both ways of running a night still work.
 
+The opening pairing is **two dropdowns** rather than a button per possible pairing. Three teams make
+only three pairings, so buttons would have fitted — but "these two play" is the shape the organiser
+is already thinking in, and it reads as one decision instead of three. Whichever team is picked
+first drops out of the second list, and picking a team that was already in the second box empties
+it, so the two can never name the same side. The outcome buttons appear only once both are chosen.
+
 `recordMatch` takes a winner rather than a pairing, and throws if that team was not on the pitch.
 The pairing stops being the organiser's to choose after the first match, and a guard is cheaper than
 a log that quietly disagrees with itself. `consecutiveMatches` surfaces the one unfairness

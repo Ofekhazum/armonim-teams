@@ -1,6 +1,7 @@
+import { useState } from 'react';
 import type { MatchLogEntry, TeamColor } from '../types';
+import { TEAM_COLORS } from '../balancer';
 import {
-  OPENING_PAIRS,
   consecutiveMatches,
   loserOf,
   nextPairing,
@@ -30,8 +31,22 @@ const Chip = ({ color }: { color: TeamColor }) => (
   </span>
 );
 
+const SELECT =
+  'rounded-lg border border-amber-900/25 bg-white px-2 py-1.5 text-sm font-semibold text-amber-950 outline-none focus:border-orange-500';
+
 export default function MatchLog({ log, onChange, isAdmin }: Props) {
   const pair = nextPairing(log);
+  // Only ever used for the opening pairing — every later one is decided by the
+  // result, not by anybody choosing.
+  const [openA, setOpenA] = useState<TeamColor | ''>('');
+  const [openB, setOpenB] = useState<TeamColor | ''>('');
+
+  const pickA = (next: TeamColor | '') => {
+    setOpenA(next);
+    // a team cannot play itself, so choosing whatever was already in the second
+    // box has to empty it rather than leave an impossible pairing on screen
+    if (next !== '' && next === openB) setOpenB('');
+  };
 
   const record = (winner: TeamColor, viaPenalties: boolean, opening?: [TeamColor, TeamColor]) =>
     onChange(recordMatch(log, winner, viaPenalties, opening));
@@ -112,17 +127,42 @@ export default function MatchLog({ log, onChange, isAdmin }: Props) {
             Who kicks off? This is the only pairing anyone picks — after it, the winner stays on
             and the resting team comes in.
           </p>
-          {OPENING_PAIRS.map(([a, b]) => (
-            <div key={`${a}-${b}`} className="space-y-1.5 border-t border-amber-900/10 pt-2">
-              <div className="text-sm font-semibold text-amber-950">
-                <Chip color={a} /> <span className="text-amber-900/50">v</span> <Chip color={b} />
-                <span className="ml-2 text-xs font-normal text-amber-900/50">
-                  <Chip color={restingTeam(a, b)} /> rests
-                </span>
-              </div>
-              <Outcome a={a} b={b} opening={[a, b]} />
-            </div>
-          ))}
+          {/* Two pickers rather than a button per possible pairing: three teams
+              make three pairings, but the shape "these two play" is what the
+              organiser is actually thinking, and it does not grow. Whichever
+              team is chosen first drops out of the second list, so the two can
+              never name the same side. */}
+          <div className="flex flex-wrap items-center gap-2">
+            <select value={openA} onChange={(e) => pickA(e.target.value as TeamColor | '')} className={SELECT} aria-label="First team">
+              <option value="">Pick a team…</option>
+              {TEAM_COLORS.map((c) => (
+                <option key={c} value={c}>
+                  {TEAM_META[c].emoji} {TEAM_META[c].label}
+                </option>
+              ))}
+            </select>
+            <span className="text-sm font-bold text-amber-900/50">v</span>
+            <select
+              value={openB}
+              onChange={(e) => setOpenB(e.target.value as TeamColor | '')}
+              disabled={openA === ''}
+              className={`${SELECT} disabled:opacity-40`}
+              aria-label="Second team"
+            >
+              <option value="">Pick a team…</option>
+              {TEAM_COLORS.filter((c) => c !== openA).map((c) => (
+                <option key={c} value={c}>
+                  {TEAM_META[c].emoji} {TEAM_META[c].label}
+                </option>
+              ))}
+            </select>
+            {openA !== '' && openB !== '' && (
+              <span className="text-xs text-amber-900/50">
+                <Chip color={restingTeam(openA, openB)} /> rests
+              </span>
+            )}
+          </div>
+          {openA !== '' && openB !== '' && <Outcome a={openA} b={openB} opening={[openA, openB]} />}
         </div>
       ) : (
         <div className="space-y-2">
