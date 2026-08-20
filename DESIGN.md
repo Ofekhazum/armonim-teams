@@ -698,16 +698,28 @@ it.
 
 **Polled, not pushed.** The live rooms in `liveRoom.ts` already do WebSockets, but they exist for
 dragging players between teams, where lag is felt; this is a scoreboard. Polling needs no connection
-kept alive on fifteen backgrounded phones. Two rates — **3s while a fixture is on, 15s otherwise** —
+kept alive on fifteen backgrounded phones. Two rates — **2s while a fixture is on, 15s otherwise** —
 and none at all on a hidden tab, with an immediate poll when the tab comes back, which is both when
 the answer is most likely to have changed and when it is about to be looked at.
 
-Three seconds is deliberately the shortest interval that is still *honest*. The live record lives in
-KV, whose reads are edge-cached with a 60-second floor, so polling faster mostly buys requests
-rather than freshness. Which makes the number a measurement as much as a setting: if a transition
-still takes noticeably longer than three seconds on a real night, the cache is the bottleneck and no
-interval will move it — the record has to go into a Durable Object, which is strongly consistent.
-Better to learn that from one constant than from a refactor. **Not yet measured on a match night.**
+**Where the record lives, and why it moved.** It was a KV key. KV is eventually consistent and its
+reads are edge-cached with a 60-second floor, which for a value rewritten every few minutes means a
+clock paused a minute ago can still be read as running — and no poll interval can fix that, because
+the interval was never the floor. Dropping the poll from 10s to 3s was run as the experiment that
+would tell the two apart, and a real fixture answered it: still slow, worst on pause and on resuming
+after full time, exactly where a stale read shows.
+
+So the live fixture now lives in the `ClockNotifier` Durable Object, which is strongly consistent —
+a read after a write sees the write, always. Three things fell out of that. The record is in the
+same object as the alarm it drives, so storing a clock and rescheduling its announcements is one
+trip that cannot half-happen, replacing a KV write plus two best-effort side calls. The 12-hour
+expiry KV gave for free is now enforced on read, which is cheaper than an alarm and leaves this
+object's single alarm to the announcements. And the poll can drop to **2s**, since it is finally the
+whole of the delay rather than the smaller half of it.
+
+One honest wrinkle: the class is still called `ClockNotifier` while it now owns the night, not just
+the announcements about it. A rename is a `renamed_classes` migration and was kept out of a diff
+that was already the largest of the season.
 
 The delay for the *next* poll is taken from what the poll just returned, held in a plain local
 variable — never read back off React state. The next poll is scheduled synchronously after

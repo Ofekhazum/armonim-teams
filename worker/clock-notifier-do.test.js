@@ -162,6 +162,96 @@ describe('a subscription lasts one fixture', () => {
   });
 });
 
+// The live record moved out of KV and in here, because KV's reads are
+// edge-cached and a clock paused a minute ago was being read as still running.
+// What it buys is strong consistency, so these check the one property that
+// matters — a read after a write sees the write — plus the 12-hour expiry that
+// KV used to provide for free and now has to be enforced on read.
+describe('the live fixture', () => {
+  const fixture = (over = {}) => ({
+    id: 'live-1',
+    startedAt: NOW,
+    players: [{ id: 'p1', name: 'Tester' }],
+    teams: { black: ['p1'], white: [], blue: [] },
+    gkIds: [],
+    clock: running({ endsAt: null, remaining: 8 * MIN }),
+    ...over,
+  });
+  const read = async (obj) => (await post(obj, '/live', {})).json();
+
+  it('reads back exactly what was just written', async () => {
+    const { obj } = notifier();
+    await post(obj, '/live/put', { fixture: fixture() });
+    expect((await read(obj)).fixture.id).toBe('live-1');
+  });
+
+  it('says nothing is live before a night starts', async () => {
+    expect(await read(notifier().obj)).toEqual({ version: 0, fixture: null });
+  });
+
+  it('clears the night when handed null', async () => {
+    const { obj } = notifier();
+    await post(obj, '/live/put', { fixture: fixture() });
+    await post(obj, '/live/put', { fixture: null });
+    expect((await read(obj)).fixture).toBeNull();
+  });
+
+  it('replaces only the clock, leaving the teams alone', async () => {
+    const { obj } = notifier();
+    await post(obj, '/live/put', { fixture: fixture() });
+    const paused = { period: 'regulation', endsAt: null, remaining: 90_000, ended: false };
+    await post(obj, '/live/clock', { clock: paused });
+
+    const after = (await read(obj)).fixture;
+    expect(after.clock).toEqual(paused);
+    expect(after.teams.black).toEqual(['p1']);
+    expect(after.id).toBe('live-1');
+  });
+
+  it('refuses a clock when no fixture is live, rather than conjuring one', async () => {
+    // the whole reason this endpoint can be left unauthenticated
+    const res = await post(notifier().obj, '/live/clock', { clock: running() });
+    expect(res.status).toBe(404);
+  });
+
+  it('stops reading as live twelve hours on', async () => {
+    // KV expired the key; a Durable Object has no TTL, so an organiser who
+    // closed the tab mid-night must not leave a fixture live until someone
+    // notices it the next morning
+    const { obj } = notifier();
+    await post(obj, '/live/put', { fixture: fixture() });
+    vi.setSystemTime(NOW + 13 * 60 * MIN);
+    expect((await read(obj)).fixture).toBeNull();
+  });
+
+  it('arms the announcements from the same call that stores the clock', async () => {
+    // they used to be two best-effort trips, which could half-happen
+    const { obj, state } = notifier();
+    await post(obj, '/live/put', { fixture: fixture() });
+    expect(state.alarmAt()).toBeNull(); // clock not started yet
+
+    await post(obj, '/live/clock', { clock: running() });
+    expect(state.alarmAt()).toBe(NOW + 7 * MIN);
+  });
+
+  it('drops the subscriptions when a different night starts', async () => {
+    const { obj, state } = notifier();
+    await post(obj, '/live/put', { fixture: fixture() });
+    await post(obj, '/subscribe', { subscription: subscription(1) });
+    await post(obj, '/live/put', { fixture: fixture({ id: 'live-2' }) });
+    expect(await state.storage.get('subs')).toBeUndefined();
+  });
+
+  it('keeps them through the many writes of one night', async () => {
+    const { obj, state } = notifier();
+    await post(obj, '/live/put', { fixture: fixture() });
+    await post(obj, '/subscribe', { subscription: subscription(1) });
+    await post(obj, '/live/put', { fixture: fixture({ gkIds: ['p1'] }) });
+    await post(obj, '/live/clock', { clock: running() });
+    expect(await state.storage.get('subs')).toHaveLength(1);
+  });
+});
+
 describe('scheduling', () => {
   it('arms the alarm for the one-minute warning first', async () => {
     const { obj, state } = notifier();

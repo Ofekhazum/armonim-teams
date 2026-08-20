@@ -21,6 +21,13 @@ const ONE_MINUTE_MS = 60 * 1000;
 // A club, not a stadium. Also bounds what one alarm has to fan out to.
 const MAX_SUBSCRIPTIONS = 200;
 
+// KV gave the live record a 12-hour expiry for free, which is what stopped an
+// organiser who closed the tab mid-night leaving a fixture that reads as live
+// forever. Durable Object storage has no TTL, so the same guarantee is applied
+// on read instead — cheaper than an alarm, and this object's single alarm is
+// already spoken for by the announcements.
+const LIVE_TTL_MS = 12 * 60 * 60 * 1000;
+
 // An alarm can fire slightly late; anything within this of now is "due" rather
 // than "still to come", so a late wake-up doesn't leave a trigger stranded in
 // the pending list forever.
@@ -129,13 +136,46 @@ export class ClockNotifier {
     // the server simply no longer has it, and its own toggle reads off again
     // because that is keyed to the fixture id too.
     if (path === '/fixture') {
-      const id = body.id ?? null;
-      const previous = (await this.state.storage.get('fixture')) ?? null;
-      if (id !== previous) {
-        await this.state.storage.put('fixture', id);
-        await this.state.storage.delete('subs');
-      }
-      return Response.json({ ok: true, cleared: id !== previous });
+      return Response.json({ ok: true, cleared: await this.fixtureChanged(body.id ?? null) });
+    }
+
+    // --- The live fixture itself ------------------------------------------
+    // Held here rather than in KV because KV is eventually consistent and its
+    // reads are edge-cached with a 60-second floor: a clock that is paused and
+    // resumed every few minutes was being read stale, and no poll interval
+    // could fix it. A Durable Object is strongly consistent — a read after a
+    // write sees the write — which is the only property this record ever
+    // needed. It also puts the record in the same object as the alarm it
+    // drives, so storing a clock and rescheduling its announcements is one
+    // trip that cannot half-happen.
+
+    if (path === '/live') {
+      return Response.json(await this.live());
+    }
+
+    if (path === '/live/put') {
+      const fixture = body.fixture ?? null;
+      const version = Date.now();
+      if (fixture === null) await this.state.storage.delete('live');
+      else await this.state.storage.put('live', { version, fixture });
+      // a different night means nobody is subscribed to this one yet (§2.17)
+      await this.fixtureChanged(fixture ? fixture.id : null);
+      await this.schedule(fixture ? fixture.clock : null);
+      return Response.json({ ok: true, version });
+    }
+
+    // Replaces only the clock, and only on a fixture that is already live —
+    // the narrowness is what makes this safe to expose without a password.
+    if (path === '/live/clock') {
+      const current = await this.live();
+      if (!current.fixture) return Response.json({ error: 'no live fixture' }, { status: 404 });
+      const version = Date.now();
+      await this.state.storage.put('live', {
+        version,
+        fixture: { ...current.fixture, clock: body.clock },
+      });
+      await this.schedule(body.clock);
+      return Response.json({ ok: true, version });
     }
 
     // Push is a chain of links that each fail silently — the browser hands out
@@ -188,6 +228,27 @@ export class ClockNotifier {
 
   async subscriptions() {
     return (await this.state.storage.get('subs')) ?? [];
+  }
+
+  // The night as anyone watching sees it. Expiry is enforced here rather than
+  // stored, so a stale record simply stops being live rather than needing
+  // anything to have run.
+  async live() {
+    const rec = await this.state.storage.get('live');
+    if (!rec?.fixture) return { version: 0, fixture: null };
+    if (Date.now() - rec.fixture.startedAt > LIVE_TTL_MS) return { version: 0, fixture: null };
+    return rec;
+  }
+
+  // Alerts are asked for one night at a time: any change of fixture — ended,
+  // or replaced — drops every subscription. Returns whether it did, which is
+  // only of interest to the test.
+  async fixtureChanged(id) {
+    const previous = (await this.state.storage.get('fixture')) ?? null;
+    if (id === previous) return false;
+    await this.state.storage.put('fixture', id);
+    await this.state.storage.delete('subs');
+    return true;
   }
 
   // Recomputed from scratch on every clock change rather than patched: pausing,
