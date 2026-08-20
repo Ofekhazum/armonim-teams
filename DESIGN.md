@@ -797,6 +797,14 @@ white 2 / blue 1` could be six matches or nine, and who beat whom is simply gone
 optional on `FixtureRecord`, and anything derived from it has to read as *not recorded* for those
 nights rather than as zero — the same distinction `closeRate` makes in §2.12.
 
+**Recording a result puts the clock back.** Writing down who won means that match is over, and the
+next thing anybody did was press Next match — so it happens on the same tap. The session write is a
+single call, so the log and the clock cannot land separately, and the publish is precisely the one
+the manual press used to make: no extra round trip, instant on the phone doing the logging because
+local state moves first, and exactly as fast as before on everyone else's. Only on a result being
+*added* — undoing one is a correction to the record rather than the end of a match, and resetting a
+running clock would be the wrong kind of surprise.
+
 **`ScoreBar`** sticks the two numbers you look up for — the points and the clock — to the top of the
 fixture page. Both exist further down already; "further down" is the problem on a page long enough
 to scroll, asked at a pitch, usually by someone who is also playing. The two teams currently on are

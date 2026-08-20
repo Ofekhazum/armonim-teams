@@ -433,7 +433,22 @@ export default function MatchDay({
         wins={session.matchLog.length ? winsFromLog(session.matchLog) : session.wins}
         onChangeWins={(wins) => setSession({ ...session, wins })}
         matchLog={session.matchLog}
-        onChangeLog={(matchLog) => setSession({ ...session, matchLog })}
+        onChangeLog={(matchLog) => {
+          // Writing down a result means that match is over, and the very next
+          // thing anyone does is put the clock back for the following one. So
+          // do it here rather than making them press it: the session write is
+          // one call so the log and the clock cannot land separately, and the
+          // publish is the same one the manual press made — no extra round
+          // trip, and instant on this phone because local state moves first.
+          //
+          // Only on a result being *added*. Undoing one is a correction to the
+          // record, not the end of a match, and resetting a clock that is
+          // running would be the wrong kind of surprise.
+          const recorded = matchLog.length > session.matchLog.length;
+          const clock = recorded ? initialClock() : session.clock;
+          setSession({ ...session, matchLog, clock });
+          if (recorded) onShareClock(clock);
+        }}
         clock={liveClock ?? session.clock}
         onChangeClock={changeClock}
         // derived locally rather than read off the poll, so the organiser's own
