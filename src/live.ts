@@ -36,8 +36,16 @@ export interface RemoteLive {
 // on their other phone, and a minute of nothing reads as broken even though
 // it isn't. Half a minute is still cheap — worst case one request per device
 // per 30s, and only while someone is actually looking at it.
-const POLL_LIVE_MS = 10_000;
-const POLL_IDLE_MS = 30_000;
+// Ten seconds while live was too long to press Start next to someone and have
+// their phone agree with yours. Three is the shortest that is still honest
+// about what it can deliver: the live record is held in KV, whose reads are
+// edge-cached, so polling faster than that mostly buys requests rather than
+// freshness. If a transition still takes noticeably longer than this on a real
+// night, the cache is the floor and no interval will fix it — the record has to
+// move to a Durable Object, which is strongly consistent. That is the whole
+// reason this number is worth watching rather than just lowering again.
+const POLL_LIVE_MS = 3_000;
+const POLL_IDLE_MS = 15_000;
 
 export async function fetchLive(): Promise<RemoteLive | null> {
   if (!REMOTE_URL) return null;
