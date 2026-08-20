@@ -183,6 +183,23 @@ export interface ClockState {
   ended: boolean;
 }
 
+// Half a minute back for a stoppage the clock knew nothing about. Pure and
+// exported so it can be tested without a component: which field is
+// authoritative depends on whether the clock is moving, and getting that wrong
+// is the difference between adding time and silently discarding it.
+//
+// A running clock is defined by `endsAt`, so the end moves. Anything else —
+// paused, not yet kicked off, or already run out — is defined by `remaining`,
+// so that grows. A clock that had ended un-ends, but stays stopped: giving the
+// time back is one decision and restarting is another, and merging them would
+// have the match resume in somebody's pocket.
+export function withAddedTime(clock: ClockState, ms: number, now: number): ClockState {
+  const running = clock.endsAt !== null && !clock.ended && clock.endsAt > now;
+  if (running) return { ...clock, endsAt: clock.endsAt! + ms };
+  const left = clock.endsAt !== null ? Math.max(0, clock.endsAt - now) : Math.max(0, clock.remaining);
+  return { period: clock.period, endsAt: null, remaining: left + ms, ended: false };
+}
+
 // A live fixture is identified by the moment it kicked off, which every device
 // running the night already knows. Derived rather than random so the organiser
 // can name tonight before a poll has told them what it is called.

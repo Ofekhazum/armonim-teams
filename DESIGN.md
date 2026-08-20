@@ -362,6 +362,34 @@ abandoned after a few weeks and leaves half-complete data behind, which is worse
 
 ### 2.8 The match clock (and the rules of a match)
 
+**+30s** hands back half a minute for a stoppage the clock knew nothing about — a ball over the
+fence, a goal kick from the car park. The logic is `withAddedTime` in `types.ts` rather than in the
+component, because which field is authoritative depends on whether the clock is moving and getting
+that wrong discards the time silently: the button appears to work and the match ends thirty seconds
+early. A running clock is defined by `endsAt`, so the end moves; anything else — paused, not yet
+kicked off, or already run out — is defined by `remaining`, so that grows. A clock that had ended
+un-ends but stays *stopped*, since giving the time back is one decision and restarting is another,
+and merging them would have a match resume in somebody's pocket. Climbing back above a minute
+re-arms the one-minute shout, and because the announcements are scheduled from `endsAt` (§2.17), the
+push notification moves with it for free.
+
+**Pitch mode** (`PitchMode.tsx`) is the clock with nothing else on screen: a phone propped against a
+bag on the touchline is read from ten metres away by someone who isn't holding it, and the ordinary
+card is sized for a hand. Dark ground rather than the app's cream, because a bright field at full
+brightness in sunlight is glare and the digits should be the only thing shouting — which is also
+what every scoreboard ever built looks like, so nobody has to be told what they are looking at. It
+lives inside `MatchClock`, so a player's Live view and the organiser's fixture page get it on the
+same terms as the alerts toggle, and every press is the same act as a press on the card: it engages
+this device, publishes to everyone, unlocks the beeper.
+
+Two details are load-bearing. The type is `min(34vw, 40vh)` — the vw term is what a standing phone
+runs out of and the vh term a lying one — and 34 rather than something rounder because `8:00` is
+four glyphs wide and anything past ~36vw runs off the sides in portrait. And entering pitch mode
+holds the wake lock on its own, separately from `engaged`: a screen that blanks after thirty seconds
+is not a pitch clock. `engaged` still means *someone here pressed a button* and still decides who
+beeps and who writes down that the match ended, because putting a phone on the floor to be looked at
+is not the same as running the match on it.
+
 **The house rules**, which this is the app's record of:
 
 - A match is **8 minutes**, or ends early at a **two-goal lead** — 2:0, 3:1, and so on.
