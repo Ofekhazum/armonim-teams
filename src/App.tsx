@@ -411,17 +411,10 @@ export default function App() {
           <span className="bg-gradient-to-r from-orange-600 to-amber-800 bg-clip-text text-transparent">
             Armonim FC
           </span>
-          {/* The badge is also the way out: it is the one thing on screen that
-              says you are in admin mode, so it is where you would press to
-              stop being. */}
           {isAdmin && (
-            <button
-              onClick={() => setAdminWord(null)}
-              title="Leave admin mode"
-              className="ml-2 rounded-full bg-orange-600 px-2 py-0.5 align-middle text-xs font-bold text-amber-50 transition-colors hover:bg-orange-700"
-            >
+            <span className="ml-2 rounded-full bg-orange-600 px-2 py-0.5 align-middle text-xs font-bold text-amber-50">
               ADMIN
-            </button>
+            </span>
           )}
         </h1>
         <nav className="flex items-center gap-1 rounded-full border border-amber-900/20 bg-[#fffdf4]/70 p-1 shadow-sm">
@@ -433,15 +426,17 @@ export default function App() {
               because what it gates is spread across all of them — Match day,
               the rating column in History, ending a live fixture — and having
               to go and find the Roster page first was a step that taught
-              nobody anything. */}
-          {REMOTE_URL && !isAdmin && (
+              nobody anything. It is one control in two states rather than two
+              controls: the same place you went to get in is the place you
+              press to get back out, and the open padlock says which you are. */}
+          {REMOTE_URL && (
             <button
-              onClick={unlockAdmin}
+              onClick={isAdmin ? () => setAdminWord(null) : unlockAdmin}
               disabled={unlocking}
-              title="Unlock admin mode"
+              title={isAdmin ? 'Log off admin' : 'Unlock admin mode'}
               className="rounded-full px-3 py-1.5 text-sm font-semibold text-amber-900/70 transition-colors hover:text-orange-700 disabled:opacity-50"
             >
-              {unlocking ? '…' : '🔒'}
+              {unlocking ? '…' : isAdmin ? '🔓' : '🔒'}
             </button>
           )}
         </nav>
