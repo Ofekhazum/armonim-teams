@@ -784,6 +784,17 @@ arms the second. A late alarm fires everything now due rather than stranding it.
 on lock screens that anyone standing nearby can read. Naming the teams would put tonight's line-up
 on fifteen strangers' screens for no gain, and the people who care are already at the pitch.
 
+Three rules govern the wording, since these are read in about a second by someone who may be in the
+middle of playing. **The title is the moment and nothing else**: it is the half that survives
+truncation on a watch or a banner, so the identifying words come first and stay fixed week to week —
+a timing cue you have to read twice has already failed. **The body is an instruction or a branch**,
+never a restatement; "Added time — golden goal" sitting under "One minute left" was a line nobody
+needed to read. And **never who is playing**. The full-time message is the interesting one: what
+happens next depends on the score, which the app never learns (§2.8), so instead of a half-answer it
+states both branches with the commoner one first — *"Ahead? Done. Level? Two minutes, golden goal."*
+Tests enforce the first two mechanically, including that no meaningful word from a title reappears
+in its own body.
+
 **The crypto is hand-written and that is the risky part.** The Worker runtime has no Node built-ins,
 so `web-push` is unusable and `worker/push.js` implements VAPID (RFC 8292) and payload encryption
 (RFC 8291 over RFC 8188) directly on Web Crypto. This is the one file in the project where a wrong

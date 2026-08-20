@@ -55,15 +55,33 @@ export function hostOf(endpoint) {
   }
 }
 
+// These are read in about a second, on a lock screen, by someone who may be
+// in the middle of playing. Three rules came out of that:
+//
+//   · The title is the moment, and nothing else. It is the half that survives
+//     truncation on a watch or a banner, so the words that identify *which* of
+//     the four this is come first and stay fixed week to week — a timing cue
+//     you have to read twice has already failed.
+//   · The body earns its place by being either an instruction or a branch.
+//     Announcing a fact the title already carried ("Added time — golden goal"
+//     under "One minute left") is a line nobody needs to look at twice.
+//   · Never who is playing. These land on screens anyone standing nearby can
+//     read, and tonight's line-up is not theirs to have.
+//
+// The full-time one is the interesting case: what happens next depends on the
+// score, which this app deliberately never learns (§2.8). So rather than a
+// half-answer, it states both branches with the commoner one first.
 export function messageFor(kind, period) {
   if (kind === 'one-minute') {
     return period === 'added'
-      ? { title: '⏱️ One minute left', body: 'Added time — golden goal' }
-      : { title: '⏱️ One minute left', body: 'Resting team shouts' };
+      ? { title: '⏱️ One minute left', body: 'Golden goal — next goal ends it.' }
+      : // the house rule the clock exists to prompt: the team that isn't
+        // playing does the shouting, because they are the only ones free to
+        { title: '⏱️ One minute left', body: 'Resting team — shout it out.' };
   }
   return period === 'added'
-    ? { title: '🥅 End of added time', body: 'Still level — penalties' }
-    : { title: '🏁 Full time', body: 'Level? Two minutes, golden goal' };
+    ? { title: '🥅 End of added time', body: 'Still level? Penalties.' }
+    : { title: '🏁 Full time', body: 'Ahead? Done. Level? Two minutes, golden goal.' };
 }
 
 export class ClockNotifier {

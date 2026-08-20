@@ -83,7 +83,47 @@ describe('messageFor', () => {
 
   it('distinguishes full time from the end of added time', () => {
     expect(messageFor('time-up', 'regulation').title).toContain('Full time');
-    expect(messageFor('time-up', 'added').body).toContain('penalties');
+    expect(messageFor('time-up', 'added').body).toMatch(/penalties/i);
+  });
+
+  it('keeps every title short enough to survive a banner', () => {
+    // the title is the half that identifies which of the four moments this is;
+    // if it truncates, the notification has told you nothing
+    for (const [kind, period] of [
+      ['one-minute', 'regulation'],
+      ['one-minute', 'added'],
+      ['time-up', 'regulation'],
+      ['time-up', 'added'],
+    ]) {
+      expect(messageFor(kind, period).title.length).toBeLessThanOrEqual(24);
+    }
+  });
+
+  it('never repeats the title back in the body', () => {
+    // a body that restates the moment is a line nobody needs to read twice —
+    // it has to be an instruction or a branch, or it should not be there
+    for (const [kind, period] of [
+      ['one-minute', 'regulation'],
+      ['one-minute', 'added'],
+      ['time-up', 'regulation'],
+      ['time-up', 'added'],
+    ]) {
+      const { title, body } = messageFor(kind, period);
+      // only words long enough to carry meaning — "of" and "one" turning up in
+      // both halves is English, not repetition
+      const words = title
+        .replace(/[^\w\s]/g, '')
+        .toLowerCase()
+        .split(/\s+/)
+        .filter((w) => w.length > 3);
+      expect(words.every((w) => !body.toLowerCase().includes(w))).toBe(true);
+    }
+  });
+
+  it('states both branches at full time, since the app never learns the score', () => {
+    const body = messageFor('time-up', 'regulation').body;
+    expect(body).toMatch(/ahead/i); // someone won it
+    expect(body).toMatch(/level/i); // nobody did
   });
 
   it('says the same thing at one minute in either period, with different advice', () => {
