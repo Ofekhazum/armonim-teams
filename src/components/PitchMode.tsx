@@ -28,11 +28,15 @@ interface Props {
   onPause?: () => void;
   onAdded?: () => void;
   onNext?: () => void;
+  onAddTime?: () => void;
   onExit: () => void;
 }
 
+// Sized so the three that are up during play — pause, +30s, next — sit on one
+// row on the narrowest phone. Still a far bigger target than the card's, which
+// is the point: this is pressed by someone who isn't looking closely.
 const bigBtn =
-  'rounded-2xl px-7 py-4 text-xl font-black tracking-tight shadow-lg transition-transform active:scale-95';
+  'rounded-2xl px-5 py-3.5 text-lg font-black tracking-tight shadow-lg transition-transform active:scale-95';
 
 export default function PitchMode({
   time,
@@ -46,6 +50,7 @@ export default function PitchMode({
   onPause,
   onAdded,
   onNext,
+  onAddTime,
   onExit,
 }: Props) {
   const controllable = onStart !== undefined;
@@ -118,6 +123,12 @@ export default function PitchMode({
               ⚽ Level — added time
             </button>
           )}
+
+          {/* the stoppage button belongs here more than anywhere: this is the
+              screen that is up while play is going on */}
+          <button onClick={onAddTime} className={`${bigBtn} bg-amber-50/15 text-amber-50`}>
+            +30s
+          </button>
 
           <button onClick={onNext} className={`${bigBtn} bg-amber-50/15 text-amber-50`}>
             {finished || !idle ? '⏭ Next' : '↺ Reset'}

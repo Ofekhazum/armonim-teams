@@ -362,6 +362,17 @@ abandoned after a few weeks and leaves half-complete data behind, which is worse
 
 ### 2.8 The match clock (and the rules of a match)
 
+**+30s** hands back half a minute for a stoppage the clock knew nothing about — a ball over the
+fence, a goal kick from the car park. The logic is `withAddedTime` in `types.ts` rather than in the
+component, because which field is authoritative depends on whether the clock is moving and getting
+that wrong discards the time silently: the button appears to work and the match ends thirty seconds
+early. A running clock is defined by `endsAt`, so the end moves; anything else — paused, not yet
+kicked off, or already run out — is defined by `remaining`, so that grows. A clock that had ended
+un-ends but stays *stopped*, since giving the time back is one decision and restarting is another,
+and merging them would have a match resume in somebody's pocket. Climbing back above a minute
+re-arms the one-minute shout, and because the announcements are scheduled from `endsAt` (§2.17), the
+push notification moves with it for free.
+
 **Pitch mode** (`PitchMode.tsx`) is the clock with nothing else on screen: a phone propped against a
 bag on the touchline is read from ten metres away by someone who isn't holding it, and the ordinary
 card is sized for a hand. Dark ground rather than the app's cream, because a bright field at full

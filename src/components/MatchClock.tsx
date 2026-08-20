@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ClockPeriod, ClockState } from '../types';
-import { ADDED_MIN, ADDED_MS, REGULATION_MIN, REGULATION_MS } from '../types';
+import { ADDED_MIN, ADDED_MS, REGULATION_MIN, REGULATION_MS, withAddedTime } from '../types';
 import NotifyToggle from './NotifyToggle';
 import PitchMode from './PitchMode';
 
@@ -19,6 +19,7 @@ import PitchMode from './PitchMode';
 // session now, so modules with no business importing a component still need
 // the lengths that define a fresh one.
 const SHOUT_AT_MS = 60 * 1000; // "one minute left" — the resting team's cue
+const ADD_MS = 30 * 1000; // one press of +30s
 
 const fullLength = (p: ClockPeriod) => (p === 'regulation' ? REGULATION_MS : ADDED_MS);
 
@@ -166,6 +167,23 @@ export default function MatchClock({ state, onChange, fixtureId = null }: Props)
     unlock();
     press({ ...state, endsAt: Date.now() + remaining });
   };
+
+  // Half a minute back, for the stoppage the clock didn't know about — someone
+  // taking a goal kick from the car park, a ball over the fence. Works in every
+  // state, because the moment you want it is rarely the moment the clock is in
+  // a convenient one: running, it moves the end; paused or not yet started, it
+  // grows what is left; already over, it hands the time back and un-ends the
+  // match, leaving it paused so the restart is still a deliberate press.
+  const addTime = () => {
+    unlock();
+    const now = Date.now();
+    const next = withAddedTime(state, ADD_MS, now);
+    // climbing back above a minute re-arms the shout, so the resting team gets
+    // their cue again on the way down rather than being told once and never
+    const left = next.endsAt !== null ? next.endsAt - now : next.remaining;
+    if (left > SHOUT_AT_MS) shoutedRef.current = false;
+    press(next);
+  };
   const pause = () =>
     press({ ...state, remaining: Math.max(0, (endsAt ?? 0) - Date.now()), endsAt: null });
   const toPeriod = (p: ClockPeriod) => {
@@ -175,7 +193,9 @@ export default function MatchClock({ state, onChange, fixtureId = null }: Props)
 
   const shouting = period === 'regulation' && running && remaining <= SHOUT_AT_MS;
   const addedTime = period === 'added';
-  const idle = endsAt === null && !finished && remaining === fullLength(period);
+  // `>=` rather than `===` so a match that has had time added before kickoff
+  // still offers "Start match" rather than "Resume" — nothing has run yet.
+  const idle = endsAt === null && !finished && remaining >= fullLength(period);
 
   const banner = finished
     ? addedTime
@@ -240,6 +260,14 @@ export default function MatchClock({ state, onChange, fixtureId = null }: Props)
                 ⚽ Level — added time
               </button>
             )}
+
+            <button
+              onClick={addTime}
+              className={`${btn} border border-amber-900/30 text-amber-900`}
+              title="Add 30 seconds to the clock"
+            >
+              +30s
+            </button>
 
             <button
               onClick={() => toPeriod('regulation')}
@@ -309,6 +337,7 @@ export default function MatchClock({ state, onChange, fixtureId = null }: Props)
           onPause={controllable ? pause : undefined}
           onAdded={controllable ? () => toPeriod('added') : undefined}
           onNext={controllable ? () => toPeriod('regulation') : undefined}
+          onAddTime={controllable ? addTime : undefined}
           onExit={() => setPitch(false)}
         />
       )}
