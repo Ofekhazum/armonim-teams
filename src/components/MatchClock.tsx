@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { ClockPeriod, ClockState } from '../types';
 import { ADDED_MIN, ADDED_MS, REGULATION_MIN, REGULATION_MS } from '../types';
 import NotifyToggle from './NotifyToggle';
+import PitchMode from './PitchMode';
 
 // The house rules this clock encodes (see DESIGN.md §2.8):
 //   · a match is 8 minutes, or ends early at a two-goal lead (2:0, 3:1, …)
@@ -116,6 +117,8 @@ export default function MatchClock({ state, onChange, fixtureId = null }: Props)
   // also happens to be the gesture iOS requires before it will play audio at
   // all, so the two line up exactly.
   const [engaged, setEngaged] = useState(false);
+  // The clock filling the screen, for a phone propped up on the touchline.
+  const [pitch, setPitch] = useState(false);
   const shoutedRef = useRef(false);
   const { unlock, beep } = useBeeper();
 
@@ -123,7 +126,13 @@ export default function MatchClock({ state, onChange, fixtureId = null }: Props)
   // every device reaches zero on its own clock rather than waiting to be told
   const finished = ended || (endsAt !== null && remaining <= 0);
   const running = endsAt !== null && !finished;
-  useWakeLock(running && engaged);
+  // Pitch mode is its own reason to keep the screen on: the whole point is a
+  // clock somebody can read from across the grass, and one that blanks after
+  // thirty seconds is not that. Deliberately separate from `engaged`, which
+  // still means "someone on this device pressed a button" and still decides
+  // who beeps and who writes down that the match ended — putting the phone on
+  // the floor to be looked at is not the same as running the match on it.
+  useWakeLock((running && engaged) || pitch);
 
   useEffect(() => {
     if (endsAt === null) return;
@@ -183,6 +192,20 @@ export default function MatchClock({ state, onChange, fixtureId = null }: Props)
 
   const btn =
     'rounded-xl px-4 py-2 text-sm font-bold shadow-sm transition-transform hover:scale-105';
+
+  // The card's banner carries an emoji and a sentence; from ten metres away
+  // neither survives. Same states, said in two or three words.
+  const headline = finished
+    ? addedTime
+      ? 'Penalties'
+      : 'Full time'
+    : shouting
+      ? 'One minute'
+      : addedTime
+        ? 'Added time'
+        : !running && !idle
+          ? 'Paused'
+          : null;
 
   return (
     <div className="rounded-2xl border border-amber-900/15 bg-[#fffdf4]/70 p-4 shadow-sm">
@@ -245,6 +268,13 @@ export default function MatchClock({ state, onChange, fixtureId = null }: Props)
         )}
 
         <div className="flex-1" />
+        <button
+          onClick={() => setPitch(true)}
+          title="Fill the screen — for a phone propped up at the pitch"
+          className="rounded-lg border border-amber-900/25 px-3 py-1.5 text-xs font-bold text-amber-900 transition-colors hover:border-orange-500"
+        >
+          ⛶ Pitch mode
+        </button>
         {/* Sits with the clock because that is the only thing it announces —
             and lives here rather than in the two pages that render a clock, so
             a player and the organiser get the identical control. */}
@@ -262,6 +292,26 @@ export default function MatchClock({ state, onChange, fixtureId = null }: Props)
           </>
         )}
       </p>
+
+      {pitch && (
+        <PitchMode
+          time={fmt(remaining)}
+          alert={shouting || (finished && addedTime)}
+          headline={headline}
+          running={running}
+          finished={finished}
+          idle={idle}
+          addedTime={addedTime}
+          // handed through rather than re-implemented, so a press from the big
+          // screen is the same act as a press from the card — it engages this
+          // device, publishes to everyone, and unlocks the beeper
+          onStart={controllable ? start : undefined}
+          onPause={controllable ? pause : undefined}
+          onAdded={controllable ? () => toPeriod('added') : undefined}
+          onNext={controllable ? () => toPeriod('regulation') : undefined}
+          onExit={() => setPitch(false)}
+        />
+      )}
     </div>
   );
 }
