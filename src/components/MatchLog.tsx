@@ -97,25 +97,11 @@ export default function MatchLog({ log, onChange, isAdmin }: Props) {
         )}
       </div>
 
-      {log.length > 0 && (
-        <ol className="space-y-1 text-sm">
-          {log.map((entry, i) => (
-            <li
-              key={i}
-              className="flex flex-wrap items-center gap-x-2 gap-y-0.5 rounded-lg bg-white/50 px-2.5 py-1.5"
-            >
-              <span className="w-5 shrink-0 text-xs font-bold text-amber-900/40">{i + 1}</span>
-              <Chip color={entry.winner} />
-              <span className="text-amber-900/60">beat</span>
-              <Chip color={loserOf(entry)} />
-              <span className="ml-auto text-xs font-bold text-amber-900/70">
-                {entry.viaPenalties ? 'on penalties · ½' : '1'}
-              </span>
-            </li>
-          ))}
-        </ol>
-      )}
-
+      {/* Recording comes before the list of what's already been recorded. The
+          list only grows, so anything under it drifts further down the page as
+          the night goes on — and the thing being pushed away is the one part
+          anybody touches, roughly every ten minutes, usually standing up. What
+          has already happened can be scrolled to; what happens next cannot. */}
       {!isAdmin ? (
         log.length === 0 && (
           <p className="text-sm text-amber-900/60">Nothing played yet.</p>
@@ -189,6 +175,25 @@ export default function MatchLog({ log, onChange, isAdmin }: Props) {
             Undo last match
           </button>
         </div>
+      )}
+
+      {log.length > 0 && (
+        <ol className="space-y-1 border-t border-amber-900/10 pt-3 text-sm">
+          {log.map((entry, i) => (
+            <li
+              key={i}
+              className="flex flex-wrap items-center gap-x-2 gap-y-0.5 rounded-lg bg-white/50 px-2.5 py-1.5"
+            >
+              <span className="w-5 shrink-0 text-xs font-bold text-amber-900/40">{i + 1}</span>
+              <Chip color={entry.winner} />
+              <span className="text-amber-900/60">beat</span>
+              <Chip color={loserOf(entry)} />
+              <span className="ml-auto text-xs font-bold text-amber-900/70">
+                {entry.viaPenalties ? 'on penalties · ½' : '1'}
+              </span>
+            </li>
+          ))}
+        </ol>
       )}
     </div>
   );
