@@ -5,9 +5,9 @@ import { verifyWord } from './remote';
 // The word is verified server-side (and rate-limited there — see §6), never
 // checked against anything held in the client.
 //
-// Shared rather than inlined because admin can now be unlocked from more than
-// one place: the Roster tab's 🔒 Admin button, and the fixture page, where
-// saving the night's result is the thing being gated.
+// Shared rather than inlined because admin can be unlocked from more than one
+// place: the padlock in the header, reachable from every tab, and the fixture
+// page, where saving the night's result is the thing being gated.
 export function useAdminUnlock(setAdminWord: (word: string | null) => void) {
   const [unlocking, setUnlocking] = useState(false);
 

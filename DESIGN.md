@@ -332,8 +332,8 @@ input rather than something you check during the match.
 **Unlocking admin here.** Saving a result needs the admin word (§2.6), so the fixture page offers
 **🔒 Unlock admin to save** in place of the results panel's old "unlock on the Roster tab" text —
 same prompt, same server-side check, just without the trip to another tab and back mid-match. The
-logic is shared, not copied: `useAdminUnlock` (`src/useAdminUnlock.ts`) now backs both this button
-and the Roster tab's 🔒 Admin. `ResultsPanel` falls back to the old static text when no
+logic is shared, not copied: `useAdminUnlock` (`src/useAdminUnlock.ts`) backs both this button and
+the header padlock (§2.14). `ResultsPanel` falls back to the old static text when no
 `onUnlockAdmin` is passed, which is what happens when `REMOTE_URL` is empty and there is no server
 to verify a word against.
 
@@ -698,9 +698,16 @@ it.
 
 **Polled, not pushed.** The live rooms in `liveRoom.ts` already do WebSockets, but they exist for
 dragging players between teams, where lag is felt; this is a scoreboard. Polling needs no connection
-kept alive on fifteen backgrounded phones. Two rates — 10s while a fixture is on, 60s otherwise —
+kept alive on fifteen backgrounded phones. Two rates — **3s while a fixture is on, 15s otherwise** —
 and none at all on a hidden tab, with an immediate poll when the tab comes back, which is both when
 the answer is most likely to have changed and when it is about to be looked at.
+
+Three seconds is deliberately the shortest interval that is still *honest*. The live record lives in
+KV, whose reads are edge-cached with a 60-second floor, so polling faster mostly buys requests
+rather than freshness. Which makes the number a measurement as much as a setting: if a transition
+still takes noticeably longer than three seconds on a real night, the cache is the bottleneck and no
+interval will move it — the record has to go into a Durable Object, which is strongly consistent.
+Better to learn that from one constant than from a refactor. **Not yet measured on a match night.**
 
 The delay for the *next* poll is taken from what the poll just returned, held in a plain local
 variable — never read back off React state. The next poll is scheduled synchronously after
@@ -851,7 +858,7 @@ minutes later, a push service accepts it, a service worker draws a banner) and *
 fails silently*. So `POST /push/test`, behind the admin word, walks the chain out loud: it sends one
 announcement now and reports whether the server has a key, whether the asking device is among the
 subscriptions, what the push service answered and with what message, and what is still pending with
-the alarm time. `AlertsCheck` in the header renders that as four ticks and crosses. Two deliberate
+the alarm time. `AlertsCheck` renders that as four ticks and crosses. Two deliberate
 narrowings: it buzzes only the device that asked — the common question is "why doesn't *mine* go
 off", and answering it must not set off fourteen pockets at the pitch — and no endpoint ever leaves
 the Worker, only the push service's host, which is the part that explains anything. The same
@@ -868,6 +875,13 @@ settles the corrupt-secret case locally in a millisecond; it reports the subject
 secret — it exists precisely so a push provider can make contact; and the *browser* compares its
 subscription's `applicationServerKey` with the key now served, since it is the only party holding
 both. Those three lines render only when a send actually failed.
+
+It found that bug and was then **taken out of the header rather than deleted** — a diagnostic has no
+business occupying screen space once the thing it diagnoses works. `AlertsCheck.tsx` is still in the
+tree, unimported, with a note at the top saying so; putting it back is one import in `App.tsx`.
+`POST /push/test` stays live and admin-gated, so the report is reachable from `curl` in the
+meantime. The reasoning is that the failure mode here is *silence*, and the next time there is
+nothing to look at, this is the thing to look at.
 
 **Setup** is one secret. `node worker/generate-vapid-keys.mjs` prints a private JWK for
 `wrangler secret put VAPID_JWK`; the public half is derived from it and served at `GET /push/key`,
@@ -940,6 +954,14 @@ panel is unaffected — the organizer still sees the plan, it just doesn't go in
 Which tabs exist depends on whether admin is unlocked (§2.14): a normal user gets **Roster** and
 **History**, plus **🔴 Live** while a fixture is on; the organiser additionally gets **Match day**.
 
+**The padlock sits in the tab strip**, so admin unlocks from whatever page you are on. It was on the
+Roster tab first, which was the wrong place by the time what it gates had spread across all of them
+— Match day, the rating column in History, ending a live fixture — and made "go to Roster, come
+back" a step that taught nobody anything. It is one control in two states rather than two controls:
+**🔒** to unlock, **🔓** to log back off, so the place you got in is the place you get out. The
+**ADMIN** badge beside the title is a label only. It was briefly the way out, and that failed for
+the obvious reason — a badge that is secretly a button is not one anybody presses.
+
 
 1. **Roster** (`src/components/Roster.tsx`) — the permanent squad. In **admin mode**: add/edit
    name, aliases, rating, role (GK toggle, or a 0–100 defence↔attack slider in steps of 5),
@@ -962,7 +984,8 @@ Which tabs exist depends on whether admin is unlocked (§2.14): a normal user ge
      **🔴 Go live** turns this board into a shared live room others can join and drag in — see §2.5.
    - **▶️ Start fixture** → `src/components/FixturePage.tsx`: locks tonight's teams in and shows
      them read-only (§2.7), with tonight's milestones and duo records (§2.9, §2.10), the 8-minute
-     match clock (§2.8), **🌟 Tonight's MVP** (`MvpPicker.tsx`, §2.13, optional) and **🏁 Tonight's
+     match clock with **+30s** and **⛶ Pitch mode** (§2.8), **🌟 Tonight's MVP** (`MvpPicker.tsx`,
+     §2.13, optional) and **🏁 Tonight's
      results** (`ResultsPanel.tsx`) to file the night. Starting also publishes the fixture to the
      whole group (§2.15); ending it takes it back down.
      **← Back to teams** returns to the editable board above without losing anything, in case the
@@ -975,8 +998,9 @@ Which tabs exist depends on whether admin is unlocked (§2.14): a normal user ge
    (§2.11), the **vs rating** column, the **⚖️ Balancer trust** scatter (§2.12), rating suggestions
    with Apply/Dismiss, and ✏️/🗑️ on a past night. Empty until the first night is saved.
 4. **🔴 Live** (`src/components/LiveFixtureView.tsx`) — only present while a fixture is on: tonight's
-   three teams (read-only, no ratings) and the shared match clock, which **anyone** can start and
-   pause. See §2.15.
+   three teams (read-only, no ratings) and the shared match clock, which **anyone** can start,
+   pause, add 30 seconds to, or open in pitch mode — the same control the organiser has, since it is
+   the same component (§2.8). See §2.15.
 5. **Live room guest view** (`src/components/RoomGuest.tsx`) — what a shared room link opens
    instead of the app above; see §2.5.
 
@@ -995,8 +1019,8 @@ saved nights accumulate in the History tab (§2.6).
 - **Shared roster (optional)**: `src/remote.ts` + `worker/roster-worker.js`, a small Cloudflare
   Worker storing the roster as versioned JSON in KV, behind a secret admin word
   (`/verify`, `/roster` endpoints). On load, `App.tsx` pulls the remote roster and adopts it if
-  its version is newer than what this device last applied. Unlocking admin mode (`Roster.tsx`'s
-  🔒 Admin button, or the fixture page's 🔒 Unlock admin to save — both via the shared
+  its version is newer than what this device last applied. Unlocking admin mode (the header
+  padlock, or the fixture page's 🔒 Unlock admin to save — both via the shared
   `useAdminUnlock` hook, §2.7) lets you edit ratings and 📢 Publish the roster for everyone;
   without it the app works fully offline from local/default data. Configure by setting
   `REMOTE_URL` in `remote.ts` (or `VITE_REMOTE_URL` for a dev run, §7); leave it `''` to disable.
