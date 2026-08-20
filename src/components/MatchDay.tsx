@@ -11,6 +11,7 @@ import {
   uid,
 } from '../storage';
 import { generateTeams, targetSizes } from '../balancer';
+import { winsFromLog } from '../matchLog';
 import { parseImportList, resolveImportedNames } from '../importRoster';
 import { ROOMS_ENABLED, hostRoom, roomShareUrl } from '../liveRoom';
 import { REMOTE_URL } from '../remote';
@@ -334,12 +335,17 @@ export default function MatchDay({
       date: new Date().toISOString().slice(0, 10),
       teams: { black: [...teams.black], white: [...teams.white], blue: [...teams.blue] },
       players: todays.map((p) => ({ id: p.id, name: p.name, rating: p.rating })),
-      // a team left blank simply didn't win any
-      wins: {
-        black: session.wins.black ?? 0,
-        white: session.wins.white ?? 0,
-        blue: session.wins.blue ?? 0,
-      },
+      // A logged night counts itself; a team left blank on a hand-typed one
+      // simply didn't win any. Never both — two records that can disagree is
+      // how a night ends up with a tally that doesn't match the matches.
+      wins: session.matchLog.length
+        ? winsFromLog(session.matchLog)
+        : {
+            black: session.wins.black ?? 0,
+            white: session.wins.white ?? 0,
+            blue: session.wins.blue ?? 0,
+          },
+      ...(session.matchLog.length ? { matchLog: session.matchLog } : {}),
       ...(session.mvpId ? { mvpId: session.mvpId } : {}),
     });
     setSession({ ...session, savedFixtureId: id });
@@ -424,8 +430,10 @@ export default function MatchDay({
         players={todays}
         history={history}
         gkIds={effectiveGkIds}
-        wins={session.wins}
+        wins={session.matchLog.length ? winsFromLog(session.matchLog) : session.wins}
         onChangeWins={(wins) => setSession({ ...session, wins })}
+        matchLog={session.matchLog}
+        onChangeLog={(matchLog) => setSession({ ...session, matchLog })}
         clock={liveClock ?? session.clock}
         onChangeClock={changeClock}
         // derived locally rather than read off the poll, so the organiser's own

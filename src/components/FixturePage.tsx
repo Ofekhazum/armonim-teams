@@ -3,6 +3,7 @@ import type {
   ClockState,
   DraftTeamWins,
   FixtureRecord,
+  MatchLogEntry,
   Player,
   TeamColor,
   Teams,
@@ -14,6 +15,8 @@ import { duoFacts } from '../duos';
 import { Name, STYLE_META, TEAM_META } from './ui';
 import MatchClock from './MatchClock';
 import ResultsPanel from './ResultsPanel';
+import MatchLog from './MatchLog';
+import ScoreBar from './ScoreBar';
 import MvpPicker from './MvpPicker';
 
 interface Props {
@@ -23,6 +26,10 @@ interface Props {
   gkIds: string[];
   wins: DraftTeamWins;
   onChangeWins: (wins: DraftTeamWins) => void;
+  // the night as it is played; empty means this one is being tallied the old
+  // way at the end (§2.18)
+  matchLog: MatchLogEntry[];
+  onChangeLog: (log: MatchLogEntry[]) => void;
   // lifted out of MatchClock so the organiser's clock is what everyone
   // watching sees (§2.14)
   clock: ClockState;
@@ -57,6 +64,8 @@ export default function FixturePage({
   gkIds,
   wins,
   onChangeWins,
+  matchLog,
+  onChangeLog,
   clock,
   onChangeClock,
   liveFixtureId,
@@ -99,6 +108,9 @@ export default function FixturePage({
 
   return (
     <div className="space-y-4">
+      {/* Above everything, and stays there — see ScoreBar. */}
+      <ScoreBar clock={clock} log={matchLog} />
+
       <div className="flex flex-wrap items-center gap-2">
         <button
           onClick={onBack}
@@ -222,6 +234,8 @@ export default function FixturePage({
 
       <MatchClock state={clock} onChange={onChangeClock} fixtureId={liveFixtureId} />
 
+      <MatchLog log={matchLog} onChange={onChangeLog} isAdmin={isAdmin} />
+
       {/* Picking the standout player and tallying the result are the
           organiser's calls, and both are hidden from the group's live view
           (§2.14) — so on the rare occasion this page is reached without admin
@@ -231,6 +245,7 @@ export default function FixturePage({
       {isAdmin && <MvpPicker players={players} mvpId={mvpId} onChange={onChangeMvp} />}
 
       <ResultsPanel
+        fromLog={matchLog.length > 0}
         wins={wins}
         onChange={onChangeWins}
         onSave={onSaveResults}

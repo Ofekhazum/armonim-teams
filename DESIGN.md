@@ -762,6 +762,45 @@ Nothing here is new data; it is all re-read from `history`. And nothing here is 
 wins in the club" is a fact about a column, "best player" is a claim three numbers a night cannot
 support, and it is not on the list (§2.9).
 
+### 2.18 Logging the night as it happens (`src/matchLog.ts`)
+
+`types.ts` used to say the tally was **deliberately** the whole result — three numbers typed in at
+the end, accepting that there is no head-to-head record and no count of how much football it took,
+on the grounds that a tally is what actually gets written down. That trade was reconsidered on
+request, and the reason it stopped being a trade is the house rotation: **the winner stays on and the
+resting team comes in.** So after the opening pairing — the only one anyone chooses — every
+subsequent match is already determined, and recording one is a single tap on whoever won. Logging as
+you go turns out to be *less* work than remembering, not more.
+
+**One record, not two.** Everything is derived from the log rather than stored beside it:
+`winsFromLog` produces the same `TeamWins` shape the tally always had (a win in play is 1, taken on
+penalties is ½ — the house rule the tally already used), so a logged night and a typed one sit in
+the same history table and mean the same thing. When a log exists it *is* the night: the results
+panel shows counted numbers with its controls disabled, because a tally you can edit alongside a log
+that disagrees with it is two records and one of them is wrong. An empty log leaves the old
+end-of-night entry in charge, so both ways of running a night still work.
+
+`recordMatch` takes a winner rather than a pairing, and throws if that team was not on the pitch.
+The pairing stops being the organiser's to choose after the first match, and a guard is cheaper than
+a log that quietly disagrees with itself. `consecutiveMatches` surfaces the one unfairness
+winner-stays-on creates — a team about to play a third without leaving the pitch — because only the
+organiser can decide whether to allow it.
+
+**The old nights cannot be recovered.** A tally is strictly less information than a log: `black 3 /
+white 2 / blue 1` could be six matches or nine, and who beat whom is simply gone. So `matchLog` is
+optional on `FixtureRecord`, and anything derived from it has to read as *not recorded* for those
+nights rather than as zero — the same distinction `closeRate` makes in §2.12.
+
+**`ScoreBar`** sticks the two numbers you look up for — the points and the clock — to the top of the
+fixture page. Both exist further down already; "further down" is the problem on a page long enough
+to scroll, asked at a pitch, usually by someone who is also playing. The two teams currently on are
+lifted out of the three, so it answers "who is on" without anyone reading a word.
+
+**Known gap:** `planRotation` and `MATCH_PAIRINGS` (§3) still assume the fixed three-match rotation
+when lending players to a short-handed team. Winner-stays-on means the sequence is not knowable in
+advance beyond the current match, so that planner and this log now disagree about what happens
+third. Left alone deliberately rather than half-changed.
+
 ### 2.17 Match-clock notifications (`src/push.ts`, `worker/push.js`, `worker/clock-notifier.js`)
 
 A buzz at one minute left and at the whistle, on any phone that opts in — including one that is

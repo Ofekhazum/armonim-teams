@@ -86,6 +86,10 @@ export interface Session {
   // Reversible — going back just flips this off, teams/wins are untouched.
   fixtureStarted: boolean;
   wins: DraftTeamWins; // tonight's win tally as entered, before it's filed
+  // Matches recorded as they finish. When this has anything in it, it is the
+  // source of truth for the night and `wins` is derived from it; an empty log
+  // leaves the old end-of-night tally in charge, so nights run either way.
+  matchLog: MatchLogEntry[];
   mvpId: string | null; // tonight's MVP pick, before it's filed — see FixtureRecord.mvpId
   savedFixtureId: string | null; // set once tonight is saved, so re-saving updates
   // The match clock, lifted out of the component that draws it so the
@@ -110,6 +114,18 @@ export interface Session {
 // written down, and a model fed real numbers beats one fed nothing.
 export type TeamWins = Record<TeamColor, number>;
 
+// One match, written down when it finishes (§2.18). The house rules guarantee
+// a winner — level at full time goes to golden goal, still level goes to
+// penalties — so there is no draw to represent, only *how* it was won.
+export interface MatchLogEntry {
+  a: TeamColor;
+  b: TeamColor;
+  winner: TeamColor;
+  // taking it on penalties is worth half a win, which is the rule the tally
+  // already used; logging just stops it being remembered wrong an hour later
+  viaPenalties: boolean;
+}
+
 // The same thing while it's still being typed in, before the night is filed.
 export type DraftTeamWins = Record<TeamColor, number | null>;
 
@@ -128,6 +144,10 @@ export interface FixtureRecord {
   teams: Teams;
   players: FixturePlayer[];
   wins: TeamWins;
+  // Present on nights that were logged match by match. Optional because every
+  // night before this feature existed was only ever a tally, and those records
+  // are not going to be invented after the fact.
+  matchLog?: MatchLogEntry[];
   // The organiser's pick for tonight's standout player — optional, and
   // unlike everything else here, a subjective call rather than something
   // derived from the win tally. Any id from `players` (guests included);
