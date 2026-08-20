@@ -51,37 +51,36 @@ export default function MatchLog({ log, onChange, isAdmin }: Props) {
   const record = (winner: TeamColor, viaPenalties: boolean, opening?: [TeamColor, TeamColor]) =>
     onChange(recordMatch(log, winner, viaPenalties, opening));
 
-  // One row per way this match can end: won outright, or taken on penalties.
-  // Deliberately four buttons rather than a winner picker plus a checkbox —
-  // a checkbox you have to set *before* tapping the winner is a checkbox that
-  // gets forgotten, and the difference is half a win.
+  // Tap the shirt of whoever won. The team's own colour does the labelling —
+  // at a pitch you are looking for the shirt, not reading a sentence — and the
+  // half-win case hangs underneath it rather than beside it, so the two are
+  // never a choice you have to make *before* saying who won. Getting that
+  // order wrong is worth half a win.
   const Outcome = ({ a, b, opening }: { a: TeamColor; b: TeamColor; opening?: [TeamColor, TeamColor] }) => (
-    <div className="grid gap-2 sm:grid-cols-2">
-      {[a, b].map((winner) => (
-        <div
-          key={winner}
-          className="flex flex-col gap-1.5 rounded-xl border border-amber-900/15 bg-white/70 p-2.5"
-        >
-          <span className="text-sm text-amber-900/70">
-            <Chip color={winner} /> won
-          </span>
-          <div className="flex gap-2">
+    <div className="grid gap-3 sm:grid-cols-2">
+      {[a, b].map((winner) => {
+        const m = TEAM_META[winner];
+        return (
+          <div key={winner} className="flex flex-col gap-1">
             <button
               onClick={() => record(winner, false, opening)}
-              className="flex-1 rounded-lg bg-orange-600 px-3 py-2 text-sm font-bold text-amber-50 shadow-sm transition-transform hover:scale-105"
+              className={`rounded-xl border px-4 py-3 text-base font-black shadow-md transition-transform hover:scale-[1.02] ${m.card}`}
+              title={`${m.label} won it in play — a full win`}
             >
-              in play · 1
+              <span className="mr-1.5">{m.emoji}</span>
+              {m.label}
+              <span className={`ml-2 text-xs font-bold ${m.sub}`}>1 point</span>
             </button>
             <button
               onClick={() => record(winner, true, opening)}
-              className="flex-1 rounded-lg border border-amber-900/30 px-3 py-2 text-sm font-bold text-amber-900 transition-colors hover:border-orange-500"
-              title="Won on penalties — half a win, per the house rule"
+              className="rounded-lg border border-amber-900/25 px-3 py-1.5 text-xs font-bold text-amber-900/80 transition-colors hover:border-orange-500 hover:text-orange-700"
+              title={`${m.label} took it on penalties — half a win, per the house rule`}
             >
               penalties · ½
             </button>
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 
