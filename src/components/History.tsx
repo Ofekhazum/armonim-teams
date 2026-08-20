@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { DraftTeamWins, FixtureRecord, Player, TeamColor, TeamWins } from '../types';
+import { REGULATION_MIN } from '../types';
 import { TEAM_COLORS } from '../balancer';
 import {
   MIN_NIGHTS,
@@ -11,7 +12,16 @@ import {
 } from '../calibration';
 import { buildWrapped, periodLabel, wrappedPeriods } from '../wrapped';
 import { shareWrappedImage } from '../wrappedImage';
-import { MIN_TRUST_NIGHTS, trustCorrelation, trustPoints, type TrustPoint } from '../trust';
+import {
+  closeRate,
+  MIN_TRUST_NIGHTS,
+  trustCorrelation,
+  trustPoints,
+  trustSummary,
+  trustVerdict,
+  type TrustBucket,
+  type TrustPoint,
+} from '../trust';
 import { mvpCounts } from '../mvp';
 import { VETERAN_NIGHTS, playerAchievements, type AchievementKind } from '../achievements';
 import { TEAM_META, Name, fmtRating } from './ui';
@@ -32,6 +42,38 @@ interface Props {
 // Predicted-vs-actual balance, one dot per recorded night — see src/trust.ts
 // for what the two axes mean and why no chart library is pulled in for one
 // scatter plot.
+// One group of nights, as a sentence and a bar. The bar is only ever compared
+// with the one below it, so it is a plain proportion rather than a chart —
+// there is no axis to learn and no scale to misread.
+function TrustBar({ label, bucket }: { label: string; bucket: TrustBucket }) {
+  const rate = closeRate(bucket);
+  return (
+    <div className="space-y-1">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-2">
+        <span className="text-sm font-semibold text-amber-950">{label}</span>
+        <span className="text-sm text-amber-900/70">
+          {rate == null ? (
+            'no nights yet'
+          ) : (
+            <>
+              <b className="text-amber-950">
+                {bucket.close} of {bucket.nights}
+              </b>{' '}
+              finished close
+            </>
+          )}
+        </span>
+      </div>
+      <div className="h-2.5 overflow-hidden rounded-full bg-amber-900/10">
+        <div
+          className="h-full rounded-full bg-orange-500"
+          style={{ width: `${(rate ?? 0) * 100}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
 function TrustChart({ points }: { points: TrustPoint[] }) {
   const W = 320;
   const H = 190;
@@ -169,6 +211,9 @@ export default function History({
   }, [periods, wrappedPeriod]);
   const trust = useMemo(() => trustPoints(history), [history]);
   const correlation = useMemo(() => trustCorrelation(trust), [trust]);
+  const summary = useMemo(() => trustSummary(trust), [trust]);
+  const verdict = useMemo(() => trustVerdict(summary), [summary]);
+  const [showNights, setShowNights] = useState(false);
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
   // the night currently being corrected, and the values as typed so far
   const [editId, setEditId] = useState<string | null>(null);
@@ -328,23 +373,52 @@ export default function History({
 
       {isAdmin && trust.length > 0 && (
         <div className="space-y-2 rounded-2xl border border-amber-900/15 bg-[#fffdf4]/70 p-4 shadow-sm">
-          <h3 className="font-bold text-amber-950">⚖️ Balancer trust</h3>
+          <h3 className="font-bold text-amber-950">⚖️ Is the balancer any good?</h3>
           <p className="text-xs text-amber-900/60">
-            Does "balanced by rating" actually mean "close on the pitch"? Each dot is one
-            recorded night: further right means the ratings predicted a bigger gap between the
-            strongest and weakest team that night; further up means the result actually was
-            more lopsided.
+            When it says the teams are even, do the nights actually finish close? Every recorded
+            night is sorted by what the ratings predicted, then counted by how it turned out.
+            Comparing the two rows is the whole answer.
           </p>
-          <TrustChart points={trust} />
-          <p className="text-xs text-amber-900/60">
-            {correlation == null
-              ? `Needs ${MIN_TRUST_NIGHTS} recorded nights before a correlation means anything — ${trust.length} so far.`
-              : correlation > 0.3
-                ? `Predicted and actual gaps track together (r = ${correlation.toFixed(2)}) — the rating gap is a real signal for how close a night turns out.`
-                : correlation < -0.1
-                  ? `Predicted and actual gaps move in opposite directions (r = ${correlation.toFixed(2)}) — worth a second look at the balancer's weights.`
-                  : `Predicted and actual gaps barely track (r = ${correlation.toFixed(2)}) — at this match length, results may just be noisier than the rating gap can predict.`}
+
+          <div className="space-y-3 pt-1">
+            <TrustBar label="Nights it called even" bucket={summary.even} />
+            <TrustBar label="Nights it called uneven" bucket={summary.uneven} />
+          </div>
+
+          <p className="pt-1 text-sm font-semibold text-amber-950">
+            {verdict === 'too-early'
+              ? summary.even.nights === 0 || summary.uneven.nights === 0
+                ? `Too early to say — so far every night landed in one row, so there's nothing to compare against.`
+                : `Too early to say — ${trust.length} recorded ${trust.length === 1 ? 'night' : 'nights'}, and this needs ${MIN_TRUST_NIGHTS}.`
+              : verdict === 'tracks'
+                ? `It works: the nights it called even really do finish closer.`
+                : verdict === 'backwards'
+                  ? `It's backwards — the nights it called even are the lopsided ones. Worth a look at the ratings.`
+                  : `No difference yet. At ${REGULATION_MIN} minutes a match, results may simply be noisier than any rating can predict.`}
           </p>
+
+          <button
+            onClick={() => setShowNights((v) => !v)}
+            className="text-xs font-semibold text-amber-900/60 underline underline-offset-2 hover:text-orange-700"
+          >
+            {showNights ? 'Hide the nights' : 'Show every night'}
+          </button>
+
+          {showNights && (
+            <div className="space-y-2 pt-1">
+              <p className="text-xs text-amber-900/60">
+                One dot per night. Further right, the bigger the gap the ratings predicted;
+                further up, the more lopsided it actually finished. A relationship would look
+                like dots climbing to the right.
+              </p>
+              <TrustChart points={trust} />
+              {correlation != null && (
+                <p className="text-[11px] text-amber-900/45">
+                  For the curious: the correlation between the two is r = {correlation.toFixed(2)}.
+                </p>
+              )}
+            </div>
+          )}
         </div>
       )}
 

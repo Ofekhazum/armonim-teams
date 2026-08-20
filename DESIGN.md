@@ -567,10 +567,25 @@ see §2.13 for why that's fine.
 small rating gap between teams, but nothing else in the app ever checks whether that prediction shows
 up in the result — this closes that loop by plotting, per recorded night, the **predicted** gap
 (spread between team-average ratings, derived from the `FixturePlayer` snapshot already on the
-record — no new data needed) against the **actual** gap (spread in win share). A scatter chart (inline
-SVG, no charting library — consistent with the rest of the app) plus a one-line Pearson correlation
-readout (`trustCorrelation`), gated at `MIN_TRUST_NIGHTS` (8) the same way `MIN_NIGHTS` gates rating
-suggestions (§2.6).
+record — no new data needed) against the **actual** gap (spread in win share).
+
+**It answers as a count, because the statistics version was unreadable.** The panel used to lead
+with a scatter chart and a Pearson `r`, and the organiser it was built for said plainly that he
+could not follow it — fairly, since reading a correlation off a dozen dots is a trained skill and
+`r = 0.14` is not a sentence anyone at a five-a-side game thinks in. It now sorts the recorded
+nights by *what the ratings predicted* — even (gap ≤ `EVEN_PREDICTION_MAX`, the same 0.35 the teams
+board paints green, so the word means on the dashboard what it meant on the night) or uneven — and
+counts how each group actually finished (`CLOSE_RESULT_MAX`, a win-share spread of a third: about
+3/2/1 across three teams, past which one team ran away with it). Two rows, two proportions:
+*"nights it called even: 7 of 8 finished close / nights it called uneven: 1 of 6"*. **The comparison
+between the rows is the entire signal**, and it needs no vocabulary at all.
+
+`trustVerdict` turns that into one of four sentences — too early, it works, no difference, or
+backwards — with a deliberately crude 20-point margin, because with a dozen nights split two ways
+one night moves a rate by ten points and a finer margin would be reporting noise as a finding. The
+scatter and the correlation still exist behind **Show every night**, for whoever wants them. Both
+gated at `MIN_TRUST_NIGHTS` (8), the same way `MIN_NIGHTS` gates rating suggestions (§2.6); an empty
+group also reads as "too early", since a comparison needs both sides.
 
 **Purely descriptive, on purpose.** Nothing here feeds back into team generation — same posture as
 `calibration.ts`'s rating suggestions, a number to look at rather than an auto-tune loop. The
@@ -995,7 +1010,7 @@ the obvious reason — a badge that is secretly a button is not one anybody pres
    team sheets and each team's wins) and a standings table of nights / wins / fixture wins /
    wins-per-night (a shootout counts as half) / MVPs (§2.13), with achievement badges beside each
    name and a key beneath (§2.16). Admin mode adds the **📊 Monthly recap** picker + share button
-   (§2.11), the **vs rating** column, the **⚖️ Balancer trust** scatter (§2.12), rating suggestions
+   (§2.11), the **vs rating** column, the **⚖️ Is the balancer any good?** panel (§2.12), rating suggestions
    with Apply/Dismiss, and ✏️/🗑️ on a past night. Empty until the first night is saved.
 4. **🔴 Live** (`src/components/LiveFixtureView.tsx`) — only present while a fixture is on: tonight's
    three teams (read-only, no ratings) and the shared match clock, which **anyone** can start,

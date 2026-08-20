@@ -53,6 +53,77 @@ export function trustPoints(history: FixtureRecord[]): TrustPoint[] {
   return out.sort((a, b) => a.date.localeCompare(b.date));
 }
 
+// --- The same question, asked as a count ----------------------------------
+// The scatter plot and the correlation below answer "does balanced by rating
+// mean close on the pitch" in the language of statistics, which is the wrong
+// language for the person who has to decide whether to trust the teams. This
+// asks it the way the rest of the app asks everything (§1): sort the recorded
+// nights into the ones the ratings called even and the ones it called uneven,
+// and count how each group actually turned out. If the two groups finish the
+// same way, the ratings are not predicting anything — and *that* comparison is
+// the whole signal, visible without knowing what an r is.
+
+// The threshold the teams board already paints green (§2.4). Reusing it means
+// "called even" here means exactly what it meant on the night.
+export const EVEN_PREDICTION_MAX = 0.35;
+
+// Win share runs 0 (every team took an equal cut) to 1 (one team took the lot).
+// A normal night of three teams and half a dozen matches lands around 3/2/1,
+// which is a spread of a third; past that one team ran away with it.
+export const CLOSE_RESULT_MAX = 0.34;
+
+export interface TrustBucket {
+  nights: number;
+  close: number; // ...of which finished with the wins shared around
+}
+
+export interface TrustSummary {
+  even: TrustBucket;
+  uneven: TrustBucket;
+  enough: boolean;
+}
+
+const bucket = (points: TrustPoint[]): TrustBucket => ({
+  nights: points.length,
+  close: points.filter((p) => p.actualGap <= CLOSE_RESULT_MAX).length,
+});
+
+export function trustSummary(points: TrustPoint[]): TrustSummary {
+  return {
+    even: bucket(points.filter((p) => p.predictedGap <= EVEN_PREDICTION_MAX)),
+    uneven: bucket(points.filter((p) => p.predictedGap > EVEN_PREDICTION_MAX)),
+    enough: points.length >= MIN_TRUST_NIGHTS,
+  };
+}
+
+// The share of each group that finished close, or null when the group is empty
+// — a rate off no nights is not a rate.
+export const closeRate = (b: TrustBucket): number | null =>
+  b.nights ? b.close / b.nights : null;
+
+export type TrustVerdict =
+  | 'too-early' // not enough nights, or every night fell in one group
+  | 'tracks' // nights called even do finish closer
+  | 'no-signal' // both groups finish much the same
+  | 'backwards'; // the ones called even finish *less* close
+
+// Twenty points of difference between the two groups before this claims
+// anything. Crude on purpose: with a dozen nights split into two groups, one
+// night either way moves a rate by ten points, so a smaller margin would be
+// reporting noise as a finding.
+const MARGIN = 0.2;
+
+export function trustVerdict(summary: TrustSummary): TrustVerdict {
+  const even = closeRate(summary.even);
+  const uneven = closeRate(summary.uneven);
+  // one group empty means there is nothing to compare it against — common
+  // early on, when the balancer has called every single night even
+  if (!summary.enough || even == null || uneven == null) return 'too-early';
+  if (even - uneven >= MARGIN) return 'tracks';
+  if (uneven - even >= MARGIN) return 'backwards';
+  return 'no-signal';
+}
+
 // A night's worth of comparisons is single-digit noise — this is the same
 // MIN_NIGHTS-style floor as calibration.ts, so the correlation isn't reported
 // off a handful of points that could say anything.
