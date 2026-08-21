@@ -820,6 +820,139 @@ Nothing here is new data; it is all re-read from `history`. And nothing here is 
 wins in the club" is a fact about a column, "best player" is a claim three numbers a night cannot
 support, and it is not on the list (§2.9).
 
+### 2.17 Match-clock notifications (`src/push.ts`, `worker/push.js`, `worker/clock-notifier.js`)
+
+A buzz at one minute left and at the whistle, on any phone that opts in — including one that is
+locked, in a pocket, with the app closed.
+
+**Why this can't be a timer in the page.** It was asked for as a Dynamic Island widget, which no
+web app can have: Live Activities are native ActivityKit, with no web API. What *is* reachable is a
+notification — but only via a real push service. A backgrounded iOS Safari tab is suspended within
+seconds, so a `setTimeout` scheduled for seven minutes' time fires in exactly the cases nobody needs
+it (screen on, app open, clock visible) and never in the case they do. The scheduling therefore
+lives on the server, where nothing sleeps.
+
+**Four moments**, each announced once: one minute left and time up, in *both* regulation and added
+time. The added-time warning is new — the on-screen clock only ever beeped the one-minute shout in
+regulation (§2.8) — and matters because two minutes of golden goal is short enough that halfway
+through is worth knowing.
+
+**How the timing works.** The clock already travels as an absolute `endsAt` (§2.15), so the instant
+anyone presses Start every announcement time is known. `POST /live` and `POST /live/clock` both hand
+the new clock to a `ClockNotifier` Durable Object, which recomputes its triggers from scratch —
+pause, reset and next-match all land here, and "what is still to be announced" is always fully
+determined by the clock as it stands, never by what was pending before. A DO holds one alarm at a
+time, so the pending triggers are a list and the alarm is set to the earliest; firing the first
+arms the second. A late alarm fires everything now due rather than stranding it.
+
+**What it says** is deliberately generic — "⏱️ One minute left", "🏁 Full time" — because these land
+on lock screens that anyone standing nearby can read. Naming the teams would put tonight's line-up
+on fifteen strangers' screens for no gain, and the people who care are already at the pitch.
+
+Three rules govern the wording, since these are read in about a second by someone who may be in the
+middle of playing. **The title is the moment and nothing else**: it is the half that survives
+truncation on a watch or a banner, so the identifying words come first and stay fixed week to week —
+a timing cue you have to read twice has already failed. **The body is an instruction or a branch**,
+never a restatement; "Added time — golden goal" sitting under "One minute left" was a line nobody
+needed to read. And **never who is playing**. The full-time message is the interesting one: what
+happens next depends on the score, which the app never learns (§2.8), so instead of a half-answer it
+states both branches with the commoner one first — *"Ahead? Done. Level? Two minutes, golden goal."*
+Tests enforce the first two mechanically, including that no meaningful word from a title reappears
+in its own body.
+
+**The crypto is hand-written and that is the risky part.** The Worker runtime has no Node built-ins,
+so `web-push` is unusable and `worker/push.js` implements VAPID (RFC 8292) and payload encryption
+(RFC 8291 over RFC 8188) directly on Web Crypto. This is the one file in the project where a wrong
+byte is *invisible*: the push service returns 201 Created and the phone simply never buzzes, with
+nothing thrown and nothing logged. So the test does not check it against itself — the expected
+ciphertext in `push.test.js` was produced by `http_ece`, the library `web-push` itself uses, from
+pinned keys and salt, and the two agreed byte-for-byte. A `TTL` of 120 seconds is deliberate: "one
+minute left" is worse than useless after the final whistle, so it expires rather than queues.
+
+**Opting in is per device, per fixture, and off by default** (`NotifyToggle`, rendered by
+`MatchClock` so the player's Live view and the organiser's fixture page get the identical control).
+Granting a browser permission once is not consent to be buzzed every Thursday forever, so the toggle
+— not the permission — is what decides, and turning it off drops the subscription server-side rather
+than just hiding a button.
+
+**And the yes expires with the night.** Every write to `/live` tells the notifier which fixture it
+now holds subscriptions for, and any *change* of id — ended, or replaced — drops all of them. The
+alternative is a list that only ever grows: a phone that opted in once, months ago, buzzing for
+matches its owner stopped coming to. Doing it server-side is what makes it true rather than polite —
+a device that was switched off when the night ended is simply no longer there, and no message had to
+reach it. The local flag stores *which fixture* it said yes to rather than a bare yes, so that phone
+comes back to a toggle that already reads off, and the two ends agree without a handshake.
+
+This also settles where the toggle can live. It only renders beside a running clock, which for a
+player means only while a fixture is live — as a permanent setting that would be a discovery
+problem, since nobody could opt in during the week. As a per-night one it is exactly right: people
+open the app to see their team, tap 🔔, and pocket the phone. The cost is real and accepted —
+someone who forgets to tap gets nothing and won't be told why. Subscribing needs no admin word, for the same reason running the clock
+doesn't: it is a thing any of the fifteen people at the pitch might do, and all a subscription can
+ever receive is those four fixed sentences. A push service answering 404/410 means that device is
+genuinely gone and it is pruned; a 5xx is a bad day and it keeps its place.
+
+**iOS requires the site to be added to the Home Screen** — Apple allows web notifications only for
+installed web apps. Hence `public/manifest.webmanifest` and the `apple-mobile-web-app-*` tags, and
+hence `pushSupport()` returning `needs-install` rather than `unsupported` when the API is absent on
+an iPhone, so the app can give the one instruction that fixes it instead of a dead toggle. That
+check is iOS-only on purpose: a desktop browser without push is missing it permanently, and "Add to
+Home Screen" there would be nonsense.
+
+**App icons** come from the club crest (`src/club_logo.jpg`), regenerated by
+`scripts/make-icons.py` into `public/`. Three sizes plus a *maskable* variant, which exists because
+Android crops icons to whatever shape the launcher uses and guarantees only the central 80% — the
+crest's outer ring sits at the very edge of the artwork, so a straight resize would have its top and
+bottom shaved off. That one is scaled onto the crest's own background colour, sampled from the image
+rather than guessed, since a cream one shade out shows as a visible ring. iOS ignores the manifest
+entirely and uses `apple-touch-icon.png`, without which the Home Screen icon would be a screenshot
+of the page. The source is a JPEG, so its flat areas carry compression noise that PNG can't compress
+away; quantising to 64 colours collapses that back to the handful the design actually uses and cuts
+the set from ~1MB to under 400KB with no visible difference.
+
+**When nothing buzzes, there is nothing to look at** — and that is the feature's defining problem.
+Five links have to hold (the browser mints a subscription, the Worker stores it, an alarm fires
+minutes later, a push service accepts it, a service worker draws a banner) and *every one of them
+fails silently*. So `POST /push/test`, behind the admin word, walks the chain out loud: it sends one
+announcement now and reports whether the server has a key, whether the asking device is among the
+subscriptions, what the push service answered and with what message, and what is still pending with
+the alarm time. `AlertsCheck` renders that as four ticks and crosses. Two deliberate
+narrowings: it buzzes only the device that asked — the common question is "why doesn't *mine* go
+off", and answering it must not set off fourteen pockets at the pitch — and no endpoint ever leaves
+the Worker, only the push service's host, which is the part that explains anything. The same
+rejections are `console.warn`ed from the alarm path, because otherwise a scheduled send has no
+witness at all: `wrangler tail` during a match is the only other place a 403 could ever appear.
+
+It earned its keep on the first real test, which came back `403 {"reason":"BadJwtToken"}` — Apple's
+answer to *every* complaint it has about a VAPID setup, and three different bugs wear it: a `sub`
+claim that isn't a `mailto:` or `https:` URL, a stored JWK whose public and private halves aren't
+each other's, and a subscription minted against a key the Worker has since replaced (a subscription
+is bound to its application server key for life). So the report tells them apart. The Worker signs
+a probe with the private half and verifies it against the public half `k=` is derived from, which
+settles the corrupt-secret case locally in a millisecond; it reports the subject, which is not a
+secret — it exists precisely so a push provider can make contact; and the *browser* compares its
+subscription's `applicationServerKey` with the key now served, since it is the only party holding
+both. Those three lines render only when a send actually failed.
+
+It found that bug and was then **taken out of the header rather than deleted** — a diagnostic has no
+business occupying screen space once the thing it diagnoses works. `AlertsCheck.tsx` is still in the
+tree, unimported, with a note at the top saying so; putting it back is one import in `App.tsx`.
+`POST /push/test` stays live and admin-gated, so the report is reachable from `curl` in the
+meantime. The reasoning is that the failure mode here is *silence*, and the next time there is
+nothing to look at, this is the thing to look at.
+
+**Setup** is one secret. `node worker/generate-vapid-keys.mjs` prints a private JWK for
+`wrangler secret put VAPID_JWK`; the public half is derived from it and served at `GET /push/key`,
+so there is no key pasted into the source and no way for the two to drift apart. With no secret set,
+the whole feature is simply absent — the toggle doesn't render and the notifier stays quiet.
+
+**What is verified, and what isn't.** Byte-exact agreement with the reference implementation; a real
+subscriber decrypting a real `sendPush`; the alarm chain, pruning and the four messages, against the
+Durable Object itself; all four notifications rendering through the actual service worker. The one
+link that cannot be tested locally is `pushManager.subscribe()` — an automated Chromium has no push
+service to register with, so it fails there by construction. Everything on both sides of it is
+covered; that step needs a real device.
+
 ### 2.18 Logging the night as it happens (`src/matchLog.ts`)
 
 `types.ts` used to say the tally was **deliberately** the whole result — three numbers typed in at
@@ -1091,139 +1224,6 @@ position-based lineup would be invented, and inventing one on a card five people
 exactly the wrong place to guess. Shirt numbers come from the live roster, since a fixture record
 keeps a name and a rating but never a number.
 
-### 2.17 Match-clock notifications (`src/push.ts`, `worker/push.js`, `worker/clock-notifier.js`)
-
-A buzz at one minute left and at the whistle, on any phone that opts in — including one that is
-locked, in a pocket, with the app closed.
-
-**Why this can't be a timer in the page.** It was asked for as a Dynamic Island widget, which no
-web app can have: Live Activities are native ActivityKit, with no web API. What *is* reachable is a
-notification — but only via a real push service. A backgrounded iOS Safari tab is suspended within
-seconds, so a `setTimeout` scheduled for seven minutes' time fires in exactly the cases nobody needs
-it (screen on, app open, clock visible) and never in the case they do. The scheduling therefore
-lives on the server, where nothing sleeps.
-
-**Four moments**, each announced once: one minute left and time up, in *both* regulation and added
-time. The added-time warning is new — the on-screen clock only ever beeped the one-minute shout in
-regulation (§2.8) — and matters because two minutes of golden goal is short enough that halfway
-through is worth knowing.
-
-**How the timing works.** The clock already travels as an absolute `endsAt` (§2.15), so the instant
-anyone presses Start every announcement time is known. `POST /live` and `POST /live/clock` both hand
-the new clock to a `ClockNotifier` Durable Object, which recomputes its triggers from scratch —
-pause, reset and next-match all land here, and "what is still to be announced" is always fully
-determined by the clock as it stands, never by what was pending before. A DO holds one alarm at a
-time, so the pending triggers are a list and the alarm is set to the earliest; firing the first
-arms the second. A late alarm fires everything now due rather than stranding it.
-
-**What it says** is deliberately generic — "⏱️ One minute left", "🏁 Full time" — because these land
-on lock screens that anyone standing nearby can read. Naming the teams would put tonight's line-up
-on fifteen strangers' screens for no gain, and the people who care are already at the pitch.
-
-Three rules govern the wording, since these are read in about a second by someone who may be in the
-middle of playing. **The title is the moment and nothing else**: it is the half that survives
-truncation on a watch or a banner, so the identifying words come first and stay fixed week to week —
-a timing cue you have to read twice has already failed. **The body is an instruction or a branch**,
-never a restatement; "Added time — golden goal" sitting under "One minute left" was a line nobody
-needed to read. And **never who is playing**. The full-time message is the interesting one: what
-happens next depends on the score, which the app never learns (§2.8), so instead of a half-answer it
-states both branches with the commoner one first — *"Ahead? Done. Level? Two minutes, golden goal."*
-Tests enforce the first two mechanically, including that no meaningful word from a title reappears
-in its own body.
-
-**The crypto is hand-written and that is the risky part.** The Worker runtime has no Node built-ins,
-so `web-push` is unusable and `worker/push.js` implements VAPID (RFC 8292) and payload encryption
-(RFC 8291 over RFC 8188) directly on Web Crypto. This is the one file in the project where a wrong
-byte is *invisible*: the push service returns 201 Created and the phone simply never buzzes, with
-nothing thrown and nothing logged. So the test does not check it against itself — the expected
-ciphertext in `push.test.js` was produced by `http_ece`, the library `web-push` itself uses, from
-pinned keys and salt, and the two agreed byte-for-byte. A `TTL` of 120 seconds is deliberate: "one
-minute left" is worse than useless after the final whistle, so it expires rather than queues.
-
-**Opting in is per device, per fixture, and off by default** (`NotifyToggle`, rendered by
-`MatchClock` so the player's Live view and the organiser's fixture page get the identical control).
-Granting a browser permission once is not consent to be buzzed every Thursday forever, so the toggle
-— not the permission — is what decides, and turning it off drops the subscription server-side rather
-than just hiding a button.
-
-**And the yes expires with the night.** Every write to `/live` tells the notifier which fixture it
-now holds subscriptions for, and any *change* of id — ended, or replaced — drops all of them. The
-alternative is a list that only ever grows: a phone that opted in once, months ago, buzzing for
-matches its owner stopped coming to. Doing it server-side is what makes it true rather than polite —
-a device that was switched off when the night ended is simply no longer there, and no message had to
-reach it. The local flag stores *which fixture* it said yes to rather than a bare yes, so that phone
-comes back to a toggle that already reads off, and the two ends agree without a handshake.
-
-This also settles where the toggle can live. It only renders beside a running clock, which for a
-player means only while a fixture is live — as a permanent setting that would be a discovery
-problem, since nobody could opt in during the week. As a per-night one it is exactly right: people
-open the app to see their team, tap 🔔, and pocket the phone. The cost is real and accepted —
-someone who forgets to tap gets nothing and won't be told why. Subscribing needs no admin word, for the same reason running the clock
-doesn't: it is a thing any of the fifteen people at the pitch might do, and all a subscription can
-ever receive is those four fixed sentences. A push service answering 404/410 means that device is
-genuinely gone and it is pruned; a 5xx is a bad day and it keeps its place.
-
-**iOS requires the site to be added to the Home Screen** — Apple allows web notifications only for
-installed web apps. Hence `public/manifest.webmanifest` and the `apple-mobile-web-app-*` tags, and
-hence `pushSupport()` returning `needs-install` rather than `unsupported` when the API is absent on
-an iPhone, so the app can give the one instruction that fixes it instead of a dead toggle. That
-check is iOS-only on purpose: a desktop browser without push is missing it permanently, and "Add to
-Home Screen" there would be nonsense.
-
-**App icons** come from the club crest (`src/club_logo.jpg`), regenerated by
-`scripts/make-icons.py` into `public/`. Three sizes plus a *maskable* variant, which exists because
-Android crops icons to whatever shape the launcher uses and guarantees only the central 80% — the
-crest's outer ring sits at the very edge of the artwork, so a straight resize would have its top and
-bottom shaved off. That one is scaled onto the crest's own background colour, sampled from the image
-rather than guessed, since a cream one shade out shows as a visible ring. iOS ignores the manifest
-entirely and uses `apple-touch-icon.png`, without which the Home Screen icon would be a screenshot
-of the page. The source is a JPEG, so its flat areas carry compression noise that PNG can't compress
-away; quantising to 64 colours collapses that back to the handful the design actually uses and cuts
-the set from ~1MB to under 400KB with no visible difference.
-
-**When nothing buzzes, there is nothing to look at** — and that is the feature's defining problem.
-Five links have to hold (the browser mints a subscription, the Worker stores it, an alarm fires
-minutes later, a push service accepts it, a service worker draws a banner) and *every one of them
-fails silently*. So `POST /push/test`, behind the admin word, walks the chain out loud: it sends one
-announcement now and reports whether the server has a key, whether the asking device is among the
-subscriptions, what the push service answered and with what message, and what is still pending with
-the alarm time. `AlertsCheck` renders that as four ticks and crosses. Two deliberate
-narrowings: it buzzes only the device that asked — the common question is "why doesn't *mine* go
-off", and answering it must not set off fourteen pockets at the pitch — and no endpoint ever leaves
-the Worker, only the push service's host, which is the part that explains anything. The same
-rejections are `console.warn`ed from the alarm path, because otherwise a scheduled send has no
-witness at all: `wrangler tail` during a match is the only other place a 403 could ever appear.
-
-It earned its keep on the first real test, which came back `403 {"reason":"BadJwtToken"}` — Apple's
-answer to *every* complaint it has about a VAPID setup, and three different bugs wear it: a `sub`
-claim that isn't a `mailto:` or `https:` URL, a stored JWK whose public and private halves aren't
-each other's, and a subscription minted against a key the Worker has since replaced (a subscription
-is bound to its application server key for life). So the report tells them apart. The Worker signs
-a probe with the private half and verifies it against the public half `k=` is derived from, which
-settles the corrupt-secret case locally in a millisecond; it reports the subject, which is not a
-secret — it exists precisely so a push provider can make contact; and the *browser* compares its
-subscription's `applicationServerKey` with the key now served, since it is the only party holding
-both. Those three lines render only when a send actually failed.
-
-It found that bug and was then **taken out of the header rather than deleted** — a diagnostic has no
-business occupying screen space once the thing it diagnoses works. `AlertsCheck.tsx` is still in the
-tree, unimported, with a note at the top saying so; putting it back is one import in `App.tsx`.
-`POST /push/test` stays live and admin-gated, so the report is reachable from `curl` in the
-meantime. The reasoning is that the failure mode here is *silence*, and the next time there is
-nothing to look at, this is the thing to look at.
-
-**Setup** is one secret. `node worker/generate-vapid-keys.mjs` prints a private JWK for
-`wrangler secret put VAPID_JWK`; the public half is derived from it and served at `GET /push/key`,
-so there is no key pasted into the source and no way for the two to drift apart. With no secret set,
-the whole feature is simply absent — the toggle doesn't render and the notifier stays quiet.
-
-**What is verified, and what isn't.** Byte-exact agreement with the reference implementation; a real
-subscriber decrypting a real `sendPush`; the alarm chain, pruning and the four messages, against the
-Durable Object itself; all four notifications rendering through the actual service worker. The one
-link that cannot be tested locally is `pushManager.subscribe()` — an automated Chromium has no push
-service to register with, so it fails there by construction. Everything on both sides of it is
-covered; that step needs a real device.
-
 ## 3. Team generation algorithm
 
 Balancing is a small constrained optimization. With ≤15 players, brute force is too big
@@ -1297,7 +1297,9 @@ the obvious reason — a badge that is secretly a button is not one anybody pres
    chemistry/avoid links, ✕ to remove, and 📢 Publish. Everyone else sees the squad as a list to
    read — no Edit, no ✕, no + Add player, and no ratings or keep-apart lists (§2.14). Top-right
    shows a small `v<hash>` build marker (§6) so you can confirm a deploy actually landed after
-   pushing.
+   pushing. **Tapping any row opens that player's page** (§2.19) — badges, every night as a medal,
+   the milestone ladder, shirts worn, teammates and shootouts — for everyone, not just the
+   organiser, since everything on it is already public.
 2. **Match day** (`src/components/MatchDay.tsx`, the main flow):
    - Step 1 *(who's playing)*: tick available players from the roster grid, optionally use
      **📋 Import a pasted list** to bulk-mark attendance from pasted text (§2.4), and add/remove
@@ -1312,7 +1314,8 @@ the obvious reason — a badge that is secretly a button is not one anybody pres
      button copies WhatsApp-ready text (`shareText`/`copy` in `TeamsBoard.tsx`). Optionally,
      **🔴 Go live** turns this board into a shared live room others can join and drag in — see §2.5.
    - **▶️ Start fixture** → `src/components/FixturePage.tsx`: locks tonight's teams in and shows
-     them read-only (§2.7), with tonight's milestones and duo records (§2.9, §2.10), the 8-minute
+     them read-only (§2.7), with **🎯 On the line tonight** and the bounty (§2.20), tonight's
+     milestones and duo records (§2.9, §2.10), the 8-minute
      match clock with **+30s** and **⛶ Pitch mode** (§2.8), the **📋 match log** (§2.18) and
      **🏁 Tonight's results** (`ResultsPanel.tsx`) to file the night. No MVP picker — that is asked
      afterwards, on History (§2.13). Starting also publishes the fixture to the
@@ -1326,7 +1329,8 @@ the obvious reason — a badge that is secretly a button is not one anybody pres
    name and a key beneath (§2.16). Admin mode adds the **📊 Monthly recap** picker + share button
    (§2.11), the **vs rating** column, the **⚖️ Balancer trust** scatter (§2.12), rating suggestions
    with Apply/Dismiss, ✏️/🗑️ on a past night, and the **🌟 MVP** pick for a night (§2.13) — which
-   lives only here. Empty until the first night is saved.
+   lives only here. The recap share ends with the **Team of the Month** card (§2.21). Empty until
+   the first night is saved.
 4. **🔴 Live** (`src/components/LiveFixtureView.tsx`) — only present while a fixture is on: tonight's
    three teams (read-only, no ratings) and the shared match clock, which **anyone** can start,
    pause, add 30 seconds to, or open in pitch mode — the same control the organiser has, since it is
