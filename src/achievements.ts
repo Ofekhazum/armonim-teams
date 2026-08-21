@@ -81,16 +81,28 @@ export const MIN_NIGHTS_FOR_TITLES = 5;
  * turning up a lot is not what makes a title mean something; the league having
  * happened is.
  */
-export function titleFor(achievements: Achievement[], recordedNights: number): string | null {
+export interface PlayerTitle {
+  kind: AchievementKind;
+  title: string;
+}
+
+/** The title itself, with the badge it came from — which is what a theme keys off. */
+export function titleBadgeFor(
+  achievements: Achievement[],
+  recordedNights: number,
+): PlayerTitle | null {
   const held = new Set(achievements.map((a) => a.kind));
   // The first title they hold that the history is deep enough to justify — so
   // a suppressed title falls through to the next one rather than silencing the
   // player entirely.
-  return (
-    TITLE_ORDER.find(
-      (t) => held.has(t.kind) && recordedNights >= (t.minNights ?? MIN_NIGHTS_FOR_TITLES),
-    )?.title ?? null
+  const found = TITLE_ORDER.find(
+    (t) => held.has(t.kind) && recordedNights >= (t.minNights ?? MIN_NIGHTS_FOR_TITLES),
   );
+  return found ? { kind: found.kind, title: found.title } : null;
+}
+
+export function titleFor(achievements: Achievement[], recordedNights: number): string | null {
+  return titleBadgeFor(achievements, recordedNights)?.title ?? null;
 }
 
 export interface PlayerAchievements {

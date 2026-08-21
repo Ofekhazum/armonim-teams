@@ -1153,6 +1153,21 @@ come first precisely because only one player (or a tie) can hold each, so a titl
 rather than decorative. Nobody with no badges gets one — an invented title for everybody would be the
 first verdict in the app.
 
+**A titled player wears their title on the roster.** `TITLE_THEME` (`components/titleTheme.ts`) skins
+the roster row: champion gold, starlight, podium green, gunmetal, clear sky, forged iron, fire, aged
+parchment. The squad list stops being fifteen identical cards, and the two or three people who have
+earned something are visible from across the page.
+
+Three rules hold it together. **The title decides the skin**, so there is only ever one ranking —
+`titleBadgeFor` already picks the single most distinguishing badge, and a second priority list would
+be a second thing to keep in step. **Light tints, never dark cards**: every theme keeps the dark
+amber lettering the plain rows use. Gunmetal and forged iron obviously *want* to be dark with light
+text, but then the name colour flips per theme, and a Hebrew name at 14px on a busy dark gradient is
+worse than the theme is good — so the border and the gradient carry the identity instead. And **rare
+by construction**: four titles can only be held by one player or a tie, and none appear before the
+club has enough nights, so a skin is never wallpaper. The row's `title` attribute names it, because a
+coloured card nobody can decode is the mystery-emoji problem the badge key exists to avoid (§2.16).
+
 **No organiser half.** Ratings, the attack spectrum, the keep-apart list and "beats what their rating
 expects" are the organiser's working notes about a person, and this is the most screenshot-able page
 in the app. They stay on the roster row and in the edit form, behind admin, exactly where they were —
