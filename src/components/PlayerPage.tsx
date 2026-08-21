@@ -5,6 +5,7 @@ import { roleBadge } from '../types';
 import { TEAM_COLORS } from '../balancer';
 import { playerAchievements } from '../achievements';
 import { computeDuoRecords, MIN_TOGETHER } from '../duos';
+import type { Place } from '../playerProfile';
 import {
   MIN_PROFILE_NIGHTS,
   nightRungs,
@@ -55,14 +56,21 @@ const BADGE_TONE: Record<AchievementKind, string> = {
   veteran: 'border-stone-500/35 bg-stone-400/15 text-stone-800',
 };
 
-// The shirt a night was played in, drawn as the shirt. Solid colours rather
-// than tints: the ribbon is the one picture on the page, and three washed-out
-// pastels would make it a chart of nothing.
-const SHIRT_SWATCH: Record<TeamColor, string> = {
-  black: 'bg-stone-800 text-stone-100',
-  white: 'bg-[#fffdf4] text-amber-950 ring-1 ring-inset ring-amber-900/25',
-  blue: 'bg-blue-800 text-blue-50',
+// Where the team finished that night: gold, silver, bronze. Three teams means
+// every night has all three, so a ribbon of medals is a complete picture of
+// somebody's season in one line — and unlike a win/lose mark it distinguishes
+// the second-place nights from the ones spent bottom.
+//
+// Metallic gradients rather than flat fills, because flat gold and flat bronze
+// are two similar oranges; the highlight is what separates them at 8px. The
+// numeral inside is the part that survives colourblindness and a bad screen.
+const MEDAL: Record<Place, string> = {
+  1: 'bg-gradient-to-br from-yellow-200 via-amber-400 to-yellow-600 text-amber-950 ring-1 ring-amber-600/50',
+  2: 'bg-gradient-to-br from-slate-50 via-slate-300 to-slate-400 text-slate-700 ring-1 ring-slate-400/60',
+  3: 'bg-gradient-to-br from-orange-200 via-amber-600 to-amber-800 text-amber-50 ring-1 ring-amber-800/40',
 };
+
+const PLACE_LABEL: Record<Place, string> = { 1: '1st', 2: '2nd', 3: '3rd' };
 
 const SHIRT_BAR: Record<TeamColor, string> = {
   black: 'bg-stone-800',
@@ -257,41 +265,35 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
               title="Every night"
               hint={`oldest first · ${counts.onSheet} played`}
             >
-              {/* Each square is the shirt they wore, so the ribbon shows two
-                  things at once: the run of results, and how the colours fell.
-                  Winning a night adds the orange ring — the same orange every
-                  "this is the good outcome" in the app uses. A night with no
-                  result recorded is neither, and gets neither. */}
+              {/* One medal per night. A night with no result recorded is not a
+                  third place — nobody finished anywhere — so it gets no medal
+                  at all rather than the bottom one. */}
               <div className="flex flex-wrap gap-1.5">
                 {nights.map((n) => (
                   <span
                     key={n.fixtureId}
                     title={`${n.date} — ${TEAM_META[n.shirt].label}${
-                      n.won === null
+                      n.place === null
                         ? ', no result recorded'
-                        : n.won
-                          ? `, won the night (${fmt(n.wins)})`
-                          : `, ${fmt(n.wins)} wins`
+                        : `, ${PLACE_LABEL[n.place]}${n.shared ? ' (shared)' : ''} on ${fmt(n.wins)} wins`
                     }`}
-                    className={`grid h-8 w-8 place-items-center rounded-lg text-[11px] font-black shadow-sm ${
-                      SHIRT_SWATCH[n.shirt]
-                    } ${
-                      n.won === null
-                        ? 'opacity-30'
-                        : n.won
-                          ? 'ring-2 ring-orange-500 ring-offset-1 ring-offset-[#fffdf4]'
-                          : 'opacity-60'
+                    className={`grid h-8 w-8 place-items-center rounded-lg font-mono text-xs font-black shadow-sm ${
+                      n.place === null
+                        ? 'border border-dashed border-amber-900/25 text-amber-900/30'
+                        : MEDAL[n.place]
                     }`}
                   >
-                    {n.won === null ? '·' : n.won ? '★' : ''}
+                    {n.place ?? '·'}
                   </span>
                 ))}
               </div>
               <p className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-amber-900/55">
-                <span>
-                  <span className="mr-1 inline-block h-2.5 w-2.5 rounded-sm ring-2 ring-orange-500" />
-                  won the night
-                </span>
+                {([1, 2, 3] as Place[]).map((p) => (
+                  <span key={p} className="flex items-center gap-1">
+                    <span className={`inline-block h-3 w-3 rounded-sm ${MEDAL[p]}`} />
+                    {p === 1 ? 'gold' : p === 2 ? 'silver' : 'bronze'}
+                  </span>
+                ))}
                 {counts.bestRun >= 2 && (
                   <span>
                     best run <b className="text-amber-900">{counts.bestRun}</b>

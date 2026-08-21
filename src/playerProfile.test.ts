@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { FixtureRecord, MatchLogEntry } from './types';
+import type { FixtureRecord, MatchLogEntry, TeamColor } from './types';
 import {
   MIN_PROFILE_NIGHTS,
   loggedNightsFor,
@@ -8,10 +8,14 @@ import {
   profileNights,
   shirtNights,
   shootoutRecord,
+  placeOf,
+  sharedPlace,
   shootoutWins,
   toGo,
   winRungs,
 } from './playerProfile';
+
+const TEAM_COLOURS: TeamColor[] = ['black', 'white', 'blue'];
 
 // A player page is read as a statement about a person, which is exactly why
 // the counting has to be dull and correct: an off-by-one in a streak, or a
@@ -69,6 +73,68 @@ describe('profileNights', () => {
 
   it('is empty for someone who has never played', () => {
     expect(profileNights([night(['a'], [], [], null)], 'ghost')).toEqual([]);
+  });
+});
+
+describe('placeOf', () => {
+  it('ranks the three teams by what they won', () => {
+    const wins = { black: 5, white: 3, blue: 1 };
+    expect(placeOf(wins, 'black')).toBe(1);
+    expect(placeOf(wins, 'white')).toBe(2);
+    expect(placeOf(wins, 'blue')).toBe(3);
+  });
+
+  it('gives both teams gold when they finish level at the top', () => {
+    // standard competition ranking: the one below them is 3rd, not 2nd
+    const wins = { black: 4, white: 4, blue: 2 };
+    expect(placeOf(wins, 'black')).toBe(1);
+    expect(placeOf(wins, 'white')).toBe(1);
+    expect(placeOf(wins, 'blue')).toBe(3);
+  });
+
+  it('gives both teams silver when they finish level behind the winner', () => {
+    const wins = { black: 6, white: 2, blue: 2 };
+    expect(placeOf(wins, 'white')).toBe(2);
+    expect(placeOf(wins, 'blue')).toBe(2);
+  });
+
+  it('gives everyone gold on a three-way tie', () => {
+    const wins = { black: 3, white: 3, blue: 3 };
+    expect(TEAM_COLOURS.map((c) => placeOf(wins, c))).toEqual([1, 1, 1]);
+  });
+
+  it('counts a half-win as the half it is', () => {
+    expect(placeOf({ black: 3.5, white: 3, blue: 0 }, 'black')).toBe(1);
+  });
+
+  it('says when a place was shared', () => {
+    expect(sharedPlace({ black: 4, white: 4, blue: 2 }, 'black')).toBe(true);
+    expect(sharedPlace({ black: 4, white: 4, blue: 2 }, 'blue')).toBe(false);
+  });
+});
+
+describe('the ribbon carries a place per night', () => {
+  it('medals a night, and leaves an untallied one with none', () => {
+    const history = [
+      night(['a'], ['b'], ['c'], { black: 1, white: 5, blue: 3 }),
+      untallied(['a'], ['b'], ['c']),
+    ];
+    const nights = profileNights(history, 'a');
+    expect(nights[0].place).toBe(3);
+    // no result recorded is not a third place — nobody finished anywhere
+    expect(nights[1].place).toBeNull();
+    expect(nights[1].shared).toBe(false);
+  });
+
+  it('keeps place and won as separate questions', () => {
+    // level at the top: both finished first, but nobody *took* the night, so
+    // it must not count towards nights won or a winning run
+    const history = [night(['a'], ['b'], ['c'], { black: 4, white: 4, blue: 1 })];
+    const nights = profileNights(history, 'a');
+    expect(nights[0].place).toBe(1);
+    expect(nights[0].shared).toBe(true);
+    expect(nights[0].won).toBe(false);
+    expect(profileCounts(nights).nightsWon).toBe(0);
   });
 });
 

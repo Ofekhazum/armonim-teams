@@ -976,16 +976,26 @@ cards, one type size, a name in the same 14px as the numbers under it. The visua
 counts and no thresholds; it changed what carries meaning. The header takes a warm gradient and sets
 the name at 3xl with the shirt number huge and nearly transparent behind it, the way it sits on an
 actual shirt. Badges keep a **tone per kind** (`BADGE_TONE`) rather than seven identical pills, so 🥇
-is the same gold wherever it appears and the row can be scanned instead of read. Each ribbon square is
-drawn *as the shirt that night* — solid stone, cream, blue — so it shows the run of results and how
-the colours fell at once, with the orange ring reserved for a night won (plus a ★, because a ring
-alone is a colour-only signal). And the milestone rungs became **filling bars**: "no nights milestone
+is the same gold wherever it appears and the row can be scanned instead of read. Each ribbon square is a
+**medal**: gold, silver or bronze for where that team finished on the night. Three teams means every
+night has all three, so a row of medals is a complete season in one line — and unlike a win/lose mark
+it separates the second-place nights from the ones spent bottom. Metallic gradients rather than flat
+fills, because flat gold and flat bronze are two similar oranges at 8px; the numeral inside is the
+part that survives colourblindness and a bad screen. And the milestone rungs became **filling bars**: "no nights milestone
 yet" said nothing twice, where `4 / 10 nights · 6 to go` says the same thing and shows the distance.
 
-**The ribbon draws three states, not two.** A night with no result recorded is neither a win nor a
-loss — `appearances` in milestones.ts drops those nights, but a ribbon cannot, because it is a
-picture of turning up as much as of winning. So `ProfileNight.won` is `boolean | null` and an
-untallied night renders as a dot. It also can't break a winning run, for the same reason.
+**A night with no result recorded gets no medal**, rather than the bottom one — nobody finished
+anywhere. `appearances` in milestones.ts drops those nights entirely, but a ribbon cannot, because it
+is a picture of turning up as much as of winning; so `ProfileNight.place` and `.won` are both
+nullable and an untallied night renders as a dashed outline. It also can't break a winning run, for
+the same reason.
+
+**Place and win are deliberately different questions.** `placeOf` is standard competition ranking —
+one more than the number of teams strictly above — so two teams level at the top are *both* gold and
+the third is 3rd, not 2nd. `winnerOf` still says nobody *took* a night that ended level (§2.6), so a
+shared gold shows on the ribbon while adding nothing to **nights won** or to a winning run. Both are
+true: they finished first together, and neither of them won it. The tooltip says "1st (shared)" so
+the ribbon isn't quietly claiming the stronger of the two.
 
 **No organiser half.** Ratings, the attack spectrum, the keep-apart list and "beats what their rating
 expects" are the organiser's working notes about a person, and this is the most screenshot-able page

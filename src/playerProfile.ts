@@ -12,7 +12,7 @@
 // are the wins of the teams he was in, and the wording here says so wherever
 // it could be misread — "his team won it on penalties", never "he won it".
 
-import type { FixtureRecord, MatchLogEntry, TeamColor } from './types';
+import type { FixtureRecord, MatchLogEntry, TeamColor, TeamWins } from './types';
 import { TEAM_COLORS } from './balancer';
 import { hasResult } from './calibration';
 import { isMilestoneNight, isWinMilestone, winnerOf } from './milestones';
@@ -30,10 +30,31 @@ export const shirtOf = (fx: FixtureRecord, id: string): TeamColor | null =>
 
 // --- The night-by-night ribbon ---------------------------------------------
 
+// Where a team finished that night, out of the three. Standard competition
+// ranking: a place is one more than the number of teams strictly above, so two
+// teams level at the top are both 1st and the third is 3rd, not 2nd.
+export type Place = 1 | 2 | 3;
+
+// Note this is a *placement*, not a win. `winnerOf` (§2.6) says nobody took a
+// night that ended level at the top, and that stays true — `nights won` counts
+// outright wins only. Two teams genuinely level did both finish first, though,
+// so the ribbon gives them both gold and the tooltip says it was shared.
+export function placeOf(wins: TeamWins, shirt: TeamColor): Place {
+  const mine = wins[shirt] ?? 0;
+  return (TEAM_COLORS.filter((c) => (wins[c] ?? 0) > mine).length + 1) as Place;
+}
+
+// Did anyone else finish on exactly the same number?
+export const sharedPlace = (wins: TeamWins, shirt: TeamColor): boolean =>
+  TEAM_COLORS.filter((c) => (wins[c] ?? 0) === (wins[shirt] ?? 0)).length > 1;
+
 export interface ProfileNight {
   fixtureId: string;
   date: string;
   shirt: TeamColor;
+  // 1st / 2nd / 3rd on the night, or null when no result was ever recorded
+  place: Place | null;
+  shared: boolean;
   // whether this player's team took the night outright. Null on a night whose
   // result was never entered — which is not a loss, and must not be drawn as
   // one. `appearances` in milestones.ts drops those nights entirely; a ribbon
@@ -50,12 +71,15 @@ export function profileNights(history: FixtureRecord[], id: string): ProfileNigh
     .flatMap((fx) => {
       const shirt = shirtOf(fx, id);
       if (!shirt) return [];
+      const decided = hasResult(fx.wins);
       return [
         {
           fixtureId: fx.id,
           date: fx.date,
           shirt,
-          won: hasResult(fx.wins) ? winnerOf(fx) === shirt : null,
+          place: decided ? placeOf(fx.wins, shirt) : null,
+          shared: decided && sharedPlace(fx.wins, shirt),
+          won: decided ? winnerOf(fx) === shirt : null,
           wins: fx.wins[shirt] ?? 0,
         },
       ];
