@@ -413,7 +413,16 @@ deliberately doesn't collect one live (see the constraint above). So:
 - A match ending early on a two-goal lead just ends with **⏭ Next match**, same as any other.
 
 Implementation notes: the countdown is computed from a wall-clock `endsAt` timestamp rather than by
-decrementing a counter, so a backgrounded/throttled tab doesn't quietly lose time. Beeps are
+decrementing a counter, so a backgrounded/throttled tab doesn't quietly lose time.
+
+**The end-of-match effect fires once per `endsAt`, and that guard is load-bearing.** It deliberately
+has no dependency array — it must re-check against the wall clock on every 200ms tick — so "the clock
+has run out" stays true on every render until the *parent* hands back a cleared clock. The parent's
+clock is the shared one, which arrives by poll (§2.15), so any delay there left this publishing five
+times a second. That is how a `429` storm starts and then feeds itself: the writes fail, so the clock
+never clears, so it writes again, and the rate limiter stays pinned until the window expires. Fixed
+with `endedForRef`, keyed on `endsAt` so a restart re-arms it — the same shape as the `shoutedRef`
+guard that was already protecting the one-minute beep. Beeps are
 synthesised with Web Audio (no audio asset to ship), and the `AudioContext` is created on the first
 Start press — a user gesture — because iOS won't let it make sound otherwise. A screen wake lock is
 held while the clock runs, since a pitch-side timer the phone blanks after 30 seconds isn't one;
