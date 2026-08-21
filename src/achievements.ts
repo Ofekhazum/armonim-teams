@@ -64,9 +64,11 @@ const TITLE_ORDER: { kind: AchievementKind; title: string; minNights?: number }[
   { kind: 'active-run', title: 'On a Run', minNights: MIN_WIN_STREAK },
   { kind: 'most-fixtures', title: 'Night Taker' },
   { kind: 'ever-present', title: 'Ever Present' },
+  // above Iron Man: turning up is a habit, holding your nerve at the spot is
+  // an event — and only one of the two has to be earned again each time
+  { kind: 'shootouts', title: 'Nerves of Steel' },
   { kind: 'iron-man', title: 'Iron Man' },
   { kind: 'veteran', title: 'Veteran' },
-  { kind: 'shootouts', title: 'Nerves of Steel' },
 ].map((t) => ({ ...t, kind: t.kind as AchievementKind }));
 
 // No titles until the club has this many recorded nights behind it. A title is
