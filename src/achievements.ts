@@ -59,7 +59,24 @@ const TITLE_ORDER: { kind: AchievementKind; title: string }[] = [
   { kind: 'veteran', title: 'Veteran' },
 ].map(({ kind, title }) => ({ kind: kind as AchievementKind, title }));
 
-export function titleFor(achievements: Achievement[]): string | null {
+// No titles until the club has this many recorded nights behind it. A title is
+// the most declarative thing in the app — a noun attached to a person — and on
+// a young history the badge underneath it is nearly free: "played every night"
+// off three nights is a fact about the history's length, not about the player.
+// The badges themselves stay on from the start, because a badge shows its
+// count and a title doesn't. Same number as MIN_TRUST_NIGHTS, and for the same
+// reason: below it, patterns are the sample talking.
+export const MIN_NIGHTS_FOR_TITLES = 8;
+
+/**
+ * The badge this player holds that fewest people can hold, said as a name.
+ *
+ * `recordedNights` is the club's whole history, not this player's — one player
+ * turning up a lot is not what makes a title mean something; the league having
+ * happened is.
+ */
+export function titleFor(achievements: Achievement[], recordedNights: number): string | null {
+  if (recordedNights < MIN_NIGHTS_FOR_TITLES) return null;
   const held = new Set(achievements.map((a) => a.kind));
   return TITLE_ORDER.find((t) => held.has(t.kind))?.title ?? null;
 }

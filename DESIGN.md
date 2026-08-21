@@ -997,7 +997,16 @@ shared gold shows on the ribbon while adding nothing to **nights won** or to a w
 true: they finished first together, and neither of them won it. The tooltip says "1st (shared)" so
 the ribbon isn't quietly claiming the stronger of the two.
 
-**A title under the name.** `titleFor` picks the badge a player holds that fewest people *can* hold
+**A title under the name — but not for a while.** Titles are held back entirely until the club has
+`MIN_NIGHTS_FOR_TITLES` (8) recorded nights behind it. A title is the most declarative thing in the
+app, a noun attached to a person, and on a young history the badge underneath it is nearly free:
+"played every night" off three nights is a fact about the history's length, not about the player. The
+*badges* stay on from the first night, because a badge shows its count and a title doesn't. Eight is
+the same number as `MIN_TRUST_NIGHTS`, for the same reason — below it, a pattern is mostly the sample
+talking. The count is the **club's** nights, not the player's: one person turning up a lot is not
+what makes a title mean something, the league having happened is.
+
+`titleFor` picks the badge a player holds that fewest people *can* hold
 and says it as a name — Top of the Club, The Star, Night Taker, Nerves of Steel, then the threshold
 badges (Ever Present, Iron Man, On a Run, Veteran) as fallbacks. It is not a new fact: every title is
 the badge underneath it, and the count that earned it is on screen beside it. The four column titles

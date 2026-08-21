@@ -5,6 +5,7 @@ import { roleBadge } from '../types';
 import { TEAM_COLORS } from '../balancer';
 import { playerAchievements, titleFor } from '../achievements';
 import { computeDuoRecords, MIN_TOGETHER } from '../duos';
+import { hasResult } from '../calibration';
 import type { Place } from '../playerProfile';
 import {
   MIN_PROFILE_NIGHTS,
@@ -141,8 +142,13 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
   const record = useMemo(() => playerAchievements(history).get(player.id), [history, player.id]);
   const badges = record?.achievements ?? [];
   const mvps = record?.mvps ?? 0;
-  // the badge fewest people can hold, said as a name — see titleFor
-  const title = titleFor(badges);
+  // the badge fewest people can hold, said as a name — and nothing at all
+  // until the club has enough nights behind it for a title to mean something
+  const recordedNights = useMemo(
+    () => history.filter((fx) => hasResult(fx.wins)).length,
+    [history],
+  );
+  const title = titleFor(badges, recordedNights);
 
   // Best and worst teammate, from the shrunk duo records (§2.10) — so four
   // nights at 100% doesn't get printed as a fact about a friendship.
