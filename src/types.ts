@@ -90,7 +90,9 @@ export interface Session {
   // source of truth for the night and `wins` is derived from it; an empty log
   // leaves the old end-of-night tally in charge, so nights run either way.
   matchLog: MatchLogEntry[];
-  mvpId: string | null; // tonight's MVP pick, before it's filed — see FixtureRecord.mvpId
+  // No mvpId here. The pick is made after the night, on the History tab, and
+  // so belongs to the filed record rather than to the session — see
+  // FixtureRecord.mvpId.
   savedFixtureId: string | null; // set once tonight is saved, so re-saving updates
   // The match clock, lifted out of the component that draws it so the
   // organiser's clock can be published to everyone watching (§2.14) and so a
@@ -148,10 +150,12 @@ export interface FixtureRecord {
   // night before this feature existed was only ever a tally, and those records
   // are not going to be invented after the fact.
   matchLog?: MatchLogEntry[];
-  // The organiser's pick for tonight's standout player — optional, and
+  // The organiser's pick for the night's standout player — optional, and
   // unlike everything else here, a subjective call rather than something
-  // derived from the win tally. Any id from `players` (guests included);
-  // see src/mvp.ts for how it's tallied into a count.
+  // derived from the win tally. Added from the History tab once the night is
+  // over, which is the only point at which the question can be answered. Any
+  // id from `players` (guests included); see src/mvp.ts for how it's tallied
+  // into a count.
   mvpId?: string;
 }
 

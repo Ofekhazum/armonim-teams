@@ -244,7 +244,6 @@ export default function MatchDay({
       // these teams are new, so a tally typed against the old ones — and the
       // history record it was filed into — no longer describes them
       wins: emptyWins(),
-      mvpId: null,
       savedFixtureId: null,
     });
   };
@@ -346,7 +345,9 @@ export default function MatchDay({
             blue: session.wins.blue ?? 0,
           },
       ...(session.matchLog.length ? { matchLog: session.matchLog } : {}),
-      ...(session.mvpId ? { mvpId: session.mvpId } : {}),
+      // No mvpId: it is picked afterwards, on the History tab. App.saveFixture
+      // carries any existing pick across a re-save so filing the night again
+      // doesn't wipe it.
     });
     setSession({ ...session, savedFixtureId: id });
   };
@@ -454,8 +455,6 @@ export default function MatchDay({
         // derived locally rather than read off the poll, so the organiser's own
         // toggle appears the instant they press Start rather than a poll later
         liveFixtureId={session.liveStartedAt !== null ? liveFixtureId(session.liveStartedAt) : null}
-        mvpId={session.mvpId}
-        onChangeMvp={(mvpId) => setSession({ ...session, mvpId })}
         onSaveResults={saveNight}
         saved={session.savedFixtureId !== null}
         savedFixtureId={session.savedFixtureId}

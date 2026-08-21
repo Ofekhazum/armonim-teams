@@ -650,12 +650,13 @@ export default function History({
                           className="rounded-lg border border-amber-900/25 bg-white px-2 py-1 font-semibold text-amber-950"
                         />
                       </label>
+                      {/* the only place the MVP is picked — the fixture page
+                          asks nothing about it, because the night isn't over
+                          while you're on that page */}
                       <MvpPicker
                         players={fx.players}
                         mvpId={draft.mvpId}
                         onChange={(mvpId) => setDraft((d) => (d ? { ...d, mvpId } : d))}
-                        title="🌟 MVP"
-                        description="Add or correct the standout-player pick for this night."
                       />
                       <p className="text-xs text-amber-900/50">
                         Half a win means it was taken on penalties. The team sheet can't be
@@ -704,6 +705,19 @@ export default function History({
                           editing ratings — so it sits behind admin mode */}
                       {isAdmin && (
                         <div className="flex flex-wrap gap-2">
+                          {/* Same drawer as Edit result, named after the thing
+                              that's missing. Since the fixture page stopped
+                              asking, nothing else would ever mention that this
+                              night has no MVP — and a prompt nobody sees is a
+                              feature that quietly stops happening. */}
+                          {!fx.mvpId && (
+                            <button
+                              onClick={() => startEdit(fx)}
+                              className="rounded-lg border border-amber-500/60 bg-amber-100/60 px-3 py-1 text-xs font-bold text-amber-900 hover:border-orange-500"
+                            >
+                              🌟 Pick MVP
+                            </button>
+                          )}
                           <button
                             onClick={() => startEdit(fx)}
                             className="rounded-lg border border-amber-900/25 px-3 py-1 text-xs font-bold text-amber-900 hover:border-orange-500"

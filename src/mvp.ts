@@ -31,3 +31,19 @@ export function mvpCounts(fixtures: FixtureRecord[]): MvpCount[] {
     .map(([id, count]) => ({ id, name: nameOf.get(id)!, count }))
     .sort((a, b) => b.count - a.count);
 }
+
+// Filing a night that may already be filed. The fixture page rebuilds the
+// whole record from the session every time it saves, which is right for
+// everything it knows about — the teams, the tally, the match log — and wrong
+// for the one field it doesn't: the MVP is picked afterwards, on History, and
+// a second save (another match logged, the date corrected, the button pressed
+// twice) would otherwise write a record with no pick straight over one that
+// had it. Filing is idempotent; forgetting is not.
+export function preserveMvp(
+  existing: FixtureRecord | undefined,
+  fixture: FixtureRecord,
+): FixtureRecord {
+  // an explicit pick on the incoming record still wins — this only fills a gap
+  if (fixture.mvpId || !existing?.mvpId) return fixture;
+  return { ...fixture, mvpId: existing.mvpId };
+}

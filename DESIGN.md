@@ -193,8 +193,9 @@ doesn't. The field stays for direct entry, and both paths snap to the nearest ha
 is a typo.
 
 **Model** (`types.ts`): `TeamWins = Record<TeamColor, number>` on a `FixtureRecord`
-(`{ id, date, teams, players, wins, mvpId? }` — `mvpId` is §2.13's MVP pick, the one field here that
-isn't derived from the result), with `DraftTeamWins` (nullable) for the tally while it's
+(`{ id, date, teams, players, wins, matchLog?, mvpId? }` — `mvpId` is §2.13's MVP pick, added from
+History after the night, the one field here that isn't derived from the
+result), with `DraftTeamWins` (nullable) for the tally while it's
 still being typed. `players` is a **snapshot** (`FixturePlayer`: id/name/rating at the time) rather
 than a pointer into the roster, because guests are one-off and both names and ratings move; history
 has to still read correctly years later.
@@ -588,14 +589,33 @@ guests included. `src/mvp.ts`'s `mvpCounts(fixtures)` is the one small piece of 
 times each player has been picked, ranked most first, over whatever fixture list it's given (the
 whole history for a career total, an already-month-filtered list for the recap).
 
-**Entry**: `MvpPicker.tsx`, a single `<select>` on the fixture page, rendered above **🏁 Tonight's
-results** (`FixturePage.tsx`) — same host-only, not-visible-to-a-live-room-guest placement as
-`ResultsPanel` (§2.6), and saved in the same `saveNight()` call rather than as a separate step.
-Optional; `session.mvpId` resets to `null` whenever fresh teams are generated, same as `session.wins`
-— an old pick against last week's sheet shouldn't survive onto a new one. `MvpPicker` is reused (with
-different copy) inside History's **✏️ Edit result** form (below) to add or correct a pick on a past
-night — its `players` prop only ever needs id/name, so the same component works from a live squad
-(`Player[]`) or a saved night's `FixturePlayer[]` snapshot. That edit patch always carries `mvpId`
+**Entry**: `MvpPicker.tsx`, a single `<select>`, and it lives on **History**, inside a night's **✏️
+Edit result** form. Nowhere else — in particular *not* on the fixture page, where it used to sit
+above **🏁 Tonight's results**.
+
+That move is the point rather than a tidy-up. The pick asks who the standout player was, and while
+you are on the fixture page the answer does not exist yet: the football is still going, and the page
+is being touched every ten minutes to record a result. A decision you can only make once was being
+asked at the only moment it couldn't be answered, on the screen least suited to holding it. Asked
+afterwards, against a night that has finished and whose matches are listed in front of you, it is
+the same one dropdown and a question with an answer.
+
+Consequences of the move, all of them small and all of them load-bearing:
+
+- `Session` has **no `mvpId`**. Tonight doesn't hold a pick; the filed record does. Nothing to reset
+  when fresh teams are generated, because there is nothing to go stale.
+- `saveNight()` (`MatchDay.tsx`) never writes `mvpId`. But it rebuilds the *whole* record from the
+  session on every save, and a night gets filed more than once — another match logged, the button
+  pressed twice. So `App.saveFixture` runs the incoming record through **`preserveMvp(existing,
+  fixture)`** (`src/mvp.ts`), which carries a pick already on file across the re-save. Filing is
+  idempotent; forgetting is not. An explicit `mvpId` on the incoming record still wins, which is what
+  lets the edit form *change* a pick.
+- A night with no pick shows a **🌟 Pick MVP** button (admin only) beside **✏️ Edit result**, opening
+  the same form. Since the fixture page stopped asking, nothing else would ever raise the subject,
+  and a prompt nobody sees is a feature that quietly stops happening.
+
+`MvpPicker`'s `players` prop only ever needs id/name, so it works from a saved night's
+`FixturePlayer[]` snapshot as readily as a live squad. The edit patch always carries `mvpId`
 explicitly, even as `undefined` for "no pick" — the field is how a wrong pick gets *cleared*, and
 omitting the key from the patch would leave the old id in place instead of clearing it.
 
@@ -634,7 +654,7 @@ What a normal user gets, and why:
 | Monthly recap generator | — | ✓ | a produced thing the organiser sends out, not a button on everyone's screen |
 | Tonight's fixture: teams | ✓ | | the one thing a player actually opens the app for |
 | Starting / pausing the match clock | ✓ | | 8-minute matches; whoever is nearest the phone runs it (§2.15) |
-| Tonight's MVP, tonight's results | — | ✓ | the organiser's calls, recorded once |
+| Tonight's results; the MVP pick (on History) | — | ✓ | the organiser's calls, recorded once |
 | Starting / ending a fixture | — | ✓ | exactly one night can be live at a time |
 
 The rule these follow: **a count of what happened is shareable, a judgement about a person is not.**
@@ -661,8 +681,8 @@ A 🔴 **Live** tab appears in the top nav while one is on — pulsing dot rathe
 because on a phone in a car park it has to read as *now* at a glance — and the app lands on it the
 first time it hears about a fixture, once, never over a tab the user picked themselves.
 
-**For the organiser running tonight, that tab *is* the fixture page** — the same milestones, MVP
-picker, result panel and End fixture they get from Match day, rendered by the same component rather
+**For the organiser running tonight, that tab *is* the fixture page** — the same milestones, match
+log, result panel and End fixture they get from Match day, rendered by the same component rather
 than duplicated. Two tabs showing two different views of the match you are standing in the middle of
 is a worse answer than two tabs showing the same one.
 
@@ -1037,9 +1057,9 @@ the obvious reason — a badge that is secretly a button is not one anybody pres
      **🔴 Go live** turns this board into a shared live room others can join and drag in — see §2.5.
    - **▶️ Start fixture** → `src/components/FixturePage.tsx`: locks tonight's teams in and shows
      them read-only (§2.7), with tonight's milestones and duo records (§2.9, §2.10), the 8-minute
-     match clock with **+30s** and **⛶ Pitch mode** (§2.8), **🌟 Tonight's MVP** (`MvpPicker.tsx`,
-     §2.13, optional) and **🏁 Tonight's
-     results** (`ResultsPanel.tsx`) to file the night. Starting also publishes the fixture to the
+     match clock with **+30s** and **⛶ Pitch mode** (§2.8), the **📋 match log** (§2.18) and
+     **🏁 Tonight's results** (`ResultsPanel.tsx`) to file the night. No MVP picker — that is asked
+     afterwards, on History (§2.13). Starting also publishes the fixture to the
      whole group (§2.15); ending it takes it back down.
      **← Back to teams** returns to the editable board above without losing anything, in case the
      teams need another look; **⏹️ End fixture** wipes the night and starts over, the same action
@@ -1049,7 +1069,8 @@ the obvious reason — a badge that is secretly a button is not one anybody pres
    wins-per-night (a shootout counts as half) / MVPs (§2.13), with achievement badges beside each
    name and a key beneath (§2.16). Admin mode adds the **📊 Monthly recap** picker + share button
    (§2.11), the **vs rating** column, the **⚖️ Balancer trust** scatter (§2.12), rating suggestions
-   with Apply/Dismiss, and ✏️/🗑️ on a past night. Empty until the first night is saved.
+   with Apply/Dismiss, ✏️/🗑️ on a past night, and the **🌟 MVP** pick for a night (§2.13) — which
+   lives only here. Empty until the first night is saved.
 4. **🔴 Live** (`src/components/LiveFixtureView.tsx`) — only present while a fixture is on: tonight's
    three teams (read-only, no ratings) and the shared match clock, which **anyone** can start,
    pause, add 30 seconds to, or open in pitch mode — the same control the organiser has, since it is

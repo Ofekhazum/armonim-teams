@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { mvpCounts } from './mvp';
+import { mvpCounts, preserveMvp } from './mvp';
 import type { FixtureRecord } from './types';
 
 let seq = 0;
@@ -42,5 +42,33 @@ describe('mvpCounts', () => {
 
   it('returns an empty list for no history', () => {
     expect(mvpCounts([])).toEqual([]);
+  });
+});
+
+describe('preserveMvp', () => {
+  it('keeps a pick made in History when the night is filed again', () => {
+    const filed = night('a', ['a', 'b']);
+    // the fixture page rebuilds the record from the session, which has no MVP
+    const resaved = { ...filed, mvpId: undefined, wins: { black: 4, white: 1, blue: 0 } };
+    const merged = preserveMvp(filed, resaved);
+    expect(merged.mvpId).toBe('a');
+    // and the fields the fixture page *does* own still overwrite
+    expect(merged.wins.black).toBe(4);
+  });
+
+  it('leaves a night that never had a pick without one', () => {
+    const filed = night(undefined, ['a']);
+    expect(preserveMvp(filed, { ...filed })).not.toHaveProperty('mvpId', 'a');
+    expect(preserveMvp(filed, { ...filed }).mvpId).toBeUndefined();
+  });
+
+  it('does not invent a pick for a night being filed for the first time', () => {
+    const fresh = night(undefined, ['a']);
+    expect(preserveMvp(undefined, fresh).mvpId).toBeUndefined();
+  });
+
+  it('lets an incoming pick win, so History can correct one', () => {
+    const filed = night('a', ['a', 'b']);
+    expect(preserveMvp(filed, { ...filed, mvpId: 'b' }).mvpId).toBe('b');
   });
 });

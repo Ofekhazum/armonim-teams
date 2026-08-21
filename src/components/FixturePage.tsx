@@ -17,7 +17,6 @@ import MatchClock from './MatchClock';
 import ResultsPanel from './ResultsPanel';
 import MatchLog from './MatchLog';
 import ScoreBar from './ScoreBar';
-import MvpPicker from './MvpPicker';
 
 interface Props {
   teams: Teams;
@@ -37,8 +36,6 @@ interface Props {
   // the live fixture this page is running, if it has been published — what the
   // alerts toggle attaches an opt-in to
   liveFixtureId: string | null;
-  mvpId: string | null;
-  onChangeMvp: (id: string | null) => void;
   onSaveResults: () => void;
   saved: boolean;
   savedFixtureId: string | null;
@@ -69,8 +66,6 @@ export default function FixturePage({
   clock,
   onChangeClock,
   liveFixtureId,
-  mvpId,
-  onChangeMvp,
   onSaveResults,
   saved,
   savedFixtureId,
@@ -236,14 +231,12 @@ export default function FixturePage({
 
       <MatchLog log={matchLog} onChange={onChangeLog} isAdmin={isAdmin} />
 
-      {/* Picking the standout player and tallying the result are the
-          organiser's calls, and both are hidden from the group's live view
-          (§2.14) — so on the rare occasion this page is reached without admin
-          unlocked, they stay behind the same lock rather than appearing here
-          and nowhere else. ResultsPanel keeps its own unlock prompt, which is
-          how you get from here to admin without leaving the page. */}
-      {isAdmin && <MvpPicker players={players} mvpId={mvpId} onChange={onChangeMvp} />}
-
+      {/* The MVP is not picked here. It's the one subjective call the app
+          collects, and asking for it mid-fixture asks the wrong question at
+          the wrong time — the standout of the night isn't known while the
+          night is still going, and a page you touch every ten minutes with wet
+          hands is a bad place to keep a decision you can only make once. It
+          lives on the History tab now, on the night it belongs to (§2.13). */}
       <ResultsPanel
         fromLog={matchLog.length > 0}
         wins={wins}

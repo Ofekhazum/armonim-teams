@@ -3,6 +3,7 @@ import type { AppState, FixtureRecord, LiveFixture, Player, Session, TeamWins } 
 import { ATTACK_DEFAULT } from './types';
 import { emptySession, loadState, saveState } from './storage';
 import { mergePrivateFields, mergePublicRoster } from './rosterMerge';
+import { preserveMvp } from './mvp';
 import { publishLive, useLiveFixture } from './live';
 import LiveFixtureView from './components/LiveFixtureView';
 import {
@@ -295,9 +296,16 @@ export default function App() {
   // Saving the same night twice replaces the record rather than appending, so
   // fixing a score doesn't leave a duplicate behind.
   const saveFixture = (fixture: FixtureRecord) => {
-    const history = state.history.some((f) => f.id === fixture.id)
-      ? state.history.map((f) => (f.id === fixture.id ? fixture : f))
-      : [...state.history, fixture];
+    // The MVP is picked afterwards, from History, so the fixture page never
+    // supplies one — and a re-save (the night gets filed, then another match
+    // is logged and it's filed again) must not drop a pick that was already
+    // made. Everything else is genuinely re-derived from the session and is
+    // meant to overwrite.
+    const existing = state.history.find((f) => f.id === fixture.id);
+    const record = preserveMvp(existing, fixture);
+    const history = existing
+      ? state.history.map((f) => (f.id === fixture.id ? record : f))
+      : [...state.history, record];
     setState((s) => ({ ...s, history }));
     void syncHistory(history);
   };
@@ -328,10 +336,10 @@ export default function App() {
     setState((s) => ({
       ...s,
       history,
+      // the MVP isn't mirrored here — the session doesn't hold one any more,
+      // and saveFixture carries the filed pick across a re-save
       session:
-        s.session.savedFixtureId === id
-          ? { ...s.session, wins: patch.wins, mvpId: patch.mvpId ?? null }
-          : s.session,
+        s.session.savedFixtureId === id ? { ...s.session, wins: patch.wins } : s.session,
     }));
     void syncHistory(history);
   };

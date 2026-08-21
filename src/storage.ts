@@ -17,7 +17,6 @@ export const emptySession = (): Session => ({
   fixtureStarted: false,
   wins: { black: null, white: null, blue: null },
   matchLog: [],
-  mvpId: null,
   savedFixtureId: null,
   clock: initialClock(),
   liveStartedAt: null,
