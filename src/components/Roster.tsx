@@ -524,11 +524,13 @@ export default function Roster({
                     the far edge — a watermark rather than an icon, so it reads
                     as the card's character rather than as another thing to
                     look at. Physically on the left because the row is RTL and
-                    the names live on the right. */}
+                    the names live on the right, and pinned to the row's centre
+                    line: anchored to the bottom it hung half off the card,
+                    which read as a rendering fault rather than as a watermark. */}
                 {titles.get(p.id) && (
                   <span
                     aria-hidden
-                    className="pointer-events-none absolute -bottom-3 left-1 select-none text-6xl opacity-[0.14] transition-opacity duration-200 group-hover:opacity-25"
+                    className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 select-none text-5xl leading-none opacity-[0.14] transition-opacity duration-200 group-hover:opacity-25"
                   >
                     {titles.get(p.id)!.icon}
                   </span>
@@ -536,24 +538,10 @@ export default function Roster({
                 <div className="relative min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <Name className="truncate font-semibold text-amber-950">{p.name}</Name>
-                    <span
-                      title={STYLE_META[roleBadge(p)].label}
-                      className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-white/70 text-xs shadow-sm ring-1 ring-amber-900/10"
-                    >
-                      {STYLE_META[roleBadge(p)].icon}
-                    </span>
+                    <span title={STYLE_META[roleBadge(p)].label}>{STYLE_META[roleBadge(p)].icon}</span>
                     {isAdmin && !p.isGk && <SpectrumBar attack={p.attack} />}
                     {isAdmin && <Stars rating={p.rating} unknown={p.ratingUnknown} />}
                   </div>
-                  {titles.get(p.id) && (
-                    <div
-                      className={`mt-0.5 text-[11px] font-black uppercase tracking-[0.18em] ${
-                        TITLE_THEME[titles.get(p.id)!.kind].ink
-                      }`}
-                    >
-                      {titles.get(p.id)!.title}
-                    </div>
-                  )}
                   {(p.aliases ?? []).length > 0 && (
                     <div className="mt-0.5 truncate text-xs text-amber-900/50" title="Also known as">
                       aka {p.aliases!.join(', ')}

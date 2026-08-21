@@ -1169,8 +1169,15 @@ amber lettering the plain rows use. Gunmetal and forged iron obviously *want* to
 text, but then the name colour flips per theme, and a Hebrew name at 14px on a busy dark gradient is
 worse than the theme is good — so the border and the gradient carry the identity instead. And **rare
 by construction**: four titles can only be held by one player or a tie, and none appear before the
-club has enough nights, so a skin is never wallpaper. The row's `title` attribute names it, because a
-coloured card nobody can decode is the mystery-emoji problem the badge key exists to avoid (§2.16).
+club has enough nights, so a skin is never wallpaper. The badge's own emoji sits at the far edge as a
+large, near-transparent **watermark** — pinned to the row's centre line, since anchored to the bottom
+it hung half off the card and read as a rendering fault rather than as a mark. The row's `title`
+attribute names the title on hover.
+
+Writing the title *on* the row was tried and taken back off: a name, a role icon, an aka line and a
+title is more than a list row can carry, and the roster is a list you scan rather than a page you
+read. The title still appears in full under the name on the player page, which is where one person
+is the whole subject.
 
 **No organiser half.** Ratings, the attack spectrum, the keep-apart list and "beats what their rating
 expects" are the organiser's working notes about a person, and this is the most screenshot-able page

@@ -26,8 +26,10 @@ export interface TitleTheme {
   card: string;
   // an outer glow, for the themes whose whole point is that they radiate
   glow?: string;
-  // the title's own lettering. A phone has no hover, so the tooltip naming the
-  // title is invisible where the app is mostly used — the row has to say it.
+  // The title's own lettering. Not used on the roster row — the title was tried
+  // there and taken back off, because a name, a role icon, an aka line and a
+  // title is more than a list row can carry. Kept for the player page, where
+  // the title is already written under the name and wants the theme's colour.
   ink: string;
 }
 
