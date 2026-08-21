@@ -250,6 +250,68 @@ describe('the live fixture', () => {
     await post(obj, '/live/clock', { clock: running() });
     expect(await state.storage.get('subs')).toHaveLength(1);
   });
+
+  // Writing down a match is a read-then-write that depends on what was read.
+  // Done across KV it was a race with a stale read in the middle, which
+  // rejected matches people really had logged; here the object is the lock.
+  describe('the match log', () => {
+    const first = { a: 'black', b: 'white', winner: 'black', viaPenalties: false };
+    const second = { a: 'black', b: 'blue', winner: 'blue', viaPenalties: true };
+    const log = async (obj, matchLog) => post(obj, '/live/log', { matchLog });
+
+    it('stores a match and reads it straight back', async () => {
+      const { obj } = notifier();
+      await post(obj, '/live/put', { fixture: fixture() });
+      const res = await log(obj, [first]);
+      expect(res.status).toBe(200);
+      expect((await read(obj)).fixture.matchLog).toEqual([first]);
+    });
+
+    it('accepts a second match, and an undo of it', async () => {
+      const { obj } = notifier();
+      await post(obj, '/live/put', { fixture: fixture() });
+      await log(obj, [first]);
+      expect((await log(obj, [first, second])).status).toBe(200);
+      expect((await log(obj, [first])).status).toBe(200);
+      expect((await read(obj)).fixture.matchLog).toEqual([first]);
+    });
+
+    it('accepts the same match twice — two people recording one result', async () => {
+      const { obj } = notifier();
+      await post(obj, '/live/put', { fixture: fixture() });
+      await log(obj, [first]);
+      expect((await log(obj, [first])).status).toBe(200);
+      // and it stays one match, rather than becoming two
+      expect((await read(obj)).fixture.matchLog).toEqual([first]);
+    });
+
+    it('refuses a stale phone, and hands back the real log', async () => {
+      const { obj } = notifier();
+      await post(obj, '/live/put', { fixture: fixture() });
+      await log(obj, [first]);
+      // this device still thinks nothing has been played, and records its own
+      const res = await log(obj, [{ ...first, winner: 'white' }]);
+      expect(res.status).toBe(409);
+      expect((await res.json()).matchLog).toEqual([first]);
+      expect((await read(obj)).fixture.matchLog).toEqual([first]);
+    });
+
+    it('leaves the teams and the clock alone', async () => {
+      const { obj } = notifier();
+      await post(obj, '/live/put', { fixture: fixture() });
+      const paused = { period: 'regulation', endsAt: null, remaining: 90_000, ended: false };
+      await post(obj, '/live/clock', { clock: paused });
+      await log(obj, [first]);
+
+      const after = (await read(obj)).fixture;
+      expect(after.clock).toEqual(paused);
+      expect(after.teams.black).toEqual(['p1']);
+    });
+
+    it('refuses a log when no fixture is live, rather than conjuring one', async () => {
+      expect((await log(notifier().obj, [first])).status).toBe(404);
+    });
+  });
 });
 
 describe('scheduling', () => {

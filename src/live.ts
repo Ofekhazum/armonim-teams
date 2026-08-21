@@ -106,20 +106,30 @@ export async function publishClock(clock: ClockState): Promise<PublishResult> {
 // appending to a base three seconds out of date is refused rather than allowed
 // to erase the other person's match. The caller's answer to that is to stop
 // preferring its local copy and let the next poll land.
-export async function publishMatchLog(matchLog: MatchLogEntry[]): Promise<PublishResult> {
-  if (!REMOTE_URL) return 'not-configured';
+export interface LogWrite {
+  result: PublishResult | 'stale';
+  // what the night actually says, returned with a refusal so the phone that
+  // lost the race can show the truth immediately instead of waiting a poll out
+  matchLog?: MatchLogEntry[];
+}
+
+export async function publishMatchLog(matchLog: MatchLogEntry[]): Promise<LogWrite> {
+  if (!REMOTE_URL) return { result: 'not-configured' };
   try {
     const res = await fetch(`${REMOTE_URL}/live/log`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ matchLog }),
     });
-    if (res.status === 429) return 'rate-limited';
-    if (res.status === 409) return 'stale';
-    if (!res.ok) return 'error';
-    return 'ok';
+    if (res.status === 429) return { result: 'rate-limited' };
+    if (res.status === 409) {
+      const body = (await res.json().catch(() => ({}))) as { matchLog?: MatchLogEntry[] };
+      return { result: 'stale', matchLog: body.matchLog };
+    }
+    if (!res.ok) return { result: 'error' };
+    return { result: 'ok' };
   } catch {
-    return 'error';
+    return { result: 'error' };
   }
 }
 
@@ -228,11 +238,13 @@ export function useLiveFixture(enabled: boolean): LiveState {
   const setMatchLog = useCallback((matchLog: MatchLogEntry[]) => {
     pressedAt.current = Date.now();
     setFixture((prev) => (prev ? { ...prev, matchLog } : prev));
-    void publishMatchLog(matchLog).then((result) => {
-      // Someone else wrote this match down first. Drop the grace window so the
-      // very next poll replaces our copy with theirs — holding a rejected entry
-      // on screen would show one phone a match the night doesn't have.
-      if (result === 'stale') pressedAt.current = 0;
+    void publishMatchLog(matchLog).then(({ result, matchLog: theirs }) => {
+      if (result !== 'stale') return;
+      // Someone else wrote this match down first. Take what the night actually
+      // says, right now — the refusal came back with it. Waiting for the next
+      // poll instead is what makes a tap look like it vanished for no reason.
+      pressedAt.current = 0;
+      if (theirs) setFixture((prev) => (prev ? { ...prev, matchLog: theirs } : prev));
     });
   }, []);
 

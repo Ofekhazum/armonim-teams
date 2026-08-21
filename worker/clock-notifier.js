@@ -78,6 +78,30 @@ export function hostOf(endpoint) {
 // The full-time one is the interesting case: what happens next depends on the
 // score, which this app deliberately never learns (§2.8). So rather than a
 // half-answer, it states both branches with the commoner one first.
+// Is `next` a legitimate one-step move from `prev`? One match written down,
+// one undone, or the identical list sent twice.
+//
+// This is what makes a log anyone can write to safe. The write carries a whole
+// list, so without this a phone whose last poll was stale would append to an
+// old base and erase a match somebody else had just recorded. Rejecting instead
+// means the loser of a race is handed the real log and adopts it.
+//
+// It lives beside the storage it guards, because the check and the write it
+// guards have to happen without anything in between.
+export function isLogStep(prev, next) {
+  const same = (a, b) =>
+    a.length === b.length &&
+    a.every(
+      (m, i) =>
+        m.a === b[i].a && m.b === b[i].b && m.winner === b[i].winner &&
+        m.viaPenalties === b[i].viaPenalties,
+    );
+  if (same(prev, next)) return true; // a retry, or two people recording the same result
+  if (next.length === prev.length + 1) return same(prev, next.slice(0, -1)); // recorded
+  if (next.length === prev.length - 1) return same(prev.slice(0, -1), next); // undone
+  return false;
+}
+
 export function messageFor(kind, period) {
   if (kind === 'one-minute') {
     return period === 'added'
@@ -176,6 +200,30 @@ export class ClockNotifier {
       });
       await this.schedule(body.clock);
       return Response.json({ ok: true, version });
+    }
+
+    // The same, for the night's results — and this one has to be *here* rather
+    // than in the Worker, because it is a compare-and-swap: read the stored
+    // log, check the write is a legal one-step move from it, then write. Split
+    // across a KV read and a KV write that is a race with a stale read in the
+    // middle, which is precisely how the first version of this rejected every
+    // match anyone logged. A Durable Object is single-threaded and strongly
+    // consistent, so the read and the write cannot be pulled apart.
+    if (path === '/live/log') {
+      const current = await this.live();
+      if (!current.fixture) return Response.json({ error: 'no live fixture' }, { status: 404 });
+      const stored = current.fixture.matchLog ?? [];
+      if (!isLogStep(stored, body.matchLog)) {
+        // somebody else recorded first — hand back what the night actually
+        // says, so the sender can adopt it now rather than wait for a poll
+        return Response.json({ error: 'stale log', matchLog: stored }, { status: 409 });
+      }
+      const version = Date.now();
+      await this.state.storage.put('live', {
+        version,
+        fixture: { ...current.fixture, matchLog: body.matchLog },
+      });
+      return Response.json({ ok: true, version, matchLog: body.matchLog });
     }
 
     // Push is a chain of links that each fail silently — the browser hands out

@@ -898,14 +898,21 @@ log ends up with holes in it. So `matchLog` is a field on `LiveFixture`, `MatchL
 the spectator view (`LiveFixtureView`) as well as the organiser's fixture page, and there is a second
 password-free write on the Worker: **`POST /live/log`**.
 
-Two writers make concurrency real, and the endpoint takes a whole list, so a phone whose last poll
-was three seconds stale would append to an old base and *erase* a match somebody else had just
-recorded — silent data loss in the exact feature being added. **`isLogStep(prev, next)`** is the
-answer: a write is accepted only if it is one match longer (recorded), one shorter (undone), or
-identical (a retry, or two people recording the same result — which converges rather than
-duplicating). Anything else is a **409**, and the client's response is to stop preferring its local
-copy so the next poll lands the truth. The loser of a race sees what actually happened within one
-poll, which is the answer they wanted: somebody already wrote it down.
+Two writers make concurrency real, and the write carries a whole list, so a phone whose last poll was
+stale would append to an old base and *erase* a match somebody else had just recorded — silent data
+loss in the exact feature being added. **`isLogStep(prev, next)`** is the answer: a write is accepted
+only if it is one match longer (recorded), one shorter (undone), or identical (a retry, or two people
+recording the same result — which converges rather than duplicating). Anything else is a **409**
+carrying the real log, which the client adopts on the spot.
+
+**It runs inside the Durable Object, and it has to.** The check is a read followed by a write that
+depends on what was read. Across KV that is a race with a *stale* read in the middle — and not a
+theoretical one: the first version of this shipped that way and rejected matches people really had
+logged, because the read it compared against was up to a minute old. A tap looked like it vanished a
+few seconds later, when the equally-stale next poll landed. A Durable Object is single-threaded and
+strongly consistent, so the compare and the swap cannot be pulled apart. `isLogStep` therefore lives
+in `clock-notifier.js` beside the storage it guards, and the Worker's route does shape validation
+and forwards.
 
 The organiser's session **mirrors** the shared log (`sameLog` guards the poll and the session from
 chasing each other), because the session is what `saveNight` files into history — without it, a night
@@ -915,7 +922,7 @@ matches already played. And recording a result resets the clock from *whichever*
 `App.shareLog` owns that rule, so the spectator view and the fixture page cannot drift apart.
 
 **How fast others see it:** exactly as fast as a clock press, because it is the same record and the
-same poll. Which means it is only as good as §2.15's latency — the person tapping always sees it
+same poll — which since the move off KV means one poll interval (2s) rather than a cache expiry. Which means it is only as good as §2.15's latency — the person tapping always sees it
 immediately (local state moves first), and everyone else sees it on their next poll after the write
 lands.
 

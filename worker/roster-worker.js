@@ -231,29 +231,6 @@ export function isValidMatchLog(log) {
   });
 }
 
-// Is `next` a legitimate one-step move from `prev`? One match written down,
-// one undone, or the identical list sent twice.
-//
-// This is what makes a log anyone can write to safe. The endpoint takes a whole
-// list, so without this a phone whose last poll was three seconds stale would
-// append to an old base and erase a match somebody else had just recorded —
-// silent data loss in the exact feature being added. Rejecting instead means
-// the loser of a race sees the true log on their next poll, which is the answer
-// they wanted anyway: somebody already wrote it down.
-export function isLogStep(prev, next) {
-  const same = (a, b) =>
-    a.length === b.length &&
-    a.every(
-      (m, i) =>
-        m.a === b[i].a && m.b === b[i].b && m.winner === b[i].winner &&
-        m.viaPenalties === b[i].viaPenalties,
-    );
-  if (same(prev, next)) return true; // a retry, or two people recording the same result
-  if (next.length === prev.length + 1) return same(prev, next.slice(0, -1)); // recorded
-  if (next.length === prev.length - 1) return same(prev.slice(0, -1), next); // undone
-  return false;
-}
-
 export function isValidFixtures(fixtures) {
   if (!Array.isArray(fixtures) || fixtures.length > MAX_FIXTURES) return false;
   return fixtures.every((fx) => {
@@ -473,21 +450,14 @@ export default {
       }
       if (!isValidMatchLog(parsed.body.matchLog)) return json({ error: 'bad match log' }, 400);
 
-      const current = await readRecord(env, 'live');
-      if (!current?.value?.fixture) return json({ error: 'no live fixture' }, 404);
-
-      const stored = current.value.fixture.matchLog ?? [];
-      if (!isLogStep(stored, parsed.body.matchLog)) {
-        // somebody else got there first; the sender's next poll has the truth
-        return json({ error: 'stale log', matchLog: stored }, 409);
-      }
-
-      const payload = {
-        version: Date.now(),
-        fixture: { ...current.value.fixture, matchLog: parsed.body.matchLog },
-      };
-      await env.ROSTER_KV.put('live', JSON.stringify(payload), { expirationTtl: LIVE_TTL_S });
-      return json({ ok: true, version: payload.version });
+      // The step check lives inside the object, not here: it is a read
+      // followed by a write that depends on what was read, and only the
+      // Durable Object can do that without a race in the middle.
+      const res = await notifier(env).fetch('https://notifier/live/log', {
+        method: 'POST',
+        body: JSON.stringify({ matchLog: parsed.body.matchLog }),
+      });
+      return json(await res.json(), res.status);
     }
 
     // --- Match-clock notifications ------------------------------------------
