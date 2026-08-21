@@ -1008,6 +1008,30 @@ underneath, which would otherwise bury the form under the page it opened.
 pair *containing this player*, while the fixture page keeps asking for the best and worst in the
 group. Same shrinkage either way (§2.10), so the two can never disagree about a pair they both name.
 
+### 2.20 What tonight could become (`src/radar.ts`)
+
+`milestones.ts` announces a threshold the moment it is crossed. This is the same idea pointed
+forwards: **🎯 On the line tonight**, a strip above the fixture page's milestone row saying who is one
+night away from something. Same appearances ledger, read one step short of the line — no new data,
+and tonight's own record excluded throughout, since tonight is the thing being asked about.
+
+**Every line is a condition, never a prediction.** *"Their team wins and that's three nights running"*
+is arithmetic on the record. *"Likely to win tonight"* would be a claim three win totals a night
+cannot support (§2.9) — which is why there are no probabilities in this file, and why the
+pre-match win-probability idea was declined rather than deferred.
+
+Four things fire, and each fires **exactly one night short**, never earlier: a win streak sitting at
+`MIN_WIN_STREAK - 1`, an attendance run at `MIN_ATTEND_STREAK - 1`, a night that simply *is* somebody's
+10th/25th/50th, and a career win milestone within `WINS_WITHIN_REACH` (5 — about one night's haul, per
+`isWinMilestone`'s calibration note). A radar that fires three nights early is noise, and one that
+fires after the fact is duplicating the milestone row underneath it.
+
+**The bounty** names the longest active winning run among tonight's players — *"is on 3 winning
+nights. Somebody end it."* It stays silent below `MIN_WIN_STREAK`, so an ordinary week doesn't get a
+manufactured rivalry, and it names **nobody on a tie**: two players level on the longest run is not a
+bounty on one of them, and picking arbitrarily would invent the target. The copy is about the streak
+rather than the player, which is what keeps a bit of needling on the right side of §2.9.
+
 ### 2.17 Match-clock notifications (`src/push.ts`, `worker/push.js`, `worker/clock-notifier.js`)
 
 A buzz at one minute left and at the whistle, on any phone that opts in — including one that is
