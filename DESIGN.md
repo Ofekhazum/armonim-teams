@@ -849,8 +849,11 @@ device downloads.
 **The tally of a logged night is read-only in History's edit form.** Wins are the sum of the
 matches; typing over them would leave the record disagreeing with the rows it is made of, which is
 the same "one record, not two" rule the results panel enforces during the night, applied after it.
-The matches themselves are listed in the expanded night, because a record nobody can see is one
-nobody notices is wrong.
+
+History shows the log's **count** — *"18 matches logged"* — and not the matches. Listing them was
+tried and reverted: eighteen rows of *"Blue beat White"* is a wall to scroll past on the way to
+anything else, and nobody re-reads a night one match at a time. The count does the only job the
+expanded night needs from it, which is to say the data survived being filed.
 
 **Not yet counted.** The log is stored and shared but nothing derives from it beyond `winsFromLog`
 yet — head-to-head between two shirts, matches played versus wins collected, how often a night went

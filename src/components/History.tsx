@@ -13,7 +13,6 @@ import { buildWrapped, periodLabel, wrappedPeriods } from '../wrapped';
 import { shareWrappedImage } from '../wrappedImage';
 import { MIN_TRUST_NIGHTS, trustCorrelation, trustPoints, type TrustPoint } from '../trust';
 import { mvpCounts } from '../mvp';
-import { loserOf } from '../matchLog';
 import { VETERAN_NIGHTS, playerAchievements, type AchievementKind } from '../achievements';
 import { TEAM_META, Name, fmtRating } from './ui';
 import MvpPicker from './MvpPicker';
@@ -709,39 +708,13 @@ export default function History({
                           </div>
                         ))}
                       </div>
-                      {/* The matches themselves, on a night that has them.
-                          Shown rather than left in the file: a record nobody
-                          can see is one nobody notices is wrong, and this is
-                          the row-by-row source every per-match statistic will
-                          be counted from. */}
-                      {logged && (
-                        <ol className="space-y-1 text-xs">
-                          {fx.matchLog!.map((m, i) => (
-                            <li
-                              key={i}
-                              className="flex flex-wrap items-center gap-x-2 rounded-lg bg-white/50 px-2 py-1"
-                            >
-                              <span className="w-4 shrink-0 font-bold text-amber-900/40">
-                                {i + 1}
-                              </span>
-                              <span className="font-bold text-amber-950">
-                                {TEAM_META[m.winner].emoji} {TEAM_META[m.winner].label}
-                              </span>
-                              <span className="text-amber-900/50">beat</span>
-                              <span className="font-bold text-amber-950">
-                                {TEAM_META[loserOf(m)].emoji} {TEAM_META[loserOf(m)].label}
-                              </span>
-                              <span className="ml-auto font-bold text-amber-900/60">
-                                {m.viaPenalties ? 'on penalties · ½' : '1'}
-                              </span>
-                            </li>
-                          ))}
-                        </ol>
-                      )}
+                      {/* The matches themselves are *not* listed here. Eighteen
+                          rows of "Blue beat White" is a wall to scroll past on
+                          the way to anything else, and nobody re-reads a night
+                          match by match. The count is the part worth showing —
+                          it says the log is on file without being the file. */}
                       <p className="text-xs text-amber-900/45">
-                        {logged
-                          ? `${fx.matchLog!.length} matches played · `
-                          : ''}
+                        {logged ? `${fx.matchLog!.length} matches logged · ` : ''}
                         {totalWins(fx.wins)} wins across the night · {fx.players.length} players
                         {fx.mvpId && nameOf(fx.mvpId) !== '?' && (
                           <>
