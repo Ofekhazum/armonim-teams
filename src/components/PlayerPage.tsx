@@ -451,7 +451,7 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
                         icon="⚔️"
                         label="Faced most"
                         m={picks.facedMost}
-                        tail={(m) => `${m.beat}–${m.beatenBy}`}
+                        tail={(m) => `${m.faced} matches`}
                       />
                       <Line
                         icon="😤"

@@ -1262,8 +1262,10 @@ part that changed: it was *"their team has beaten yours 5 times"*, and it now re
 spelling out the team clause four times running is pedantry rather than honesty, and it pushed every
 tail onto a second line. The banter lives here, in the copy of a personal card, and the club-wide
 numbers §2.15 draws still say *their team* where a claim is being made about somebody. Tails are kept
-to a few words for the same reason: *Faced most* prints **20–18** and stops, because the label
-already said what the pair of numbers is.
+to a few words for the same reason. *Faced most* is the clearest case: it prints **38 matches** and
+nothing else, the number it was actually ranked on. It carried the record too (*20–18 across 38
+matches*, then *20–18*) and both were wrong for the line — the record is what the three lines under
+it are for, and the only question this one answers is who you have played against most.
 
 The split into counts-first came from the card being useless in practice. The duo test is shrunk hard on purpose: a
 pair needs to win around **60% of their nights together** against a base rate near a third before it
