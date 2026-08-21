@@ -449,20 +449,35 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
                         icon="⚔️"
                         label="Faced most"
                         m={picks.facedMost}
-                        tail={(m) => `${m.beat}–${m.beatenBy} across ${m.against} nights`}
+                        tail={(m) => `${m.beat}–${m.beatenBy} across ${m.faced} matches`}
                       />
                       <Line
                         icon="😤"
                         label="Bogey man"
                         m={picks.bogey}
-                        tail={(m) => `their team took ${m.beatenBy} nights off yours`}
+                        tail={(m) => `their team has beaten yours ${m.beatenBy} times`}
                       />
                       <Line
                         icon="😎"
                         label="Favourite victim"
                         m={picks.victim}
-                        tail={(m) => `your team took ${m.beat} off theirs`}
+                        tail={(m) => `your team has beaten theirs ${m.beat} times`}
                       />
+                      <Line
+                        icon="🤜"
+                        label="Worthy opponent"
+                        m={picks.worthy}
+                        tail={(m) => `${m.beat}–${m.beatenBy} — nothing in it`}
+                      />
+                      {/* The whole head-to-head half is counted in matches, so
+                          it can only speak about nights somebody wrote down
+                          match by match. Saying so beats an empty space. */}
+                      {!picks.facedMost && !picks.bogey && !picks.victim && (
+                        <p className="text-xs text-amber-900/50">
+                          Head-to-head needs nights logged match by match — a night alone can't say
+                          who beat whom.
+                        </p>
+                      )}
                     </div>
                     {/* The one claim on this card, as against the six counts
                         above it: a pair that has genuinely pulled away from

@@ -1224,7 +1224,7 @@ those. The app had always counted who somebody plays *with* and never who they p
 though every night puts them opposite ten people — the most naturally competitive thing in the ledger
 was the one thing nobody had read.
 
-Six lines come out of it, and they are deliberately six rather than three: **most nights with** and
+Seven lines come out of it, deliberately rather than three: **most nights with** and
 **won most with** are different questions, and so are **bogey man** (whose team keeps taking nights
 off yours) and **favourite victim**. **Never once alongside** only fires for somebody seen a lot from
 the other side, because the joke needs them to have been around.
@@ -1236,11 +1236,21 @@ is worth a line, this one asks whether the player has been around long enough fo
 about them. The §2.10 duo record sits underneath
 as the one *claim* on a card of counts.
 
-**`beat` and `beatenBy` count nights one team finished above another, never one person beating
-another** — with three teams on the pitch, two opponents can share a night the third team won, and
-that is a night neither of them beat anybody. The labels are allowed their banter (*Bogey man*,
-*Favourite victim*); the sentence under each says the true thing — *"their team took 5 nights off
-yours"*. That is the same line §2.15's 🎯 badge draws, and it is what lets this card be fun without
+**The head-to-head is counted in matches, not nights**, and therefore only from nights logged match by
+match (§2.17). A night is far too blunt a unit for a rivalry: two players can be opponents for two
+hours, play each other five times, and the night records one winner between three teams. Matches are
+what they actually played against each other, so *Faced most*, *Bogey man*, *Favourite victim* and
+*Worthy opponent* all read off `matchLog`. On a tallied night that half of the card stays empty and
+says why — the same honesty the shootout panel already practises.
+
+**🤜 Worthy opponent** is the most even record anybody has: the smallest gap between the two columns,
+and among equally close ones the one with the most football behind it. 6–5 is a worthier rivalry than
+1–1, and both are a gap of one — which is why `MIN_FACED` (6 matches) keeps the thin ones out of the
+running entirely.
+
+**They still count teams, never people.** `beat` is *matches this player's team won against that
+player's team*. The labels are allowed their banter; the sentence under each says the true thing —
+*"their team has beaten yours 5 times"*. That is the same line §2.15's 🎯 badge draws, and it is what lets this card be fun without
 becoming a verdict.
 
 The split into counts-first came from the card being useless in practice. The duo test is shrunk hard on purpose: a
