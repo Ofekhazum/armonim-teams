@@ -48,25 +48,31 @@ export const VETERAN_NIGHTS = 25;
 // The four "top of the column" badges come first because exactly one person
 // (or a tie) can hold each; the threshold badges below them are open to anyone
 // who plays long enough, so they are the fallback rather than the headline.
-const TITLE_ORDER: { kind: AchievementKind; title: string }[] = [
+const TITLE_ORDER: { kind: AchievementKind; title: string; minNights?: number }[] = [
   { kind: 'most-wins', title: 'Top of the Club' },
   { kind: 'mvp', title: 'The Star' },
   { kind: 'most-fixtures', title: 'Night Taker' },
   { kind: 'shootouts', title: 'Nerves of Steel' },
   { kind: 'ever-present', title: 'Ever Present' },
   { kind: 'iron-man', title: 'Iron Man' },
-  { kind: 'win-streak', title: 'On a Run' },
+  // The one title that carries its own evidence: a run of MIN_WIN_STREAK
+  // winning nights cannot exist in a history shorter than MIN_WIN_STREAK, so
+  // it can never be an artefact of a thin record the way "played every night"
+  // can. It is therefore let through early, on its own terms.
+  { kind: 'win-streak', title: 'On a Run', minNights: MIN_WIN_STREAK },
   { kind: 'veteran', title: 'Veteran' },
-].map(({ kind, title }) => ({ kind: kind as AchievementKind, title }));
+].map((t) => ({ ...t, kind: t.kind as AchievementKind }));
 
 // No titles until the club has this many recorded nights behind it. A title is
 // the most declarative thing in the app — a noun attached to a person — and on
 // a young history the badge underneath it is nearly free: "played every night"
 // off three nights is a fact about the history's length, not about the player.
 // The badges themselves stay on from the start, because a badge shows its
-// count and a title doesn't. Same number as MIN_TRUST_NIGHTS, and for the same
-// reason: below it, patterns are the sample talking.
-export const MIN_NIGHTS_FOR_TITLES = 8;
+// count and a title doesn't.
+//
+// A title may set its own lower bar (see TITLE_ORDER) when the thing it names
+// is impossible to earn by accident on a short history.
+export const MIN_NIGHTS_FOR_TITLES = 5;
 
 /**
  * The badge this player holds that fewest people can hold, said as a name.
@@ -76,9 +82,15 @@ export const MIN_NIGHTS_FOR_TITLES = 8;
  * happened is.
  */
 export function titleFor(achievements: Achievement[], recordedNights: number): string | null {
-  if (recordedNights < MIN_NIGHTS_FOR_TITLES) return null;
   const held = new Set(achievements.map((a) => a.kind));
-  return TITLE_ORDER.find((t) => held.has(t.kind))?.title ?? null;
+  // The first title they hold that the history is deep enough to justify — so
+  // a suppressed title falls through to the next one rather than silencing the
+  // player entirely.
+  return (
+    TITLE_ORDER.find(
+      (t) => held.has(t.kind) && recordedNights >= (t.minNights ?? MIN_NIGHTS_FOR_TITLES),
+    )?.title ?? null
+  );
 }
 
 export interface PlayerAchievements {

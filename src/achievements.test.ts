@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { FixtureRecord } from './types';
+import { MIN_WIN_STREAK } from './milestones';
 import {
   MIN_NIGHTS_FOR_EVER_PRESENT,
   VETERAN_NIGHTS,
@@ -222,6 +223,17 @@ describe('titleFor', () => {
     const ach = [badge('most-wins'), badge('ever-present')];
     expect(titleFor(ach, MIN_NIGHTS_FOR_TITLES - 1)).toBeNull();
     expect(titleFor(ach, MIN_NIGHTS_FOR_TITLES)).toBe('Top of the Club');
+  });
+
+  it('lets On a Run through early, since a 3-night run needs 3 nights to exist', () => {
+    const ach = [badge('ever-present'), badge('win-streak')];
+    // below the general bar: Ever Present is suppressed, On a Run is not — and
+    // the suppressed one falls through rather than silencing the player
+    expect(titleFor(ach, MIN_WIN_STREAK)).toBe('On a Run');
+    // still nothing at all before a run could even have happened
+    expect(titleFor(ach, MIN_WIN_STREAK - 1)).toBeNull();
+    // and once the history is deep enough, the rarer title takes over again
+    expect(titleFor(ach, MIN_NIGHTS_FOR_TITLES)).toBe('Ever Present');
   });
 
   it('counts the club’s nights, not the player’s', () => {

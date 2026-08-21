@@ -997,14 +997,20 @@ shared gold shows on the ribbon while adding nothing to **nights won** or to a w
 true: they finished first together, and neither of them won it. The tooltip says "1st (shared)" so
 the ribbon isn't quietly claiming the stronger of the two.
 
-**A title under the name — but not for a while.** Titles are held back entirely until the club has
-`MIN_NIGHTS_FOR_TITLES` (8) recorded nights behind it. A title is the most declarative thing in the
+**A title under the name — but not for a while.** Titles are held back until the club has
+`MIN_NIGHTS_FOR_TITLES` (5) recorded nights behind it. A title is the most declarative thing in the
 app, a noun attached to a person, and on a young history the badge underneath it is nearly free:
 "played every night" off three nights is a fact about the history's length, not about the player. The
-*badges* stay on from the first night, because a badge shows its count and a title doesn't. Eight is
-the same number as `MIN_TRUST_NIGHTS`, for the same reason — below it, a pattern is mostly the sample
-talking. The count is the **club's** nights, not the player's: one person turning up a lot is not
-what makes a title mean something, the league having happened is.
+*badges* stay on from the first night, because a badge shows its count and a title doesn't. The count
+is the **club's** nights, not the player's: one person turning up a lot is not what makes a title mean
+something, the league having happened is.
+
+**One title sets its own lower bar.** 📈 *On a Run* is let through at `MIN_WIN_STREAK` (3) nights,
+because it carries its own evidence: a run of three winning nights cannot exist in a history shorter
+than three, so unlike "played every night" it can never be an artefact of a thin record. A title
+suppressed by the general bar falls through to the next one the player holds rather than silencing
+them, so a four-night history can show *On a Run* while *Ever Present* waits — and once the history
+is deep enough the rarer title takes the headline back.
 
 `titleFor` picks the badge a player holds that fewest people *can* hold
 and says it as a name — Top of the Club, The Star, Night Taker, Nerves of Steel, then the threshold
