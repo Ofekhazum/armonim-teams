@@ -801,13 +801,15 @@ blowout on one night and still top fewer nights than one that edges every week; 
 splits these two, §2.11).
 
 Every badge is a count with a sentence behind it, readable on hover and listed in a key under the
-table so nothing is a mystery emoji: 🥇 most wins, 🏅 most nights won, 🌟 most MVP picks, 🦾 hasn't
-missed a night in 8+, 📈 longest winning run, ✨ played every recorded night, 🎖️ 25+ nights. Ties
+table so nothing is a mystery emoji: 🥇 most wins, 🏅 most nights won, 🌟 most MVP picks, 🎯 most
+shootouts won by their team, 🦾 hasn't missed a night in 8+, 📈 longest winning run, ✨ played every
+recorded night, 🎖️ 25+ nights. Ties
 **share** a badge rather than being broken — two players level on wins are exactly as level as the
 number says.
 
-**Three of these are "top of a column" badges, not "appears in it" badges** — most wins, most nights
-won, and most MVP picks. 🌟 used to go to anyone with a single pick, which over a season is most of
+**Four of these are "top of a column" badges, not "appears in it" badges** — most wins, most nights
+won, most MVP picks, and most shootouts (that last one gated on `MIN_PROFILE_NIGHTS` *logged* nights,
+since a shootout count drawn from one logged night says nothing about anybody). 🌟 used to go to anyone with a single pick, which over a season is most of
 the squad: a badge nearly everyone wears has stopped being one. It now means the same thing 🥇 does,
 one row up. The count itself is still in the **MVPs** column for everybody who has one, so nothing
 is hidden by the change — only the badge narrowed.
@@ -935,6 +937,48 @@ migration.
 when lending players to a short-handed team. Winner-stays-on means the sequence is not knowable in
 advance beyond the current match, so that planner and this log now disagree about what happens
 third. Left alone deliberately rather than half-changed.
+
+### 2.19 The player page (`src/playerProfile.ts`, `PlayerPage.tsx`)
+
+Tapping a roster row opens one player's page: badges, the nights they played, the milestones they
+are climbing towards, the shirts they have worn, their best and leanest teammate, and their teams'
+shootout record. No router in this app, so it is `openId` state plus a full-screen overlay — the same
+shape as pitch mode, Escape included.
+
+**Nothing here is new data.** It is the same history the standings table, the badges and the
+milestones are already built from, sliced per player rather than per column. That is the whole reason
+the page was cheap: the counting was already being done, it had just never been gathered in one place
+with somebody's name on it.
+
+**One rule runs through all of it.** The app records three teams and how many matches each won; it
+has never recorded an individual. So a player's wins are the wins of the teams they were in, and the
+*wording* carries that wherever it could be misread — the 🎯 badge reads "most shootouts won **by
+their team**", not "most shootouts won". Said in the labels rather than in a disclaimer at the top:
+a banner explaining that the page doesn't mean what it looks like is a page that shouldn't say it.
+
+**One threshold, `MIN_PROFILE_NIGHTS = 4`** — the same bar `MIN_NIGHTS` uses for rating calibration,
+and deliberately not a different number per statistic. A page showing "67%" under one heading and
+"not enough nights yet" under the next, off the same four nights, is one nobody can calibrate their
+trust against. Below the bar the per-night rate is `null` rather than a small-sample number, and the
+page says why. The shootout section is gated on *logged* nights specifically, because only a night
+written down match by match can answer it (§2.18), and it prints how many those were: two counts over
+different windows are fine, two that look like they cover the same window are not.
+
+**The ribbon draws three states, not two.** A night with no result recorded is neither a win nor a
+loss — `appearances` in milestones.ts drops those nights, but a ribbon cannot, because it is a
+picture of turning up as much as of winning. So `ProfileNight.won` is `boolean | null` and an
+untallied night renders as a dot. It also can't break a winning run, for the same reason.
+
+**No organiser half.** Ratings, the attack spectrum, the keep-apart list and "beats what their rating
+expects" are the organiser's working notes about a person, and this is the most screenshot-able page
+in the app. They stay on the roster row and in the edit form, behind admin, exactly where they were —
+and ✏️ Edit on the page opens *that* form rather than a second one, so there is still only one place
+a player is edited. The roster row's own Edit and ✕ still work; both stop the click reaching the row
+underneath, which would otherwise bury the form under the page it opened.
+
+`computeDuoRecords` gained an optional `mustInclude` id so the page can ask for the best and worst
+pair *containing this player*, while the fixture page keeps asking for the best and worst in the
+group. Same shrinkage either way (§2.10), so the two can never disagree about a pair they both name.
 
 ### 2.17 Match-clock notifications (`src/push.ts`, `worker/push.js`, `worker/clock-notifier.js`)
 

@@ -13,11 +13,13 @@ import type { FixtureRecord } from './types';
 import { hasResult, playerStandings } from './calibration';
 import { MIN_ATTEND_STREAK, MIN_WIN_STREAK, appearances } from './milestones';
 import { mvpCounts } from './mvp';
+import { MIN_PROFILE_NIGHTS, loggedNightsFor, shootoutWins } from './playerProfile';
 
 export type AchievementKind =
   | 'most-wins'
   | 'most-fixtures'
   | 'mvp'
+  | 'shootouts'
   | 'iron-man'
   | 'win-streak'
   | 'ever-present'
@@ -42,6 +44,10 @@ export interface PlayerAchievements {
   id: string;
   fixturesWon: number; // nights this player's team was the outright top
   mvps: number;
+  // matches this player's teams took on penalties, over the nights that were
+  // logged match by match — absent from a tallied night, so this is not
+  // comparable with `wins` and is never shown beside it without saying so
+  shootouts: number;
   achievements: Achievement[];
 }
 
@@ -75,6 +81,7 @@ export function playerAchievements(history: FixtureRecord[]): Map<string, Player
 
   const standings = playerStandings(history);
   const mvps = new Map(mvpCounts(history).map((m) => [m.id, m.count]));
+  const shootouts = shootoutWins(history);
 
   const fixturesWon = new Map<string, number>();
   const winRun = new Map<string, number>();
@@ -97,6 +104,12 @@ export function playerAchievements(history: FixtureRecord[]): Map<string, Player
   // badge nearly everyone wears stops being one — 🌟 means "most picked", the
   // way 🥇 means "most wins".
   const mostMvps = topOf((id) => mvps.get(id) ?? 0);
+  // Gated on *logged* nights rather than nights played: a shootout count drawn
+  // from one logged night says nothing, and everybody's count is zero until
+  // the first night is logged at all — which topOf already declines to award.
+  const mostShootouts = topOf((id) =>
+    loggedNightsFor(history, id) >= MIN_PROFILE_NIGHTS ? (shootouts.get(id) ?? 0) : 0,
+  );
 
   const out = new Map<string, PlayerAchievements>();
   for (const s of standings) {
@@ -119,6 +132,17 @@ export function playerAchievements(history: FixtureRecord[]): Map<string, Player
         label: `Most MVP picks — ${mvpCount} time${mvpCount === 1 ? '' : 's'}`,
       });
     }
+    if (mostShootouts.has(s.id)) {
+      const n = shootouts.get(s.id) ?? 0;
+      list.push({
+        kind: 'shootouts',
+        icon: '🎯',
+        // "their team won", not "they won" — a shootout is taken by a side.
+        // The badge is still worth having: somebody keeps being in the team
+        // that holds its nerve, and that is a count, not a verdict.
+        label: `Most shootouts won by their team — ${n}`,
+      });
+    }
     if (attend >= MIN_ATTEND_STREAK) {
       list.push({ kind: 'iron-man', icon: '🦾', label: `Hasn't missed a night in ${attend}` });
     }
@@ -132,7 +156,13 @@ export function playerAchievements(history: FixtureRecord[]): Map<string, Player
       list.push({ kind: 'veteran', icon: '🎖️', label: `${s.nights} nights played` });
     }
 
-    out.set(s.id, { id: s.id, fixturesWon: won, mvps: mvpCount, achievements: list });
+    out.set(s.id, {
+      id: s.id,
+      fixturesWon: won,
+      mvps: mvpCount,
+      shootouts: shootouts.get(s.id) ?? 0,
+      achievements: list,
+    });
   }
   return out;
 }

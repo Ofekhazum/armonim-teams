@@ -1,0 +1,210 @@
+import { describe, expect, it } from 'vitest';
+import type { FixtureRecord, MatchLogEntry } from './types';
+import {
+  MIN_PROFILE_NIGHTS,
+  loggedNightsFor,
+  nightRungs,
+  profileCounts,
+  profileNights,
+  shirtNights,
+  shootoutRecord,
+  shootoutWins,
+  toGo,
+  winRungs,
+} from './playerProfile';
+
+// A player page is read as a statement about a person, which is exactly why
+// the counting has to be dull and correct: an off-by-one in a streak, or a
+// night with no result drawn as a defeat, is a small lie with somebody's name
+// on it.
+
+let seq = 0;
+
+const night = (
+  black: string[],
+  white: string[],
+  blue: string[],
+  wins: { black: number; white: number; blue: number } | null,
+  matchLog?: MatchLogEntry[],
+): FixtureRecord => ({
+  id: `f${seq++}`,
+  // ascending so the natural order is also chronological
+  date: `2026-01-${String(seq).padStart(2, '0')}`,
+  teams: { black, white, blue },
+  players: [...black, ...white, ...blue].map((id) => ({ id, name: id, rating: 3 })),
+  wins: wins ?? { black: 0, white: 0, blue: 0 },
+  ...(matchLog ? { matchLog } : {}),
+});
+
+// a night nobody ever typed a result into
+const untallied = (black: string[], white: string[], blue: string[]) =>
+  night(black, white, blue, null);
+
+describe('profileNights', () => {
+  it('lists only the nights this player was on the sheet, oldest first', () => {
+    const history = [
+      night(['a'], ['b'], [], { black: 3, white: 1, blue: 0 }),
+      night(['b'], ['c'], [], { black: 3, white: 1, blue: 0 }),
+      night([], ['a'], [], { black: 0, white: 4, blue: 1 }),
+    ];
+    const nights = profileNights(history, 'a');
+    expect(nights.map((n) => n.shirt)).toEqual(['black', 'white']);
+    expect(nights.map((n) => n.won)).toEqual([true, true]);
+  });
+
+  it('sorts by date rather than by the order nights were filed', () => {
+    const late = night(['a'], ['b'], [], { black: 3, white: 1, blue: 0 });
+    const early = { ...night(['a'], ['b'], [], { black: 0, white: 3, blue: 0 }), date: '2025-01-01' };
+    expect(profileNights([late, early], 'a').map((n) => n.date)).toEqual([
+      '2025-01-01',
+      late.date,
+    ]);
+  });
+
+  it('marks a night with no result as unknown, not as a loss', () => {
+    // the distinction the whole ribbon rests on: turning up is not losing
+    const nights = profileNights([untallied(['a'], ['b'], [])], 'a');
+    expect(nights[0].won).toBeNull();
+  });
+
+  it('is empty for someone who has never played', () => {
+    expect(profileNights([night(['a'], [], [], null)], 'ghost')).toEqual([]);
+  });
+});
+
+describe('profileCounts', () => {
+  const won = (id: string) => night([id], ['x'], [], { black: 3, white: 1, blue: 0 });
+  const lost = (id: string) => night([id], ['x'], [], { black: 1, white: 3, blue: 0 });
+
+  it('counts nights, nights won and the matches their teams took', () => {
+    const c = profileCounts(profileNights([won('a'), lost('a'), won('a')], 'a'));
+    expect(c.nights).toBe(3);
+    expect(c.nightsWon).toBe(2);
+    expect(c.wins).toBe(3 + 1 + 3);
+  });
+
+  it('withholds the per-night rate until there is enough football', () => {
+    const few = Array.from({ length: MIN_PROFILE_NIGHTS - 1 }, () => won('a'));
+    expect(profileCounts(profileNights(few, 'a')).perNight).toBeNull();
+
+    const enough = Array.from({ length: MIN_PROFILE_NIGHTS }, () => won('a'));
+    expect(profileCounts(profileNights(enough, 'a')).perNight).toBe(3);
+  });
+
+  it('counts nights turned up for separately from nights with a result', () => {
+    const c = profileCounts(profileNights([won('a'), untallied(['a'], ['x'], [])], 'a'));
+    expect(c.onSheet).toBe(2);
+    expect(c.nights).toBe(1); // the untallied night can't be won or lost
+  });
+
+  it('finds the longest run of winning nights, and the current one', () => {
+    const history = [won('a'), won('a'), lost('a'), won('a')];
+    const c = profileCounts(profileNights(history, 'a'));
+    expect(c.bestRun).toBe(2);
+    expect(c.currentRun).toBe(1);
+  });
+
+  it('reports no current run when the last night was lost', () => {
+    const c = profileCounts(profileNights([won('a'), won('a'), lost('a')], 'a'));
+    expect(c.bestRun).toBe(2);
+    expect(c.currentRun).toBe(0);
+  });
+
+  it('does not let a night with no result break a run', () => {
+    // it says nothing either way, so it is skipped rather than counted a loss
+    const history = [won('a'), untallied(['a'], ['x'], []), won('a')];
+    expect(profileCounts(profileNights(history, 'a')).currentRun).toBe(2);
+  });
+
+  it('handles a player with no nights at all', () => {
+    const c = profileCounts([]);
+    expect(c).toMatchObject({ nights: 0, wins: 0, perNight: null, bestRun: 0, currentRun: 0 });
+  });
+});
+
+describe('shirtNights', () => {
+  it('counts every shirt worn, including nights with no result', () => {
+    const history = [
+      night(['a'], [], [], { black: 3, white: 0, blue: 0 }),
+      night([], ['a'], [], { black: 0, white: 3, blue: 0 }),
+      untallied([], [], ['a']),
+    ];
+    expect(shirtNights(profileNights(history, 'a'))).toEqual({ black: 1, white: 1, blue: 1 });
+  });
+});
+
+describe('the milestone ladder', () => {
+  it('shows the rungs already reached and the next one, and stops there', () => {
+    expect(nightRungs(12)).toEqual([
+      { target: 10, reached: true },
+      { target: 25, reached: false },
+    ]);
+  });
+
+  it('shows only the next rung to someone who has reached none', () => {
+    expect(nightRungs(0)).toEqual([{ target: 10, reached: false }]);
+  });
+
+  it('says how far the next rung is', () => {
+    expect(toGo(nightRungs(12), 12)).toEqual({ target: 25, away: 13 });
+  });
+
+  it('counts a half-win towards a win milestone as the half it is', () => {
+    // 49.5 wins is not 50 wins, and rounding up would announce a milestone
+    // the player has not reached
+    expect(toGo(winRungs(49.5), 49.5)).toEqual({ target: 50, away: 1 });
+    expect(winRungs(49.5)[0]).toEqual({ target: 50, reached: false });
+  });
+
+  it('marks a rung reached exactly on the number', () => {
+    expect(nightRungs(10)[0]).toEqual({ target: 10, reached: true });
+    expect(toGo(nightRungs(10), 10)).toEqual({ target: 25, away: 15 });
+  });
+});
+
+describe('shootouts', () => {
+  const log = (winner: string, viaPenalties: boolean): MatchLogEntry => ({
+    a: 'black',
+    b: 'white',
+    winner: winner as MatchLogEntry['winner'],
+    viaPenalties,
+  });
+
+  it('splits what a player’s team won on penalties from what it won in play', () => {
+    const history = [
+      night(['a'], ['b'], [], { black: 2, white: 1, blue: 0 }, [
+        log('black', true),
+        log('black', false),
+        log('white', true),
+      ]),
+    ];
+    expect(shootoutRecord(history, 'a')).toEqual({ loggedNights: 1, taken: 1, wonInPlay: 1 });
+    expect(shootoutRecord(history, 'b')).toEqual({ loggedNights: 1, taken: 1, wonInPlay: 0 });
+  });
+
+  it('ignores nights that were only tallied, since they cannot answer it', () => {
+    const history = [night(['a'], ['b'], [], { black: 5, white: 1, blue: 0 })];
+    expect(shootoutRecord(history, 'a')).toEqual({ loggedNights: 0, taken: 0, wonInPlay: 0 });
+  });
+
+  it('credits every player in the winning team, once each', () => {
+    const history = [
+      night(['a', 'b'], ['c'], [], { black: 1, white: 0, blue: 0 }, [log('black', true)]),
+    ];
+    const wins = shootoutWins(history);
+    expect(wins.get('a')).toBe(1);
+    expect(wins.get('b')).toBe(1);
+    expect(wins.get('c') ?? 0).toBe(0);
+  });
+
+  it('counts how many of a player’s nights were logged match by match', () => {
+    const history = [
+      night(['a'], ['b'], [], { black: 1, white: 0, blue: 0 }, [log('black', false)]),
+      night(['a'], ['b'], [], { black: 1, white: 0, blue: 0 }),
+      night(['c'], ['b'], [], { black: 1, white: 0, blue: 0 }, [log('black', false)]),
+    ];
+    expect(loggedNightsFor(history, 'a')).toBe(1);
+    expect(loggedNightsFor(history, 'c')).toBe(1);
+    expect(loggedNightsFor(history, 'b')).toBe(2);
+  });
+});

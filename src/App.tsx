@@ -518,6 +518,7 @@ export default function App() {
       ) : tab === 'roster' ? (
         <Roster
           players={state.players}
+          history={state.history}
           onChange={setPlayers}
           adminWord={adminWord}
           setAdminWord={setAdminWord}
