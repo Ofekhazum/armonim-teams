@@ -14,7 +14,8 @@ import {
   placeOf,
   sharedPlace,
   shootoutWins,
-  teammateCounts,
+  matchupPicks,
+  matchups,
   toGo,
   winRungs,
 } from './playerProfile';
@@ -279,91 +280,94 @@ describe('shootouts', () => {
   });
 });
 
-// The plain count that the Teammates card leads with. Separate from the duo
-// records on purpose: this is who someone plays alongside, which is always
-// true, rather than whether a pair beats chance, which almost never fires.
-describe('teammateCounts', () => {
-  it('counts nights on the same team, and how many they won', () => {
+// Who somebody plays with, and — new — who they play against. Everything here
+// is a count of what happened to two teams, which is what lets the labels on
+// screen have their fun without the numbers claiming anything.
+describe('matchups', () => {
+  it('counts nights alongside, and how many of those were won', () => {
     const history = [
       night(['a', 'b'], ['c'], [], { black: 4, white: 1, blue: 0 }),
       night(['a', 'b'], ['c'], [], { black: 1, white: 4, blue: 0 }),
-      night(['a'], ['b'], [], { black: 4, white: 1, blue: 0 }),
     ];
-    const mates = teammateCounts(history, 'a');
-    expect(mates.find((m) => m.id === 'b')).toMatchObject({ together: 2, won: 1 });
-    // the third night they were opponents, so it counts for neither
-    expect(mates.find((m) => m.id === 'c')).toBeUndefined();
+    expect(matchups(history, 'a').find((m) => m.id === 'b')).toMatchObject({
+      together: 2,
+      togetherWon: 1,
+      against: 0,
+    });
   });
 
-  it('sorts by nights together, most first', () => {
+  it('counts nights opposite, and who took them', () => {
     const history = [
-      night(['a', 'b', 'c'], ['x'], [], { black: 4, white: 1, blue: 0 }),
-      night(['a', 'b'], ['x'], [], { black: 4, white: 1, blue: 0 }),
+      night(['a'], ['b'], [], { black: 4, white: 1, blue: 0 }),
+      night(['a'], ['b'], [], { black: 1, white: 4, blue: 0 }),
+      night(['a'], ['b'], [], { black: 1, white: 4, blue: 0 }),
     ];
-    expect(teammateCounts(history, 'a').map((m) => m.id)).toEqual(['b', 'c']);
+    expect(matchups(history, 'a').find((m) => m.id === 'b')).toMatchObject({
+      against: 3,
+      beat: 1,
+      beatenBy: 2,
+    });
   });
 
-  it('skips nights with no result, since "won" would be a guess', () => {
-    const history = [untallied(['a', 'b'], ['c'], [])];
-    expect(teammateCounts(history, 'a')).toEqual([]);
+  it('credits neither when a third team takes the night', () => {
+    // two players can be opponents on a night that has nothing to do with
+    // either of them, and that is not a win over anybody
+    const history = [night(['a'], ['b'], ['c'], { black: 1, white: 1, blue: 5 })];
+    expect(matchups(history, 'a').find((m) => m.id === 'b')).toMatchObject({
+      against: 1,
+      beat: 0,
+      beatenBy: 0,
+    });
   });
 
-  it('is empty for someone who has never played', () => {
-    expect(teammateCounts([night(['a'], ['b'], [], { black: 4, white: 1, blue: 0 })], 'ghost'))
-      .toEqual([]);
+  it('credits neither when the night finishes level at the top', () => {
+    const history = [night(['a'], ['b'], [], { black: 3, white: 3, blue: 0 })];
+    expect(matchups(history, 'a').find((m) => m.id === 'b')).toMatchObject({ beat: 0, beatenBy: 0 });
   });
 
-  it('names a guest from the night they played, not from a roster', () => {
-    const fx = night(['a', 'g1'], ['c'], [], { black: 4, white: 1, blue: 0 });
-    fx.players = fx.players.map((p) => (p.id === 'g1' ? { ...p, name: 'זרקא' } : p));
-    expect(teammateCounts([fx], 'a')[0].name).toBe('זרקא');
-  });
-});
-
-describe('the other two ladders', () => {
-  it('marks nights-won rungs at 5, 10, 25 then every 50', () => {
-    expect(fixtureRungs(4).map((r) => r.target)).toEqual([5]);
-    expect(fixtureRungs(12).map((r) => r.target)).toEqual([5, 10, 25]);
-    const deep = fixtureRungs(60);
-    expect(deep[deep.length - 1].target).toBe(100);
-  });
-
-  it('marks the first MVP as a rung of its own', () => {
-    // being picked at all is the event; a ladder starting at three would say
-    // nothing to almost anybody for a season
-    expect(mvpRungs(1)).toEqual([{ target: 1, reached: true }, { target: 3, reached: false }]);
-    expect(mvpRungs(0)).toEqual([{ target: 1, reached: false }]);
+  it('skips nights with no result', () => {
+    expect(matchups([untallied(['a'], ['b'], [])], 'a')).toEqual([]);
   });
 });
 
-describe('ladderBadges', () => {
-  const counts = (over = {}) => ({ nights: 0, nightsWon: 0, wins: 0, ...over });
+describe('matchupPicks', () => {
+  const many = (n: number, black: string[], white: string[], wins: { black: number; white: number; blue: number }) =>
+    Array.from({ length: n }, () => night(black, white, [], wins));
 
-  it('wears only the top rung of each ladder', () => {
-    // 25 nights makes "10 nights" not worth saying any more
-    const badges = ladderBadges(counts({ nights: 30 }), 0);
-    expect(badges.map((b) => b.label)).toEqual(['25 nights']);
+  it('separates who you played most with from who you won most with', () => {
+    const history = [
+      // 'often' is alongside for four nights, only one of them won
+      ...many(3, ['a', 'often'], ['x'], { black: 1, white: 4, blue: 0 }),
+      ...many(1, ['a', 'often'], ['x'], { black: 4, white: 1, blue: 0 }),
+      // 'lucky' only three nights, but all three taken
+      ...many(3, ['a', 'lucky'], ['x'], { black: 4, white: 1, blue: 0 }),
+    ];
+    const picks = matchupPicks(matchups(history, 'a'));
+    expect(picks.playedMost?.id).toBe('often');
+    expect(picks.wonMost?.id).toBe('lucky');
   });
 
-  it('says nothing for a player who has crossed nothing', () => {
-    expect(ladderBadges(counts({ nights: 9 }), 0)).toEqual([]);
+  it('finds the bogey man and the favourite victim', () => {
+    const history = [
+      ...many(4, ['a'], ['bogey'], { black: 1, white: 4, blue: 0 }),
+      ...many(3, ['a'], ['victim'], { black: 4, white: 1, blue: 0 }),
+    ];
+    const picks = matchupPicks(matchups(history, 'a'));
+    expect(picks.bogey?.id).toBe('bogey');
+    expect(picks.victim?.id).toBe('victim');
   });
 
-  it('carries a sentence explaining every badge', () => {
-    for (const b of ladderBadges(counts({ nights: 25, wins: 100, nightsWon: 10 }), 3)) {
-      expect(b.detail.length).toBeGreaterThan(10);
-      expect(b.detail.endsWith('.')).toBe(true);
-    }
+  it('only names someone never played alongside if they are around a lot', () => {
+    const rare = matchupPicks(matchups(many(2, ['a'], ['b'], { black: 4, white: 1, blue: 0 }), 'a'));
+    expect(rare.neverTogether).toBeNull();
+
+    const often = matchupPicks(matchups(many(6, ['a'], ['b'], { black: 4, white: 1, blue: 0 }), 'a'));
+    expect(often.neverTogether?.id).toBe('b');
   });
 
-  it('names the first MVP differently from a count of them', () => {
-    expect(ladderBadges(counts(), 1)[0].label).toBe('First MVP');
-    expect(ladderBadges(counts(), 5)[0].label).toBe('5 MVPs');
-  });
-
-  it('counts a half-win as the half it is', () => {
-    // 49.5 is not 50 wins, and rounding up would hand out a badge unearned
-    expect(ladderBadges(counts({ wins: 49.5 }), 0)).toEqual([]);
-    expect(ladderBadges(counts({ wins: 50 }), 0).map((b) => b.label)).toEqual(['50 wins']);
+  it('says nothing at all rather than naming a one-off', () => {
+    const picks = matchupPicks(matchups([night(['a', 'b'], ['c'], [], { black: 4, white: 1, blue: 0 })], 'a'));
+    expect(picks.playedMost).toBeNull();
+    expect(picks.victim).toBeNull();
   });
 });

@@ -1218,11 +1218,26 @@ title is more than a list row can carry, and the roster is a list you scan rathe
 read. The title still appears in full under the name on the player page, which is where one person
 is the whole subject.
 
-**The Teammates card leads with a count, not a claim.** It first lists who this player has actually
-played alongside most (`teammateCounts` — nights together and how many their team won), and only
-underneath, when it has genuinely been earned, the §2.10 duo record.
+**With and against.** `matchups` walks history once and counts, for every player this one has shared
+a pitch with: nights alongside, how many of those were taken, nights on opposite sides, and who took
+those. The app had always counted who somebody plays *with* and never who they play *against*, even
+though every night puts them opposite ten people — the most naturally competitive thing in the ledger
+was the one thing nobody had read.
 
-That split came from the card being useless in practice. The duo test is shrunk hard on purpose: a
+Six lines come out of it, and they are deliberately six rather than three: **most nights with** and
+**won most with** are different questions, and so are **bogey man** (whose team keeps taking nights
+off yours) and **favourite victim**. **Never once alongside** only fires for somebody seen a lot from
+the other side, because the joke needs them to have been around. The §2.10 duo record sits underneath
+as the one *claim* on a card of counts.
+
+**`beat` and `beatenBy` count nights one team finished above another, never one person beating
+another** — with three teams on the pitch, two opponents can share a night the third team won, and
+that is a night neither of them beat anybody. The labels are allowed their banter (*Bogey man*,
+*Favourite victim*); the sentence under each says the true thing — *"their team took 5 nights off
+yours"*. That is the same line §2.15's 🎯 badge draws, and it is what lets this card be fun without
+becoming a verdict.
+
+The split into counts-first came from the card being useless in practice. The duo test is shrunk hard on purpose: a
 pair needs to win around **60% of their nights together** against a base rate near a third before it
 says anything — roughly **6 of 8, or 9 of 15** — so across fifteen recorded nights with players
 deliberately kept together, it stayed silent for everybody. Worse, the empty state blamed

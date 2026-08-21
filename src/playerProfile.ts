@@ -244,47 +244,108 @@ export function toGo(rungs: Rung[], count: number): { target: number; away: numb
 
 // --- Teammates --------------------------------------------------------------
 
-export interface TeammateCount {
+export interface Matchup {
   id: string;
   name: string;
-  together: number; // nights on the same team, with a result recorded
-  won: number; // how many of those their team took
+  // --- on the same team
+  together: number; // nights alongside, with a result recorded
+  togetherWon: number; // of those, nights their team finished top of
+  // --- on opposite teams
+  against: number; // nights on different teams
+  beat: number; // of those, nights *this* player's team took the night
+  beatenBy: number; // of those, nights the other player's team took it
 }
 
-// Who this player has actually played alongside, most often first.
+// Everyone this player has shared a pitch with, and what happened.
 //
-// A plain count, and deliberately separate from `computeDuoRecords` (§2.10),
-// which answers a much harder question: whether a pair does *better* than
-// chance. That test is shrunk hard on purpose — a pair needs to win around 60%
-// of their nights together against a base rate near a third before it will say
-// anything, which is roughly 6 of 8 or 9 of 15 — so on an ordinary season it is
-// silent, and a card that only had that to show was a card that only ever said
-// "not yet". This says who someone plays with, which is always true and always
-// interesting, and leaves the claim about chemistry to the part that earned it.
-export function teammateCounts(history: FixtureRecord[], id: string): TeammateCount[] {
+// One pass, both halves. The app has always counted who somebody plays *with*
+// and never who they play *against*, even though every night puts them
+// opposite ten people — which left the most naturally competitive thing in the
+// ledger unread.
+//
+// `beat` and `beatenBy` only count nights one of the two teams actually took:
+// with three teams on the pitch, two players can be opponents on a night the
+// third team wins, and that is a night neither of them beat anybody. Note also
+// what these are counts *of* — one team finishing above another, not one
+// person beating another. The labels can have their fun; the sentences say the
+// true thing (§2.8).
+export function matchups(history: FixtureRecord[], id: string): Matchup[] {
   const nameOf = new Map<string, string>();
-  const counts = new Map<string, { together: number; won: number }>();
+  const rec = new Map<string, Omit<Matchup, 'id' | 'name'>>();
+  const get = (other: string) =>
+    rec.get(other) ?? { together: 0, togetherWon: 0, against: 0, beat: 0, beatenBy: 0 };
 
   for (const fx of history) {
     if (!hasResult(fx.wins)) continue;
-    const shirt = shirtOf(fx, id);
-    if (!shirt) continue;
-    const won = winnerOf(fx) === shirt;
-    for (const other of fx.teams[shirt]) {
-      if (other === id) continue;
-      const rec = counts.get(other) ?? { together: 0, won: 0 };
-      rec.together++;
-      if (won) rec.won++;
-      counts.set(other, rec);
-      nameOf.set(other, fx.players.find((p) => p.id === other)?.name ?? '?');
+    const mine = shirtOf(fx, id);
+    if (!mine) continue;
+    const winner = winnerOf(fx);
+
+    for (const c of TEAM_COLORS) {
+      for (const other of fx.teams[c]) {
+        if (other === id) continue;
+        const r = get(other);
+        if (c === mine) {
+          r.together++;
+          if (winner === mine) r.togetherWon++;
+        } else {
+          r.against++;
+          if (winner === mine) r.beat++;
+          else if (winner === c) r.beatenBy++;
+        }
+        rec.set(other, r);
+        nameOf.set(other, fx.players.find((p) => p.id === other)?.name ?? '?');
+      }
     }
   }
 
-  return [...counts.entries()]
-    .map(([other, rec]) => ({ id: other, name: nameOf.get(other) ?? '?', ...rec }))
-    .sort(
-      (a, b) => b.together - a.together || b.won - a.won || a.name.localeCompare(b.name, 'he'),
-    );
+  return [...rec.entries()]
+    .map(([other, r]) => ({ id: other, name: nameOf.get(other) ?? '?', ...r }))
+    .sort((a, b) => b.together - a.together || a.name.localeCompare(b.name, 'he'));
+}
+
+// The pick of each column, or null when nothing in it is worth naming. Ties go
+// to the player who has shared more football, then to the name — never to
+// whichever way the sort happened to fall.
+const pickBy = (
+  list: Matchup[],
+  value: (m: Matchup) => number,
+  floor: number,
+): Matchup | null => {
+  const best = [...list]
+    .filter((m) => value(m) >= floor)
+    .sort((a, b) => value(b) - value(a) || b.together + b.against - (a.together + a.against))[0];
+  return best ?? null;
+};
+
+// How much shared football before a pairing is worth a line of its own. Low,
+// because these are counts rather than claims — but not one, because "you have
+// beaten him once" is a sentence about an evening, not about a rivalry.
+export const MIN_MATCHUP = 2;
+
+export interface MatchupPicks {
+  playedMost: Matchup | null; // most nights alongside
+  wonMost: Matchup | null; // most nights *won* alongside — a different question
+  facedMost: Matchup | null; // most nights on opposite sides
+  bogey: Matchup | null; // whose team has taken the most nights off theirs
+  victim: Matchup | null; // and the other way round
+  neverTogether: Matchup | null; // seen plenty, never once on the same team
+}
+
+export function matchupPicks(list: Matchup[]): MatchupPicks {
+  return {
+    playedMost: pickBy(list, (m) => m.together, MIN_MATCHUP),
+    wonMost: pickBy(list, (m) => m.togetherWon, MIN_MATCHUP),
+    facedMost: pickBy(list, (m) => m.against, MIN_MATCHUP),
+    bogey: pickBy(list, (m) => m.beatenBy, MIN_MATCHUP),
+    victim: pickBy(list, (m) => m.beat, MIN_MATCHUP),
+    // the joke only lands if they have actually been around each other a lot
+    neverTogether: pickBy(
+      list.filter((m) => m.together === 0),
+      (m) => m.against,
+      MIN_MATCHUP * 2,
+    ),
+  };
 }
 
 // --- Shootouts --------------------------------------------------------------

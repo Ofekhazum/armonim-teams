@@ -6,7 +6,7 @@ import { TEAM_COLORS } from '../balancer';
 import { playerAchievements, titleFor } from '../achievements';
 import { computeDuoRecords } from '../duos';
 import { hasResult } from '../calibration';
-import type { Place } from '../playerProfile';
+import type { Matchup, Place } from '../playerProfile';
 import {
   MIN_PROFILE_NIGHTS,
   fixtureRungs,
@@ -17,7 +17,8 @@ import {
   profileNights,
   shirtNights,
   shootoutRecord,
-  teammateCounts,
+  matchupPicks,
+  matchups,
   toGo,
   winRungs,
 } from '../playerProfile';
@@ -144,7 +145,10 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
   const counts = useMemo(() => profileCounts(nights), [nights]);
   const shirts = useMemo(() => shirtNights(nights), [nights]);
   const shootouts = useMemo(() => shootoutRecord(history, player.id), [history, player.id]);
-  const mates = useMemo(() => teammateCounts(history, player.id), [history, player.id]);
+  const picks = useMemo(
+    () => matchupPicks(matchups(history, player.id)),
+    [history, player.id],
+  );
   // one call, two answers: the badge row, and the MVP tally underneath it —
   // playerAchievements already counts the picks while deciding who tops that
   // column, and counting them twice is how two numbers end up disagreeing
@@ -403,46 +407,85 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2">
-              <Card title="Teammates" hint="most nights together">
-                {mates.length === 0 ? (
+              <Card title="With and against">
+                {!picks.playedMost && !picks.facedMost ? (
                   <p className="text-sm text-amber-900/55">No recorded nights yet.</p>
                 ) : (
-                  <div className="space-y-2">
-                    {/* The plain count first, because it is always true. Who
-                        somebody actually plays alongside is interesting on its
-                        own and needs no claim attached to it. */}
-                    <ul className="space-y-1 text-sm">
-                      {mates.slice(0, 3).map((m) => (
-                        <li key={m.id} className="flex items-baseline gap-2">
-                          <Name className="min-w-0 flex-1 truncate font-bold text-amber-950">
-                            {m.name}
-                          </Name>
-                          <span className="shrink-0 text-xs text-amber-900/60">
-                            <b className="text-amber-900">{m.together}</b> together ·{' '}
-                            {m.won} won
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                    {/* And the harder claim underneath, only when a pair has
-                        genuinely separated itself from chance (§2.10). Silent
-                        most seasons, which is the point of it. */}
+                  <div className="space-y-2.5">
+                    {/* Plain counts, in two halves. Everything here is a count
+                        of what happened; the labels are allowed their fun
+                        because the sentence under each one says the true
+                        thing — a team finished above another team. */}
+                    <div className="space-y-1">
+                      <Line
+                        icon="🔗"
+                        label="Most nights with"
+                        m={picks.playedMost}
+                        tail={(m) =>
+                          `${m.together} of ${counts.nights}${
+                            counts.nights ? ` · ${Math.round((m.together / counts.nights) * 100)}%` : ''
+                          }`
+                        }
+                      />
+                      <Line
+                        icon="🏆"
+                        label="Won most with"
+                        m={picks.wonMost}
+                        tail={(m) => `${m.togetherWon} nights taken together`}
+                      />
+                      <Line
+                        icon="👻"
+                        label="Never once alongside"
+                        m={picks.neverTogether}
+                        tail={(m) => `${m.against} nights opposite, never together`}
+                      />
+                    </div>
+                    <div className="space-y-1 border-t border-amber-900/10 pt-2">
+                      <Line
+                        icon="⚔️"
+                        label="Faced most"
+                        m={picks.facedMost}
+                        tail={(m) => `${m.beat}–${m.beatenBy} across ${m.against} nights`}
+                      />
+                      <Line
+                        icon="😤"
+                        label="Bogey man"
+                        m={picks.bogey}
+                        tail={(m) => `their team took ${m.beatenBy} nights off yours`}
+                      />
+                      <Line
+                        icon="😎"
+                        label="Favourite victim"
+                        m={picks.victim}
+                        tail={(m) => `your team took ${m.beat} off theirs`}
+                      />
+                    </div>
+                    {/* The one claim on this card, as against the six counts
+                        above it: a pair that has genuinely pulled away from
+                        chance after shrinkage (§2.10). Silent most seasons,
+                        which is why it costs nothing to leave in. */}
                     {(duos.best || duos.worst) && (
-                      <div className="space-y-1.5 border-t border-amber-900/10 pt-2">
+                      <div className="space-y-1 border-t border-amber-900/10 pt-2">
                         {duos.best && (
-                          <div className="rounded-xl bg-emerald-400/10 px-3 py-1.5 text-sm">
-                            <span className="text-[11px] font-bold uppercase tracking-wide text-emerald-800/70">
-                              🤝 Wins more with{' '}
+                          <div className="flex flex-wrap items-baseline gap-x-2 text-sm">
+                            <span className="shrink-0 text-[11px] font-bold uppercase tracking-wide text-emerald-800/60">
+                              🤝 Wins more with
                             </span>
                             <Name className="font-black text-amber-950">{other(duos.best)}</Name>
+                            <span className="text-xs text-amber-900/55">
+                              {duos.best.won} of {duos.best.together} nights
+                            </span>
                           </div>
                         )}
                         {duos.worst && (
-                          <div className="rounded-xl bg-amber-900/[0.05] px-3 py-1.5 text-sm">
-                            <span className="text-[11px] font-bold uppercase tracking-wide text-amber-900/50">
-                              🙃 Wins less with{' '}
+                          <div className="flex flex-wrap items-baseline gap-x-2 text-sm">
+                            <span className="shrink-0 text-[11px] font-bold uppercase tracking-wide text-amber-900/45">
+                              🙃 Wins less with
                             </span>
                             <Name className="font-black text-amber-950">{other(duos.worst)}</Name>
+                            <span className="text-xs text-amber-900/55">
+                              {duos.worst.won} of {duos.worst.together} nights
+                            </span>
                           </div>
                         )}
                       </div>
@@ -493,6 +536,32 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
 // nothing twice; a filling bar says the same thing while also showing how far
 // along it is — and it turns the fixture page's announcement into an arrival
 // somebody could see coming.
+// One labelled fact about one player, or nothing at all. Rendering an empty
+// row with a dash would fill the card with places where the answer is "not
+// yet", which is the shape the old Teammates card failed in.
+function Line({
+  icon,
+  label,
+  m,
+  tail,
+}: {
+  icon: string;
+  label: string;
+  m: Matchup | null;
+  tail: (m: Matchup) => string;
+}) {
+  if (!m) return null;
+  return (
+    <div className="flex flex-wrap items-baseline gap-x-2 text-sm">
+      <span className="shrink-0 text-[11px] font-bold uppercase tracking-wide text-amber-900/45">
+        {icon} {label}
+      </span>
+      <Name className="font-black text-amber-950">{m.name}</Name>
+      <span className="text-xs text-amber-900/55">{tail(m)}</span>
+    </div>
+  );
+}
+
 function Progress({
   now,
   next,
