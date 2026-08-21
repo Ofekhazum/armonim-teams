@@ -53,6 +53,7 @@ const BADGE_TONE: Record<AchievementKind, string> = {
   shootouts: 'border-rose-500/35 bg-rose-400/15 text-rose-900',
   'iron-man': 'border-emerald-600/35 bg-emerald-400/15 text-emerald-900',
   'win-streak': 'border-sky-600/35 bg-sky-400/15 text-sky-900',
+  'active-run': 'border-orange-500/45 bg-orange-400/20 text-orange-900',
   'ever-present': 'border-violet-500/35 bg-violet-400/15 text-violet-900',
   veteran: 'border-stone-500/35 bg-stone-400/15 text-stone-800',
 };

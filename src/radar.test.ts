@@ -65,16 +65,15 @@ describe('pendingTonight', () => {
     expect(kinds(pendingTonight([player('a')], history))).not.toContain('win-streak');
   });
 
-  it('counts tonight as the next night for an nth-night milestone', () => {
-    // nine nights played, so tonight is the tenth
+  // The line between this strip and the milestone row under it: milestones say
+  // what is already true coming in, this says what tonight could turn into. A
+  // player's 10th night is certain the moment they are on the sheet, and both
+  // strips printed it word for word until it was taken out of this one.
+  it('says nothing about a night that is certain rather than conditional', () => {
     const history = Array.from({ length: 9 }, () => night(['a'], ['b'], 'black'));
-    const facts = pendingTonight([player('a')], history);
-    expect(facts).toContainEqual({ kind: 'nth-night', id: 'a', name: 'a', target: 10 });
-  });
-
-  it('does not announce an nth night that is not a milestone', () => {
-    const history = Array.from({ length: 5 }, () => night(['a'], ['b'], 'black'));
-    expect(kinds(pendingTonight([player('a')], history))).not.toContain('nth-night');
+    for (const f of pendingTonight([player('a')], history)) {
+      expect(f.kind).not.toBe('nth-night');
+    }
   });
 
   it('flags a career win milestone only once it is within reach', () => {
@@ -119,14 +118,15 @@ describe('pendingTonight', () => {
   });
 
   it('puts the rarer facts first when several fire at once', () => {
-    // nine nights played, of which only the last two were won: tonight is both
-    // their 10th night and the one that could make it three in a row
+    // seven nights, every one of them turned up for — one short of the
+    // attendance streak — and the last two won, one short of a run. Both fire.
     const history = [
-      ...Array.from({ length: 7 }, () => night(['a'], ['b'], 'white')),
+      ...Array.from({ length: MIN_ATTEND_STREAK - 3 }, () => night(['a'], ['b'], 'white')),
       night(['a'], ['b'], 'black'),
       night(['a'], ['b'], 'black'),
     ];
-    expect(kinds(pendingTonight([player('a')], history))).toEqual(['nth-night', 'win-streak']);
+    expect(history).toHaveLength(MIN_ATTEND_STREAK - 1);
+    expect(kinds(pendingTonight([player('a')], history))).toEqual(['iron-man', 'win-streak']);
   });
 });
 

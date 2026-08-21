@@ -29,6 +29,8 @@ function night(
   return fx;
 }
 
+let dayCursor = 50;
+const seqDay = () => dayCursor++;
 const day = (n: number) => `2026-08-${String(n).padStart(2, '0')}`;
 const kindsFor = (history: FixtureRecord[], id: string) =>
   (playerAchievements(history).get(id)?.achievements ?? []).map((a) => a.kind);
@@ -229,7 +231,7 @@ describe('titleFor', () => {
   it('lets On a Run through early, since a 3-night run needs 3 nights to exist', () => {
     // Top of the Club outranks it, but waits for the general bar; On a Run does
     // not — so the suppressed title falls through rather than silencing them
-    const ach = [badge('most-wins'), badge('win-streak')];
+    const ach = [badge('most-wins'), badge('active-run')];
     expect(titleFor(ach, MIN_WIN_STREAK)).toBe('On a Run');
     // still nothing at all before a run could even have happened
     expect(titleFor(ach, MIN_WIN_STREAK - 1)).toBeNull();
@@ -240,10 +242,10 @@ describe('titleFor', () => {
   it('ranks a live winning run above the quieter single-holder titles', () => {
     // the ordering is the club's judgement, not rarity: a run is the thing
     // anyone at the pitch would actually mention
-    expect(titleFor([badge('shootouts'), badge('win-streak')], MIN_NIGHTS_FOR_TITLES)).toBe(
+    expect(titleFor([badge('shootouts'), badge('active-run')], MIN_NIGHTS_FOR_TITLES)).toBe(
       'On a Run',
     );
-    expect(titleFor([badge('most-fixtures'), badge('win-streak')], MIN_NIGHTS_FOR_TITLES)).toBe(
+    expect(titleFor([badge('most-fixtures'), badge('active-run')], MIN_NIGHTS_FOR_TITLES)).toBe(
       'On a Run',
     );
   });
@@ -255,5 +257,28 @@ describe('titleFor', () => {
       night(day(i + 1), ['a'], ['b'], { black: 3, white: 1, blue: 0 }),
     );
     expect(titleFor([badge('most-wins')], history.length)).toBe('Top of the Club');
+  });
+});
+
+// The longest run somebody ever had and the run they are on are different
+// facts, and only the second one is news.
+describe('the winning-run badges', () => {
+  const wonBy = (id: string) => night(day(seqDay()), [id], ['x'], { black: 3, white: 1, blue: 0 });
+  const lostBy = (id: string) => night(day(seqDay()), [id], ['x'], { black: 1, white: 3, blue: 0 });
+
+  it('gives 🔥 only while the run is still going', () => {
+    const running = [wonBy('a'), wonBy('a'), wonBy('a')];
+    expect(kindsFor(running, 'a')).toContain('active-run');
+
+    const broken = [...running, lostBy('a')];
+    expect(kindsFor(broken, 'a')).not.toContain('active-run');
+    // …but the run still happened, so 📈 stays
+    expect(kindsFor(broken, 'a')).toContain('win-streak');
+  });
+
+  it('carries no title once the run is over', () => {
+    const broken = [wonBy('a'), wonBy('a'), wonBy('a'), lostBy('a')];
+    const ach = playerAchievements(broken).get('a')!.achievements;
+    expect(titleFor(ach, broken.length)).not.toBe('On a Run');
   });
 });

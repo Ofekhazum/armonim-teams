@@ -193,7 +193,7 @@ doesn't. The field stays for direct entry, and both paths snap to the nearest ha
 is a typo.
 
 **Model** (`types.ts`): `TeamWins = Record<TeamColor, number>` on a `FixtureRecord`
-(`{ id, date, teams, players, wins, matchLog?, mvpId? }` — `mvpId` is §2.13's MVP pick, added from
+(`{ id, date, teams, players, wins, matchLog?, mvpId? }` — `mvpId` is §2.12's MVP pick, added from
 History after the night, the one field here that isn't derived from the
 result), with `DraftTeamWins` (nullable) for the tally while it's
 still being typed. `players` is a **snapshot** (`FixturePlayer`: id/name/rating at the time) rather
@@ -334,7 +334,7 @@ input rather than something you check during the match.
 **🔒 Unlock admin to save** in place of the results panel's old "unlock on the Roster tab" text —
 same prompt, same server-side check, just without the trip to another tab and back mid-match. The
 logic is shared, not copied: `useAdminUnlock` (`src/useAdminUnlock.ts`) backs both this button and
-the header padlock (§2.14). `ResultsPanel` falls back to the old static text when no
+the header padlock (§2.13). `ResultsPanel` falls back to the old static text when no
 `onUnlockAdmin` is passed, which is what happens when `REMOTE_URL` is empty and there is no server
 to verify a word against.
 
@@ -371,7 +371,7 @@ early. A running clock is defined by `endsAt`, so the end moves; anything else �
 kicked off, or already run out — is defined by `remaining`, so that grows. A clock that had ended
 un-ends but stays *stopped*, since giving the time back is one decision and restarting is another,
 and merging them would have a match resume in somebody's pocket. Climbing back above a minute
-re-arms the one-minute shout, and because the announcements are scheduled from `endsAt` (§2.17), the
+re-arms the one-minute shout, and because the announcements are scheduled from `endsAt` (§2.16), the
 push notification moves with it for free.
 
 **Pitch mode** (`PitchMode.tsx`) is the clock with nothing else on screen: a phone propped against a
@@ -418,7 +418,7 @@ decrementing a counter, so a backgrounded/throttled tab doesn't quietly lose tim
 **The end-of-match effect fires once per `endsAt`, and that guard is load-bearing.** It deliberately
 has no dependency array — it must re-check against the wall clock on every 200ms tick — so "the clock
 has run out" stays true on every render until the *parent* hands back a cleared clock. The parent's
-clock is the shared one, which arrives by poll (§2.15), so any delay there left this publishing five
+clock is the shared one, which arrives by poll (§2.14), so any delay there left this publishing five
 times a second. That is how a `429` storm starts and then feeds itself: the writes fail, so the clock
 never clears, so it writes again, and the rate limiter stays pinned until the window expires. Fixed
 with `endedForRef`, keyed on `endsAt` so a restart re-arms it — the same shape as the `shoutedRef`
@@ -544,7 +544,7 @@ months that actually have a recorded night, so the picker never offers an empty 
 
 **Two images, not one long scroll.** `renderWrappedImages` always returns a "highlights" page (hero,
 MVP/match/fixture leaderboards, attendance, longest streak, best pair); a second "also happened" page
-— the banter side (§2.13) — only gets rendered when there's actually something to say
+— the banter side (§2.12) — only gets rendered when there's actually something to say
 (`hasAlsoHappened`), and both go out together as one multi-file share, same pattern as
 `shirtImage.ts`'s three team shirts. This is the split point the app already had for free: page 1 is
 everything already gated positive/neutral, page 2 is exactly the `buildNegativeTiles`/`worstDuo`
@@ -569,27 +569,9 @@ top attendee (an earlier version did that and mislabeled a merely-good month "ne
 and gate on the same `MIN_WIN_STREAK`/`MIN_WINLESS_RUN` as tonight's own facts; `bestDuo`/`worstDuo`
 reuse `computeDuoRecords` (§2.10) with "everyone who played this month" as the relevant id set instead
 of "tonight's squad". `topMvps` is the one exception to "every line is a count, not a verdict" —
-see §2.13 for why that's fine.
+see §2.12 for why that's fine.
 
-### 2.12 Balancer trust dashboard
-
-`src/trust.ts` (+ `trust.test.ts`), admin-only, in the History tab. The balancer (§3) optimizes for a
-small rating gap between teams, but nothing else in the app ever checks whether that prediction shows
-up in the result — this closes that loop by plotting, per recorded night, the **predicted** gap
-(spread between team-average ratings, derived from the `FixturePlayer` snapshot already on the
-record — no new data needed) against the **actual** gap (spread in win share). A scatter chart (inline
-SVG, no charting library — consistent with the rest of the app) plus a one-line Pearson correlation
-readout (`trustCorrelation`), gated at `MIN_TRUST_NIGHTS` (8) the same way `MIN_NIGHTS` gates rating
-suggestions (§2.6).
-
-**Purely descriptive, on purpose.** Nothing here feeds back into team generation — same posture as
-`calibration.ts`'s rating suggestions, a number to look at rather than an auto-tune loop. The
-correlation readout is written in tiers (tracks together / barely tracks / moves opposite) rather
-than a bare number, and the "barely tracks" case explicitly allows for the honest possibility that
-8-minute matches are just noisier than a rating gap can predict, rather than assuming the balancer
-must be wrong.
-
-### 2.13 MVP picks
+### 2.12 MVP picks
 
 The one deliberately subjective input in the app, sitting next to a whole design rule (§2.9) built
 around never claiming more than the win tally supports. `FixtureRecord.mvpId` (optional, `types.ts`)
@@ -659,7 +641,7 @@ declaring it, recorded as what it actually is — the organiser's call — rathe
 data that was never rich enough to support it. The count is honest because it's counting a real,
 already-made judgment, not synthesizing one.
 
-### 2.14 Two audiences: the organiser and the group
+### 2.13 Two audiences: the organiser and the group
 
 Everything above was written for one person with the app open on the touchline. Sending it to the
 rest of the team makes it a *read* surface for fifteen people and a *write* surface for one, and
@@ -673,12 +655,12 @@ What a normal user gets, and why:
 | Roster | read the squad | add / edit / ✕ | who is in this club is the organiser's call |
 | Player ratings, attack spectrum, keep-apart lists | — | ✓ | already the line the public roster read draws (§6) |
 | Match day (availability, guests, balancer, teams board) | — | ✓ | the workbench, not the scoreboard |
-| History: nights, standings, fixture wins, MVPs, badges | ✓ | | the part worth sharing — see §2.15 |
-| History: "vs rating" column, rating suggestions, balancer trust | — | ✓ | opinions about players, not counts of what happened |
+| History: nights, standings, fixture wins, MVPs, badges | ✓ | | the part worth sharing — see §2.14 |
+| History: "vs rating" column, rating suggestions | — | ✓ | opinions about players, not counts of what happened |
 | Monthly recap generator | — | ✓ | a produced thing the organiser sends out, not a button on everyone's screen |
 | Tonight's fixture: teams | ✓ | | the one thing a player actually opens the app for |
-| Starting / pausing the match clock | ✓ | | 8-minute matches; whoever is nearest the phone runs it (§2.15) |
-| Writing down who won a match | ✓ | | same reason as the clock — the organiser is usually playing (§2.18) |
+| Starting / pausing the match clock | ✓ | | 8-minute matches; whoever is nearest the phone runs it (§2.14) |
+| Writing down who won a match | ✓ | | same reason as the clock — the organiser is usually playing (§2.17) |
 | Tonight's results; the MVP pick (on History) | — | ✓ | the organiser's calls, recorded once |
 | Starting / ending a fixture | — | ✓ | exactly one night can be live at a time |
 
@@ -693,7 +675,7 @@ simply never renders `match` without admin, and switching admin off while standi
 somewhere that still exists). Where a control's absence would read as a bug rather than a lock —
 correcting a past night — there's an explicit "🔒 Unlock admin" line instead.
 
-### 2.15 The live fixture (`src/live.ts`, `LiveFixtureView.tsx`)
+### 2.14 The live fixture (`src/live.ts`, `LiveFixtureView.tsx`)
 
 Match day is admin-only, which leaves everyone else with no way to find out what team they're on.
 So starting a fixture publishes it: `POST /live` on the same Worker, one KV key, read publicly by
@@ -782,7 +764,7 @@ refresh while offline. Publishing happens on start/pause/next-match — a handfu
 tick, since the seconds in between are counted down locally by each device.
 
 **Anyone can run it**, which is one of the two places this app accepts an unauthenticated write
-(the other is writing down a finished match, §2.18 — same reasoning, same shape). At 8 minutes a
+(the other is writing down a finished match, §2.17 — same reasoning, same shape). At 8 minutes a
 match, whoever is nearest the phone has to be able to start it; routing that through the organiser
 makes the clock useless. `POST /live/clock` therefore takes no secret, and is kept safe by
 being *narrow* instead: it replaces only the `clock` field of a fixture that is **already live**, so
@@ -802,7 +784,7 @@ beeping at the one-minute mark is a cue, fifteen is a mess — and pressing a bu
 gesture iOS requires before it will play audio at all, so the opt-in and the platform requirement
 turn out to be the same event.
 
-### 2.16 Achievement badges (`src/achievements.ts`)
+### 2.15 Achievement badges (`src/achievements.ts`)
 
 Small emoji badges beside each name in the standings, plus a **Fixtures** column — whole nights a
 player's team finished top of, which is a different question from match wins (a team can bank a
@@ -829,7 +811,7 @@ Nothing here is new data; it is all re-read from `history`. And nothing here is 
 wins in the club" is a fact about a column, "best player" is a claim three numbers a night cannot
 support, and it is not on the list (§2.9).
 
-### 2.17 Match-clock notifications (`src/push.ts`, `worker/push.js`, `worker/clock-notifier.js`)
+### 2.16 Match-clock notifications (`src/push.ts`, `worker/push.js`, `worker/clock-notifier.js`)
 
 A buzz at one minute left and at the whistle, on any phone that opts in — including one that is
 locked, in a pocket, with the app closed.
@@ -846,7 +828,7 @@ time. The added-time warning is new — the on-screen clock only ever beeped the
 regulation (§2.8) — and matters because two minutes of golden goal is short enough that halfway
 through is worth knowing.
 
-**How the timing works.** The clock already travels as an absolute `endsAt` (§2.15), so the instant
+**How the timing works.** The clock already travels as an absolute `endsAt` (§2.14), so the instant
 anyone presses Start every announcement time is known. `POST /live` and `POST /live/clock` both hand
 the new clock to a `ClockNotifier` Durable Object, which recomputes its triggers from scratch —
 pause, reset and next-match all land here, and "what is still to be announced" is always fully
@@ -962,7 +944,7 @@ link that cannot be tested locally is `pushManager.subscribe()` — an automated
 service to register with, so it fails there by construction. Everything on both sides of it is
 covered; that step needs a real device.
 
-### 2.18 Logging the night as it happens (`src/matchLog.ts`)
+### 2.17 Logging the night as it happens (`src/matchLog.ts`)
 
 `types.ts` used to say the tally was **deliberately** the whole result — three numbers typed in at
 the end, accepting that there is no head-to-head record and no count of how much football it took,
@@ -995,7 +977,7 @@ organiser can decide whether to allow it.
 **The old nights cannot be recovered.** A tally is strictly less information than a log: `black 3 /
 white 2 / blue 1` could be six matches or nine, and who beat whom is simply gone. So `matchLog` is
 optional on `FixtureRecord`, and anything derived from it has to read as *not recorded* for those
-nights rather than as zero — the same distinction `closeRate` makes in §2.12.
+nights rather than as zero.
 
 **Recording a result puts the clock back.** Writing down who won means that match is over, and the
 next thing anybody did was press Next match — so it happens on the same tap. The session write is a
@@ -1066,7 +1048,7 @@ matches already played. And recording a result resets the clock from *whichever*
 `App.shareLog` owns that rule, so the spectator view and the fixture page cannot drift apart.
 
 **How fast others see it:** exactly as fast as a clock press, because it is the same record and the
-same poll — which since the move off KV means one poll interval (2s) rather than a cache expiry. Which means it is only as good as §2.15's latency — the person tapping always sees it
+same poll — which since the move off KV means one poll interval (2s) rather than a cache expiry. Which means it is only as good as §2.14's latency — the person tapping always sees it
 immediately (local state moves first), and everyone else sees it on their next poll after the write
 lands.
 
@@ -1080,7 +1062,7 @@ when lending players to a short-handed team. Winner-stays-on means the sequence 
 advance beyond the current match, so that planner and this log now disagree about what happens
 third. Left alone deliberately rather than half-changed.
 
-### 2.19 The player page (`src/playerProfile.ts`, `PlayerPage.tsx`)
+### 2.18 The player page (`src/playerProfile.ts`, `PlayerPage.tsx`)
 
 Tapping a roster row opens one player's page: badges, the nights they played, the milestones they
 are climbing towards, the shirts they have worn, their best and leanest teammate, and their teams'
@@ -1110,7 +1092,7 @@ and deliberately not a different number per statistic. A page showing "67%" unde
 "not enough nights yet" under the next, off the same four nights, is one nobody can calibrate their
 trust against. Below the bar the per-night rate is `null` rather than a small-sample number, and the
 page says why. The shootout section is gated on *logged* nights specifically, because only a night
-written down match by match can answer it (§2.18), and it prints how many those were: two counts over
+written down match by match can answer it (§2.17), and it prints how many those were: two counts over
 different windows are fine, two that look like they cover the same window are not.
 
 **Looking like somebody's page, not a row from a table.** The first cut was correct and drab — cream
@@ -1166,6 +1148,12 @@ anyone at the pitch would actually mention. So `TITLE_ORDER` is the club's call,
 and the roster skins follow it rather than keeping a ranking of their own. Nobody with no badges gets
 a title — an invented one for everybody would be the first verdict in the app.
 
+**🔥 and 📈 are two badges, not one.** *Longest winning run* is the longest they have ever had;
+*on a run* is the one they are on right now. Only the second can be a title, because a title says
+something is happening and so it has to still be happening — a player who won three on the trot last
+winter is not on a run. `TITLE_THEME` is therefore `Partial`: badges worth wearing are a subset of
+badges worth having.
+
 **A titled player wears their title on the roster.** `TITLE_THEME` (`components/titleTheme.ts`) skins
 the roster row: champion gold, starlight, podium green, gunmetal, clear sky, forged iron, fire, aged
 parchment. The squad list stops being fifteen identical cards, and the two or three people who have
@@ -1199,7 +1187,7 @@ underneath, which would otherwise bury the form under the page it opened.
 pair *containing this player*, while the fixture page keeps asking for the best and worst in the
 group. Same shrinkage either way (§2.10), so the two can never disagree about a pair they both name.
 
-### 2.20 What tonight could become (`src/radar.ts`)
+### 2.19 What tonight could become (`src/radar.ts`)
 
 `milestones.ts` announces a threshold the moment it is crossed. This is the same idea pointed
 forwards: **🎯 On the line tonight**, a strip above the fixture page's milestone row saying who is one
@@ -1211,10 +1199,15 @@ is arithmetic on the record. *"Likely to win tonight"* would be a claim three wi
 cannot support (§2.9) — which is why there are no probabilities in this file, and why the
 pre-match win-probability idea was declined rather than deferred.
 
-Four things fire, and each fires **exactly one night short**, never earlier: a win streak sitting at
-`MIN_WIN_STREAK - 1`, an attendance run at `MIN_ATTEND_STREAK - 1`, a night that simply *is* somebody's
-10th/25th/50th, and a career win milestone within `WINS_WITHIN_REACH` (5 — about one night's haul, per
-`isWinMilestone`'s calibration note). A radar that fires three nights early is noise, and one that
+**Everything here is conditional on how tonight goes, and that is the line between this strip and the
+milestone row under it.** Milestones state what is already true coming in; this states what tonight
+could turn into. A fact that is certain the moment somebody is on the team sheet belongs below, not
+here — *"tonight is their 10th night"* was in both strips, word for word, until it was taken out of
+this one.
+
+Three things fire, each **exactly one night short**, never earlier: a win streak sitting at
+`MIN_WIN_STREAK - 1`, an attendance run at `MIN_ATTEND_STREAK - 1`, and a career win milestone within
+`WINS_WITHIN_REACH` (5 — about one night's haul, per `isWinMilestone`'s calibration note). A radar that fires three nights early is noise, and one that
 fires after the fact is duplicating the milestone row underneath it.
 
 **The bounty** names the longest active winning run among tonight's players — *"is on 3 winning
@@ -1223,7 +1216,7 @@ manufactured rivalry, and it names **nobody on a tie**: two players level on the
 bounty on one of them, and picking arbitrarily would invent the target. The copy is about the streak
 rather than the player, which is what keeps a bit of needling on the right side of §2.9.
 
-### 2.21 Team of the Month (`src/wrapped.ts`, `shirtImage.ts`)
+### 2.20 Team of the Month (`src/wrapped.ts`, `shirtImage.ts`)
 
 The month's five, drawn onto a **gold shirt card** and shared as the last page of the monthly recap
 (§2.11). The artwork is the same five-shirt pentagon the team cards use — its title is already
@@ -1315,7 +1308,7 @@ panel is unaffected — the organizer still sees the plan, it just doesn't go in
 
 ## 5. Screens (`src/App.tsx` — tabs, no router)
 
-Which tabs exist depends on whether admin is unlocked (§2.14): a normal user gets **Roster** and
+Which tabs exist depends on whether admin is unlocked (§2.13): a normal user gets **Roster** and
 **History**, plus **🔴 Live** while a fixture is on; the organiser additionally gets **Match day**.
 
 **The padlock sits in the tab strip**, so admin unlocks from whatever page you are on. It was on the
@@ -1330,9 +1323,9 @@ the obvious reason — a badge that is secretly a button is not one anybody pres
 1. **Roster** (`src/components/Roster.tsx`) — the permanent squad. In **admin mode**: add/edit
    name, aliases, rating, role (GK toggle, or a 0–100 defence↔attack slider in steps of 5),
    chemistry/avoid links, ✕ to remove, and 📢 Publish. Everyone else sees the squad as a list to
-   read — no Edit, no ✕, no + Add player, and no ratings or keep-apart lists (§2.14). Top-right
+   read — no Edit, no ✕, no + Add player, and no ratings or keep-apart lists (§2.13). Top-right
    shows a small `v<hash>` build marker (§6) so you can confirm a deploy actually landed after
-   pushing. **Tapping any row opens that player's page** (§2.19) — badges, every night as a medal,
+   pushing. **Tapping any row opens that player's page** (§2.18) — badges, every night as a medal,
    the milestone ladder, shirts worn, teammates and shootouts — for everyone, not just the
    organiser, since everything on it is already public.
 2. **Match day** (`src/components/MatchDay.tsx`, the main flow):
@@ -1349,27 +1342,27 @@ the obvious reason — a badge that is secretly a button is not one anybody pres
      button copies WhatsApp-ready text (`shareText`/`copy` in `TeamsBoard.tsx`). Optionally,
      **🔴 Go live** turns this board into a shared live room others can join and drag in — see §2.5.
    - **▶️ Start fixture** → `src/components/FixturePage.tsx`: locks tonight's teams in and shows
-     them read-only (§2.7), with **🎯 On the line tonight** and the bounty (§2.20), tonight's
+     them read-only (§2.7), with **🎯 On the line tonight** and the bounty (§2.19), tonight's
      milestones and duo records (§2.9, §2.10), the 8-minute
-     match clock with **+30s** and **⛶ Pitch mode** (§2.8), the **📋 match log** (§2.18) and
+     match clock with **+30s** and **⛶ Pitch mode** (§2.8), the **📋 match log** (§2.17) and
      **🏁 Tonight's results** (`ResultsPanel.tsx`) to file the night. No MVP picker — that is asked
-     afterwards, on History (§2.13). Starting also publishes the fixture to the
-     whole group (§2.15); ending it takes it back down.
+     afterwards, on History (§2.12). Starting also publishes the fixture to the
+     whole group (§2.14); ending it takes it back down.
      **← Back to teams** returns to the editable board above without losing anything, in case the
      teams need another look; **⏹️ End fixture** wipes the night and starts over, the same action
      as the board's 🆕 New Fixture.
 3. **History** (`src/components/History.tsx`) — open to everyone: past nights (expandable to the
    team sheets and each team's wins) and a standings table of nights / wins / fixture wins /
-   wins-per-night (a shootout counts as half) / MVPs (§2.13), with achievement badges beside each
-   name and a key beneath (§2.16). Admin mode adds the **📊 Monthly recap** picker + share button
-   (§2.11), the **vs rating** column, the **⚖️ Balancer trust** scatter (§2.12), rating suggestions
-   with Apply/Dismiss, ✏️/🗑️ on a past night, and the **🌟 MVP** pick for a night (§2.13) — which
-   lives only here. The recap share ends with the **Team of the Month** card (§2.21). Empty until
+   wins-per-night (a shootout counts as half) / MVPs (§2.12), with achievement badges beside each
+   name and a key beneath (§2.15). Admin mode adds the **📊 Monthly recap** picker + share button
+   (§2.11), the **vs rating** column, rating suggestions
+   with Apply/Dismiss, ✏️/🗑️ on a past night, and the **🌟 MVP** pick for a night (§2.12) — which
+   lives only here. The recap share ends with the **Team of the Month** card (§2.20). Empty until
    the first night is saved.
 4. **🔴 Live** (`src/components/LiveFixtureView.tsx`) — only present while a fixture is on: tonight's
    three teams (read-only, no ratings) and the shared match clock, which **anyone** can start,
    pause, add 30 seconds to, or open in pitch mode — the same control the organiser has, since it is
-   the same component (§2.8). See §2.15.
+   the same component (§2.8). See §2.14.
 5. **Live room guest view** (`src/components/RoomGuest.tsx`) — what a shared room link opens
    instead of the app above; see §2.5.
 
@@ -1452,18 +1445,18 @@ saved nights accumulate in the History tab (§2.6).
   reconstructing a season from screenshots. Concurrent editors were never the risk at this scale;
   a device publishing from a copy it never pulled was.
 - **The live fixture (optional)**: `src/live.ts` + `GET`/`POST /live` on the same Worker, under a
-  `live` key alongside `roster` and `history` — see §2.15 for the design and why it's polled rather
+  `live` key alongside `roster` and `history` — see §2.14 for the design and why it's polled rather
   than pushed. Unlike the other two this one is *transient*: no version guard and no snapshot
   (there is nothing here worth recovering an hour later), a 12-hour KV TTL, and `POST` with a null
   fixture deletes the key rather than storing an empty one, so "is anything live" stays a question
   about existence. `isValidLive` in the Worker checks the clock's shape as strictly as the rest —
   a non-numeric `endsAt` would render as `NaN` on fifteen phones at once. `POST /live/clock` and
-  `POST /live/log` are the two routes in this Worker with no password on them; see §2.15 and §2.18
+  `POST /live/log` are the two routes in this Worker with no password on them; see §2.14 and §2.17
   for the reasoning and the limits that make them safe — including `isLogStep`, which only lets the
   log move one match at a time so a stale phone can't erase somebody else's result.
 - **Match-clock notifications (optional)**: `src/push.ts` + `worker/push.js` +
   `worker/clock-notifier.js`, a `ClockNotifier` Durable Object holding the subscriptions and one
-  alarm — see §2.17. `public/sw.js` is the only service worker in the project and deliberately does
+  alarm — see §2.16. `public/sw.js` is the only service worker in the project and deliberately does
   nothing but receive pushes: no caching, no `fetch` handler, because an offline layer here would be
   a fresh source of "why am I looking at last week's roster". Enabled by setting the `VAPID_JWK`
   secret and nothing else; absent entirely without it.

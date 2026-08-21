@@ -11,7 +11,6 @@ import {
 } from '../calibration';
 import { buildWrapped, periodLabel, wrappedPeriods } from '../wrapped';
 import { shareWrappedImage } from '../wrappedImage';
-import { MIN_TRUST_NIGHTS, trustCorrelation, trustPoints, type TrustPoint } from '../trust';
 import { mvpCandidates, mvpCounts, winningTeams } from '../mvp';
 import { VETERAN_NIGHTS, playerAchievements, type AchievementKind } from '../achievements';
 import { TEAM_META, Name, fmtRating } from './ui';
@@ -27,89 +26,6 @@ interface Props {
     fixtureId: string,
     patch: { wins: TeamWins; date: string; mvpId?: string },
   ) => void;
-}
-
-// Predicted-vs-actual balance, one dot per recorded night — see src/trust.ts
-// for what the two axes mean and why no chart library is pulled in for one
-// scatter plot.
-function TrustChart({ points }: { points: TrustPoint[] }) {
-  const W = 320;
-  const H = 190;
-  const PAD_L = 30;
-  const PAD_R = 10;
-  const PAD_T = 10;
-  const PAD_B = 22;
-  const plotW = W - PAD_L - PAD_R;
-  const plotH = H - PAD_T - PAD_B;
-  const maxX = Math.max(0.5, ...points.map((p) => p.predictedGap)) * 1.1;
-  const x = (v: number) => PAD_L + (v / maxX) * plotW;
-  const y = (v: number) => PAD_T + plotH - v * plotH;
-
-  return (
-    <svg
-      viewBox={`0 0 ${W} ${H}`}
-      className="w-full max-w-md"
-      role="img"
-      aria-label="Predicted rating gap versus actual win-share gap, one dot per recorded night"
-    >
-      {[0, 0.25, 0.5, 0.75, 1].map((v) => (
-        <line
-          key={v}
-          x1={PAD_L}
-          x2={W - PAD_R}
-          y1={y(v)}
-          y2={y(v)}
-          stroke="rgba(120,53,15,0.10)"
-          strokeWidth={1}
-        />
-      ))}
-      <line
-        x1={PAD_L}
-        x2={PAD_L}
-        y1={PAD_T}
-        y2={H - PAD_B}
-        stroke="rgba(120,53,15,0.35)"
-        strokeWidth={1}
-      />
-      <line
-        x1={PAD_L}
-        x2={W - PAD_R}
-        y1={H - PAD_B}
-        y2={H - PAD_B}
-        stroke="rgba(120,53,15,0.35)"
-        strokeWidth={1}
-      />
-      {[0, 0.5, 1].map((v) => (
-        <text key={v} x={PAD_L - 5} y={y(v) + 3} textAnchor="end" fontSize={8} fill="rgba(120,53,15,0.55)">
-          {v * 100}%
-        </text>
-      ))}
-      {points.map((p) => (
-        <circle
-          key={p.fixtureId}
-          cx={x(p.predictedGap)}
-          cy={y(p.actualGap)}
-          r={4.5}
-          fill="rgba(234,88,12,0.6)"
-          stroke="#ea580c"
-          strokeWidth={1}
-        >
-          <title>
-            {`${p.date} — predicted gap ${p.predictedGap.toFixed(2)}★, actual gap ${(p.actualGap * 100).toFixed(0)}%`}
-          </title>
-        </circle>
-      ))}
-      <text
-        x={(PAD_L + (W - PAD_R)) / 2}
-        y={H - 4}
-        textAnchor="middle"
-        fontSize={8}
-        fill="rgba(120,53,15,0.55)"
-      >
-        predicted rating gap (★) →
-      </text>
-    </svg>
-  );
 }
 
 interface Draft {
@@ -146,7 +62,8 @@ const BADGE_KEY: { kind: AchievementKind; icon: string; text: string }[] = [
   { kind: 'mvp', icon: '🌟', text: 'most MVP picks' },
   { kind: 'shootouts', icon: '🎯', text: 'most shootouts won' },
   { kind: 'iron-man', icon: '🦾', text: 'never misses' },
-  { kind: 'win-streak', icon: '📈', text: 'winning run' },
+  { kind: 'win-streak', icon: '📈', text: 'longest winning run' },
+  { kind: 'active-run', icon: '🔥', text: 'on a run right now' },
   { kind: 'ever-present', icon: '✨', text: 'played every night' },
   { kind: 'veteran', icon: '🎖️', text: `${VETERAN_NIGHTS}+ nights` },
 ];
@@ -168,8 +85,6 @@ export default function History({
   useEffect(() => {
     if (!wrappedPeriod && periods.length > 0) setWrappedPeriod(periods[0]);
   }, [periods, wrappedPeriod]);
-  const trust = useMemo(() => trustPoints(history), [history]);
-  const correlation = useMemo(() => trustCorrelation(trust), [trust]);
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
   // the night currently being corrected, and the values as typed so far
   const [editId, setEditId] = useState<string | null>(null);
@@ -332,28 +247,6 @@ export default function History({
         </div>
       )}
 
-      {isAdmin && trust.length > 0 && (
-        <div className="space-y-2 rounded-2xl border border-amber-900/15 bg-[#fffdf4]/70 p-4 shadow-sm">
-          <h3 className="font-bold text-amber-950">⚖️ Balancer trust</h3>
-          <p className="text-xs text-amber-900/60">
-            Does "balanced by rating" actually mean "close on the pitch"? Each dot is one
-            recorded night: further right means the ratings predicted a bigger gap between the
-            strongest and weakest team that night; further up means the result actually was
-            more lopsided.
-          </p>
-          <TrustChart points={trust} />
-          <p className="text-xs text-amber-900/60">
-            {correlation == null
-              ? `Needs ${MIN_TRUST_NIGHTS} recorded nights before a correlation means anything — ${trust.length} so far.`
-              : correlation > 0.3
-                ? `Predicted and actual gaps track together (r = ${correlation.toFixed(2)}) — the rating gap is a real signal for how close a night turns out.`
-                : correlation < -0.1
-                  ? `Predicted and actual gaps move in opposite directions (r = ${correlation.toFixed(2)}) — worth a second look at the balancer's weights.`
-                  : `Predicted and actual gaps barely track (r = ${correlation.toFixed(2)}) — at this match length, results may just be noisier than the rating gap can predict.`}
-          </p>
-        </div>
-      )}
-
       {isAdmin && suggestions.length > 0 && (
         <div className="space-y-2 rounded-2xl border border-orange-600/40 bg-orange-500/10 p-4 shadow-sm">
           <h3 className="font-bold text-amber-950">📈 Rating suggestions</h3>
@@ -433,25 +326,12 @@ export default function History({
 
       <div className="overflow-x-auto rounded-2xl border border-amber-900/15 bg-[#fffdf4]/70 p-4 shadow-sm">
         <h3 className="mb-1 font-bold text-amber-950">🏆 Standings</h3>
-        <p className="mb-3 text-xs text-amber-900/60">
-          <b>Wins</b> counts the matches a player's team collected while they were on it — a
-          penalty shootout counts as half. <b>Fixtures</b> is the bigger unit: whole nights their
-          team finished top of, which is a different question (a team can bank a big tally on one
-          blowout and still top fewer nights than one that edges every week). <b>MVPs</b> is the
-          one column here not derived from a result at all — just a tally of the organiser's own
-          pick for standout player, night by night. Badges next to a name are the same kind of
-          thing: counts worth noticing, never a verdict on how someone plays.
-          {isAdmin && (
-            <>
-              {' '}
-              "vs rating" is a different measure again, not a rescaling of per-night: it accounts
-              for the strength of who they played <i>with</i> and <i>against</i> each night, so it
-              can rank someone above a teammate with a higher per-night number if that teammate's
-              wins came from stronger sides. Blank until a player has {MIN_NIGHTS} nights behind
-              them, and greyed until there's enough of a pattern to read anything into it.
-            </>
-          )}
-        </p>
+        {isAdmin && (
+          <p className="mb-3 text-xs text-amber-900/60">
+            <b>vs rating</b> accounts for who they played with and against, so it can rank someone
+            above a teammate on a higher per-night number. Blank under {MIN_NIGHTS} nights.
+          </p>
+        )}
         <table className="w-full min-w-[26rem] text-sm">
           <thead>
             <tr className="text-left text-xs uppercase tracking-wide text-amber-900/50">

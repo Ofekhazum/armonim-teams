@@ -17,7 +17,6 @@ import {
   MIN_ATTEND_STREAK,
   MIN_WIN_STREAK,
   appearances,
-  isMilestoneNight,
   isWinMilestone,
   teamOf,
 } from './milestones';
@@ -25,13 +24,18 @@ import {
 // A run has to be genuinely on the brink to be worth saying: `MIN_WIN_STREAK`
 // is 3, so two-in-a-row qualifies and one does not. Sitting at exactly one
 // short is the whole idea — a radar that fires three nights early is noise.
+// Everything here is **conditional on how tonight goes**. That is the line
+// between this strip and the milestone row under it: milestones state what is
+// already true coming in ("has won 3 nights running", "hasn't won in 6"), and
+// this states what tonight could turn into. A fact that is certain the moment
+// someone is on the team sheet belongs to the row below, not here — which is
+// why "tonight is their 10th night" was removed after it appeared in both
+// strips at once, word for word.
 export type PendingFact =
   // their team winning tonight makes it a run
   | { kind: 'win-streak'; id: string; name: string; current: number }
   // turning up tonight makes the attendance streak
   | { kind: 'iron-man'; id: string; name: string; current: number }
-  // tonight simply *is* their 10th / 25th / 50th night
-  | { kind: 'nth-night'; id: string; name: string; target: number }
   // this many match wins short of a career milestone, and tonight could cover it
   | { kind: 'nth-win'; id: string; name: string; target: number; away: number };
 
@@ -43,10 +47,9 @@ export const WINS_WITHIN_REACH = 5;
 // Rarest first, so a capped list drops the ordinary facts rather than the
 // remarkable ones — the same ranking idea `milestones.ts` uses.
 const RANK: Record<PendingFact['kind'], number> = {
-  'nth-night': 0,
-  'nth-win': 1,
-  'iron-man': 2,
-  'win-streak': 3,
+  'nth-win': 0,
+  'iron-man': 1,
+  'win-streak': 2,
 };
 
 export const MAX_PENDING = 4;
@@ -90,13 +93,7 @@ export function pendingTonight(
   const out: PendingFact[] = [];
   for (const p of todays) {
     const apps = appearances(p.id, withResult);
-    const nights = apps.length;
     const wins = apps.reduce((sum, a) => sum + a.wins, 0);
-
-    // tonight is night number nights + 1 — the +1 is the point
-    if (isMilestoneNight(nights + 1)) {
-      out.push({ kind: 'nth-night', id: p.id, name: p.name, target: nights + 1 });
-    }
 
     // the next win milestone above where they stand, if tonight could reach it
     for (let w = Math.floor(wins) + 1; w <= Math.floor(wins) + WINS_WITHIN_REACH; w++) {
