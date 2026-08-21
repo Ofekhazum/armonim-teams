@@ -971,6 +971,17 @@ page says why. The shootout section is gated on *logged* nights specifically, be
 written down match by match can answer it (§2.18), and it prints how many those were: two counts over
 different windows are fine, two that look like they cover the same window are not.
 
+**Looking like somebody's page, not a row from a table.** The first cut was correct and drab — cream
+cards, one type size, a name in the same 14px as the numbers under it. The visual pass changed no
+counts and no thresholds; it changed what carries meaning. The header takes a warm gradient and sets
+the name at 3xl with the shirt number huge and nearly transparent behind it, the way it sits on an
+actual shirt. Badges keep a **tone per kind** (`BADGE_TONE`) rather than seven identical pills, so 🥇
+is the same gold wherever it appears and the row can be scanned instead of read. Each ribbon square is
+drawn *as the shirt that night* — solid stone, cream, blue — so it shows the run of results and how
+the colours fell at once, with the orange ring reserved for a night won (plus a ★, because a ring
+alone is a colour-only signal). And the milestone rungs became **filling bars**: "no nights milestone
+yet" said nothing twice, where `4 / 10 nights · 6 to go` says the same thing and shows the distance.
+
 **The ribbon draws three states, not two.** A night with no result recorded is neither a win nor a
 loss — `appearances` in milestones.ts drops those nights, but a ribbon cannot, because it is a
 picture of turning up as much as of winning. So `ProfileNight.won` is `boolean | null` and an

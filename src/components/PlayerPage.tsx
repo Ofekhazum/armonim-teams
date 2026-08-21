@@ -1,4 +1,5 @@
 import { useEffect, useMemo } from 'react';
+import type { AchievementKind } from '../achievements';
 import type { FixtureRecord, Player, TeamColor } from '../types';
 import { roleBadge } from '../types';
 import { TEAM_COLORS } from '../balancer';
@@ -35,33 +36,83 @@ interface Props {
   onClose: () => void;
 }
 
-const Card = ({ title, children }: { title: string; children: React.ReactNode }) => (
-  <section className="rounded-2xl border border-amber-900/15 bg-[#fffdf4]/70 p-4 shadow-sm">
-    <h3 className="mb-2 text-sm font-bold text-amber-950">{title}</h3>
+// Badges are the one place on this page where colour carries meaning rather
+// than decoration: seven identical cream pills is a list you have to read, and
+// a wall of text is what a page of achievements must never be. Each kind keeps
+// its own tone everywhere it appears, so 🥇 is the same gold on a profile as
+// in the standings.
+//
+// Written out in full rather than composed, because Tailwind only ships the
+// class names it can see in the source.
+const BADGE_TONE: Record<AchievementKind, string> = {
+  'most-wins': 'border-amber-500/40 bg-amber-400/20 text-amber-900',
+  'most-fixtures': 'border-orange-500/40 bg-orange-400/20 text-orange-900',
+  mvp: 'border-yellow-500/40 bg-yellow-300/25 text-yellow-900',
+  shootouts: 'border-rose-500/35 bg-rose-400/15 text-rose-900',
+  'iron-man': 'border-emerald-600/35 bg-emerald-400/15 text-emerald-900',
+  'win-streak': 'border-sky-600/35 bg-sky-400/15 text-sky-900',
+  'ever-present': 'border-violet-500/35 bg-violet-400/15 text-violet-900',
+  veteran: 'border-stone-500/35 bg-stone-400/15 text-stone-800',
+};
+
+// The shirt a night was played in, drawn as the shirt. Solid colours rather
+// than tints: the ribbon is the one picture on the page, and three washed-out
+// pastels would make it a chart of nothing.
+const SHIRT_SWATCH: Record<TeamColor, string> = {
+  black: 'bg-stone-800 text-stone-100',
+  white: 'bg-[#fffdf4] text-amber-950 ring-1 ring-inset ring-amber-900/25',
+  blue: 'bg-blue-800 text-blue-50',
+};
+
+const SHIRT_BAR: Record<TeamColor, string> = {
+  black: 'bg-stone-800',
+  white: 'bg-amber-200',
+  blue: 'bg-blue-700',
+};
+
+const fmt = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
+
+const Card = ({
+  title,
+  hint,
+  children,
+  className = '',
+}: {
+  title: string;
+  hint?: string;
+  children: React.ReactNode;
+  className?: string;
+}) => (
+  <section
+    className={`rounded-2xl border border-amber-900/10 bg-white/70 p-4 shadow-sm ring-1 ring-white/60 ${className}`}
+  >
+    <div className="mb-2.5 flex items-baseline gap-2">
+      <h3 className="text-[13px] font-black uppercase tracking-wide text-amber-900/70">{title}</h3>
+      {hint && <span className="text-[11px] text-amber-900/40">{hint}</span>}
+    </div>
     {children}
   </section>
 );
 
-const Stat = ({ n, label }: { n: string; label: string }) => (
-  // a floor rather than min-w-0: five tiles that all shrink stay on one line
+const Stat = ({ n, label, quiet }: { n: string; label: string; quiet?: boolean }) => (
+  // A floor rather than min-w-0: five tiles that all shrink stay on one line
   // and squeeze the labels to nothing, where five that refuse to go below ~5rem
-  // wrap to 3 + 2 on a phone and stay readable
-  <div className="min-w-[4.75rem] flex-1 rounded-xl bg-white/60 px-2 py-2 text-center">
-    <div className="font-mono text-xl font-black leading-none text-amber-950">{n}</div>
-    <div className="mt-1 text-[11px] font-semibold leading-tight text-amber-900/60">{label}</div>
+  // wrap to 3 + 2 on a phone and stay readable.
+  <div className="min-w-[4.75rem] flex-1 rounded-xl border border-amber-900/10 bg-white/70 px-2 py-2.5 text-center shadow-sm">
+    <div
+      className={`font-mono text-2xl font-black leading-none tabular-nums ${
+        quiet ? 'text-amber-900/30' : 'text-amber-950'
+      }`}
+    >
+      {n}
+    </div>
+    <div className="mt-1.5 text-[10px] font-bold uppercase leading-tight tracking-wide text-amber-900/50">
+      {label}
+    </div>
   </div>
 );
 
-const fmt = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
-
-export default function PlayerPage({
-  player,
-  history,
-  players,
-  isAdmin,
-  onEdit,
-  onClose,
-}: Props) {
+export default function PlayerPage({ player, history, players, isAdmin, onEdit, onClose }: Props) {
   // same escape hatch as pitch mode — a full-screen panel that can only be
   // left by finding one small button is a panel people feel stuck in
   useEffect(() => {
@@ -96,12 +147,10 @@ export default function PlayerPage({
   const other = (d: { aId: string; aName: string; bName: string }) =>
     d.aId === player.id ? d.bName : d.aName;
 
-  const nightLadder = nightRungs(counts.nights);
-  const winLadder = winRungs(counts.wins);
-  const nextNight = toGo(nightLadder, counts.nights);
-  const nextWin = toGo(winLadder, counts.wins);
-
+  const nextNight = toGo(nightRungs(counts.nights), counts.nights);
+  const nextWin = toGo(winRungs(counts.wins), counts.wins);
   const enoughLogged = shootouts.loggedNights >= MIN_PROFILE_NIGHTS;
+  const role = STYLE_META[roleBadge(player)];
 
   return (
     <div className="fixed inset-0 z-40 overflow-y-auto bg-[#fdf6e3]">
@@ -109,7 +158,7 @@ export default function PlayerPage({
         <div className="flex items-center gap-3">
           <button
             onClick={onClose}
-            className="rounded-lg border border-amber-900/25 px-3 py-1.5 text-sm font-bold text-amber-900 hover:border-orange-500"
+            className="rounded-lg border border-amber-900/25 px-3 py-1.5 text-sm font-bold text-amber-900 transition-colors hover:border-orange-500"
           >
             ← Back
           </button>
@@ -117,33 +166,56 @@ export default function PlayerPage({
           {isAdmin && (
             <button
               onClick={onEdit}
-              className="rounded-lg border border-amber-900/25 px-3 py-1.5 text-sm font-bold text-amber-900 hover:border-orange-500"
+              className="rounded-lg border border-amber-900/25 px-3 py-1.5 text-sm font-bold text-amber-900 transition-colors hover:border-orange-500"
             >
               ✏️ Edit
             </button>
           )}
         </div>
 
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-          <h2 className="text-2xl font-black text-amber-950">
-            <Name>{player.name}</Name>
-          </h2>
+        {/* The header is the one piece of this page that is allowed to be
+            decorative. A name in the same 14px as everything under it makes a
+            profile read as a report about a row in a table; this makes it read
+            as somebody's page. The shirt number is set huge and nearly
+            transparent behind the name — the way it sits on an actual shirt. */}
+        <header className="relative overflow-hidden rounded-2xl border border-amber-900/10 bg-gradient-to-br from-orange-400/25 via-amber-200/40 to-[#fffdf4] px-5 py-5 shadow-sm">
           {player.number !== undefined && (
-            <span className="font-mono text-lg font-bold text-amber-900/40">#{player.number}</span>
+            <span
+              aria-hidden
+              className="pointer-events-none absolute -top-3 right-3 select-none font-mono text-[6.5rem] font-black leading-none text-amber-900/[0.07]"
+            >
+              {player.number}
+            </span>
           )}
-          <span title={STYLE_META[roleBadge(player)].label} className="text-lg">
-            {STYLE_META[roleBadge(player)].icon}
-          </span>
-          {player.isGuest && <span className="text-xs font-bold text-amber-900/50">guest</span>}
-        </div>
+          <div className="relative flex flex-wrap items-center gap-x-3 gap-y-1">
+            <h2 className="text-3xl font-black tracking-tight text-amber-950 sm:text-4xl">
+              <Name>{player.name}</Name>
+            </h2>
+            <span
+              title={role.label}
+              className="rounded-full border border-amber-900/15 bg-white/70 px-2.5 py-1 text-xs font-bold text-amber-900"
+            >
+              {role.icon} {role.label}
+            </span>
+            {player.isGuest && (
+              <span className="rounded-full border border-amber-900/15 bg-white/70 px-2.5 py-1 text-xs font-bold text-amber-900/70">
+                ★ Guest
+              </span>
+            )}
+          </div>
+          {(player.aliases ?? []).length > 0 && (
+            <p className="relative mt-1 text-xs font-semibold text-amber-900/45">
+              aka {player.aliases!.join(', ')}
+            </p>
+          )}
+        </header>
 
         {badges.length > 0 && (
           <div className="flex flex-wrap gap-1.5">
             {badges.map((b) => (
               <span
                 key={b.kind}
-                title={b.label}
-                className="rounded-full border border-amber-900/15 bg-white/70 px-2.5 py-1 text-xs font-semibold text-amber-900"
+                className={`rounded-full border px-2.5 py-1 text-xs font-bold shadow-sm ${BADGE_TONE[b.kind]}`}
               >
                 {b.icon} {b.label}
               </span>
@@ -159,10 +231,6 @@ export default function PlayerPage({
           </Card>
         ) : (
           <>
-            {/* Four tiles have to survive a narrow phone, so the labels stay
-                one or two short words and the "not enough football yet" case is
-                a dash plus a line underneath — not a label long enough to
-                reflow the whole row. */}
             <div className="flex flex-wrap gap-2">
               <Stat n={String(counts.nights)} label="nights" />
               <Stat n={String(counts.nightsWon)} label="nights won" />
@@ -170,25 +238,31 @@ export default function PlayerPage({
               <Stat
                 n={counts.perNight === null ? '–' : counts.perNight.toFixed(1)}
                 label="per night"
+                quiet={counts.perNight === null}
               />
               {/* No threshold on this one, unlike the rate beside it: a pick is
                   a thing that either happened or didn't, and "0" is the true
                   answer rather than a small sample of one. Shown for everybody
                   so a zero is legible as none rather than as untracked. */}
-              <Stat n={String(mvps)} label={mvps === 1 ? 'MVP night' : 'MVP nights'} />
+              <Stat n={String(mvps)} label={mvps === 1 ? 'MVP night' : 'MVP nights'} quiet={mvps === 0} />
             </div>
             {counts.perNight === null && (
-              <p className="-mt-1 text-xs text-amber-900/50">
+              <p className="-mt-1 px-1 text-xs text-amber-900/50">
                 Wins per night appears after {MIN_PROFILE_NIGHTS} nights — fewer than that, the
                 number moves too much to mean anything.
               </p>
             )}
 
-            <Card title="🗓️ Every night">
-              {/* Turning up is half of what this ribbon is a picture of, so a
-                  night with no result recorded is drawn as its own thing
-                  rather than folded in with the losses. */}
-              <div className="flex flex-wrap gap-1">
+            <Card
+              title="Every night"
+              hint={`oldest first · ${counts.onSheet} played`}
+            >
+              {/* Each square is the shirt they wore, so the ribbon shows two
+                  things at once: the run of results, and how the colours fell.
+                  Winning a night adds the orange ring — the same orange every
+                  "this is the good outcome" in the app uses. A night with no
+                  result recorded is neither, and gets neither. */}
+              <div className="flex flex-wrap gap-1.5">
                 {nights.map((n) => (
                   <span
                     key={n.fixtureId}
@@ -199,59 +273,62 @@ export default function PlayerPage({
                           ? `, won the night (${fmt(n.wins)})`
                           : `, ${fmt(n.wins)} wins`
                     }`}
-                    className={`grid h-7 w-7 place-items-center rounded-md text-[11px] font-black ${
+                    className={`grid h-8 w-8 place-items-center rounded-lg text-[11px] font-black shadow-sm ${
+                      SHIRT_SWATCH[n.shirt]
+                    } ${
                       n.won === null
-                        ? 'bg-amber-900/[0.06] text-amber-900/35'
+                        ? 'opacity-30'
                         : n.won
-                          ? 'bg-orange-500/20 text-orange-800 ring-1 ring-orange-500/40'
-                          : 'bg-amber-900/[0.06] text-amber-900/50'
+                          ? 'ring-2 ring-orange-500 ring-offset-1 ring-offset-[#fffdf4]'
+                          : 'opacity-60'
                     }`}
                   >
-                    {n.won === null ? '·' : n.won ? 'W' : '–'}
+                    {n.won === null ? '·' : n.won ? '★' : ''}
                   </span>
                 ))}
               </div>
-              <p className="mt-2 text-xs text-amber-900/50">
-                Oldest first. <b>W</b> is a night their team finished top.
+              <p className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-amber-900/55">
+                <span>
+                  <span className="mr-1 inline-block h-2.5 w-2.5 rounded-sm ring-2 ring-orange-500" />
+                  won the night
+                </span>
                 {counts.bestRun >= 2 && (
-                  <>
-                    {' '}
-                    Longest run of winning nights: <b>{counts.bestRun}</b>
-                    {counts.currentRun >= 2 && <> · on <b>{counts.currentRun}</b> right now</>}.
-                  </>
+                  <span>
+                    best run <b className="text-amber-900">{counts.bestRun}</b>
+                  </span>
+                )}
+                {counts.currentRun >= 2 && (
+                  <span>
+                    on <b className="text-amber-900">{counts.currentRun}</b> right now 🔥
+                  </span>
                 )}
               </p>
             </Card>
 
             <div className="grid gap-3 sm:grid-cols-2">
-              <Card title="🪜 Milestones">
-                <div className="space-y-2 text-sm">
-                  <Ladder
-                    rungs={nightLadder}
-                    unit="nights"
-                    next={nextNight}
-                    count={counts.nights}
-                  />
-                  <Ladder rungs={winLadder} unit="wins" next={nextWin} count={counts.wins} />
+              <Card title="Milestones">
+                <div className="space-y-3">
+                  <Progress now={counts.nights} next={nextNight} unit="nights" />
+                  <Progress now={Math.floor(counts.wins)} next={nextWin} unit="wins" />
                 </div>
               </Card>
 
-              <Card title="👕 Shirts worn">
-                <div className="space-y-1.5">
+              <Card title="Shirts worn">
+                <div className="space-y-2">
                   {TEAM_COLORS.map((c: TeamColor) => (
                     <div key={c} className="flex items-center gap-2 text-sm">
-                      <span className="w-24 shrink-0 font-semibold text-amber-950">
+                      <span className="w-20 shrink-0 font-bold text-amber-950">
                         {TEAM_META[c].emoji} {TEAM_META[c].label}
                       </span>
-                      <div className="h-2 flex-1 overflow-hidden rounded-full bg-amber-900/10">
+                      <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-amber-900/[0.07]">
                         <div
-                          className="h-full rounded-full bg-orange-500/60"
+                          className={`h-full rounded-full transition-[width] ${SHIRT_BAR[c]}`}
                           style={{
                             width: `${counts.onSheet ? (shirts[c] / counts.onSheet) * 100 : 0}%`,
                           }}
                         />
                       </div>
-                      <span className="w-6 text-right font-mono text-xs font-bold text-amber-900/60">
+                      <span className="w-5 text-right font-mono text-xs font-black tabular-nums text-amber-900/70">
                         {shirts[c]}
                       </span>
                     </div>
@@ -261,43 +338,67 @@ export default function PlayerPage({
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2">
-              <Card title="🤝 Teammates">
+              <Card title="Teammates">
                 {duos.best || duos.worst ? (
-                  <div className="space-y-1.5 text-sm text-amber-950">
+                  <div className="space-y-2 text-sm text-amber-950">
                     {duos.best && (
-                      <div>
-                        Best with <Name className="font-bold">{other(duos.best)}</Name> —{' '}
-                        <b>{duos.best.won}</b> of <b>{duos.best.together}</b> nights together
+                      <div className="rounded-xl bg-emerald-400/10 px-3 py-2">
+                        <div className="text-[11px] font-bold uppercase tracking-wide text-emerald-800/70">
+                          🤝 Best with
+                        </div>
+                        <Name className="font-black">{other(duos.best)}</Name>{' '}
+                        <span className="text-amber-900/60">
+                          — {duos.best.won} of {duos.best.together} nights
+                        </span>
                       </div>
                     )}
                     {duos.worst && (
-                      <div className="text-amber-900/70">
-                        Leanest with <Name className="font-bold">{other(duos.worst)}</Name> —{' '}
-                        <b>{duos.worst.won}</b> of <b>{duos.worst.together}</b>
+                      <div className="rounded-xl bg-amber-900/[0.05] px-3 py-2">
+                        <div className="text-[11px] font-bold uppercase tracking-wide text-amber-900/50">
+                          🙃 Leanest with
+                        </div>
+                        <Name className="font-black">{other(duos.worst)}</Name>{' '}
+                        <span className="text-amber-900/60">
+                          — {duos.worst.won} of {duos.worst.together} nights
+                        </span>
                       </div>
                     )}
                   </div>
                 ) : (
-                  <p className="text-sm text-amber-900/60">
+                  <p className="text-sm text-amber-900/55">
                     Needs {MIN_TOGETHER} nights alongside the same player before a pair says
                     anything.
                   </p>
                 )}
               </Card>
 
-              <Card title="🎯 Shootouts">
+              <Card
+                title="Shootouts"
+                hint={enoughLogged ? `${shootouts.loggedNights} logged nights` : undefined}
+              >
                 {enoughLogged ? (
-                  <div className="text-sm text-amber-950">
-                    Their teams won <b>{shootouts.taken}</b> on penalties and{' '}
-                    <b>{shootouts.wonInPlay}</b> before it got that far.
-                    <p className="mt-1 text-xs text-amber-900/50">
-                      From the {shootouts.loggedNights} nights logged match by match.
-                    </p>
+                  <div className="flex gap-2">
+                    <div className="flex-1 rounded-xl bg-rose-400/10 px-3 py-2 text-center">
+                      <div className="font-mono text-2xl font-black leading-none text-rose-900">
+                        {shootouts.taken}
+                      </div>
+                      <div className="mt-1 text-[10px] font-bold uppercase tracking-wide text-rose-900/60">
+                        on penalties
+                      </div>
+                    </div>
+                    <div className="flex-1 rounded-xl bg-amber-900/[0.05] px-3 py-2 text-center">
+                      <div className="font-mono text-2xl font-black leading-none text-amber-950">
+                        {shootouts.wonInPlay}
+                      </div>
+                      <div className="mt-1 text-[10px] font-bold uppercase tracking-wide text-amber-900/50">
+                        won in play
+                      </div>
+                    </div>
                   </div>
                 ) : (
-                  <p className="text-sm text-amber-900/60">
-                    Only nights logged match by match can answer this —{' '}
-                    {shootouts.loggedNights} so far, {MIN_PROFILE_NIGHTS} needed.
+                  <p className="text-sm text-amber-900/55">
+                    Only nights logged match by match can answer this — {shootouts.loggedNights} so
+                    far, {MIN_PROFILE_NIGHTS} needed.
                   </p>
                 )}
               </Card>
@@ -309,38 +410,41 @@ export default function PlayerPage({
   );
 }
 
-function Ladder({
-  rungs,
-  unit,
+// A rung as a bar rather than a sentence. "No nights milestone yet" said
+// nothing twice; a filling bar says the same thing while also showing how far
+// along it is — and it turns the fixture page's announcement into an arrival
+// somebody could see coming.
+function Progress({
+  now,
   next,
-  count,
+  unit,
 }: {
-  rungs: { target: number; reached: boolean }[];
-  unit: string;
+  now: number;
   next: { target: number; away: number } | null;
-  count: number;
+  unit: string;
 }) {
-  const reached = rungs.filter((r) => r.reached);
+  if (!next) {
+    return (
+      <div className="text-sm font-bold text-amber-950">
+        {now} {unit} — every milestone passed 🎖️
+      </div>
+    );
+  }
   return (
     <div>
-      <div className="flex flex-wrap items-center gap-1">
-        {reached.map((r) => (
-          <span
-            key={r.target}
-            className="rounded-full bg-orange-500/15 px-2 py-0.5 text-xs font-bold text-orange-800"
-          >
-            {r.target} {unit}
-          </span>
-        ))}
-        {reached.length === 0 && (
-          <span className="text-xs text-amber-900/50">no {unit} milestone yet</span>
-        )}
+      <div className="mb-1 flex items-baseline justify-between gap-2">
+        <span className="text-sm font-bold text-amber-950">
+          <span className="font-mono tabular-nums">{now}</span>
+          <span className="text-amber-900/40"> / {next.target}</span> {unit}
+        </span>
+        <span className="text-[11px] font-semibold text-amber-900/50">{next.away} to go</span>
       </div>
-      {next && (
-        <p className="mt-1 text-xs text-amber-900/60">
-          <b>{next.away}</b> to go until {next.target} {unit} — at {Math.floor(count)} now.
-        </p>
-      )}
+      <div className="h-2.5 overflow-hidden rounded-full bg-amber-900/[0.07]">
+        <div
+          className="h-full rounded-full bg-gradient-to-r from-amber-400 to-orange-500"
+          style={{ width: `${Math.min(100, (now / next.target) * 100)}%` }}
+        />
+      </div>
     </div>
   );
 }
