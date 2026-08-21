@@ -121,6 +121,8 @@ export default function MatchClock({ state, onChange, fixtureId = null }: Props)
   // The clock filling the screen, for a phone propped up on the touchline.
   const [pitch, setPitch] = useState(false);
   const shoutedRef = useRef(false);
+  // which `endsAt` we have already blown the whistle on — see the effect below
+  const endedForRef = useRef<number | null>(null);
   const { unlock, beep } = useBeeper();
 
   const remaining = endsAt !== null ? Math.max(0, endsAt - Date.now()) : state.remaining;
@@ -145,6 +147,17 @@ export default function MatchClock({ state, onChange, fixtureId = null }: Props)
   // down that the match ended — otherwise every phone in the squad posts the
   // same transition within a second of each other. Everyone still *sees* the
   // clock hit 0:00, because `finished` above is derived locally from `endsAt`.
+  //
+  // This effect deliberately has no dependency array — it has to re-check
+  // against the wall clock on every tick, which is every 200ms. That makes the
+  // guards load-bearing rather than tidy: `shoutedRef` for the one-minute beep,
+  // and `endedForRef` for the whistle. Without the second one, "the clock has
+  // run out" is true on every render until the parent hands back a cleared
+  // clock — and the parent's clock is the *shared* one, which arrives by poll.
+  // Any delay there (a slow write, a failed one, a rate-limited one) left this
+  // firing five publishes a second, which is exactly how a 429 storm starts and
+  // then feeds itself: the writes fail, the clock never clears, so it writes
+  // again. Keyed on `endsAt` so a restart re-arms it.
   useEffect(() => {
     if (!controllable || !engaged || endsAt === null) return;
     const left = endsAt - Date.now();
@@ -152,7 +165,8 @@ export default function MatchClock({ state, onChange, fixtureId = null }: Props)
       shoutedRef.current = true;
       beep(2);
     }
-    if (left <= 0) {
+    if (left <= 0 && endedForRef.current !== endsAt) {
+      endedForRef.current = endsAt;
       beep(3);
       onChange({ ...state, endsAt: null, remaining: 0, ended: true });
     }

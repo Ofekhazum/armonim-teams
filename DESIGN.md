@@ -413,7 +413,16 @@ deliberately doesn't collect one live (see the constraint above). So:
 - A match ending early on a two-goal lead just ends with **⏭ Next match**, same as any other.
 
 Implementation notes: the countdown is computed from a wall-clock `endsAt` timestamp rather than by
-decrementing a counter, so a backgrounded/throttled tab doesn't quietly lose time. Beeps are
+decrementing a counter, so a backgrounded/throttled tab doesn't quietly lose time.
+
+**The end-of-match effect fires once per `endsAt`, and that guard is load-bearing.** It deliberately
+has no dependency array — it must re-check against the wall clock on every 200ms tick — so "the clock
+has run out" stays true on every render until the *parent* hands back a cleared clock. The parent's
+clock is the shared one, which arrives by poll (§2.15), so any delay there left this publishing five
+times a second. That is how a `429` storm starts and then feeds itself: the writes fail, so the clock
+never clears, so it writes again, and the rate limiter stays pinned until the window expires. Fixed
+with `endedForRef`, keyed on `endsAt` so a restart re-arms it — the same shape as the `shoutedRef`
+guard that was already protecting the one-minute beep. Beeps are
 synthesised with Web Audio (no audio asset to ship), and the `AudioContext` is created on the first
 Start press — a user gesture — because iOS won't let it make sound otherwise. A screen wake lock is
 held while the clock runs, since a pitch-side timer the phone blanks after 30 seconds isn't one;
@@ -1145,13 +1154,39 @@ suppressed by the general bar falls through to the next one the player holds rat
 them, so a four-night history can show *On a Run* while *Ever Present* waits — and once the history
 is deep enough the rarer title takes the headline back.
 
-`titleFor` picks the badge a player holds that fewest people *can* hold
-and says it as a name — Top of the Club, The Star, Night Taker, Nerves of Steel, then the threshold
-badges (Ever Present, Iron Man, On a Run, Veteran) as fallbacks. It is not a new fact: every title is
-the badge underneath it, and the count that earned it is on screen beside it. The four column titles
-come first precisely because only one player (or a tie) can hold each, so a title is distinguishing
-rather than decorative. Nobody with no badges gets one — an invented title for everybody would be the
-first verdict in the app.
+`titleFor` picks the highest-ranked badge a player holds and says it as
+a name: **Top of the Club → The Star → On a Run → Night Taker → Ever Present → Iron Man → Veteran →
+Nerves of Steel.** It is not a new fact — every title is the badge underneath it, and the count that
+earned it is on screen beside it.
+
+That order is a **judgement about what is worth wearing**, not a derivation. Ranking by rarity was
+the first attempt and it read wrong: it put *Nerves of Steel* — a single-holder badge, but one earned
+on a technicality of how matches happened to end — above a live winning run, which is the thing
+anyone at the pitch would actually mention. So `TITLE_ORDER` is the club's call, set in one place,
+and the roster skins follow it rather than keeping a ranking of their own. Nobody with no badges gets
+a title — an invented one for everybody would be the first verdict in the app.
+
+**A titled player wears their title on the roster.** `TITLE_THEME` (`components/titleTheme.ts`) skins
+the roster row: champion gold, starlight, podium green, gunmetal, clear sky, forged iron, fire, aged
+parchment. The squad list stops being fifteen identical cards, and the two or three people who have
+earned something are visible from across the page.
+
+Three rules hold it together. **The title decides the skin**, so there is only ever one ranking —
+`titleBadgeFor` already picks the single most distinguishing badge, and a second priority list would
+be a second thing to keep in step. **Light tints, never dark cards**: every theme keeps the dark
+amber lettering the plain rows use. Gunmetal and forged iron obviously *want* to be dark with light
+text, but then the name colour flips per theme, and a Hebrew name at 14px on a busy dark gradient is
+worse than the theme is good — so the border and the gradient carry the identity instead. And **rare
+by construction**: four titles can only be held by one player or a tie, and none appear before the
+club has enough nights, so a skin is never wallpaper. The badge's own emoji sits at the far edge as a
+large, near-transparent **watermark** — pinned to the row's centre line, since anchored to the bottom
+it hung half off the card and read as a rendering fault rather than as a mark. The row's `title`
+attribute names the title on hover.
+
+Writing the title *on* the row was tried and taken back off: a name, a role icon, an aka line and a
+title is more than a list row can carry, and the roster is a list you scan rather than a page you
+read. The title still appears in full under the name on the player page, which is where one person
+is the whole subject.
 
 **No organiser half.** Ratings, the attack spectrum, the keep-apart list and "beats what their rating
 expects" are the organiser's working notes about a person, and this is the most screenshot-able page

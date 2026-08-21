@@ -1,10 +1,14 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { CSSProperties } from 'react';
 import type { FixtureRecord, Player } from '../types';
 import { ATTACK_DEFAULT, ATTACK_STEP, attackLabel, badgeForAttack, roleBadge } from '../types';
 import { uid } from '../storage';
 import { publishRemoteRoster, setLocalRosterVersion } from '../remote';
 import PlayerPage from './PlayerPage';
+import type { PlayerTitle } from '../achievements';
+import { playerAchievements, titleBadgeFor } from '../achievements';
+import { hasResult } from '../calibration';
+import { PLAIN_ROW, TITLE_THEME } from './titleTheme';
 import {
   fmtRating,
   Name,
@@ -59,6 +63,21 @@ export default function Roster({
   const isAdmin = adminWord !== null;
   const open = openId === null ? null : (players.find((p) => p.id === openId) ?? null);
 
+  // The title each player is carrying, if any — what skins their row. Computed
+  // once for the whole squad rather than per row: playerAchievements walks the
+  // entire history to work out who tops each column, and doing that fifteen
+  // times to draw fifteen rows would be fifteen times the work for one answer.
+  const titles = useMemo(() => {
+    const recorded = history.filter((fx) => hasResult(fx.wins)).length;
+    const byId = playerAchievements(history);
+    const out = new Map<string, PlayerTitle>();
+    for (const p of players) {
+      const t = titleBadgeFor(byId.get(p.id)?.achievements ?? [], recorded);
+      if (t) out.set(p.id, t);
+    }
+    return out;
+  }, [history, players]);
+
   // Push the current roster to everyone, using the already-unlocked word.
   const publish = async () => {
     if (adminWord == null) return;
@@ -96,6 +115,14 @@ export default function Roster({
     } else {
       alert('Could not publish — check your connection and try again.');
     }
+  };
+
+  // A titled player wears their theme; everyone else keeps the plain surface.
+  const theme = (id: string): string => {
+    const t = titles.get(id);
+    if (!t) return PLAIN_ROW;
+    const { card, glow } = TITLE_THEME[t.kind];
+    return glow ? `${card} ${glow}` : card;
   };
 
   const startAdd = () => {
@@ -482,11 +509,33 @@ export default function Roster({
                 key={p.id}
                 dir="rtl"
                 onClick={() => setOpenId(p.id)}
+                // Named in the tooltip as well as worn: a coloured card nobody
+                // can decode is the mystery-emoji problem the badge key exists
+                // to avoid (§2.16).
+                title={titles.get(p.id)?.title}
                 // the whole row, not a small "view" link: on a phone the row
-                // is the target your thumb is already aimed at
-                className="flex cursor-pointer items-center gap-3 rounded-xl border border-amber-900/15 bg-[#fffdf4]/70 px-4 py-3 shadow-sm transition-colors hover:border-orange-500/60"
+                // is the target your thumb is already aimed at. It lifts on
+                // hover, which is the cheapest way to say "this is a door".
+                className={`group relative flex cursor-pointer items-center gap-3 overflow-hidden rounded-2xl border px-4 py-3 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-orange-500/60 hover:shadow-md ${
+                  theme(p.id)
+                }`}
               >
-                <div className="min-w-0 flex-1">
+                {/* The badge's own emoji, set large and nearly transparent at
+                    the far edge — a watermark rather than an icon, so it reads
+                    as the card's character rather than as another thing to
+                    look at. Physically on the left because the row is RTL and
+                    the names live on the right, and pinned to the row's centre
+                    line: anchored to the bottom it hung half off the card,
+                    which read as a rendering fault rather than as a watermark. */}
+                {titles.get(p.id) && (
+                  <span
+                    aria-hidden
+                    className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 select-none text-5xl leading-none opacity-[0.14] transition-opacity duration-200 group-hover:opacity-25"
+                  >
+                    {titles.get(p.id)!.icon}
+                  </span>
+                )}
+                <div className="relative min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <Name className="truncate font-semibold text-amber-950">{p.name}</Name>
                     <span title={STYLE_META[roleBadge(p)].label}>{STYLE_META[roleBadge(p)].icon}</span>

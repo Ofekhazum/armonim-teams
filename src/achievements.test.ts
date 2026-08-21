@@ -195,9 +195,10 @@ describe('playerAchievements', () => {
 describe('titleFor', () => {
   const badge = (kind: string) => ({ kind, icon: 'x', label: 'x' }) as never;
 
-  it('prefers a top-of-the-column badge over one anybody can earn', () => {
-    // veteran is open to everyone who plays long enough; most-wins is not
-    expect(titleFor([badge('veteran'), badge('most-wins')], MIN_NIGHTS_FOR_TITLES)).toBe('Top of the Club');
+  it('picks the highest-ranked title a player holds', () => {
+    expect(titleFor([badge('veteran'), badge('most-wins')], MIN_NIGHTS_FOR_TITLES)).toBe(
+      'Top of the Club',
+    );
   });
 
   it('falls back to a threshold badge when there is no column title', () => {
@@ -226,14 +227,25 @@ describe('titleFor', () => {
   });
 
   it('lets On a Run through early, since a 3-night run needs 3 nights to exist', () => {
-    const ach = [badge('ever-present'), badge('win-streak')];
-    // below the general bar: Ever Present is suppressed, On a Run is not — and
-    // the suppressed one falls through rather than silencing the player
+    // Top of the Club outranks it, but waits for the general bar; On a Run does
+    // not — so the suppressed title falls through rather than silencing them
+    const ach = [badge('most-wins'), badge('win-streak')];
     expect(titleFor(ach, MIN_WIN_STREAK)).toBe('On a Run');
     // still nothing at all before a run could even have happened
     expect(titleFor(ach, MIN_WIN_STREAK - 1)).toBeNull();
-    // and once the history is deep enough, the rarer title takes over again
-    expect(titleFor(ach, MIN_NIGHTS_FOR_TITLES)).toBe('Ever Present');
+    // and once the history is deep enough the higher-ranked title takes over
+    expect(titleFor(ach, MIN_NIGHTS_FOR_TITLES)).toBe('Top of the Club');
+  });
+
+  it('ranks a live winning run above the quieter single-holder titles', () => {
+    // the ordering is the club's judgement, not rarity: a run is the thing
+    // anyone at the pitch would actually mention
+    expect(titleFor([badge('shootouts'), badge('win-streak')], MIN_NIGHTS_FOR_TITLES)).toBe(
+      'On a Run',
+    );
+    expect(titleFor([badge('most-fixtures'), badge('win-streak')], MIN_NIGHTS_FOR_TITLES)).toBe(
+      'On a Run',
+    );
   });
 
   it('counts the club’s nights, not the player’s', () => {
