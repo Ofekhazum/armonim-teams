@@ -143,7 +143,7 @@ const fmtWins = (w: number) => (Number.isInteger(w) ? String(w) : w.toFixed(1));
 const BADGE_KEY: { kind: AchievementKind; icon: string; text: string }[] = [
   { kind: 'most-wins', icon: '🥇', text: 'most wins' },
   { kind: 'most-fixtures', icon: '🏅', text: 'most nights won' },
-  { kind: 'mvp', icon: '🌟', text: 'MVP picks' },
+  { kind: 'mvp', icon: '🌟', text: 'most MVP picks' },
   { kind: 'iron-man', icon: '🦾', text: 'never misses' },
   { kind: 'win-streak', icon: '📈', text: 'winning run' },
   { kind: 'ever-present', icon: '✨', text: 'played every night' },

@@ -787,9 +787,16 @@ blowout on one night and still top fewer nights than one that edges every week; 
 splits these two, §2.11).
 
 Every badge is a count with a sentence behind it, readable on hover and listed in a key under the
-table so nothing is a mystery emoji: 🥇 most wins, 🏅 most nights won, 🌟 MVP picks, 🦾 hasn't missed
-a night in 8+, 📈 longest winning run, ✨ played every recorded night, 🎖️ 25+ nights. Ties **share** a
-badge rather than being broken — two players level on wins are exactly as level as the number says.
+table so nothing is a mystery emoji: 🥇 most wins, 🏅 most nights won, 🌟 most MVP picks, 🦾 hasn't
+missed a night in 8+, 📈 longest winning run, ✨ played every recorded night, 🎖️ 25+ nights. Ties
+**share** a badge rather than being broken — two players level on wins are exactly as level as the
+number says.
+
+**Three of these are "top of a column" badges, not "appears in it" badges** — most wins, most nights
+won, and most MVP picks. 🌟 used to go to anyone with a single pick, which over a season is most of
+the squad: a badge nearly everyone wears has stopped being one. It now means the same thing 🥇 does,
+one row up. The count itself is still in the **MVPs** column for everybody who has one, so nothing
+is hidden by the change — only the badge narrowed.
 Thresholds are the ones the app already uses elsewhere (`MIN_WIN_STREAK`, `MIN_ATTEND_STREAK`), so a
 badge and the fixture-page milestone that announces it agree.
 
