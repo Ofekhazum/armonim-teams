@@ -76,8 +76,6 @@ const MEDAL: Record<Place, string> = {
   3: 'bg-gradient-to-br from-orange-200 via-amber-600 to-amber-800 text-amber-50 ring-1 ring-amber-800/40',
 };
 
-const PLACE_LABEL: Record<Place, string> = { 1: '1st', 2: '2nd', 3: '3rd' };
-
 // White is the awkward one: a fill light enough to read as *white* is nearly
 // the colour of the card behind it, and amber-200 — the obvious way out — just
 // reads as yellow. So it gets a true white fill plus an inset edge, the same
@@ -328,11 +326,11 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
                   at all rather than the bottom one. */}
               <div className="flex flex-wrap gap-1.5">
                 {nights.map((n) => {
-                  const said = `${n.date} — ${TEAM_META[n.shirt].label}${
-                    n.place === null
-                      ? ', no result recorded'
-                      : `, ${PLACE_LABEL[n.place]}${n.shared ? ' (shared)' : ''} on ${fmt(n.wins)} wins`
-                  }`;
+                  // The date and the shirt, and nothing else: the medal in
+                  // the square already says where they finished, and repeating
+                  // it in words was the caption explaining the thing you were
+                  // looking at rather than the thing you couldn't see.
+                  const said = `${n.date} — ${TEAM_META[n.shirt].emoji}`;
                   return (
                     <button
                       key={n.fixtureId}

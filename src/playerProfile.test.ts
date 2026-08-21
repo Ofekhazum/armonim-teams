@@ -324,7 +324,8 @@ describe('the other two ladders', () => {
   it('marks nights-won rungs at 5, 10, 25 then every 50', () => {
     expect(fixtureRungs(4).map((r) => r.target)).toEqual([5]);
     expect(fixtureRungs(12).map((r) => r.target)).toEqual([5, 10, 25]);
-    expect(fixtureRungs(60).at(-1)!.target).toBe(100);
+    const deep = fixtureRungs(60);
+    expect(deep[deep.length - 1].target).toBe(100);
   });
 
   it('marks the first MVP as a rung of its own', () => {
