@@ -997,6 +997,14 @@ shared gold shows on the ribbon while adding nothing to **nights won** or to a w
 true: they finished first together, and neither of them won it. The tooltip says "1st (shared)" so
 the ribbon isn't quietly claiming the stronger of the two.
 
+**A title under the name.** `titleFor` picks the badge a player holds that fewest people *can* hold
+and says it as a name — Top of the Club, The Star, Night Taker, Nerves of Steel, then the threshold
+badges (Ever Present, Iron Man, On a Run, Veteran) as fallbacks. It is not a new fact: every title is
+the badge underneath it, and the count that earned it is on screen beside it. The four column titles
+come first precisely because only one player (or a tie) can hold each, so a title is distinguishing
+rather than decorative. Nobody with no badges gets one — an invented title for everybody would be the
+first verdict in the app.
+
 **No organiser half.** Ratings, the attack spectrum, the keep-apart list and "beats what their rating
 expects" are the organiser's working notes about a person, and this is the most screenshot-able page
 in the app. They stay on the roster row and in the edit form, behind admin, exactly where they were —

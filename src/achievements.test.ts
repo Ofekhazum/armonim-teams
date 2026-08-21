@@ -4,6 +4,7 @@ import {
   MIN_NIGHTS_FOR_EVER_PRESENT,
   VETERAN_NIGHTS,
   playerAchievements,
+  titleFor,
 } from './achievements';
 
 let seq = 0;
@@ -184,5 +185,33 @@ describe('playerAchievements', () => {
 
   it('returns nothing at all for an empty history', () => {
     expect(playerAchievements([]).size).toBe(0);
+  });
+});
+
+// A title is the badge somebody holds that fewest people can hold, said as a
+// name. It invents nothing — the count that earned it is on screen beside it.
+describe('titleFor', () => {
+  const badge = (kind: string) => ({ kind, icon: 'x', label: 'x' }) as never;
+
+  it('prefers a top-of-the-column badge over one anybody can earn', () => {
+    // veteran is open to everyone who plays long enough; most-wins is not
+    expect(titleFor([badge('veteran'), badge('most-wins')])).toBe('Top of the Club');
+  });
+
+  it('falls back to a threshold badge when there is no column title', () => {
+    expect(titleFor([badge('veteran'), badge('iron-man')])).toBe('Iron Man');
+  });
+
+  it('gives no title to a player with no badges', () => {
+    expect(titleFor([])).toBeNull();
+  });
+
+  it('reads a title off a real history rather than a hand-built list', () => {
+    const history = [
+      night(day(1), ['a'], ['b'], { black: 3, white: 1, blue: 0 }, 'a'),
+      night(day(2), ['a'], ['b'], { black: 3, white: 1, blue: 0 }, 'a'),
+    ];
+    const ach = playerAchievements(history).get('a')!.achievements;
+    expect(titleFor(ach)).toBe('Top of the Club');
   });
 });

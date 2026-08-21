@@ -40,6 +40,30 @@ export const MIN_NIGHTS_FOR_EVER_PRESENT = 4;
 // A long-service badge. Weekly football makes this most of a year.
 export const VETERAN_NIGHTS = 25;
 
+// A one-line title for a player, taken from the badge they hold that fewest
+// people can hold. Not a new fact — every one of these is the badge underneath
+// it, said as a name instead of a sentence, and the count that earned it is
+// always on screen beside it.
+//
+// The four "top of the column" badges come first because exactly one person
+// (or a tie) can hold each; the threshold badges below them are open to anyone
+// who plays long enough, so they are the fallback rather than the headline.
+const TITLE_ORDER: { kind: AchievementKind; title: string }[] = [
+  { kind: 'most-wins', title: 'Top of the Club' },
+  { kind: 'mvp', title: 'The Star' },
+  { kind: 'most-fixtures', title: 'Night Taker' },
+  { kind: 'shootouts', title: 'Nerves of Steel' },
+  { kind: 'ever-present', title: 'Ever Present' },
+  { kind: 'iron-man', title: 'Iron Man' },
+  { kind: 'win-streak', title: 'On a Run' },
+  { kind: 'veteran', title: 'Veteran' },
+].map(({ kind, title }) => ({ kind: kind as AchievementKind, title }));
+
+export function titleFor(achievements: Achievement[]): string | null {
+  const held = new Set(achievements.map((a) => a.kind));
+  return TITLE_ORDER.find((t) => held.has(t.kind))?.title ?? null;
+}
+
 export interface PlayerAchievements {
   id: string;
   fixturesWon: number; // nights this player's team was the outright top

@@ -3,7 +3,7 @@ import type { AchievementKind } from '../achievements';
 import type { FixtureRecord, Player, TeamColor } from '../types';
 import { roleBadge } from '../types';
 import { TEAM_COLORS } from '../balancer';
-import { playerAchievements } from '../achievements';
+import { playerAchievements, titleFor } from '../achievements';
 import { computeDuoRecords, MIN_TOGETHER } from '../duos';
 import type { Place } from '../playerProfile';
 import {
@@ -141,6 +141,8 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
   const record = useMemo(() => playerAchievements(history).get(player.id), [history, player.id]);
   const badges = record?.achievements ?? [];
   const mvps = record?.mvps ?? 0;
+  // the badge fewest people can hold, said as a name — see titleFor
+  const title = titleFor(badges);
 
   // Best and worst teammate, from the shrunk duo records (§2.10) — so four
   // nights at 100% doesn't get printed as a fact about a friendship.
@@ -211,6 +213,11 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
               </span>
             )}
           </div>
+          {title && (
+            <p className="relative mt-1.5 text-sm font-black uppercase tracking-[0.2em] text-orange-700/80">
+              {title}
+            </p>
+          )}
           {(player.aliases ?? []).length > 0 && (
             <p className="relative mt-1 text-xs font-semibold text-amber-900/45">
               aka {player.aliases!.join(', ')}
