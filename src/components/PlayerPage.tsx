@@ -416,10 +416,12 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
                   </p>
                 ) : (
                   <div className="space-y-2.5">
-                    {/* Plain counts, in two halves. Everything here is a count
-                        of what happened; the labels are allowed their fun
-                        because the sentence under each one says the true
-                        thing — a team finished above another team. */}
+                    {/* Plain counts, in two halves, and every tail is kept to a
+                        few words: the label already says what the number is, so
+                        anything more wraps onto a second line and reads like
+                        small print. The counts are still team results (§2.18) —
+                        the copy addresses the player because this is their
+                        page, not because a person won a match on their own. */}
                     <div className="space-y-1">
                       <Line
                         icon="🔗"
@@ -435,13 +437,13 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
                         icon="🏆"
                         label="Won most with"
                         m={picks.wonMost}
-                        tail={(m) => `${m.togetherWon} nights taken together`}
+                        tail={(m) => `${m.togetherWon} nights won`}
                       />
                       <Line
                         icon="👻"
                         label="Never once alongside"
                         m={picks.neverTogether}
-                        tail={(m) => `${m.against} nights opposite, never together`}
+                        tail={(m) => `${m.against} nights opposite`}
                       />
                     </div>
                     <div className="space-y-1 border-t border-amber-900/10 pt-2">
@@ -449,19 +451,19 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
                         icon="⚔️"
                         label="Faced most"
                         m={picks.facedMost}
-                        tail={(m) => `${m.beat}–${m.beatenBy} across ${m.faced} matches`}
+                        tail={(m) => `${m.beat}–${m.beatenBy}`}
                       />
                       <Line
                         icon="😤"
                         label="Bogey man"
                         m={picks.bogey}
-                        tail={(m) => `their team has beaten yours ${m.beatenBy} times`}
+                        tail={(m) => `has beaten you ${m.beatenBy} times`}
                       />
                       <Line
                         icon="😎"
                         label="Favourite victim"
                         m={picks.victim}
-                        tail={(m) => `your team has beaten theirs ${m.beat} times`}
+                        tail={(m) => `beaten by you ${m.beat} times`}
                       />
                       <Line
                         icon="🤜"

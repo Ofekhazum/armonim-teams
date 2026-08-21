@@ -1248,10 +1248,15 @@ and among equally close ones the one with the most football behind it. 6–5 is 
 1–1, and both are a gap of one — which is why `MIN_FACED` (6 matches) keeps the thin ones out of the
 running entirely.
 
-**They still count teams, never people.** `beat` is *matches this player's team won against that
-player's team*. The labels are allowed their banter; the sentence under each says the true thing —
-*"their team has beaten yours 5 times"*. That is the same line §2.15's 🎯 badge draws, and it is what lets this card be fun without
-becoming a verdict.
+**They count teams and address the player.** `beat` is, and remains, *matches this player's team won
+against that player's team* — the arithmetic never attributes a result to one man. The copy is the
+part that changed: it was *"their team has beaten yours 5 times"*, and it now reads *"has beaten you
+5 times"*. The old line was accurate and nobody wanted to read it; on a page devoted to one player,
+spelling out the team clause four times running is pedantry rather than honesty, and it pushed every
+tail onto a second line. The banter lives here, in the copy of a personal card, and the club-wide
+numbers §2.15 draws still say *their team* where a claim is being made about somebody. Tails are kept
+to a few words for the same reason: *Faced most* prints **20–18** and stops, because the label
+already said what the pair of numbers is.
 
 The split into counts-first came from the card being useless in practice. The duo test is shrunk hard on purpose: a
 pair needs to win around **60% of their nights together** against a base rate near a third before it
