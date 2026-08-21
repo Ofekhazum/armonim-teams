@@ -93,6 +93,10 @@ const MAX_PLAYERS = 200;
 // nobody fields 200 players in one match.
 const MAX_FIXTURES = 1000;
 const MAX_FIXTURE_PLAYERS = 60;
+// Matches logged in one night. Two hours of 8-minute matches is about fifteen;
+// this leaves room for a long night and a few corrections without letting an
+// unbounded array into a record every device in the club downloads.
+const MAX_MATCHES = 100;
 const MAX_ALIASES = 20;
 const MAX_NAME_CHARS = 60;
 const MAX_ID_CHARS = 64;
@@ -237,6 +241,24 @@ export function isValidLive(live) {
   return true;
 }
 
+// A night's match log, when it has one. Validated rather than waved through
+// because this is the field statistics are going to be computed from — a
+// head-to-head between two shirts is only as trustworthy as the rows it counts,
+// and a row naming a winner who wasn't playing would poison it silently rather
+// than fail loudly. The client can't produce one (recordMatch refuses), so
+// anything that fails here didn't come from the app.
+export function isValidMatchLog(log) {
+  if (!Array.isArray(log) || log.length > MAX_MATCHES) return false;
+  return log.every((m) => {
+    if (!m || typeof m !== 'object') return false;
+    if (!TEAM_COLORS.includes(m.a) || !TEAM_COLORS.includes(m.b)) return false;
+    if (m.a === m.b) return false; // a team cannot play itself
+    if (m.winner !== m.a && m.winner !== m.b) return false;
+    if (typeof m.viaPenalties !== 'boolean') return false;
+    return true;
+  });
+}
+
 export function isValidFixtures(fixtures) {
   if (!Array.isArray(fixtures) || fixtures.length > MAX_FIXTURES) return false;
   return fixtures.every((fx) => {
@@ -261,6 +283,9 @@ export function isValidFixtures(fixtures) {
     if (!fx.wins || typeof fx.wins !== 'object') return false;
     if (!TEAM_COLORS.every((c) => Number.isFinite(fx.wins[c]))) return false;
     if (fx.mvpId !== undefined && !isStr(fx.mvpId, MAX_ID_CHARS)) return false;
+    // absent on every night recorded before the log existed, which is fine —
+    // those nights are a tally and always will be
+    if (fx.matchLog !== undefined && !isValidMatchLog(fx.matchLog)) return false;
     return true;
   });
 }

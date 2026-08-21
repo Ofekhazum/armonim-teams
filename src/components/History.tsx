@@ -13,6 +13,7 @@ import { buildWrapped, periodLabel, wrappedPeriods } from '../wrapped';
 import { shareWrappedImage } from '../wrappedImage';
 import { MIN_TRUST_NIGHTS, trustCorrelation, trustPoints, type TrustPoint } from '../trust';
 import { mvpCounts } from '../mvp';
+import { loserOf } from '../matchLog';
 import { VETERAN_NIGHTS, playerAchievements, type AchievementKind } from '../achievements';
 import { TEAM_META, Name, fmtRating } from './ui';
 import MvpPicker from './MvpPicker';
@@ -564,6 +565,10 @@ export default function History({
             .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0))
             .map((fx) => {
           const open = openId === fx.id;
+          // a night written down match by match, rather than tallied from
+          // memory at the end — the record is the matches, and the wins are
+          // just their sum (§2.18)
+          const logged = (fx.matchLog?.length ?? 0) > 0;
           const nameOf = (id: string) => fx.players.find((p) => p.id === id)?.name ?? '?';
           // a night can genuinely end level, so take everyone on the top score
           // rather than whoever a sort happened to put first
@@ -624,6 +629,12 @@ export default function History({
                             <span className="flex-1 text-sm font-bold text-amber-950">
                               {TEAM_META[c].emoji} {TEAM_META[c].label}
                             </span>
+                            {/* A logged night counts itself, so its tally is
+                                read-only here. Typing over it would leave the
+                                record saying one thing and the matches it is
+                                made of saying another — and the matches are
+                                what head-to-head and everything else per-match
+                                gets counted from. */}
                             <input
                               type="number"
                               inputMode="decimal"
@@ -632,9 +643,12 @@ export default function History({
                               step={0.5}
                               value={draft.wins[c] ?? ''}
                               onChange={(e) => setDraftWin(c, e.target.value)}
+                              readOnly={logged}
                               placeholder="–"
                               aria-label={`Matches won by ${TEAM_META[c].label}`}
-                              className="w-20 rounded-lg border border-amber-900/25 bg-white px-2 py-1 text-center font-bold text-amber-950"
+                              className={`w-20 rounded-lg border border-amber-900/25 px-2 py-1 text-center font-bold text-amber-950 ${
+                                logged ? 'bg-amber-900/[0.06]' : 'bg-white'
+                              }`}
                             />
                           </label>
                         ))}
@@ -659,8 +673,11 @@ export default function History({
                         onChange={(mvpId) => setDraft((d) => (d ? { ...d, mvpId } : d))}
                       />
                       <p className="text-xs text-amber-900/50">
-                        Half a win means it was taken on penalties. The team sheet can't be
-                        changed — delete the night and save it again if the teams were wrong.
+                        {logged
+                          ? 'This night was logged match by match, so its wins are counted from the matches and can’t be typed over. '
+                          : 'Half a win means it was taken on penalties. '}
+                        The team sheet can't be changed — delete the night and save it again if the
+                        teams were wrong.
                       </p>
                       <div className="flex flex-wrap gap-2">
                         <button
@@ -692,7 +709,39 @@ export default function History({
                           </div>
                         ))}
                       </div>
+                      {/* The matches themselves, on a night that has them.
+                          Shown rather than left in the file: a record nobody
+                          can see is one nobody notices is wrong, and this is
+                          the row-by-row source every per-match statistic will
+                          be counted from. */}
+                      {logged && (
+                        <ol className="space-y-1 text-xs">
+                          {fx.matchLog!.map((m, i) => (
+                            <li
+                              key={i}
+                              className="flex flex-wrap items-center gap-x-2 rounded-lg bg-white/50 px-2 py-1"
+                            >
+                              <span className="w-4 shrink-0 font-bold text-amber-900/40">
+                                {i + 1}
+                              </span>
+                              <span className="font-bold text-amber-950">
+                                {TEAM_META[m.winner].emoji} {TEAM_META[m.winner].label}
+                              </span>
+                              <span className="text-amber-900/50">beat</span>
+                              <span className="font-bold text-amber-950">
+                                {TEAM_META[loserOf(m)].emoji} {TEAM_META[loserOf(m)].label}
+                              </span>
+                              <span className="ml-auto font-bold text-amber-900/60">
+                                {m.viaPenalties ? 'on penalties · ½' : '1'}
+                              </span>
+                            </li>
+                          ))}
+                        </ol>
+                      )}
                       <p className="text-xs text-amber-900/45">
+                        {logged
+                          ? `${fx.matchLog!.length} matches played · `
+                          : ''}
                         {totalWins(fx.wins)} wins across the night · {fx.players.length} players
                         {fx.mvpId && nameOf(fx.mvpId) !== '?' && (
                           <>

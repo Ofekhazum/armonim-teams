@@ -24,6 +24,8 @@ const fixture = (over = {}) => ({
   ...over,
 });
 
+const match = (over = {}) => ({ a: 'black', b: 'white', winner: 'black', viaPenalties: false, ...over });
+
 describe('publicPlayer', () => {
   it('strips the fields that are statements about people, keeps the football ones', () => {
     const clean = publicPlayer(
@@ -130,6 +132,46 @@ describe('isValidFixtures', () => {
 
   it('accepts an empty history — that is how the season is cleared', () => {
     expect(isValidFixtures([])).toBe(true);
+  });
+
+  // The log is what head-to-head and every other per-match statistic will be
+  // counted from, so it has to survive the trip out to KV and back intact —
+  // and it has to be refused rather than stored when it is nonsense.
+  it('accepts a night carrying its match log', () => {
+    expect(isValidFixtures([fixture({ matchLog: [match(), match({ winner: 'white' })] })])).toBe(
+      true,
+    );
+  });
+
+  it('accepts a night with no log — every night before the feature existed', () => {
+    expect(isValidFixtures([fixture()])).toBe(true);
+    expect(isValidFixtures([fixture({ matchLog: [] })])).toBe(true);
+  });
+
+  it('rejects a log whose winner was not on the pitch', () => {
+    expect(isValidFixtures([fixture({ matchLog: [match({ winner: 'blue' })] })])).toBe(false);
+  });
+
+  it('rejects a match a team played against itself', () => {
+    expect(isValidFixtures([fixture({ matchLog: [match({ b: 'black' })] })])).toBe(false);
+  });
+
+  it('rejects a shirt colour that is not one of the three', () => {
+    expect(isValidFixtures([fixture({ matchLog: [match({ b: 'red' })] })])).toBe(false);
+  });
+
+  it('rejects a missing or non-boolean penalties flag', () => {
+    expect(isValidFixtures([fixture({ matchLog: [match({ viaPenalties: undefined })] })])).toBe(
+      false,
+    );
+    expect(isValidFixtures([fixture({ matchLog: [match({ viaPenalties: 'yes' })] })])).toBe(false);
+  });
+
+  it('rejects a log that is not an array, or is absurdly long', () => {
+    expect(isValidFixtures([fixture({ matchLog: { a: 'black' } })])).toBe(false);
+    expect(
+      isValidFixtures([fixture({ matchLog: Array.from({ length: 101 }, () => match()) })]),
+    ).toBe(false);
   });
 });
 

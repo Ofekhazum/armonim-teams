@@ -830,6 +830,33 @@ fixture page. Both exist further down already; "further down" is the problem on 
 to scroll, asked at a pitch, usually by someone who is also playing. The two teams currently on are
 lifted out of the three, so it answers "who is on" without anyone reading a word.
 
+**Where the log is kept, and why that matters.** It is a field on `FixtureRecord`, so it rides the
+existing history path with no separate store: written to `localStorage` on save, and pushed to the
+Worker by the same `POST /history` full-list replace as everything else (§6), which means a night
+logged on the organiser's phone is readable from every other device in the club. There is no second
+system to keep in step, no per-match write while the football is happening, and nothing that can be
+stored without the night it belongs to.
+
+The Worker **validates** it rather than waving it through (`isValidMatchLog`): the three shirt
+colours only, no team playing itself, a winner who was actually one of the two on the pitch, a real
+boolean for the penalty flag, and at most `MAX_MATCHES` (100) rows. Two reasons to be strict here
+and not merely size-capped. First, this is the field the per-match statistics will be counted from,
+and a row naming a winner who wasn't playing would skew a head-to-head silently rather than fail
+loudly. Second, the client cannot produce such a row — `recordMatch` throws — so anything that fails
+this check did not come from the app, and storing it would only be storing a lie in a record every
+device downloads.
+
+**The tally of a logged night is read-only in History's edit form.** Wins are the sum of the
+matches; typing over them would leave the record disagreeing with the rows it is made of, which is
+the same "one record, not two" rule the results panel enforces during the night, applied after it.
+The matches themselves are listed in the expanded night, because a record nobody can see is one
+nobody notices is wrong.
+
+**Not yet counted.** The log is stored and shared but nothing derives from it beyond `winsFromLog`
+yet — head-to-head between two shirts, matches played versus wins collected, how often a night went
+to penalties. Those are reads over data already on file, and can be added whenever without another
+migration.
+
 **Known gap:** `planRotation` and `MATCH_PAIRINGS` (§3) still assume the fixed three-match rotation
 when lending players to a short-handed team. Winner-stays-on means the sequence is not knowable in
 advance beyond the current match, so that planner and this log now disagree about what happens
