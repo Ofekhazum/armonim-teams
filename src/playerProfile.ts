@@ -332,7 +332,27 @@ export interface MatchupPicks {
   neverTogether: Matchup | null; // seen plenty, never once on the same team
 }
 
-export function matchupPicks(list: Matchup[]): MatchupPicks {
+const NO_PICKS: MatchupPicks = {
+  playedMost: null,
+  wonMost: null,
+  facedMost: null,
+  bogey: null,
+  victim: null,
+  neverTogether: null,
+};
+
+/**
+ * `subjectNights` is the whole card's gate: below `MIN_PROFILE_NIGHTS` it says
+ * nothing at all.
+ *
+ * The per-pair floor above is about whether *that pairing* is worth a line;
+ * this is about whether the player has been around long enough for any of it
+ * to be about them. Somebody two nights in has a bogey man and a favourite
+ * victim by arithmetic, and naming either is a joke at the expense of a fact
+ * that isn't there yet. Same number the rest of the page uses.
+ */
+export function matchupPicks(list: Matchup[], subjectNights: number): MatchupPicks {
+  if (subjectNights < MIN_PROFILE_NIGHTS) return NO_PICKS;
   return {
     playedMost: pickBy(list, (m) => m.together, MIN_MATCHUP),
     wonMost: pickBy(list, (m) => m.togetherWon, MIN_MATCHUP),

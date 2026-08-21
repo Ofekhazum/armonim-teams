@@ -1227,7 +1227,13 @@ was the one thing nobody had read.
 Six lines come out of it, and they are deliberately six rather than three: **most nights with** and
 **won most with** are different questions, and so are **bogey man** (whose team keeps taking nights
 off yours) and **favourite victim**. **Never once alongside** only fires for somebody seen a lot from
-the other side, because the joke needs them to have been around. The §2.10 duo record sits underneath
+the other side, because the joke needs them to have been around.
+
+**The whole card waits for `MIN_PROFILE_NIGHTS`.** Two nights in, a player has a bogey man and a
+favourite victim purely by arithmetic, and naming either is a joke at the expense of a fact that is
+not there yet. Two separate floors, doing separate jobs: the per-pair one asks whether *that pairing*
+is worth a line, this one asks whether the player has been around long enough for any of it to be
+about them. The §2.10 duo record sits underneath
 as the one *claim* on a card of counts.
 
 **`beat` and `beatenBy` count nights one team finished above another, never one person beating

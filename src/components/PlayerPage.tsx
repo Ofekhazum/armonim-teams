@@ -146,7 +146,7 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
   const shirts = useMemo(() => shirtNights(nights), [nights]);
   const shootouts = useMemo(() => shootoutRecord(history, player.id), [history, player.id]);
   const picks = useMemo(
-    () => matchupPicks(matchups(history, player.id)),
+    () => matchupPicks(matchups(history, player.id), counts.nights),
     [history, player.id],
   );
   // one call, two answers: the badge row, and the MVP tally underneath it —
@@ -409,7 +409,11 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
             <div className="grid gap-3 sm:grid-cols-2">
               <Card title="With and against">
                 {!picks.playedMost && !picks.facedMost ? (
-                  <p className="text-sm text-amber-900/55">No recorded nights yet.</p>
+                  <p className="text-sm text-amber-900/55">
+                    {counts.nights < MIN_PROFILE_NIGHTS
+                      ? `Needs ${MIN_PROFILE_NIGHTS} nights before any of this is about them — ${counts.nights} so far.`
+                      : 'Nobody they have shared enough football with yet.'}
+                  </p>
                 ) : (
                   <div className="space-y-2.5">
                     {/* Plain counts, in two halves. Everything here is a count

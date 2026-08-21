@@ -342,7 +342,7 @@ describe('matchupPicks', () => {
       // 'lucky' only three nights, but all three taken
       ...many(3, ['a', 'lucky'], ['x'], { black: 4, white: 1, blue: 0 }),
     ];
-    const picks = matchupPicks(matchups(history, 'a'));
+    const picks = matchupPicks(matchups(history, 'a'), 99);
     expect(picks.playedMost?.id).toBe('often');
     expect(picks.wonMost?.id).toBe('lucky');
   });
@@ -352,22 +352,42 @@ describe('matchupPicks', () => {
       ...many(4, ['a'], ['bogey'], { black: 1, white: 4, blue: 0 }),
       ...many(3, ['a'], ['victim'], { black: 4, white: 1, blue: 0 }),
     ];
-    const picks = matchupPicks(matchups(history, 'a'));
+    const picks = matchupPicks(matchups(history, 'a'), 99);
     expect(picks.bogey?.id).toBe('bogey');
     expect(picks.victim?.id).toBe('victim');
   });
 
   it('only names someone never played alongside if they are around a lot', () => {
-    const rare = matchupPicks(matchups(many(2, ['a'], ['b'], { black: 4, white: 1, blue: 0 }), 'a'));
+    const rare = matchupPicks(matchups(many(2, ['a'], ['b'], { black: 4, white: 1, blue: 0 }), 'a'), 99);
     expect(rare.neverTogether).toBeNull();
 
-    const often = matchupPicks(matchups(many(6, ['a'], ['b'], { black: 4, white: 1, blue: 0 }), 'a'));
+    const often = matchupPicks(matchups(many(6, ['a'], ['b'], { black: 4, white: 1, blue: 0 }), 'a'), 99);
     expect(often.neverTogether?.id).toBe('b');
   });
 
   it('says nothing at all rather than naming a one-off', () => {
-    const picks = matchupPicks(matchups([night(['a', 'b'], ['c'], [], { black: 4, white: 1, blue: 0 })], 'a'));
+    const picks = matchupPicks(matchups([night(['a', 'b'], ['c'], [], { black: 4, white: 1, blue: 0 })], 'a'), 99);
     expect(picks.playedMost).toBeNull();
     expect(picks.victim).toBeNull();
+  });
+});
+
+describe('the four-night gate on with-and-against', () => {
+  it('says nothing at all about a player who has barely been here', () => {
+    // two nights in, somebody has a bogey man and a favourite victim purely by
+    // arithmetic, and naming either is a joke at the expense of a missing fact
+    const history = Array.from({ length: 6 }, () =>
+      night(['a'], ['b'], [], { black: 1, white: 4, blue: 0 }),
+    );
+    const list = matchups(history, 'a');
+    expect(matchupPicks(list, MIN_PROFILE_NIGHTS - 1)).toEqual({
+      playedMost: null,
+      wonMost: null,
+      facedMost: null,
+      bogey: null,
+      victim: null,
+      neverTogether: null,
+    });
+    expect(matchupPicks(list, MIN_PROFILE_NIGHTS).bogey?.id).toBe('b');
   });
 });
