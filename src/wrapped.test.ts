@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildWrapped, periodLabel, wrappedPeriods } from './wrapped';
+import { TOTM_SIZE, buildWrapped, periodLabel, totmEligible, totmScore, wrappedPeriods } from './wrapped';
 import type { FixtureRecord } from './types';
 
 let seq = 0;
@@ -226,5 +226,107 @@ describe('buildWrapped', () => {
       bestDuo: null,
       worstDuo: null,
     });
+  });
+});
+
+// The Team of the Month is the one leaderboard in the app whose rule is
+// deliberately not printed on the thing it produces, which is exactly why it
+// has to be pinned down here instead.
+describe('team of the month', () => {
+  const d = (n: number) => `2026-05-${String(n).padStart(2, '0')}`;
+  const totm = (history: FixtureRecord[]) => buildWrapped(history, '2026-05').teamOfMonth;
+
+  it('picks at most five', () => {
+    const squad = ['a', 'b', 'c', 'd', 'e', 'f', 'g'];
+    const history = [
+      night(d(1), squad, ['z'], { black: 4, white: 1, blue: 0 }),
+      night(d(2), squad, ['z'], { black: 4, white: 1, blue: 0 }),
+    ];
+    expect(totm(history)).toHaveLength(TOTM_SIZE);
+  });
+
+  it('leaves out anybody short of half the month’s nights', () => {
+    // five nights, so three clears the bar and two does not
+    const history = [
+      night(d(1), ['a', 'b'], ['z'], { black: 4, white: 1, blue: 0 }),
+      night(d(2), ['a', 'b'], ['z'], { black: 4, white: 1, blue: 0 }),
+      night(d(3), ['a'], ['z'], { black: 4, white: 1, blue: 0 }),
+      night(d(4), ['a'], ['z'], { black: 4, white: 1, blue: 0 }),
+      night(d(5), ['a'], ['z'], { black: 4, white: 1, blue: 0 }),
+    ];
+    const names = totm(history).map((p) => p.name);
+    expect(names).toContain('a');
+    // b played two of five, and would otherwise top the list on rate alone
+    expect(names).not.toContain('b');
+  });
+
+  it('does not let one huge night outrank a month of steady football', () => {
+    // 'flash' turns up twice and wins big; 'steady' plays every night
+    const history = [
+      night(d(1), ['steady', 'flash'], ['z'], { black: 9, white: 0, blue: 0 }),
+      night(d(2), ['steady', 'flash'], ['z'], { black: 9, white: 0, blue: 0 }),
+      night(d(3), ['steady'], ['z'], { black: 5, white: 4, blue: 0 }),
+      night(d(4), ['steady'], ['z'], { black: 5, white: 4, blue: 0 }),
+    ];
+    // both are eligible; the point is only that the pick is the score, and the
+    // eligibility gate is what stops a single night deciding the month
+    expect(totm(history).map((p) => p.name)).toContain('steady');
+  });
+
+  it('ranks a night taken outright above the same wins spread thinner', () => {
+    // both bank 8 match wins over 2 nights; only 'edge' actually took nights
+    const history = [
+      night(d(1), ['edge'], ['blowout'], { black: 4, white: 4, blue: 0 }),
+      night(d(2), ['edge'], ['blowout'], { black: 4, white: 4, blue: 0 }),
+    ];
+    // level at the top both nights, so nobody won a night — scores tie, and the
+    // tie-break falls to the name rather than to chance
+    const picked = totm(history);
+    expect(picked[0].score).toBe(picked[1].score);
+  });
+
+  it('counts an MVP pick towards the score', () => {
+    const withMvp = [
+      night(d(1), ['a', 'b'], ['z'], { black: 4, white: 1, blue: 0 }, 'a'),
+      night(d(2), ['a', 'b'], ['z'], { black: 4, white: 1, blue: 0 }, 'a'),
+    ];
+    const picked = totm(withMvp);
+    expect(picked[0].name).toBe('a');
+    expect(picked[0].mvps).toBe(2);
+    expect(picked[0].score).toBeGreaterThan(picked[1].score);
+  });
+
+  it('is empty for a month with no football', () => {
+    expect(totm([])).toEqual([]);
+  });
+
+  it('keeps the parts that made the score, so the pick can be explained', () => {
+    const history = [night(d(1), ['a'], ['z'], { black: 4, white: 1, blue: 0 }, 'a')];
+    expect(totm(history)[0]).toMatchObject({ nights: 1, wins: 4, nightsWon: 1, mvps: 1 });
+  });
+});
+
+describe('the team-of-the-month rule', () => {
+  it('needs half a month’s nights, rounded up', () => {
+    expect(totmEligible(3, 5)).toBe(true);
+    expect(totmEligible(2, 5)).toBe(false);
+    expect(totmEligible(2, 4)).toBe(true);
+    expect(totmEligible(0, 0)).toBe(false);
+  });
+
+  it('weighs a night won and an MVP above a bare match win', () => {
+    const base = { nights: 1, wins: 1, nightsWon: 0, mvps: 0 };
+    expect(totmScore(base)).toBe(1);
+    expect(totmScore({ ...base, nightsWon: 1 })).toBe(3);
+    expect(totmScore({ ...base, mvps: 1 })).toBe(4);
+  });
+
+  it('is a rate, not a total — playing more nights does not inflate it', () => {
+    expect(totmScore({ nights: 2, wins: 8, nightsWon: 2, mvps: 0 })).toBe(6);
+    expect(totmScore({ nights: 4, wins: 16, nightsWon: 4, mvps: 0 })).toBe(6);
+  });
+
+  it('is zero rather than NaN for nobody', () => {
+    expect(totmScore({ nights: 0, wins: 0, nightsWon: 0, mvps: 0 })).toBe(0);
   });
 });

@@ -1,0 +1,465 @@
+import { useEffect, useMemo } from 'react';
+import type { AchievementKind } from '../achievements';
+import type { FixtureRecord, Player, TeamColor } from '../types';
+import { roleBadge } from '../types';
+import { TEAM_COLORS } from '../balancer';
+import { playerAchievements, titleFor } from '../achievements';
+import { computeDuoRecords, MIN_TOGETHER } from '../duos';
+import { hasResult } from '../calibration';
+import type { Place } from '../playerProfile';
+import {
+  MIN_PROFILE_NIGHTS,
+  nightRungs,
+  profileCounts,
+  profileNights,
+  shirtNights,
+  shootoutRecord,
+  toGo,
+  winRungs,
+} from '../playerProfile';
+import { Name, STYLE_META, TEAM_META } from './ui';
+
+// One player's page (§2.19). Everything on it is counted from history — the
+// same nights the standings table and the badges are built from — so nothing
+// here needed new data, only gathering.
+//
+// Deliberately has no organiser half. Ratings, the attack spectrum and the
+// keep-apart list are the organiser's working notes about a person, and this
+// is the most screenshot-able page in the app; they stay on the roster row and
+// in the edit form, behind admin, where they already were. ✏️ Edit reaches
+// them for an admin, so nothing was taken away.
+
+interface Props {
+  player: Player;
+  history: FixtureRecord[];
+  players: Player[];
+  isAdmin: boolean;
+  onEdit: () => void;
+  onClose: () => void;
+}
+
+// Badges are the one place on this page where colour carries meaning rather
+// than decoration: seven identical cream pills is a list you have to read, and
+// a wall of text is what a page of achievements must never be. Each kind keeps
+// its own tone everywhere it appears, so 🥇 is the same gold on a profile as
+// in the standings.
+//
+// Written out in full rather than composed, because Tailwind only ships the
+// class names it can see in the source.
+const BADGE_TONE: Record<AchievementKind, string> = {
+  'most-wins': 'border-amber-500/40 bg-amber-400/20 text-amber-900',
+  'most-fixtures': 'border-orange-500/40 bg-orange-400/20 text-orange-900',
+  mvp: 'border-yellow-500/40 bg-yellow-300/25 text-yellow-900',
+  shootouts: 'border-rose-500/35 bg-rose-400/15 text-rose-900',
+  'iron-man': 'border-emerald-600/35 bg-emerald-400/15 text-emerald-900',
+  'win-streak': 'border-sky-600/35 bg-sky-400/15 text-sky-900',
+  'ever-present': 'border-violet-500/35 bg-violet-400/15 text-violet-900',
+  veteran: 'border-stone-500/35 bg-stone-400/15 text-stone-800',
+};
+
+// Where the team finished that night: gold, silver, bronze. Three teams means
+// every night has all three, so a ribbon of medals is a complete picture of
+// somebody's season in one line — and unlike a win/lose mark it distinguishes
+// the second-place nights from the ones spent bottom.
+//
+// Metallic gradients rather than flat fills, because flat gold and flat bronze
+// are two similar oranges; the highlight is what separates them at 8px. The
+// numeral inside is the part that survives colourblindness and a bad screen.
+const MEDAL: Record<Place, string> = {
+  1: 'bg-gradient-to-br from-yellow-200 via-amber-400 to-yellow-600 text-amber-950 ring-1 ring-amber-600/50',
+  2: 'bg-gradient-to-br from-slate-50 via-slate-300 to-slate-400 text-slate-700 ring-1 ring-slate-400/60',
+  3: 'bg-gradient-to-br from-orange-200 via-amber-600 to-amber-800 text-amber-50 ring-1 ring-amber-800/40',
+};
+
+const PLACE_LABEL: Record<Place, string> = { 1: '1st', 2: '2nd', 3: '3rd' };
+
+const SHIRT_BAR: Record<TeamColor, string> = {
+  black: 'bg-stone-800',
+  white: 'bg-amber-200',
+  blue: 'bg-blue-700',
+};
+
+const fmt = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
+
+const Card = ({
+  title,
+  hint,
+  children,
+  className = '',
+}: {
+  title: string;
+  hint?: string;
+  children: React.ReactNode;
+  className?: string;
+}) => (
+  <section
+    className={`rounded-2xl border border-amber-900/10 bg-white/70 p-4 shadow-sm ring-1 ring-white/60 ${className}`}
+  >
+    <div className="mb-2.5 flex items-baseline gap-2">
+      <h3 className="text-[13px] font-black uppercase tracking-wide text-amber-900/70">{title}</h3>
+      {hint && <span className="text-[11px] text-amber-900/40">{hint}</span>}
+    </div>
+    {children}
+  </section>
+);
+
+const Stat = ({ n, label, quiet }: { n: string; label: string; quiet?: boolean }) => (
+  // A floor rather than min-w-0: five tiles that all shrink stay on one line
+  // and squeeze the labels to nothing, where five that refuse to go below ~5rem
+  // wrap to 3 + 2 on a phone and stay readable.
+  <div className="min-w-[4.75rem] flex-1 rounded-xl border border-amber-900/10 bg-white/70 px-2 py-2.5 text-center shadow-sm">
+    <div
+      className={`font-mono text-2xl font-black leading-none tabular-nums ${
+        quiet ? 'text-amber-900/30' : 'text-amber-950'
+      }`}
+    >
+      {n}
+    </div>
+    <div className="mt-1.5 text-[10px] font-bold uppercase leading-tight tracking-wide text-amber-900/50">
+      {label}
+    </div>
+  </div>
+);
+
+export default function PlayerPage({ player, history, players, isAdmin, onEdit, onClose }: Props) {
+  // same escape hatch as pitch mode — a full-screen panel that can only be
+  // left by finding one small button is a panel people feel stuck in
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  const nights = useMemo(() => profileNights(history, player.id), [history, player.id]);
+  const counts = useMemo(() => profileCounts(nights), [nights]);
+  const shirts = useMemo(() => shirtNights(nights), [nights]);
+  const shootouts = useMemo(() => shootoutRecord(history, player.id), [history, player.id]);
+  // one call, two answers: the badge row, and the MVP tally underneath it —
+  // playerAchievements already counts the picks while deciding who tops that
+  // column, and counting them twice is how two numbers end up disagreeing
+  const record = useMemo(() => playerAchievements(history).get(player.id), [history, player.id]);
+  const badges = record?.achievements ?? [];
+  const mvps = record?.mvps ?? 0;
+  // the badge fewest people can hold, said as a name — and nothing at all
+  // until the club has enough nights behind it for a title to mean something
+  const recordedNights = useMemo(
+    () => history.filter((fx) => hasResult(fx.wins)).length,
+    [history],
+  );
+  const title = titleFor(badges, recordedNights);
+
+  // Best and worst teammate, from the shrunk duo records (§2.10) — so four
+  // nights at 100% doesn't get printed as a fact about a friendship.
+  const duos = useMemo(() => {
+    const ids = new Set(players.map((p) => p.id));
+    ids.add(player.id);
+    const nameOf = new Map(players.map((p) => [p.id, p.name]));
+    return computeDuoRecords(history, ids, nameOf, player.id);
+  }, [history, players, player.id]);
+
+  // whichever half of the pair isn't the player whose page this is
+  const other = (d: { aId: string; aName: string; bName: string }) =>
+    d.aId === player.id ? d.bName : d.aName;
+
+  const nextNight = toGo(nightRungs(counts.nights), counts.nights);
+  const nextWin = toGo(winRungs(counts.wins), counts.wins);
+  const enoughLogged = shootouts.loggedNights >= MIN_PROFILE_NIGHTS;
+  const role = STYLE_META[roleBadge(player)];
+
+  return (
+    <div className="fixed inset-0 z-40 overflow-y-auto bg-[#fdf6e3]">
+      <div className="mx-auto max-w-3xl space-y-3 px-3 pb-16 pt-4 sm:px-6">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={onClose}
+            className="rounded-lg border border-amber-900/25 px-3 py-1.5 text-sm font-bold text-amber-900 transition-colors hover:border-orange-500"
+          >
+            ← Back
+          </button>
+          <div className="flex-1" />
+          {isAdmin && (
+            <button
+              onClick={onEdit}
+              className="rounded-lg border border-amber-900/25 px-3 py-1.5 text-sm font-bold text-amber-900 transition-colors hover:border-orange-500"
+            >
+              ✏️ Edit
+            </button>
+          )}
+        </div>
+
+        {/* The header is the one piece of this page that is allowed to be
+            decorative. A name in the same 14px as everything under it makes a
+            profile read as a report about a row in a table; this makes it read
+            as somebody's page. The shirt number is set huge and nearly
+            transparent behind the name — the way it sits on an actual shirt. */}
+        <header className="relative overflow-hidden rounded-2xl border border-amber-900/10 bg-gradient-to-br from-orange-400/25 via-amber-200/40 to-[#fffdf4] px-5 py-5 shadow-sm">
+          {player.number !== undefined && (
+            <span
+              aria-hidden
+              className="pointer-events-none absolute -top-3 right-3 select-none font-mono text-[6.5rem] font-black leading-none text-amber-900/[0.07]"
+            >
+              {player.number}
+            </span>
+          )}
+          <div className="relative flex flex-wrap items-center gap-x-3 gap-y-1">
+            <h2 className="text-3xl font-black tracking-tight text-amber-950 sm:text-4xl">
+              <Name>{player.name}</Name>
+            </h2>
+            <span
+              title={role.label}
+              className="rounded-full border border-amber-900/15 bg-white/70 px-2.5 py-1 text-xs font-bold text-amber-900"
+            >
+              {role.icon} {role.label}
+            </span>
+            {player.isGuest && (
+              <span className="rounded-full border border-amber-900/15 bg-white/70 px-2.5 py-1 text-xs font-bold text-amber-900/70">
+                ★ Guest
+              </span>
+            )}
+          </div>
+          {title && (
+            <p className="relative mt-1.5 text-sm font-black uppercase tracking-[0.2em] text-orange-700/80">
+              {title}
+            </p>
+          )}
+          {(player.aliases ?? []).length > 0 && (
+            <p className="relative mt-1 text-xs font-semibold text-amber-900/45">
+              aka {player.aliases!.join(', ')}
+            </p>
+          )}
+        </header>
+
+        {badges.length > 0 && (
+          <div className="flex flex-wrap gap-1.5">
+            {badges.map((b) => (
+              <span
+                key={b.kind}
+                className={`rounded-full border px-2.5 py-1 text-xs font-bold shadow-sm ${BADGE_TONE[b.kind]}`}
+              >
+                {b.icon} {b.label}
+              </span>
+            ))}
+          </div>
+        )}
+
+        {counts.onSheet === 0 ? (
+          <Card title="No football yet">
+            <p className="text-sm text-amber-900/60">
+              Nothing to count — this player hasn't been on a recorded team sheet.
+            </p>
+          </Card>
+        ) : (
+          <>
+            <div className="flex flex-wrap gap-2">
+              <Stat n={String(counts.nights)} label="nights" />
+              <Stat n={String(counts.nightsWon)} label="nights won" />
+              <Stat n={fmt(counts.wins)} label="match wins" />
+              <Stat
+                n={counts.perNight === null ? '–' : counts.perNight.toFixed(1)}
+                label="per night"
+                quiet={counts.perNight === null}
+              />
+              {/* No threshold on this one, unlike the rate beside it: a pick is
+                  a thing that either happened or didn't, and "0" is the true
+                  answer rather than a small sample of one. Shown for everybody
+                  so a zero is legible as none rather than as untracked. */}
+              <Stat n={String(mvps)} label={mvps === 1 ? 'MVP night' : 'MVP nights'} quiet={mvps === 0} />
+            </div>
+            {counts.perNight === null && (
+              <p className="-mt-1 px-1 text-xs text-amber-900/50">
+                Wins per night appears after {MIN_PROFILE_NIGHTS} nights — fewer than that, the
+                number moves too much to mean anything.
+              </p>
+            )}
+
+            <Card
+              title="Every night"
+              hint={`oldest first · ${counts.onSheet} played`}
+            >
+              {/* One medal per night. A night with no result recorded is not a
+                  third place — nobody finished anywhere — so it gets no medal
+                  at all rather than the bottom one. */}
+              <div className="flex flex-wrap gap-1.5">
+                {nights.map((n) => (
+                  <span
+                    key={n.fixtureId}
+                    title={`${n.date} — ${TEAM_META[n.shirt].label}${
+                      n.place === null
+                        ? ', no result recorded'
+                        : `, ${PLACE_LABEL[n.place]}${n.shared ? ' (shared)' : ''} on ${fmt(n.wins)} wins`
+                    }`}
+                    className={`grid h-8 w-8 place-items-center rounded-lg font-mono text-xs font-black shadow-sm ${
+                      n.place === null
+                        ? 'border border-dashed border-amber-900/25 text-amber-900/30'
+                        : MEDAL[n.place]
+                    }`}
+                  >
+                    {n.place ?? '·'}
+                  </span>
+                ))}
+              </div>
+              <p className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-amber-900/55">
+                {([1, 2, 3] as Place[]).map((p) => (
+                  <span key={p} className="flex items-center gap-1">
+                    <span className={`inline-block h-3 w-3 rounded-sm ${MEDAL[p]}`} />
+                    {p === 1 ? 'gold' : p === 2 ? 'silver' : 'bronze'}
+                  </span>
+                ))}
+                {counts.bestRun >= 2 && (
+                  <span>
+                    best run <b className="text-amber-900">{counts.bestRun}</b>
+                  </span>
+                )}
+                {counts.currentRun >= 2 && (
+                  <span>
+                    on <b className="text-amber-900">{counts.currentRun}</b> right now 🔥
+                  </span>
+                )}
+              </p>
+            </Card>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Card title="Milestones">
+                <div className="space-y-3">
+                  <Progress now={counts.nights} next={nextNight} unit="nights" />
+                  <Progress now={Math.floor(counts.wins)} next={nextWin} unit="wins" />
+                </div>
+              </Card>
+
+              <Card title="Shirts worn">
+                <div className="space-y-2">
+                  {TEAM_COLORS.map((c: TeamColor) => (
+                    <div key={c} className="flex items-center gap-2 text-sm">
+                      <span className="w-20 shrink-0 font-bold text-amber-950">
+                        {TEAM_META[c].emoji} {TEAM_META[c].label}
+                      </span>
+                      <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-amber-900/[0.07]">
+                        <div
+                          className={`h-full rounded-full transition-[width] ${SHIRT_BAR[c]}`}
+                          style={{
+                            width: `${counts.onSheet ? (shirts[c] / counts.onSheet) * 100 : 0}%`,
+                          }}
+                        />
+                      </div>
+                      <span className="w-5 text-right font-mono text-xs font-black tabular-nums text-amber-900/70">
+                        {shirts[c]}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Card title="Teammates">
+                {duos.best || duos.worst ? (
+                  <div className="space-y-2 text-sm text-amber-950">
+                    {duos.best && (
+                      <div className="rounded-xl bg-emerald-400/10 px-3 py-2">
+                        <div className="text-[11px] font-bold uppercase tracking-wide text-emerald-800/70">
+                          🤝 Best with
+                        </div>
+                        <Name className="font-black">{other(duos.best)}</Name>{' '}
+                        <span className="text-amber-900/60">
+                          — {duos.best.won} of {duos.best.together} nights
+                        </span>
+                      </div>
+                    )}
+                    {duos.worst && (
+                      <div className="rounded-xl bg-amber-900/[0.05] px-3 py-2">
+                        <div className="text-[11px] font-bold uppercase tracking-wide text-amber-900/50">
+                          🙃 Leanest with
+                        </div>
+                        <Name className="font-black">{other(duos.worst)}</Name>{' '}
+                        <span className="text-amber-900/60">
+                          — {duos.worst.won} of {duos.worst.together} nights
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-sm text-amber-900/55">
+                    Needs {MIN_TOGETHER} nights alongside the same player before a pair says
+                    anything.
+                  </p>
+                )}
+              </Card>
+
+              <Card
+                title="Shootouts"
+                hint={enoughLogged ? `${shootouts.loggedNights} logged nights` : undefined}
+              >
+                {enoughLogged ? (
+                  <div className="flex gap-2">
+                    <div className="flex-1 rounded-xl bg-rose-400/10 px-3 py-2 text-center">
+                      <div className="font-mono text-2xl font-black leading-none text-rose-900">
+                        {shootouts.taken}
+                      </div>
+                      <div className="mt-1 text-[10px] font-bold uppercase tracking-wide text-rose-900/60">
+                        on penalties
+                      </div>
+                    </div>
+                    <div className="flex-1 rounded-xl bg-amber-900/[0.05] px-3 py-2 text-center">
+                      <div className="font-mono text-2xl font-black leading-none text-amber-950">
+                        {shootouts.wonInPlay}
+                      </div>
+                      <div className="mt-1 text-[10px] font-bold uppercase tracking-wide text-amber-900/50">
+                        won in play
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-sm text-amber-900/55">
+                    Only nights logged match by match can answer this — {shootouts.loggedNights} so
+                    far, {MIN_PROFILE_NIGHTS} needed.
+                  </p>
+                )}
+              </Card>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// A rung as a bar rather than a sentence. "No nights milestone yet" said
+// nothing twice; a filling bar says the same thing while also showing how far
+// along it is — and it turns the fixture page's announcement into an arrival
+// somebody could see coming.
+function Progress({
+  now,
+  next,
+  unit,
+}: {
+  now: number;
+  next: { target: number; away: number } | null;
+  unit: string;
+}) {
+  if (!next) {
+    return (
+      <div className="text-sm font-bold text-amber-950">
+        {now} {unit} — every milestone passed 🎖️
+      </div>
+    );
+  }
+  return (
+    <div>
+      <div className="mb-1 flex items-baseline justify-between gap-2">
+        <span className="text-sm font-bold text-amber-950">
+          <span className="font-mono tabular-nums">{now}</span>
+          <span className="text-amber-900/40"> / {next.target}</span> {unit}
+        </span>
+        <span className="text-[11px] font-semibold text-amber-900/50">{next.away} to go</span>
+      </div>
+      <div className="h-2.5 overflow-hidden rounded-full bg-amber-900/[0.07]">
+        <div
+          className="h-full rounded-full bg-gradient-to-r from-amber-400 to-orange-500"
+          style={{ width: `${Math.min(100, (now / next.target) * 100)}%` }}
+        />
+      </div>
+    </div>
+  );
+}

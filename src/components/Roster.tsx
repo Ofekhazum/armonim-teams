@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import type { CSSProperties } from 'react';
-import type { Player } from '../types';
+import type { FixtureRecord, Player } from '../types';
 import { ATTACK_DEFAULT, ATTACK_STEP, attackLabel, badgeForAttack, roleBadge } from '../types';
 import { uid } from '../storage';
 import { publishRemoteRoster, setLocalRosterVersion } from '../remote';
+import PlayerPage from './PlayerPage';
 import {
   fmtRating,
   Name,
@@ -16,6 +17,9 @@ import {
 
 interface Props {
   players: Player[];
+  // every recorded night, for the player page — the roster itself doesn't need
+  // it, but the page a roster row opens is entirely built from it
+  history: FixtureRecord[];
   onChange: (players: Player[]) => void;
   adminWord: string | null;
   setAdminWord: (word: string | null) => void;
@@ -40,6 +44,7 @@ const parseAliases = (raw: string): string[] =>
 
 export default function Roster({
   players,
+  history,
   onChange,
   adminWord,
   setAdminWord,
@@ -48,7 +53,11 @@ export default function Roster({
   const [draft, setDraft] = useState<Draft | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [publishing, setPublishing] = useState(false);
+  // whose page is open, if any — no router in this app, so the panel is state
+  // and an overlay, the same shape as pitch mode
+  const [openId, setOpenId] = useState<string | null>(null);
   const isAdmin = adminWord !== null;
+  const open = openId === null ? null : (players.find((p) => p.id === openId) ?? null);
 
   // Push the current roster to everyone, using the already-unlocked word.
   const publish = async () => {
@@ -472,7 +481,10 @@ export default function Roster({
               <li
                 key={p.id}
                 dir="rtl"
-                className="flex items-center gap-3 rounded-xl border border-amber-900/15 bg-[#fffdf4]/70 px-4 py-3 shadow-sm"
+                onClick={() => setOpenId(p.id)}
+                // the whole row, not a small "view" link: on a phone the row
+                // is the target your thumb is already aimed at
+                className="flex cursor-pointer items-center gap-3 rounded-xl border border-amber-900/15 bg-[#fffdf4]/70 px-4 py-3 shadow-sm transition-colors hover:border-orange-500/60"
               >
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
@@ -515,14 +527,23 @@ export default function Roster({
                 </div>
                 {isAdmin && (
                   <>
+                    {/* inside a row that is itself a button now, so both of
+                        these have to stop the click travelling — an Edit press
+                        that also opened the player page would bury the form */}
                     <button
-                      onClick={() => startEdit(p)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        startEdit(p);
+                      }}
                       className="rounded-lg border border-amber-900/25 px-2.5 py-1 text-xs font-semibold text-amber-900 hover:border-orange-500"
                     >
                       Edit
                     </button>
                     <button
-                      onClick={() => remove(p)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        remove(p);
+                      }}
                       className="rounded-lg border border-amber-900/25 px-2.5 py-1 text-xs font-semibold text-red-600 hover:border-red-500"
                     >
                       ✕
@@ -533,6 +554,23 @@ export default function Roster({
             ),
           )}
         </ul>
+      )}
+
+      {open && (
+        <PlayerPage
+          player={open}
+          history={history}
+          players={players}
+          isAdmin={isAdmin}
+          // Editing from the page hands straight back to the form that was
+          // always there, on the roster underneath — one edit form in the app,
+          // reached from two places, rather than a second one to keep in step.
+          onEdit={() => {
+            setOpenId(null);
+            startEdit(open);
+          }}
+          onClose={() => setOpenId(null)}
+        />
       )}
     </div>
   );

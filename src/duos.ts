@@ -10,6 +10,11 @@ import { teamOf, winnerOf } from './milestones';
 // cannot support the stronger claim — see the note on sample size below.
 export interface DuoFact {
   kind: 'together-better' | 'together-worse';
+  // ids as well as names: a player page needs to say which half of the pair is
+  // *the other one*, and comparing names to work that out breaks the day two
+  // players share one.
+  aId: string;
+  bId: string;
   aName: string;
   bName: string;
   together: number; // nights as teammates, with a result recorded
@@ -60,6 +65,11 @@ export function computeDuoRecords(
   fixtures: FixtureRecord[],
   relevantIds: Set<string>,
   nameOf: Map<string, string>,
+  // When set, only pairs containing this player are considered — which is what
+  // a player page asks for. Left out, the answer is the best and worst pair in
+  // the whole group, which is what the fixture page asks for. Same shrinkage
+  // either way, so the two can never disagree about a pair they both name.
+  mustInclude?: string,
 ): { best: DuoFact | null; worst: DuoFact | null } {
   const pairs = new Map<string, PairRecord>();
   let nights = 0;
@@ -99,9 +109,12 @@ export function computeDuoRecords(
     if (rec.together < MIN_TOGETHER) continue;
     const [x, y] = k.split('|');
     if (!relevantIds.has(x) || !relevantIds.has(y)) continue;
+    if (mustInclude !== undefined && x !== mustInclude && y !== mustInclude) continue;
     const score = (rec.won + SHRINK_K * base) / (rec.together + SHRINK_K);
     const make = (kind: DuoFact['kind']): DuoFact => ({
       kind,
+      aId: x,
+      bId: y,
       aName: nameOf.get(x) ?? '?',
       bName: nameOf.get(y) ?? '?',
       together: rec.together,

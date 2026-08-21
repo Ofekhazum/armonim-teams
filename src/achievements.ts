@@ -13,11 +13,13 @@ import type { FixtureRecord } from './types';
 import { hasResult, playerStandings } from './calibration';
 import { MIN_ATTEND_STREAK, MIN_WIN_STREAK, appearances } from './milestones';
 import { mvpCounts } from './mvp';
+import { MIN_PROFILE_NIGHTS, loggedNightsFor, shootoutWins } from './playerProfile';
 
 export type AchievementKind =
   | 'most-wins'
   | 'most-fixtures'
   | 'mvp'
+  | 'shootouts'
   | 'iron-man'
   | 'win-streak'
   | 'ever-present'
@@ -38,10 +40,67 @@ export const MIN_NIGHTS_FOR_EVER_PRESENT = 4;
 // A long-service badge. Weekly football makes this most of a year.
 export const VETERAN_NIGHTS = 25;
 
+// A one-line title for a player, taken from the badge they hold that fewest
+// people can hold. Not a new fact — every one of these is the badge underneath
+// it, said as a name instead of a sentence, and the count that earned it is
+// always on screen beside it.
+//
+// The four "top of the column" badges come first because exactly one person
+// (or a tie) can hold each; the threshold badges below them are open to anyone
+// who plays long enough, so they are the fallback rather than the headline.
+const TITLE_ORDER: { kind: AchievementKind; title: string; minNights?: number }[] = [
+  { kind: 'most-wins', title: 'Top of the Club' },
+  { kind: 'mvp', title: 'The Star' },
+  { kind: 'most-fixtures', title: 'Night Taker' },
+  { kind: 'shootouts', title: 'Nerves of Steel' },
+  { kind: 'ever-present', title: 'Ever Present' },
+  { kind: 'iron-man', title: 'Iron Man' },
+  // The one title that carries its own evidence: a run of MIN_WIN_STREAK
+  // winning nights cannot exist in a history shorter than MIN_WIN_STREAK, so
+  // it can never be an artefact of a thin record the way "played every night"
+  // can. It is therefore let through early, on its own terms.
+  { kind: 'win-streak', title: 'On a Run', minNights: MIN_WIN_STREAK },
+  { kind: 'veteran', title: 'Veteran' },
+].map((t) => ({ ...t, kind: t.kind as AchievementKind }));
+
+// No titles until the club has this many recorded nights behind it. A title is
+// the most declarative thing in the app — a noun attached to a person — and on
+// a young history the badge underneath it is nearly free: "played every night"
+// off three nights is a fact about the history's length, not about the player.
+// The badges themselves stay on from the start, because a badge shows its
+// count and a title doesn't.
+//
+// A title may set its own lower bar (see TITLE_ORDER) when the thing it names
+// is impossible to earn by accident on a short history.
+export const MIN_NIGHTS_FOR_TITLES = 5;
+
+/**
+ * The badge this player holds that fewest people can hold, said as a name.
+ *
+ * `recordedNights` is the club's whole history, not this player's — one player
+ * turning up a lot is not what makes a title mean something; the league having
+ * happened is.
+ */
+export function titleFor(achievements: Achievement[], recordedNights: number): string | null {
+  const held = new Set(achievements.map((a) => a.kind));
+  // The first title they hold that the history is deep enough to justify — so
+  // a suppressed title falls through to the next one rather than silencing the
+  // player entirely.
+  return (
+    TITLE_ORDER.find(
+      (t) => held.has(t.kind) && recordedNights >= (t.minNights ?? MIN_NIGHTS_FOR_TITLES),
+    )?.title ?? null
+  );
+}
+
 export interface PlayerAchievements {
   id: string;
   fixturesWon: number; // nights this player's team was the outright top
   mvps: number;
+  // matches this player's teams took on penalties, over the nights that were
+  // logged match by match — absent from a tallied night, so this is not
+  // comparable with `wins` and is never shown beside it without saying so
+  shootouts: number;
   achievements: Achievement[];
 }
 
@@ -75,6 +134,7 @@ export function playerAchievements(history: FixtureRecord[]): Map<string, Player
 
   const standings = playerStandings(history);
   const mvps = new Map(mvpCounts(history).map((m) => [m.id, m.count]));
+  const shootouts = shootoutWins(history);
 
   const fixturesWon = new Map<string, number>();
   const winRun = new Map<string, number>();
@@ -97,6 +157,12 @@ export function playerAchievements(history: FixtureRecord[]): Map<string, Player
   // badge nearly everyone wears stops being one — 🌟 means "most picked", the
   // way 🥇 means "most wins".
   const mostMvps = topOf((id) => mvps.get(id) ?? 0);
+  // Gated on *logged* nights rather than nights played: a shootout count drawn
+  // from one logged night says nothing, and everybody's count is zero until
+  // the first night is logged at all — which topOf already declines to award.
+  const mostShootouts = topOf((id) =>
+    loggedNightsFor(history, id) >= MIN_PROFILE_NIGHTS ? (shootouts.get(id) ?? 0) : 0,
+  );
 
   const out = new Map<string, PlayerAchievements>();
   for (const s of standings) {
@@ -119,6 +185,17 @@ export function playerAchievements(history: FixtureRecord[]): Map<string, Player
         label: `Most MVP picks — ${mvpCount} time${mvpCount === 1 ? '' : 's'}`,
       });
     }
+    if (mostShootouts.has(s.id)) {
+      const n = shootouts.get(s.id) ?? 0;
+      list.push({
+        kind: 'shootouts',
+        icon: '🎯',
+        // "their team won", not "they won" — a shootout is taken by a side.
+        // The badge is still worth having: somebody keeps being in the team
+        // that holds its nerve, and that is a count, not a verdict.
+        label: `Most shootouts won by their team — ${n}`,
+      });
+    }
     if (attend >= MIN_ATTEND_STREAK) {
       list.push({ kind: 'iron-man', icon: '🦾', label: `Hasn't missed a night in ${attend}` });
     }
@@ -132,7 +209,13 @@ export function playerAchievements(history: FixtureRecord[]): Map<string, Player
       list.push({ kind: 'veteran', icon: '🎖️', label: `${s.nights} nights played` });
     }
 
-    out.set(s.id, { id: s.id, fixturesWon: won, mvps: mvpCount, achievements: list });
+    out.set(s.id, {
+      id: s.id,
+      fixturesWon: won,
+      mvps: mvpCount,
+      shootouts: shootouts.get(s.id) ?? 0,
+      achievements: list,
+    });
   }
   return out;
 }

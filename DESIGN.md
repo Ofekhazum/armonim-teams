@@ -801,13 +801,15 @@ blowout on one night and still top fewer nights than one that edges every week; 
 splits these two, §2.11).
 
 Every badge is a count with a sentence behind it, readable on hover and listed in a key under the
-table so nothing is a mystery emoji: 🥇 most wins, 🏅 most nights won, 🌟 most MVP picks, 🦾 hasn't
-missed a night in 8+, 📈 longest winning run, ✨ played every recorded night, 🎖️ 25+ nights. Ties
+table so nothing is a mystery emoji: 🥇 most wins, 🏅 most nights won, 🌟 most MVP picks, 🎯 most
+shootouts won by their team, 🦾 hasn't missed a night in 8+, 📈 longest winning run, ✨ played every
+recorded night, 🎖️ 25+ nights. Ties
 **share** a badge rather than being broken — two players level on wins are exactly as level as the
 number says.
 
-**Three of these are "top of a column" badges, not "appears in it" badges** — most wins, most nights
-won, and most MVP picks. 🌟 used to go to anyone with a single pick, which over a season is most of
+**Four of these are "top of a column" badges, not "appears in it" badges** — most wins, most nights
+won, most MVP picks, and most shootouts (that last one gated on `MIN_PROFILE_NIGHTS` *logged* nights,
+since a shootout count drawn from one logged night says nothing about anybody). 🌟 used to go to anyone with a single pick, which over a season is most of
 the squad: a badge nearly everyone wears has stopped being one. It now means the same thing 🥇 does,
 one row up. The count itself is still in the **MVPs** column for everybody who has one, so nothing
 is hidden by the change — only the badge narrowed.
@@ -817,124 +819,6 @@ badge and the fixture-page milestone that announces it agree.
 Nothing here is new data; it is all re-read from `history`. And nothing here is a verdict — "most
 wins in the club" is a fact about a column, "best player" is a claim three numbers a night cannot
 support, and it is not on the list (§2.9).
-
-### 2.18 Logging the night as it happens (`src/matchLog.ts`)
-
-`types.ts` used to say the tally was **deliberately** the whole result — three numbers typed in at
-the end, accepting that there is no head-to-head record and no count of how much football it took,
-on the grounds that a tally is what actually gets written down. That trade was reconsidered on
-request, and the reason it stopped being a trade is the house rotation: **the winner stays on and the
-resting team comes in.** So after the opening pairing — the only one anyone chooses — every
-subsequent match is already determined, and recording one is a single tap on whoever won. Logging as
-you go turns out to be *less* work than remembering, not more.
-
-**One record, not two.** Everything is derived from the log rather than stored beside it:
-`winsFromLog` produces the same `TeamWins` shape the tally always had (a win in play is 1, taken on
-penalties is ½ — the house rule the tally already used), so a logged night and a typed one sit in
-the same history table and mean the same thing. When a log exists it *is* the night: the results
-panel shows counted numbers with its controls disabled, because a tally you can edit alongside a log
-that disagrees with it is two records and one of them is wrong. An empty log leaves the old
-end-of-night entry in charge, so both ways of running a night still work.
-
-The opening pairing is **two dropdowns** rather than a button per possible pairing. Three teams make
-only three pairings, so buttons would have fitted — but "these two play" is the shape the organiser
-is already thinking in, and it reads as one decision instead of three. Whichever team is picked
-first drops out of the second list, and picking a team that was already in the second box empties
-it, so the two can never name the same side. The outcome buttons appear only once both are chosen.
-
-`recordMatch` takes a winner rather than a pairing, and throws if that team was not on the pitch.
-The pairing stops being the organiser's to choose after the first match, and a guard is cheaper than
-a log that quietly disagrees with itself. `consecutiveMatches` surfaces the one unfairness
-winner-stays-on creates — a team about to play a third without leaving the pitch — because only the
-organiser can decide whether to allow it.
-
-**The old nights cannot be recovered.** A tally is strictly less information than a log: `black 3 /
-white 2 / blue 1` could be six matches or nine, and who beat whom is simply gone. So `matchLog` is
-optional on `FixtureRecord`, and anything derived from it has to read as *not recorded* for those
-nights rather than as zero — the same distinction `closeRate` makes in §2.12.
-
-**Recording a result puts the clock back.** Writing down who won means that match is over, and the
-next thing anybody did was press Next match — so it happens on the same tap. The session write is a
-single call, so the log and the clock cannot land separately, and the publish is precisely the one
-the manual press used to make: no extra round trip, instant on the phone doing the logging because
-local state moves first, and exactly as fast as before on everyone else's. Only on a result being
-*added* — undoing one is a correction to the record rather than the end of a match, and resetting a
-running clock would be the wrong kind of surprise.
-
-**`ScoreBar`** sticks the two numbers you look up for — the points and the clock — to the top of the
-fixture page. Both exist further down already; "further down" is the problem on a page long enough
-to scroll, asked at a pitch, usually by someone who is also playing. The two teams currently on are
-lifted out of the three, so it answers "who is on" without anyone reading a word.
-
-**Where the log is kept, and why that matters.** It is a field on `FixtureRecord`, so it rides the
-existing history path with no separate store: written to `localStorage` on save, and pushed to the
-Worker by the same `POST /history` full-list replace as everything else (§6), which means a night
-logged on the organiser's phone is readable from every other device in the club. There is no second
-system to keep in step, no per-match write while the football is happening, and nothing that can be
-stored without the night it belongs to.
-
-The Worker **validates** it rather than waving it through (`isValidMatchLog`): the three shirt
-colours only, no team playing itself, a winner who was actually one of the two on the pitch, a real
-boolean for the penalty flag, and at most `MAX_MATCHES` (100) rows. Two reasons to be strict here
-and not merely size-capped. First, this is the field the per-match statistics will be counted from,
-and a row naming a winner who wasn't playing would skew a head-to-head silently rather than fail
-loudly. Second, the client cannot produce such a row — `recordMatch` throws — so anything that fails
-this check did not come from the app, and storing it would only be storing a lie in a record every
-device downloads.
-
-**The tally of a logged night is read-only in History's edit form.** Wins are the sum of the
-matches; typing over them would leave the record disagreeing with the rows it is made of, which is
-the same "one record, not two" rule the results panel enforces during the night, applied after it.
-
-History shows the log's **count** — *"18 matches logged"* — and not the matches. Listing them was
-tried and reverted: eighteen rows of *"Blue beat White"* is a wall to scroll past on the way to
-anything else, and nobody re-reads a night one match at a time. The count does the only job the
-expanded night needs from it, which is to say the data survived being filed.
-
-**Anyone at the pitch can write a match down**, not only the organiser — the same call the clock
-makes, for the same reason: a match ends, and whoever is nearest a phone records it. The organiser is
-usually one of the twenty-two people busy playing, and funnelling every result through them is how a
-log ends up with holes in it. So `matchLog` is a field on `LiveFixture`, `MatchLog.tsx` renders in
-the spectator view (`LiveFixtureView`) as well as the organiser's fixture page, and there is a second
-password-free write on the Worker: **`POST /live/log`**.
-
-Two writers make concurrency real, and the write carries a whole list, so a phone whose last poll was
-stale would append to an old base and *erase* a match somebody else had just recorded — silent data
-loss in the exact feature being added. **`isLogStep(prev, next)`** is the answer: a write is accepted
-only if it is one match longer (recorded), one shorter (undone), or identical (a retry, or two people
-recording the same result — which converges rather than duplicating). Anything else is a **409**
-carrying the real log, which the client adopts on the spot.
-
-**It runs inside the Durable Object, and it has to.** The check is a read followed by a write that
-depends on what was read. Across KV that is a race with a *stale* read in the middle — and not a
-theoretical one: the first version of this shipped that way and rejected matches people really had
-logged, because the read it compared against was up to a minute old. A tap looked like it vanished a
-few seconds later, when the equally-stale next poll landed. A Durable Object is single-threaded and
-strongly consistent, so the compare and the swap cannot be pulled apart. `isLogStep` therefore lives
-in `clock-notifier.js` beside the storage it guards, and the Worker's route does shape validation
-and forwards.
-
-The organiser's session **mirrors** the shared log (`sameLog` guards the poll and the session from
-chasing each other), because the session is what `saveNight` files into history — without it, a night
-where two people took turns recording would be filed with only the matches that one phone entered.
-`adoptLive` seeds it too, so an organiser picking the night up on a second device inherits the
-matches already played. And recording a result resets the clock from *whichever* device did it:
-`App.shareLog` owns that rule, so the spectator view and the fixture page cannot drift apart.
-
-**How fast others see it:** exactly as fast as a clock press, because it is the same record and the
-same poll — which since the move off KV means one poll interval (2s) rather than a cache expiry. Which means it is only as good as §2.15's latency — the person tapping always sees it
-immediately (local state moves first), and everyone else sees it on their next poll after the write
-lands.
-
-**Not yet counted.** The log is stored and shared but nothing derives from it beyond `winsFromLog`
-yet — head-to-head between two shirts, matches played versus wins collected, how often a night went
-to penalties. Those are reads over data already on file, and can be added whenever without another
-migration.
-
-**Known gap:** `planRotation` and `MATCH_PAIRINGS` (§3) still assume the fixed three-match rotation
-when lending players to a short-handed team. Winner-stays-on means the sequence is not knowable in
-advance beyond the current match, so that planner and this log now disagree about what happens
-third. Left alone deliberately rather than half-changed.
 
 ### 2.17 Match-clock notifications (`src/push.ts`, `worker/push.js`, `worker/clock-notifier.js`)
 
@@ -1069,6 +953,277 @@ link that cannot be tested locally is `pushManager.subscribe()` — an automated
 service to register with, so it fails there by construction. Everything on both sides of it is
 covered; that step needs a real device.
 
+### 2.18 Logging the night as it happens (`src/matchLog.ts`)
+
+`types.ts` used to say the tally was **deliberately** the whole result — three numbers typed in at
+the end, accepting that there is no head-to-head record and no count of how much football it took,
+on the grounds that a tally is what actually gets written down. That trade was reconsidered on
+request, and the reason it stopped being a trade is the house rotation: **the winner stays on and the
+resting team comes in.** So after the opening pairing — the only one anyone chooses — every
+subsequent match is already determined, and recording one is a single tap on whoever won. Logging as
+you go turns out to be *less* work than remembering, not more.
+
+**One record, not two.** Everything is derived from the log rather than stored beside it:
+`winsFromLog` produces the same `TeamWins` shape the tally always had (a win in play is 1, taken on
+penalties is ½ — the house rule the tally already used), so a logged night and a typed one sit in
+the same history table and mean the same thing. When a log exists it *is* the night: the results
+panel shows counted numbers with its controls disabled, because a tally you can edit alongside a log
+that disagrees with it is two records and one of them is wrong. An empty log leaves the old
+end-of-night entry in charge, so both ways of running a night still work.
+
+The opening pairing is **two dropdowns** rather than a button per possible pairing. Three teams make
+only three pairings, so buttons would have fitted — but "these two play" is the shape the organiser
+is already thinking in, and it reads as one decision instead of three. Whichever team is picked
+first drops out of the second list, and picking a team that was already in the second box empties
+it, so the two can never name the same side. The outcome buttons appear only once both are chosen.
+
+`recordMatch` takes a winner rather than a pairing, and throws if that team was not on the pitch.
+The pairing stops being the organiser's to choose after the first match, and a guard is cheaper than
+a log that quietly disagrees with itself. `consecutiveMatches` surfaces the one unfairness
+winner-stays-on creates — a team about to play a third without leaving the pitch — because only the
+organiser can decide whether to allow it.
+
+**The old nights cannot be recovered.** A tally is strictly less information than a log: `black 3 /
+white 2 / blue 1` could be six matches or nine, and who beat whom is simply gone. So `matchLog` is
+optional on `FixtureRecord`, and anything derived from it has to read as *not recorded* for those
+nights rather than as zero — the same distinction `closeRate` makes in §2.12.
+
+**Recording a result puts the clock back.** Writing down who won means that match is over, and the
+next thing anybody did was press Next match — so it happens on the same tap. The session write is a
+single call, so the log and the clock cannot land separately, and the publish is precisely the one
+the manual press used to make: no extra round trip, instant on the phone doing the logging because
+local state moves first, and exactly as fast as before on everyone else's. Only on a result being
+*added* — undoing one is a correction to the record rather than the end of a match, and resetting a
+running clock would be the wrong kind of surprise.
+
+**`ScoreBar`** sticks the two numbers you look up for — the points and the clock — to the top of the
+fixture page. Both exist further down already; "further down" is the problem on a page long enough
+to scroll, asked at a pitch, usually by someone who is also playing. The two teams currently on are
+lifted out of the three, so it answers "who is on" without anyone reading a word.
+
+**Where the log is kept, and why that matters.** It is a field on `FixtureRecord`, so it rides the
+existing history path with no separate store: written to `localStorage` on save, and pushed to the
+Worker by the same `POST /history` full-list replace as everything else (§6), which means a night
+logged on the organiser's phone is readable from every other device in the club. There is no second
+system to keep in step, no per-match write while the football is happening, and nothing that can be
+stored without the night it belongs to.
+
+The Worker **validates** it rather than waving it through (`isValidMatchLog`): the three shirt
+colours only, no team playing itself, a winner who was actually one of the two on the pitch, a real
+boolean for the penalty flag, and at most `MAX_MATCHES` (100) rows. Two reasons to be strict here
+and not merely size-capped. First, this is the field the per-match statistics will be counted from,
+and a row naming a winner who wasn't playing would skew a head-to-head silently rather than fail
+loudly. Second, the client cannot produce such a row — `recordMatch` throws — so anything that fails
+this check did not come from the app, and storing it would only be storing a lie in a record every
+device downloads.
+
+**The tally of a logged night is read-only in History's edit form.** Wins are the sum of the
+matches; typing over them would leave the record disagreeing with the rows it is made of, which is
+the same "one record, not two" rule the results panel enforces during the night, applied after it.
+
+History shows the log's **count** — *"18 matches logged"* — and not the matches. Listing them was
+tried and reverted: eighteen rows of *"Blue beat White"* is a wall to scroll past on the way to
+anything else, and nobody re-reads a night one match at a time. The count does the only job the
+expanded night needs from it, which is to say the data survived being filed.
+
+**Anyone at the pitch can write a match down**, not only the organiser — the same call the clock
+makes, for the same reason: a match ends, and whoever is nearest a phone records it. The organiser is
+usually one of the twenty-two people busy playing, and funnelling every result through them is how a
+log ends up with holes in it. So `matchLog` is a field on `LiveFixture`, `MatchLog.tsx` renders in
+the spectator view (`LiveFixtureView`) as well as the organiser's fixture page, and there is a second
+password-free write on the Worker: **`POST /live/log`**.
+
+Two writers make concurrency real, and the write carries a whole list, so a phone whose last poll was
+stale would append to an old base and *erase* a match somebody else had just recorded — silent data
+loss in the exact feature being added. **`isLogStep(prev, next)`** is the answer: a write is accepted
+only if it is one match longer (recorded), one shorter (undone), or identical (a retry, or two people
+recording the same result — which converges rather than duplicating). Anything else is a **409**
+carrying the real log, which the client adopts on the spot.
+
+**It runs inside the Durable Object, and it has to.** The check is a read followed by a write that
+depends on what was read. Across KV that is a race with a *stale* read in the middle — and not a
+theoretical one: the first version of this shipped that way and rejected matches people really had
+logged, because the read it compared against was up to a minute old. A tap looked like it vanished a
+few seconds later, when the equally-stale next poll landed. A Durable Object is single-threaded and
+strongly consistent, so the compare and the swap cannot be pulled apart. `isLogStep` therefore lives
+in `clock-notifier.js` beside the storage it guards, and the Worker's route does shape validation
+and forwards.
+
+The organiser's session **mirrors** the shared log (`sameLog` guards the poll and the session from
+chasing each other), because the session is what `saveNight` files into history — without it, a night
+where two people took turns recording would be filed with only the matches that one phone entered.
+`adoptLive` seeds it too, so an organiser picking the night up on a second device inherits the
+matches already played. And recording a result resets the clock from *whichever* device did it:
+`App.shareLog` owns that rule, so the spectator view and the fixture page cannot drift apart.
+
+**How fast others see it:** exactly as fast as a clock press, because it is the same record and the
+same poll — which since the move off KV means one poll interval (2s) rather than a cache expiry. Which means it is only as good as §2.15's latency — the person tapping always sees it
+immediately (local state moves first), and everyone else sees it on their next poll after the write
+lands.
+
+**Not yet counted.** The log is stored and shared but nothing derives from it beyond `winsFromLog`
+yet — head-to-head between two shirts, matches played versus wins collected, how often a night went
+to penalties. Those are reads over data already on file, and can be added whenever without another
+migration.
+
+**Known gap:** `planRotation` and `MATCH_PAIRINGS` (§3) still assume the fixed three-match rotation
+when lending players to a short-handed team. Winner-stays-on means the sequence is not knowable in
+advance beyond the current match, so that planner and this log now disagree about what happens
+third. Left alone deliberately rather than half-changed.
+
+### 2.19 The player page (`src/playerProfile.ts`, `PlayerPage.tsx`)
+
+Tapping a roster row opens one player's page: badges, the nights they played, the milestones they
+are climbing towards, the shirts they have worn, their best and leanest teammate, and their teams'
+shootout record. No router in this app, so it is `openId` state plus a full-screen overlay — the same
+shape as pitch mode, Escape included.
+
+**Nothing here is new data.** It is the same history the standings table, the badges and the
+milestones are already built from, sliced per player rather than per column. That is the whole reason
+the page was cheap: the counting was already being done, it had just never been gathered in one place
+with somebody's name on it.
+
+**One rule runs through all of it.** The app records three teams and how many matches each won; it
+has never recorded an individual. So a player's wins are the wins of the teams they were in, and the
+*wording* carries that wherever it could be misread — the 🎯 badge reads "most shootouts won **by
+their team**", not "most shootouts won". Said in the labels rather than in a disclaimer at the top:
+a banner explaining that the page doesn't mean what it looks like is a page that shouldn't say it.
+
+The counted line is five tiles: nights, nights won, match wins, wins per night, and **MVP nights**.
+The MVP count carries no threshold, unlike the rate beside it — a pick either happened or it didn't,
+so `0` is the true answer rather than a small sample, and it is shown for everybody precisely so a
+zero reads as *none* rather than as *not tracked*. It comes off `playerAchievements`, which was
+already counting picks in order to decide who tops that column; counting them a second time here is
+how two numbers on one page end up disagreeing.
+
+**One threshold, `MIN_PROFILE_NIGHTS = 4`** — the same bar `MIN_NIGHTS` uses for rating calibration,
+and deliberately not a different number per statistic. A page showing "67%" under one heading and
+"not enough nights yet" under the next, off the same four nights, is one nobody can calibrate their
+trust against. Below the bar the per-night rate is `null` rather than a small-sample number, and the
+page says why. The shootout section is gated on *logged* nights specifically, because only a night
+written down match by match can answer it (§2.18), and it prints how many those were: two counts over
+different windows are fine, two that look like they cover the same window are not.
+
+**Looking like somebody's page, not a row from a table.** The first cut was correct and drab — cream
+cards, one type size, a name in the same 14px as the numbers under it. The visual pass changed no
+counts and no thresholds; it changed what carries meaning. The header takes a warm gradient and sets
+the name at 3xl with the shirt number huge and nearly transparent behind it, the way it sits on an
+actual shirt. Badges keep a **tone per kind** (`BADGE_TONE`) rather than seven identical pills, so 🥇
+is the same gold wherever it appears and the row can be scanned instead of read. Each ribbon square is a
+**medal**: gold, silver or bronze for where that team finished on the night. Three teams means every
+night has all three, so a row of medals is a complete season in one line — and unlike a win/lose mark
+it separates the second-place nights from the ones spent bottom. Metallic gradients rather than flat
+fills, because flat gold and flat bronze are two similar oranges at 8px; the numeral inside is the
+part that survives colourblindness and a bad screen. And the milestone rungs became **filling bars**: "no nights milestone
+yet" said nothing twice, where `4 / 10 nights · 6 to go` says the same thing and shows the distance.
+
+**A night with no result recorded gets no medal**, rather than the bottom one — nobody finished
+anywhere. `appearances` in milestones.ts drops those nights entirely, but a ribbon cannot, because it
+is a picture of turning up as much as of winning; so `ProfileNight.place` and `.won` are both
+nullable and an untallied night renders as a dashed outline. It also can't break a winning run, for
+the same reason.
+
+**Place and win are deliberately different questions.** `placeOf` is standard competition ranking —
+one more than the number of teams strictly above — so two teams level at the top are *both* gold and
+the third is 3rd, not 2nd. `winnerOf` still says nobody *took* a night that ended level (§2.6), so a
+shared gold shows on the ribbon while adding nothing to **nights won** or to a winning run. Both are
+true: they finished first together, and neither of them won it. The tooltip says "1st (shared)" so
+the ribbon isn't quietly claiming the stronger of the two.
+
+**A title under the name — but not for a while.** Titles are held back until the club has
+`MIN_NIGHTS_FOR_TITLES` (5) recorded nights behind it. A title is the most declarative thing in the
+app, a noun attached to a person, and on a young history the badge underneath it is nearly free:
+"played every night" off three nights is a fact about the history's length, not about the player. The
+*badges* stay on from the first night, because a badge shows its count and a title doesn't. The count
+is the **club's** nights, not the player's: one person turning up a lot is not what makes a title mean
+something, the league having happened is.
+
+**One title sets its own lower bar.** 📈 *On a Run* is let through at `MIN_WIN_STREAK` (3) nights,
+because it carries its own evidence: a run of three winning nights cannot exist in a history shorter
+than three, so unlike "played every night" it can never be an artefact of a thin record. A title
+suppressed by the general bar falls through to the next one the player holds rather than silencing
+them, so a four-night history can show *On a Run* while *Ever Present* waits — and once the history
+is deep enough the rarer title takes the headline back.
+
+`titleFor` picks the badge a player holds that fewest people *can* hold
+and says it as a name — Top of the Club, The Star, Night Taker, Nerves of Steel, then the threshold
+badges (Ever Present, Iron Man, On a Run, Veteran) as fallbacks. It is not a new fact: every title is
+the badge underneath it, and the count that earned it is on screen beside it. The four column titles
+come first precisely because only one player (or a tie) can hold each, so a title is distinguishing
+rather than decorative. Nobody with no badges gets one — an invented title for everybody would be the
+first verdict in the app.
+
+**No organiser half.** Ratings, the attack spectrum, the keep-apart list and "beats what their rating
+expects" are the organiser's working notes about a person, and this is the most screenshot-able page
+in the app. They stay on the roster row and in the edit form, behind admin, exactly where they were —
+and ✏️ Edit on the page opens *that* form rather than a second one, so there is still only one place
+a player is edited. The roster row's own Edit and ✕ still work; both stop the click reaching the row
+underneath, which would otherwise bury the form under the page it opened.
+
+`computeDuoRecords` gained an optional `mustInclude` id so the page can ask for the best and worst
+pair *containing this player*, while the fixture page keeps asking for the best and worst in the
+group. Same shrinkage either way (§2.10), so the two can never disagree about a pair they both name.
+
+### 2.20 What tonight could become (`src/radar.ts`)
+
+`milestones.ts` announces a threshold the moment it is crossed. This is the same idea pointed
+forwards: **🎯 On the line tonight**, a strip above the fixture page's milestone row saying who is one
+night away from something. Same appearances ledger, read one step short of the line — no new data,
+and tonight's own record excluded throughout, since tonight is the thing being asked about.
+
+**Every line is a condition, never a prediction.** *"Their team wins and that's three nights running"*
+is arithmetic on the record. *"Likely to win tonight"* would be a claim three win totals a night
+cannot support (§2.9) — which is why there are no probabilities in this file, and why the
+pre-match win-probability idea was declined rather than deferred.
+
+Four things fire, and each fires **exactly one night short**, never earlier: a win streak sitting at
+`MIN_WIN_STREAK - 1`, an attendance run at `MIN_ATTEND_STREAK - 1`, a night that simply *is* somebody's
+10th/25th/50th, and a career win milestone within `WINS_WITHIN_REACH` (5 — about one night's haul, per
+`isWinMilestone`'s calibration note). A radar that fires three nights early is noise, and one that
+fires after the fact is duplicating the milestone row underneath it.
+
+**The bounty** names the longest active winning run among tonight's players — *"is on 3 winning
+nights. Somebody end it."* It stays silent below `MIN_WIN_STREAK`, so an ordinary week doesn't get a
+manufactured rivalry, and it names **nobody on a tie**: two players level on the longest run is not a
+bounty on one of them, and picking arbitrarily would invent the target. The copy is about the streak
+rather than the player, which is what keeps a bit of needling on the right side of §2.9.
+
+### 2.21 Team of the Month (`src/wrapped.ts`, `shirtImage.ts`)
+
+The month's five, drawn onto a **gold shirt card** and shared as the last page of the monthly recap
+(§2.11). The artwork is the same five-shirt pentagon the team cards use — its title is already
+*קבוצת החודש* — so `renderShirtImage` gained a fourth template rather than a second implementation of
+the same drawing. That meant resizing the gold asset to exactly 2288×4096 like the other three: the
+name and number boxes are hand-measured against that geometry, and it arrived at a slightly different
+aspect ratio.
+
+**Two gates, and they do different jobs.**
+
+- **Eligibility** — at least `ceil(month's nights ÷ 2)` nights played. Without it the team is whoever
+  happened to be there on a good night: one appearance at a high rate would outrank a month of steady
+  football, which is the opposite of what "of the month" means.
+- **The score**, a rate rather than a total: `(match wins + 2 × nights won + 3 × MVP picks) ÷ nights
+  played`. Match wins are the base currency at four or five a night. A night taken *outright* is worth
+  two more, which separates the player who kept edging nights from the one who banked a single
+  blowout. An MVP is worth three — a real thumb on the scale for the one human judgement the app
+  records, without letting a single pick outrank a month of winning.
+
+Ties break on the parts in the order they matter: more nights played, then more MVPs, then more
+nights won, then the name — so the fifth slot is decided by something rather than by whichever way
+the sort fell.
+
+**The formula is deliberately not shown.** Everywhere else this app prints the rule beside the
+number, and the reasoning holds there; here it would turn a card people want to send to each other
+into a specification. `TotmPlayer` still carries the parts that made the score, so the pick can be
+explained if it is ever queried — the arithmetic has to be *defensible*, which is a different
+requirement from having to be read.
+
+**Ordering on the card is by score, not by position.** The top shirt is the top of the list. History
+has no record of who kept goal — `gkIds` lives on the session, never on a `FixtureRecord` — so a
+position-based lineup would be invented, and inventing one on a card five people get named on is
+exactly the wrong place to guess. Shirt numbers come from the live roster, since a fixture record
+keeps a name and a rating but never a number.
+
 ## 3. Team generation algorithm
 
 Balancing is a small constrained optimization. With ≤15 players, brute force is too big
@@ -1142,7 +1297,9 @@ the obvious reason — a badge that is secretly a button is not one anybody pres
    chemistry/avoid links, ✕ to remove, and 📢 Publish. Everyone else sees the squad as a list to
    read — no Edit, no ✕, no + Add player, and no ratings or keep-apart lists (§2.14). Top-right
    shows a small `v<hash>` build marker (§6) so you can confirm a deploy actually landed after
-   pushing.
+   pushing. **Tapping any row opens that player's page** (§2.19) — badges, every night as a medal,
+   the milestone ladder, shirts worn, teammates and shootouts — for everyone, not just the
+   organiser, since everything on it is already public.
 2. **Match day** (`src/components/MatchDay.tsx`, the main flow):
    - Step 1 *(who's playing)*: tick available players from the roster grid, optionally use
      **📋 Import a pasted list** to bulk-mark attendance from pasted text (§2.4), and add/remove
@@ -1157,7 +1314,8 @@ the obvious reason — a badge that is secretly a button is not one anybody pres
      button copies WhatsApp-ready text (`shareText`/`copy` in `TeamsBoard.tsx`). Optionally,
      **🔴 Go live** turns this board into a shared live room others can join and drag in — see §2.5.
    - **▶️ Start fixture** → `src/components/FixturePage.tsx`: locks tonight's teams in and shows
-     them read-only (§2.7), with tonight's milestones and duo records (§2.9, §2.10), the 8-minute
+     them read-only (§2.7), with **🎯 On the line tonight** and the bounty (§2.20), tonight's
+     milestones and duo records (§2.9, §2.10), the 8-minute
      match clock with **+30s** and **⛶ Pitch mode** (§2.8), the **📋 match log** (§2.18) and
      **🏁 Tonight's results** (`ResultsPanel.tsx`) to file the night. No MVP picker — that is asked
      afterwards, on History (§2.13). Starting also publishes the fixture to the
@@ -1171,7 +1329,8 @@ the obvious reason — a badge that is secretly a button is not one anybody pres
    name and a key beneath (§2.16). Admin mode adds the **📊 Monthly recap** picker + share button
    (§2.11), the **vs rating** column, the **⚖️ Balancer trust** scatter (§2.12), rating suggestions
    with Apply/Dismiss, ✏️/🗑️ on a past night, and the **🌟 MVP** pick for a night (§2.13) — which
-   lives only here. Empty until the first night is saved.
+   lives only here. The recap share ends with the **Team of the Month** card (§2.21). Empty until
+   the first night is saved.
 4. **🔴 Live** (`src/components/LiveFixtureView.tsx`) — only present while a fixture is on: tonight's
    three teams (read-only, no ratings) and the shared match clock, which **anyone** can start,
    pause, add 30 seconds to, or open in pitch mode — the same control the organiser has, since it is

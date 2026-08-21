@@ -51,7 +51,54 @@ export interface WrappedStats {
   longestWinless: { name: string; nights: number } | null;
   bestDuo: DuoFact | null;
   worstDuo: DuoFact | null;
+  // The five who carried the month, drawn onto the gold shirt card (§2.21).
+  // Ordered best first — the top of the pentagon is the top of the list.
+  teamOfMonth: TotmPlayer[];
 }
+
+// One place in the Team of the Month, with the parts that earned it kept
+// alongside the score. The card itself shows only names, but a number nobody
+// can take apart is a number nobody should trust, so the components travel
+// with it for anywhere that wants to explain the pick later.
+export interface TotmPlayer {
+  id: string;
+  name: string;
+  score: number;
+  nights: number;
+  wins: number;
+  nightsWon: number;
+  mvps: number;
+}
+
+// How many of the month's nights a player has to have turned up for before
+// they can be picked. Half, rounded up: three nights out of five, two out of
+// four. Without it the team is whoever happened to be there on a good night —
+// a single appearance at a high rate would top a month of steady football,
+// which is the opposite of what "of the month" means.
+export const totmEligible = (playerNights: number, monthNights: number): boolean =>
+  monthNights > 0 && playerNights >= Math.ceil(monthNights / 2);
+
+// A night's worth of credit, per night played.
+//
+// Match wins are the base currency — about four or five a night, per
+// isWinMilestone's calibration. A night the team took *outright* is worth two
+// more, which is what separates the player who kept edging nights from the one
+// who banked a single blowout. An MVP is worth three: a real thumb on the
+// scale for the one human judgement the app records, without letting a single
+// pick outrank a month of winning football.
+//
+// Deliberately not shown to anyone. It is arithmetic that has to be defensible
+// rather than arithmetic that has to be read.
+const MATCH_WIN = 1;
+const NIGHT_WON = 2;
+const MVP_PICK = 3;
+
+export const totmScore = (p: Omit<TotmPlayer, 'id' | 'name' | 'score'>): number =>
+  p.nights === 0
+    ? 0
+    : (p.wins * MATCH_WIN + p.nightsWon * NIGHT_WON + p.mvps * MVP_PICK) / p.nights;
+
+export const TOTM_SIZE = 5;
 
 const MONTH_NAMES = [
   'January',
@@ -153,6 +200,32 @@ export function buildWrapped(history: FixtureRecord[], period: string): WrappedS
 
   const topMvps = mvpCounts(chronological).map((m) => ({ name: m.name, count: m.count }));
 
+  // The five who carried the month. Ties are broken by the parts of the score
+  // in the order they matter — more football played, then more of the human
+  // pick, then more nights taken outright — so the fifth slot is decided by
+  // something rather than by whichever way the sort happened to fall.
+  const mvpsById = new Map(mvpCounts(chronological).map((m) => [m.id, m.count]));
+  const teamOfMonth: TotmPlayer[] = [...nights.entries()]
+    .filter(([, n]) => totmEligible(n, chronological.length))
+    .map(([id, n]) => {
+      const parts = {
+        nights: n,
+        wins: wins.get(id) ?? 0,
+        nightsWon: fixturesWon.get(id) ?? 0,
+        mvps: mvpsById.get(id) ?? 0,
+      };
+      return { id, name: nameOf.get(id)!, score: totmScore(parts), ...parts };
+    })
+    .sort(
+      (a, b) =>
+        b.score - a.score ||
+        b.nights - a.nights ||
+        b.mvps - a.mvps ||
+        b.nightsWon - a.nightsWon ||
+        a.name.localeCompare(b.name, 'he'),
+    )
+    .slice(0, TOTM_SIZE);
+
   const [bottomScorerId, bottomScorerWins] =
     [...wins.entries()]
       .filter(([id]) => (nights.get(id) ?? 0) >= MIN_NIGHTS_FOR_ROAST)
@@ -198,5 +271,6 @@ export function buildWrapped(history: FixtureRecord[], period: string): WrappedS
     longestWinless,
     bestDuo,
     worstDuo,
+    teamOfMonth,
   };
 }

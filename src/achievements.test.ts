@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import type { FixtureRecord } from './types';
+import { MIN_WIN_STREAK } from './milestones';
 import {
   MIN_NIGHTS_FOR_EVER_PRESENT,
   VETERAN_NIGHTS,
+  MIN_NIGHTS_FOR_TITLES,
   playerAchievements,
+  titleFor,
 } from './achievements';
 
 let seq = 0;
@@ -184,5 +187,61 @@ describe('playerAchievements', () => {
 
   it('returns nothing at all for an empty history', () => {
     expect(playerAchievements([]).size).toBe(0);
+  });
+});
+
+// A title is the badge somebody holds that fewest people can hold, said as a
+// name. It invents nothing — the count that earned it is on screen beside it.
+describe('titleFor', () => {
+  const badge = (kind: string) => ({ kind, icon: 'x', label: 'x' }) as never;
+
+  it('prefers a top-of-the-column badge over one anybody can earn', () => {
+    // veteran is open to everyone who plays long enough; most-wins is not
+    expect(titleFor([badge('veteran'), badge('most-wins')], MIN_NIGHTS_FOR_TITLES)).toBe('Top of the Club');
+  });
+
+  it('falls back to a threshold badge when there is no column title', () => {
+    expect(titleFor([badge('veteran'), badge('iron-man')], MIN_NIGHTS_FOR_TITLES)).toBe('Iron Man');
+  });
+
+  it('gives no title to a player with no badges', () => {
+    expect(titleFor([], MIN_NIGHTS_FOR_TITLES)).toBeNull();
+  });
+
+  it('reads a title off a real history rather than a hand-built list', () => {
+    const history = Array.from({ length: MIN_NIGHTS_FOR_TITLES }, (_, i) =>
+      night(day(i + 1), ['a'], ['b'], { black: 3, white: 1, blue: 0 }, 'a'),
+    );
+    const ach = playerAchievements(history).get('a')!.achievements;
+    expect(titleFor(ach, history.length)).toBe('Top of the Club');
+  });
+
+  // A title is the most declarative thing in the app, and on a young history
+  // the badge under it is nearly free — "played every night" off three nights
+  // says more about the history than about the player.
+  it('gives no title at all until the club has enough nights on record', () => {
+    const ach = [badge('most-wins'), badge('ever-present')];
+    expect(titleFor(ach, MIN_NIGHTS_FOR_TITLES - 1)).toBeNull();
+    expect(titleFor(ach, MIN_NIGHTS_FOR_TITLES)).toBe('Top of the Club');
+  });
+
+  it('lets On a Run through early, since a 3-night run needs 3 nights to exist', () => {
+    const ach = [badge('ever-present'), badge('win-streak')];
+    // below the general bar: Ever Present is suppressed, On a Run is not — and
+    // the suppressed one falls through rather than silencing the player
+    expect(titleFor(ach, MIN_WIN_STREAK)).toBe('On a Run');
+    // still nothing at all before a run could even have happened
+    expect(titleFor(ach, MIN_WIN_STREAK - 1)).toBeNull();
+    // and once the history is deep enough, the rarer title takes over again
+    expect(titleFor(ach, MIN_NIGHTS_FOR_TITLES)).toBe('Ever Present');
+  });
+
+  it('counts the club’s nights, not the player’s', () => {
+    // a newcomer on their second night still gets a title, because the league
+    // behind it is what makes one mean something
+    const history = Array.from({ length: MIN_NIGHTS_FOR_TITLES }, (_, i) =>
+      night(day(i + 1), ['a'], ['b'], { black: 3, white: 1, blue: 0 }),
+    );
+    expect(titleFor([badge('most-wins')], history.length)).toBe('Top of the Club');
   });
 });

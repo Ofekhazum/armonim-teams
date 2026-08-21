@@ -144,6 +144,7 @@ const BADGE_KEY: { kind: AchievementKind; icon: string; text: string }[] = [
   { kind: 'most-wins', icon: '🥇', text: 'most wins' },
   { kind: 'most-fixtures', icon: '🏅', text: 'most nights won' },
   { kind: 'mvp', icon: '🌟', text: 'most MVP picks' },
+  { kind: 'shootouts', icon: '🎯', text: 'most shootouts won' },
   { kind: 'iron-man', icon: '🦾', text: 'never misses' },
   { kind: 'win-streak', icon: '📈', text: 'winning run' },
   { kind: 'ever-present', icon: '✨', text: 'played every night' },
@@ -315,7 +316,12 @@ export default function History({
             onClick={async () => {
               if (!wrappedPeriod) return;
               setSharingWrapped(true);
-              await shareWrappedImage(buildWrapped(history, wrappedPeriod));
+              // shirt numbers live on the roster, never in a fixture record —
+              // the Team of the Month card wants them
+              await shareWrappedImage(
+                buildWrapped(history, wrappedPeriod),
+                new Map(players.map((p) => [p.id, p.number])),
+              );
               setSharingWrapped(false);
             }}
             disabled={sharingWrapped || !wrappedPeriod}
