@@ -1104,6 +1104,23 @@ has never recorded an individual. So a player's wins are the wins of the teams t
 their team**", not "most shootouts won". Said in the labels rather than in a disclaimer at the top:
 a banner explaining that the page doesn't mean what it looks like is a page that shouldn't say it.
 
+**Four ladders, and a badge for each one crossed.** Nights played, match wins, **nights won outright**
+(5 · 10 · 25 · then every 50) and **MVP picks** (1 · 3 · 5 · then every 10). A ladder only works on a
+count that can never go down, which is why the streaks are badges instead: progress that drops back to
+zero next week is not a ladder.
+
+`ladderBadges` wears the **top rung of each ladder only**. A player four ladders deep would otherwise
+carry a dozen chips, and "10 nights" stops being worth saying the moment "25 nights" is true — the
+ladder card underneath still shows the whole climb, so this is its headline rather than a summary of
+it. The first MVP is a rung of its own, because being picked at all is the event and a ladder starting
+at three would say nothing to almost anybody for a season.
+
+**Every badge and every medal explains itself on tap, not just on hover.** A `title` attribute is
+invisible on a phone, which is where this app is used, so a chip nobody can decode is decoration. The
+answer is a **caption**: tapping a badge or a night writes one sentence under that row, and tapping
+again or touching something else clears it. Deliberately not a popover or a modal — a one-line
+explanation asked for with a fingertip should not take the screen away from you to answer.
+
 The counted line is five tiles: nights, nights won, match wins, wins per night, and **MVP nights**.
 The MVP count carries no threshold, unlike the rate beside it — a pick either happened or it didn't,
 so `0` is the true answer rather than a small sample, and it is shown for everybody precisely so a
@@ -1129,7 +1146,9 @@ is the same gold wherever it appears and the row can be scanned instead of read.
 night has all three, so a row of medals is a complete season in one line — and unlike a win/lose mark
 it separates the second-place nights from the ones spent bottom. Metallic gradients rather than flat
 fills, because flat gold and flat bronze are two similar oranges at 8px; the numeral inside is the
-part that survives colourblindness and a bad screen. And the milestone rungs became **filling bars**: "no nights milestone
+part that survives colourblindness and a bad screen — which is also why the gold/silver/bronze key
+that once sat under the ribbon is gone. A square reading **2** in silver does not need a caption
+saying silver means second, and the key was the widest line in the card. And the milestone rungs became **filling bars**: "no nights milestone
 yet" said nothing twice, where `4 / 10 nights · 6 to go` says the same thing and shows the distance.
 
 **A night with no result recorded gets no medal**, rather than the bottom one — nobody finished
@@ -1200,6 +1219,55 @@ Writing the title *on* the row was tried and taken back off: a name, a role icon
 title is more than a list row can carry, and the roster is a list you scan rather than a page you
 read. The title still appears in full under the name on the player page, which is where one person
 is the whole subject.
+
+**Mates and rivals.** `matchups` walks history once and counts, for every player this one has shared
+a pitch with: nights alongside, how many of those were taken, nights on opposite sides, and who took
+those. The app had always counted who somebody plays *with* and never who they play *against*, even
+though every night puts them opposite ten people — the most naturally competitive thing in the ledger
+was the one thing nobody had read.
+
+Seven lines come out of it, deliberately rather than three: **most nights with** and
+**won most with** are different questions, and so are **bogey man** (whose team keeps taking nights
+off yours) and **favourite victim**. **Never once alongside** only fires for somebody seen a lot from
+the other side, because the joke needs them to have been around.
+
+**The whole card waits for `MIN_PROFILE_NIGHTS`.** Two nights in, a player has a bogey man and a
+favourite victim purely by arithmetic, and naming either is a joke at the expense of a fact that is
+not there yet. Two separate floors, doing separate jobs: the per-pair one asks whether *that pairing*
+is worth a line, this one asks whether the player has been around long enough for any of it to be
+about them. The §2.10 duo record sits underneath
+as the one *claim* on a card of counts.
+
+**The head-to-head is counted in matches, not nights**, and therefore only from nights logged match by
+match (§2.17). A night is far too blunt a unit for a rivalry: two players can be opponents for two
+hours, play each other five times, and the night records one winner between three teams. Matches are
+what they actually played against each other, so *Faced most*, *Bogey man*, *Favourite victim* and
+*Worthy opponent* all read off `matchLog`. On a tallied night that half of the card stays empty and
+says why — the same honesty the shootout panel already practises.
+
+**🤜 Worthy opponent** is the most even record anybody has: the smallest gap between the two columns,
+and among equally close ones the one with the most football behind it. 6–5 is a worthier rivalry than
+1–1, and both are a gap of one — which is why `MIN_FACED` (6 matches) keeps the thin ones out of the
+running entirely.
+
+**They count teams and address the player.** `beat` is, and remains, *matches this player's team won
+against that player's team* — the arithmetic never attributes a result to one man. The copy is the
+part that changed: it was *"their team has beaten yours 5 times"*, and it now reads *"has beaten you
+5 times"*. The old line was accurate and nobody wanted to read it; on a page devoted to one player,
+spelling out the team clause four times running is pedantry rather than honesty, and it pushed every
+tail onto a second line. The banter lives here, in the copy of a personal card, and the club-wide
+numbers §2.15 draws still say *their team* where a claim is being made about somebody. Tails are kept
+to a few words for the same reason: *Faced most* prints **20–18** and stops, because the label
+already said what the pair of numbers is.
+
+The split into counts-first came from the card being useless in practice. The duo test is shrunk hard on purpose: a
+pair needs to win around **60% of their nights together** against a base rate near a third before it
+says anything — roughly **6 of 8, or 9 of 15** — so across fifteen recorded nights with players
+deliberately kept together, it stayed silent for everybody. Worse, the empty state blamed
+`MIN_TOGETHER`, telling the organiser it needed four nights together when four nights together was
+never the blocker. Two separate faults: a card that could only ever say "not yet", and copy that
+explained the wrong reason. Who somebody plays with is always true and needs no claim attached; the
+claim about chemistry stays where it earned its caution.
 
 **No organiser half.** Ratings, the attack spectrum, the keep-apart list and "beats what their rating
 expects" are the organiser's working notes about a person, and this is the most screenshot-able page

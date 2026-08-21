@@ -15,7 +15,13 @@
 import type { FixtureRecord, MatchLogEntry, TeamColor, TeamWins } from './types';
 import { TEAM_COLORS } from './balancer';
 import { hasResult } from './calibration';
-import { isMilestoneNight, isWinMilestone, winnerOf } from './milestones';
+import {
+  isFixtureWinMilestone,
+  isMilestoneNight,
+  isMvpMilestone,
+  isWinMilestone,
+  winnerOf,
+} from './milestones';
 
 // How much football before a *rate* is worth printing. The same bar the
 // rating calibration uses (`MIN_NIGHTS`), and deliberately one number rather
@@ -157,11 +163,251 @@ function ladder(count: number, isRung: (n: number) => boolean, ceiling: number):
 // them, low enough that this stays a handful of iterations.
 export const nightRungs = (nights: number): Rung[] => ladder(nights, isMilestoneNight, 5_000);
 export const winRungs = (wins: number): Rung[] => ladder(Math.floor(wins), isWinMilestone, 50_000);
+export const fixtureRungs = (won: number): Rung[] => ladder(won, isFixtureWinMilestone, 5_000);
+export const mvpRungs = (picks: number): Rung[] => ladder(picks, isMvpMilestone, 1_000);
+
+// --- Ladder badges ----------------------------------------------------------
+
+export interface LadderBadge {
+  key: string;
+  icon: string;
+  // what it is, short enough to wear: "25 nights"
+  label: string;
+  // how it was earned, in a sentence — shown on hover, and on tap, because a
+  // phone has no hover and a badge nobody can decode is decoration
+  detail: string;
+}
+
+// The top rung reached on each ladder, worn as a badge.
+//
+// The highest one only, not every rung crossed: a player four ladders deep
+// would otherwise carry a dozen chips, and "10 nights" stops being worth saying
+// the moment "25 nights" is true. The ladder card underneath still shows the
+// whole climb, so nothing is hidden — this is the headline of it.
+export function ladderBadges(
+  counts: Pick<ProfileCounts, 'nights' | 'nightsWon' | 'wins'>,
+  mvps: number,
+): LadderBadge[] {
+  const top = (rungs: Rung[]): number | null => {
+    const reached = rungs.filter((r) => r.reached);
+    return reached.length ? reached[reached.length - 1].target : null;
+  };
+
+  const out: LadderBadge[] = [];
+  const nights = top(nightRungs(counts.nights));
+  if (nights) {
+    out.push({
+      key: `nights-${nights}`,
+      icon: '🎽',
+      label: `${nights} nights`,
+      detail: `Played ${nights} recorded nights.`,
+    });
+  }
+  const wins = top(winRungs(counts.wins));
+  if (wins) {
+    out.push({
+      key: `wins-${wins}`,
+      icon: '🏆',
+      label: `${wins} wins`,
+      detail: `Their teams have won ${wins} matches with them on the pitch.`,
+    });
+  }
+  const fixtures = top(fixtureRungs(counts.nightsWon));
+  if (fixtures) {
+    out.push({
+      key: `fixtures-${fixtures}`,
+      icon: '🥇',
+      label: `${fixtures} nights won`,
+      detail: `Finished top of the night ${fixtures} times.`,
+    });
+  }
+  const picks = top(mvpRungs(mvps));
+  if (picks) {
+    out.push({
+      key: `mvp-${picks}`,
+      icon: '🌟',
+      label: picks === 1 ? 'First MVP' : `${picks} MVPs`,
+      detail:
+        picks === 1
+          ? 'Picked MVP for the first time.'
+          : `Picked MVP on ${picks} different nights.`,
+    });
+  }
+  return out;
+}
 
 // How far off the next rung is, or null when it has just been reached exactly.
 export function toGo(rungs: Rung[], count: number): { target: number; away: number } | null {
   const next = rungs.find((r) => !r.reached);
   return next ? { target: next.target, away: next.target - Math.floor(count) } : null;
+}
+
+// --- Teammates --------------------------------------------------------------
+
+export interface Matchup {
+  id: string;
+  name: string;
+  // --- on the same team
+  together: number; // nights alongside, with a result recorded
+  togetherWon: number; // of those, nights their team finished top of
+  // --- on opposite teams
+  against: number; // nights on different teams
+  // The head-to-head, counted in *matches* rather than nights, and therefore
+  // only from nights logged match by match (§2.17). A night is a blunt unit
+  // for a rivalry: two players can be opponents for two hours and the night
+  // records one winner between three teams. Matches are the thing they
+  // actually played against each other.
+  faced: number; // matches with these two on opposite sides
+  beat: number; // of those, matches this player's team won
+  beatenBy: number; // of those, matches the other player's team won
+}
+
+// Everyone this player has shared a pitch with, and what happened.
+//
+// One pass, both halves. The app has always counted who somebody plays *with*
+// and never who they play *against*, even though every night puts them
+// opposite ten people — which left the most naturally competitive thing in the
+// ledger unread.
+//
+// `beat` and `beatenBy` only count nights one of the two teams actually took:
+// with three teams on the pitch, two players can be opponents on a night the
+// third team wins, and that is a night neither of them beat anybody. Note also
+// what these are counts *of* — one team finishing above another, not one
+// person beating another. The labels can have their fun; the sentences say the
+// true thing (§2.8).
+export function matchups(history: FixtureRecord[], id: string): Matchup[] {
+  const nameOf = new Map<string, string>();
+  const rec = new Map<string, Omit<Matchup, 'id' | 'name'>>();
+  const get = (other: string) =>
+    rec.get(other) ??
+    { together: 0, togetherWon: 0, against: 0, faced: 0, beat: 0, beatenBy: 0 };
+
+  for (const fx of history) {
+    if (!hasResult(fx.wins)) continue;
+    const mine = shirtOf(fx, id);
+    if (!mine) continue;
+    const winner = winnerOf(fx);
+
+    // The head-to-head half, per shirt: how many matches this player's team
+    // won and lost against each other shirt on this night.
+    const log = fx.matchLog ?? [];
+    const won = new Map<TeamColor, number>();
+    const lost = new Map<TeamColor, number>();
+    for (const m of log) {
+      if (m.a !== mine && m.b !== mine) continue; // a match they sat out
+      const foe = m.a === mine ? m.b : m.a;
+      const table = m.winner === mine ? won : lost;
+      table.set(foe, (table.get(foe) ?? 0) + 1);
+    }
+
+    for (const c of TEAM_COLORS) {
+      for (const other of fx.teams[c]) {
+        if (other === id) continue;
+        const r = get(other);
+        if (c === mine) {
+          r.together++;
+          if (winner === mine) r.togetherWon++;
+        } else {
+          r.against++;
+          const w = won.get(c) ?? 0;
+          const l = lost.get(c) ?? 0;
+          r.faced += w + l;
+          r.beat += w;
+          r.beatenBy += l;
+        }
+        rec.set(other, r);
+        nameOf.set(other, fx.players.find((p) => p.id === other)?.name ?? '?');
+      }
+    }
+  }
+
+  return [...rec.entries()]
+    .map(([other, r]) => ({ id: other, name: nameOf.get(other) ?? '?', ...r }))
+    .sort((a, b) => b.together - a.together || a.name.localeCompare(b.name, 'he'));
+}
+
+// The pick of each column, or null when nothing in it is worth naming. Ties go
+// to the player who has shared more football, then to the name — never to
+// whichever way the sort happened to fall.
+const pickBy = (
+  list: Matchup[],
+  value: (m: Matchup) => number,
+  floor: number,
+): Matchup | null => {
+  const best = [...list]
+    .filter((m) => value(m) >= floor)
+    .sort((a, b) => value(b) - value(a) || b.together + b.against - (a.together + a.against))[0];
+  return best ?? null;
+};
+
+// How much shared football before a pairing is worth a line of its own. Low,
+// because these are counts rather than claims — but not one, because "you have
+// beaten him once" is a sentence about an evening, not about a rivalry.
+export const MIN_MATCHUP = 2;
+
+// The same idea for the head-to-head half, in matches. A logged night puts two
+// opponents against each other several times over, so this is a couple of
+// nights' worth rather than a couple of matches — enough that a record is
+// about how they play each other rather than about one evening.
+export const MIN_FACED = 6;
+
+export interface MatchupPicks {
+  playedMost: Matchup | null; // most nights alongside
+  wonMost: Matchup | null; // most nights *won* alongside — a different question
+  facedMost: Matchup | null; // most matches on opposite sides
+  bogey: Matchup | null; // whose team has beaten theirs in the most matches
+  victim: Matchup | null; // and the other way round
+  worthy: Matchup | null; // the closest record of the lot
+  neverTogether: Matchup | null; // seen plenty, never once on the same team
+}
+
+// The most even head-to-head anybody has: fewest matches between the two
+// columns, and among equally close records the one with the most football
+// behind it — 6–5 is a worthier rivalry than 1–1, and both are a gap of one.
+function pickWorthy(list: Matchup[]): Matchup | null {
+  const gap = (m: Matchup) => Math.abs(m.beat - m.beatenBy);
+  const best = [...list]
+    .filter((m) => m.faced >= MIN_FACED)
+    .sort((a, b) => gap(a) - gap(b) || b.faced - a.faced || a.name.localeCompare(b.name, 'he'))[0];
+  return best ?? null;
+}
+
+const NO_PICKS: MatchupPicks = {
+  playedMost: null,
+  wonMost: null,
+  facedMost: null,
+  bogey: null,
+  victim: null,
+  worthy: null,
+  neverTogether: null,
+};
+
+/**
+ * `subjectNights` is the whole card's gate: below `MIN_PROFILE_NIGHTS` it says
+ * nothing at all.
+ *
+ * The per-pair floor above is about whether *that pairing* is worth a line;
+ * this is about whether the player has been around long enough for any of it
+ * to be about them. Somebody two nights in has a bogey man and a favourite
+ * victim by arithmetic, and naming either is a joke at the expense of a fact
+ * that isn't there yet. Same number the rest of the page uses.
+ */
+export function matchupPicks(list: Matchup[], subjectNights: number): MatchupPicks {
+  if (subjectNights < MIN_PROFILE_NIGHTS) return NO_PICKS;
+  return {
+    playedMost: pickBy(list, (m) => m.together, MIN_MATCHUP),
+    wonMost: pickBy(list, (m) => m.togetherWon, MIN_MATCHUP),
+    facedMost: pickBy(list, (m) => m.faced, MIN_FACED),
+    bogey: pickBy(list, (m) => m.beatenBy, MIN_MATCHUP),
+    victim: pickBy(list, (m) => m.beat, MIN_MATCHUP),
+    worthy: pickWorthy(list),
+    // the joke only lands if they have actually been around each other a lot
+    neverTogether: pickBy(
+      list.filter((m) => m.together === 0),
+      (m) => m.against,
+      MIN_MATCHUP * 2,
+    ),
+  };
 }
 
 // --- Shootouts --------------------------------------------------------------

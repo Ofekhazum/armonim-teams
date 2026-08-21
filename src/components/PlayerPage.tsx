@@ -1,19 +1,24 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { AchievementKind } from '../achievements';
 import type { FixtureRecord, Player, TeamColor } from '../types';
 import { roleBadge } from '../types';
 import { TEAM_COLORS } from '../balancer';
 import { playerAchievements, titleFor } from '../achievements';
-import { computeDuoRecords, MIN_TOGETHER } from '../duos';
+import { computeDuoRecords } from '../duos';
 import { hasResult } from '../calibration';
-import type { Place } from '../playerProfile';
+import type { Matchup, Place } from '../playerProfile';
 import {
   MIN_PROFILE_NIGHTS,
+  fixtureRungs,
+  ladderBadges,
+  mvpRungs,
   nightRungs,
   profileCounts,
   profileNights,
   shirtNights,
   shootoutRecord,
+  matchupPicks,
+  matchups,
   toGo,
   winRungs,
 } from '../playerProfile';
@@ -71,8 +76,6 @@ const MEDAL: Record<Place, string> = {
   2: 'bg-gradient-to-br from-slate-50 via-slate-300 to-slate-400 text-slate-700 ring-1 ring-slate-400/60',
   3: 'bg-gradient-to-br from-orange-200 via-amber-600 to-amber-800 text-amber-50 ring-1 ring-amber-800/40',
 };
-
-const PLACE_LABEL: Record<Place, string> = { 1: '1st', 2: '2nd', 3: '3rd' };
 
 // White is the awkward one: a fill light enough to read as *white* is nearly
 // the colour of the card behind it, and amber-200 — the obvious way out — just
@@ -142,6 +145,10 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
   const counts = useMemo(() => profileCounts(nights), [nights]);
   const shirts = useMemo(() => shirtNights(nights), [nights]);
   const shootouts = useMemo(() => shootoutRecord(history, player.id), [history, player.id]);
+  const picks = useMemo(
+    () => matchupPicks(matchups(history, player.id), counts.nights),
+    [history, player.id],
+  );
   // one call, two answers: the badge row, and the MVP tally underneath it —
   // playerAchievements already counts the picks while deciding who tops that
   // column, and counting them twice is how two numbers end up disagreeing
@@ -171,6 +178,22 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
 
   const nextNight = toGo(nightRungs(counts.nights), counts.nights);
   const nextWin = toGo(winRungs(counts.wins), counts.wins);
+  const nextFixture = toGo(fixtureRungs(counts.nightsWon), counts.nightsWon);
+  const nextMvp = toGo(mvpRungs(mvps), mvps);
+  const earned = ladderBadges(counts, mvps);
+
+  // What the last tapped badge or medal said. A phone has no hover, so a
+  // `title` alone leaves half the app's users with an undecodable chip — and a
+  // modal for a one-line explanation is a heavier answer than the question
+  // deserves. This is a caption that appears under whichever row was touched,
+  // and goes away when something else is.
+  const [detail, setDetail] = useState<{ where: 'badges' | 'nights'; text: string } | null>(null);
+  const say = (where: 'badges' | 'nights', text: string) => () =>
+    setDetail((d) => (d?.text === text ? null : { where, text }));
+  const caption = (where: 'badges' | 'nights') =>
+    detail?.where === where ? (
+      <p className="mt-2 text-xs font-semibold text-amber-900/70">{detail.text}</p>
+    ) : null;
   const enoughLogged = shootouts.loggedNights >= MIN_PROFILE_NIGHTS;
   const role = STYLE_META[roleBadge(player)];
 
@@ -237,16 +260,34 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
           )}
         </header>
 
-        {badges.length > 0 && (
-          <div className="flex flex-wrap gap-1.5">
-            {badges.map((b) => (
-              <span
-                key={b.kind}
-                className={`rounded-full border px-2.5 py-1 text-xs font-bold shadow-sm ${BADGE_TONE[b.kind]}`}
-              >
-                {b.icon} {b.label}
-              </span>
-            ))}
+        {(badges.length > 0 || earned.length > 0) && (
+          <div>
+            <div className="flex flex-wrap gap-1.5">
+              {/* Ladder badges first — they are the things this player has
+                  finished, where the achievement badges are things they
+                  currently top. Both explain themselves on hover or a tap. */}
+              {earned.map((b) => (
+                <button
+                  key={b.key}
+                  title={b.detail}
+                  onClick={say('badges', b.detail)}
+                  className="rounded-full border border-amber-900/20 bg-white/80 px-2.5 py-1 text-xs font-bold text-amber-900 shadow-sm transition-transform hover:scale-105"
+                >
+                  {b.icon} {b.label}
+                </button>
+              ))}
+              {badges.map((b) => (
+                <button
+                  key={b.kind}
+                  title={b.label}
+                  onClick={say('badges', b.label)}
+                  className={`rounded-full border px-2.5 py-1 text-xs font-bold shadow-sm transition-transform hover:scale-105 ${BADGE_TONE[b.kind]}`}
+                >
+                  {b.icon} {b.label}
+                </button>
+              ))}
+            </div>
+            {caption('badges')}
           </div>
         )}
 
@@ -288,42 +329,47 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
                   third place — nobody finished anywhere — so it gets no medal
                   at all rather than the bottom one. */}
               <div className="flex flex-wrap gap-1.5">
-                {nights.map((n) => (
-                  <span
-                    key={n.fixtureId}
-                    title={`${n.date} — ${TEAM_META[n.shirt].label}${
-                      n.place === null
-                        ? ', no result recorded'
-                        : `, ${PLACE_LABEL[n.place]}${n.shared ? ' (shared)' : ''} on ${fmt(n.wins)} wins`
-                    }`}
-                    className={`grid h-8 w-8 place-items-center rounded-lg font-mono text-xs font-black shadow-sm ${
-                      n.place === null
-                        ? 'border border-dashed border-amber-900/25 text-amber-900/30'
-                        : MEDAL[n.place]
-                    }`}
-                  >
-                    {n.place ?? '·'}
-                  </span>
-                ))}
+                {nights.map((n) => {
+                  // The date and the shirt, and nothing else: the medal in
+                  // the square already says where they finished, and repeating
+                  // it in words was the caption explaining the thing you were
+                  // looking at rather than the thing you couldn't see.
+                  const said = `${n.date} — ${TEAM_META[n.shirt].emoji}`;
+                  return (
+                    <button
+                      key={n.fixtureId}
+                      title={said}
+                      onClick={say('nights', said)}
+                      className={`grid h-8 w-8 place-items-center rounded-lg font-mono text-xs font-black shadow-sm transition-transform hover:scale-110 ${
+                        n.place === null
+                          ? 'border border-dashed border-amber-900/25 text-amber-900/30'
+                          : MEDAL[n.place]
+                      }`}
+                    >
+                      {n.place ?? '·'}
+                    </button>
+                  );
+                })}
               </div>
-              <p className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-amber-900/55">
-                {([1, 2, 3] as Place[]).map((p) => (
-                  <span key={p} className="flex items-center gap-1">
-                    <span className={`inline-block h-3 w-3 rounded-sm ${MEDAL[p]}`} />
-                    {p === 1 ? 'gold' : p === 2 ? 'silver' : 'bronze'}
-                  </span>
-                ))}
-                {counts.bestRun >= 2 && (
-                  <span>
-                    best run <b className="text-amber-900">{counts.bestRun}</b>
-                  </span>
-                )}
-                {counts.currentRun >= 2 && (
-                  <span>
-                    on <b className="text-amber-900">{counts.currentRun}</b> right now 🔥
-                  </span>
-                )}
-              </p>
+              {/* No gold/silver/bronze key underneath. The squares are 1, 2 and
+                  3 in medal colours — a legend spelling that out is a caption on
+                  a thing nobody was confused by, and it was the widest line in
+                  the card. Only the runs get a line, and only when there is one. */}
+              {(counts.bestRun >= 2 || counts.currentRun >= 2) && (
+                <p className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-amber-900/55">
+                  {counts.bestRun >= 2 && (
+                    <span>
+                      best run <b className="text-amber-900">{counts.bestRun}</b>
+                    </span>
+                  )}
+                  {counts.currentRun >= 2 && (
+                    <span>
+                      on <b className="text-amber-900">{counts.currentRun}</b> right now 🔥
+                    </span>
+                  )}
+                </p>
+              )}
+              {caption('nights')}
             </Card>
 
             <div className="grid gap-3 sm:grid-cols-2">
@@ -331,6 +377,8 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
                 <div className="space-y-3">
                   <Progress now={counts.nights} next={nextNight} unit="nights" />
                   <Progress now={Math.floor(counts.wins)} next={nextWin} unit="wins" />
+                  <Progress now={counts.nightsWon} next={nextFixture} unit="nights won" />
+                  <Progress now={mvps} next={nextMvp} unit="MVPs" />
                 </div>
               </Card>
 
@@ -359,37 +407,111 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2">
-              <Card title="Teammates">
-                {duos.best || duos.worst ? (
-                  <div className="space-y-2 text-sm text-amber-950">
-                    {duos.best && (
-                      <div className="rounded-xl bg-emerald-400/10 px-3 py-2">
-                        <div className="text-[11px] font-bold uppercase tracking-wide text-emerald-800/70">
-                          🤝 Best with
-                        </div>
-                        <Name className="font-black">{other(duos.best)}</Name>{' '}
-                        <span className="text-amber-900/60">
-                          — {duos.best.won} of {duos.best.together} nights
-                        </span>
-                      </div>
-                    )}
-                    {duos.worst && (
-                      <div className="rounded-xl bg-amber-900/[0.05] px-3 py-2">
-                        <div className="text-[11px] font-bold uppercase tracking-wide text-amber-900/50">
-                          🙃 Leanest with
-                        </div>
-                        <Name className="font-black">{other(duos.worst)}</Name>{' '}
-                        <span className="text-amber-900/60">
-                          — {duos.worst.won} of {duos.worst.together} nights
-                        </span>
+              <Card title="Mates and rivals">
+                {!picks.playedMost && !picks.facedMost ? (
+                  <p className="text-sm text-amber-900/55">
+                    {counts.nights < MIN_PROFILE_NIGHTS
+                      ? `Needs ${MIN_PROFILE_NIGHTS} nights before any of this is about them — ${counts.nights} so far.`
+                      : 'Nobody they have shared enough football with yet.'}
+                  </p>
+                ) : (
+                  <div className="space-y-2.5">
+                    {/* Plain counts, in two halves, and every tail is kept to a
+                        few words: the label already says what the number is, so
+                        anything more wraps onto a second line and reads like
+                        small print. The counts are still team results (§2.18) —
+                        the copy addresses the player because this is their
+                        page, not because a person won a match on their own. */}
+                    <div className="space-y-1">
+                      <Line
+                        icon="🔗"
+                        label="Most nights with"
+                        m={picks.playedMost}
+                        tail={(m) =>
+                          `${m.together} of ${counts.nights}${
+                            counts.nights ? ` · ${Math.round((m.together / counts.nights) * 100)}%` : ''
+                          }`
+                        }
+                      />
+                      <Line
+                        icon="🏆"
+                        label="Won most with"
+                        m={picks.wonMost}
+                        tail={(m) => `${m.togetherWon} nights won`}
+                      />
+                      <Line
+                        icon="👻"
+                        label="Never once alongside"
+                        m={picks.neverTogether}
+                        tail={(m) => `${m.against} nights opposite`}
+                      />
+                    </div>
+                    <div className="space-y-1 border-t border-amber-900/10 pt-2">
+                      <Line
+                        icon="⚔️"
+                        label="Faced most"
+                        m={picks.facedMost}
+                        tail={(m) => `${m.beat}–${m.beatenBy}`}
+                      />
+                      <Line
+                        icon="😤"
+                        label="Bogey man"
+                        m={picks.bogey}
+                        tail={(m) => `has beaten you ${m.beatenBy} times`}
+                      />
+                      <Line
+                        icon="😎"
+                        label="Favourite victim"
+                        m={picks.victim}
+                        tail={(m) => `beaten by you ${m.beat} times`}
+                      />
+                      <Line
+                        icon="🤜"
+                        label="Worthy opponent"
+                        m={picks.worthy}
+                        tail={(m) => `${m.beat}–${m.beatenBy} — nothing in it`}
+                      />
+                      {/* The whole head-to-head half is counted in matches, so
+                          it can only speak about nights somebody wrote down
+                          match by match. Saying so beats an empty space. */}
+                      {!picks.facedMost && !picks.bogey && !picks.victim && (
+                        <p className="text-xs text-amber-900/50">
+                          Head-to-head needs nights logged match by match — a night alone can't say
+                          who beat whom.
+                        </p>
+                      )}
+                    </div>
+                    {/* The one claim on this card, as against the six counts
+                        above it: a pair that has genuinely pulled away from
+                        chance after shrinkage (§2.10). Silent most seasons,
+                        which is why it costs nothing to leave in. */}
+                    {(duos.best || duos.worst) && (
+                      <div className="space-y-1 border-t border-amber-900/10 pt-2">
+                        {duos.best && (
+                          <div className="flex flex-wrap items-baseline gap-x-2 text-sm">
+                            <span className="shrink-0 text-[11px] font-bold uppercase tracking-wide text-emerald-800/60">
+                              🤝 Wins more with
+                            </span>
+                            <Name className="font-black text-amber-950">{other(duos.best)}</Name>
+                            <span className="text-xs text-amber-900/55">
+                              {duos.best.won} of {duos.best.together} nights
+                            </span>
+                          </div>
+                        )}
+                        {duos.worst && (
+                          <div className="flex flex-wrap items-baseline gap-x-2 text-sm">
+                            <span className="shrink-0 text-[11px] font-bold uppercase tracking-wide text-amber-900/45">
+                              🙃 Wins less with
+                            </span>
+                            <Name className="font-black text-amber-950">{other(duos.worst)}</Name>
+                            <span className="text-xs text-amber-900/55">
+                              {duos.worst.won} of {duos.worst.together} nights
+                            </span>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
-                ) : (
-                  <p className="text-sm text-amber-900/55">
-                    Needs {MIN_TOGETHER} nights alongside the same player before a pair says
-                    anything.
-                  </p>
                 )}
               </Card>
 
@@ -435,6 +557,32 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
 // nothing twice; a filling bar says the same thing while also showing how far
 // along it is — and it turns the fixture page's announcement into an arrival
 // somebody could see coming.
+// One labelled fact about one player, or nothing at all. Rendering an empty
+// row with a dash would fill the card with places where the answer is "not
+// yet", which is the shape the old Teammates card failed in.
+function Line({
+  icon,
+  label,
+  m,
+  tail,
+}: {
+  icon: string;
+  label: string;
+  m: Matchup | null;
+  tail: (m: Matchup) => string;
+}) {
+  if (!m) return null;
+  return (
+    <div className="flex flex-wrap items-baseline gap-x-2 text-sm">
+      <span className="shrink-0 text-[11px] font-bold uppercase tracking-wide text-amber-900/45">
+        {icon} {label}
+      </span>
+      <Name className="font-black text-amber-950">{m.name}</Name>
+      <span className="text-xs text-amber-900/55">{tail(m)}</span>
+    </div>
+  );
+}
+
 function Progress({
   now,
   next,

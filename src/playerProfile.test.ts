@@ -3,6 +3,9 @@ import type { FixtureRecord, MatchLogEntry, TeamColor } from './types';
 import {
   MIN_PROFILE_NIGHTS,
   loggedNightsFor,
+  fixtureRungs,
+  ladderBadges,
+  mvpRungs,
   nightRungs,
   profileCounts,
   profileNights,
@@ -11,6 +14,8 @@ import {
   placeOf,
   sharedPlace,
   shootoutWins,
+  matchupPicks,
+  matchups,
   toGo,
   winRungs,
 } from './playerProfile';
@@ -272,5 +277,178 @@ describe('shootouts', () => {
     expect(loggedNightsFor(history, 'a')).toBe(1);
     expect(loggedNightsFor(history, 'c')).toBe(1);
     expect(loggedNightsFor(history, 'b')).toBe(2);
+  });
+});
+
+// Who somebody plays with, and — new — who they play against. Everything here
+// is a count of what happened to two teams, which is what lets the labels on
+// screen have their fun without the numbers claiming anything.
+const bw = (winner: 'black' | 'white', viaPenalties = false): MatchLogEntry => ({
+  a: 'black',
+  b: 'white',
+  winner,
+  viaPenalties,
+});
+
+describe('matchups', () => {
+  it('counts nights alongside, and how many of those were won', () => {
+    const history = [
+      night(['a', 'b'], ['c'], [], { black: 4, white: 1, blue: 0 }),
+      night(['a', 'b'], ['c'], [], { black: 1, white: 4, blue: 0 }),
+    ];
+    expect(matchups(history, 'a').find((m) => m.id === 'b')).toMatchObject({
+      together: 2,
+      togetherWon: 1,
+    });
+  });
+
+  it('counts the head-to-head in matches, not in nights', () => {
+    // one night, five matches between them — a night is far too blunt a unit
+    // for a rivalry that was played out five times
+    const history = [
+      night(['a'], ['b'], [], { black: 3, white: 2, blue: 0 }, [
+        bw('black'),
+        bw('black'),
+        bw('white'),
+        bw('white'),
+        bw('black'),
+      ]),
+    ];
+    expect(matchups(history, 'a').find((m) => m.id === 'b')).toMatchObject({
+      against: 1, // one night
+      faced: 5, // five matches
+      beat: 3,
+      beatenBy: 2,
+    });
+  });
+
+  it('ignores matches neither of them was in', () => {
+    const history = [
+      night(['a'], ['b'], ['c'], { black: 2, white: 0, blue: 1 }, [
+        bw('black'),
+        { a: 'black', b: 'blue', winner: 'black', viaPenalties: false },
+      ]),
+    ];
+    const list = matchups(history, 'a');
+    // the black-v-blue match is nothing to do with b
+    expect(list.find((m) => m.id === 'b')).toMatchObject({ faced: 1, beat: 1 });
+    expect(list.find((m) => m.id === 'c')).toMatchObject({ faced: 1, beat: 1 });
+  });
+
+  it('counts a shootout as the match it was', () => {
+    const history = [night(['a'], ['b'], [], { black: 0.5, white: 0, blue: 0 }, [bw('black', true)])];
+    expect(matchups(history, 'a').find((m) => m.id === 'b')).toMatchObject({ beat: 1, faced: 1 });
+  });
+
+  it('leaves the head-to-head empty on a night that was only tallied', () => {
+    const history = [night(['a'], ['b'], [], { black: 4, white: 1, blue: 0 })];
+    expect(matchups(history, 'a').find((m) => m.id === 'b')).toMatchObject({
+      against: 1,
+      faced: 0,
+      beat: 0,
+    });
+  });
+
+  it('skips nights with no result', () => {
+    expect(matchups([untallied(['a'], ['b'], [])], 'a')).toEqual([]);
+  });
+});
+
+describe('matchupPicks', () => {
+  const logged = (n: number, black: string[], white: string[], winner: 'black' | 'white') =>
+    Array.from({ length: n }, () =>
+      night(black, white, [], { black: winner === 'black' ? 4 : 1, white: winner === 'white' ? 4 : 1, blue: 0 }, [
+        bw(winner),
+        bw(winner),
+        bw(winner),
+      ]),
+    );
+
+  it('separates who you played most with from who you won most with', () => {
+    const history = [
+      ...Array.from({ length: 4 }, () =>
+        night(['a', 'often'], ['x'], [], { black: 1, white: 4, blue: 0 }),
+      ),
+      ...Array.from({ length: 3 }, () =>
+        night(['a', 'lucky'], ['x'], [], { black: 4, white: 1, blue: 0 }),
+      ),
+    ];
+    const picks = matchupPicks(matchups(history, 'a'), 99);
+    expect(picks.playedMost?.id).toBe('often');
+    expect(picks.wonMost?.id).toBe('lucky');
+  });
+
+  it('finds the bogey man and the favourite victim from the matches', () => {
+    const history = [...logged(2, ['a'], ['bogey'], 'white'), ...logged(1, ['a'], ['victim'], 'black')];
+    const picks = matchupPicks(matchups(history, 'a'), 99);
+    expect(picks.bogey?.id).toBe('bogey');
+    expect(picks.bogey?.beatenBy).toBe(6);
+    expect(picks.victim?.id).toBe('victim');
+    expect(picks.victim?.beat).toBe(3);
+  });
+
+  it('picks the closest record as the worthy opponent', () => {
+    const history = [
+      // even: three each
+      night(['a'], ['even'], [], { black: 3, white: 3, blue: 0 }, [
+        bw('black'), bw('white'), bw('black'), bw('white'), bw('black'), bw('white'),
+      ]),
+      // lopsided, and more football behind it
+      ...logged(3, ['a'], ['onesided'], 'black'),
+    ];
+    expect(matchupPicks(matchups(history, 'a'), 99).worthy?.id).toBe('even');
+  });
+
+  it('prefers the closest record with the most matches behind it', () => {
+    const history = [
+      // 1–1 after two matches
+      night(['a'], ['thin'], [], { black: 1, white: 1, blue: 0 }, [bw('black'), bw('white')]),
+      // 4–3 after seven — a gap of one, but a real rivalry
+      night(['a'], ['deep'], [], { black: 4, white: 3, blue: 0 }, [
+        bw('black'), bw('white'), bw('black'), bw('white'), bw('black'), bw('white'), bw('black'),
+      ]),
+    ];
+    // 'thin' is level but under MIN_FACED, so it is not even in the running
+    expect(matchupPicks(matchups(history, 'a'), 99).worthy?.id).toBe('deep');
+  });
+
+  it('only names someone never played alongside if they are around a lot', () => {
+    const two = Array.from({ length: 2 }, () => night(['a'], ['b'], [], { black: 4, white: 1, blue: 0 }));
+    expect(matchupPicks(matchups(two, 'a'), 99).neverTogether).toBeNull();
+
+    const six = Array.from({ length: 6 }, () => night(['a'], ['b'], [], { black: 4, white: 1, blue: 0 }));
+    expect(matchupPicks(matchups(six, 'a'), 99).neverTogether?.id).toBe('b');
+  });
+
+  it('says nothing at all rather than naming a one-off', () => {
+    const picks = matchupPicks(
+      matchups([night(['a', 'b'], ['c'], [], { black: 4, white: 1, blue: 0 })], 'a'),
+      99,
+    );
+    expect(picks.playedMost).toBeNull();
+    expect(picks.victim).toBeNull();
+  });
+});
+
+describe('the four-night gate on with-and-against', () => {
+  it('says nothing at all about a player who has barely been here', () => {
+    // two nights in, somebody has a bogey man and a favourite victim purely by
+    // arithmetic, and naming either is a joke at the expense of a missing fact
+    const history = Array.from({ length: 6 }, () =>
+      night(['a'], ['b'], [], { black: 1, white: 4, blue: 0 }, [
+        { a: 'black', b: 'white', winner: 'white', viaPenalties: false },
+      ]),
+    );
+    const list = matchups(history, 'a');
+    expect(matchupPicks(list, MIN_PROFILE_NIGHTS - 1)).toEqual({
+      playedMost: null,
+      wonMost: null,
+      facedMost: null,
+      bogey: null,
+      victim: null,
+      worthy: null,
+      neverTogether: null,
+    });
+    expect(matchupPicks(list, MIN_PROFILE_NIGHTS).bogey?.id).toBe('b');
   });
 });
