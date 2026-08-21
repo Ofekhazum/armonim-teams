@@ -12,7 +12,7 @@ import {
 import { buildWrapped, periodLabel, wrappedPeriods } from '../wrapped';
 import { shareWrappedImage } from '../wrappedImage';
 import { MIN_TRUST_NIGHTS, trustCorrelation, trustPoints, type TrustPoint } from '../trust';
-import { mvpCounts } from '../mvp';
+import { mvpCandidates, mvpCounts, winningTeams } from '../mvp';
 import { VETERAN_NIGHTS, playerAchievements, type AchievementKind } from '../achievements';
 import { TEAM_META, Name, fmtRating } from './ui';
 import MvpPicker from './MvpPicker';
@@ -665,9 +665,11 @@ export default function History({
                       </label>
                       {/* the only place the MVP is picked — the fixture page
                           asks nothing about it, because the night isn't over
-                          while you're on that page */}
+                          while you're on that page. The list is the winning
+                          side only; see mvpCandidates. */}
                       <MvpPicker
-                        players={fx.players}
+                        players={mvpCandidates(fx, draft.wins)}
+                        winners={winningTeams(draft.wins)}
                         mvpId={draft.mvpId}
                         onChange={(mvpId) => setDraft((d) => (d ? { ...d, mvpId } : d))}
                       />

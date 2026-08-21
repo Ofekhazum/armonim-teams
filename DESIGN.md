@@ -600,7 +600,22 @@ asked at the only moment it couldn't be answered, on the screen least suited to 
 afterwards, against a night that has finished and whose matches are listed in front of you, it is
 the same one dropdown and a question with an answer.
 
-Consequences of the move, all of them small and all of them load-bearing:
+**The list is the winning team, not the squad.** The house rule is that the MVP comes from the side
+that won the night, so `mvpCandidates(fx, wins)` offers only those players and the picker names the
+shirt it is offering (*"From 🔵 Blue, who won the night"*) — a rule applied by not offering anyone
+else beats a rule the organiser has to remember at the moment of picking. A tie is ordinary with
+three teams sharing a night, so `winningTeams` returns *all* the teams level at the top and the list
+is both squads; level across all three offers everyone, which is the honest reading of a tally that
+separated nobody. Two details that stop the restriction doing damage:
+
+- **A pick already on file stays in the list**, even when a later correction to the tally means their
+  team no longer won. A `<select>` whose value matches none of its options renders blank, and the
+  next save would write that blank over a real pick. Correcting a score is not a reason to silently
+  un-name somebody.
+- **The candidates follow the tally being typed**, not the one on file — correcting the score and
+  picking the MVP happen in the same drawer, which is why `wins` is a parameter.
+
+Consequences of the earlier move off the fixture page, all small and all load-bearing:
 
 - `Session` has **no `mvpId`**. Tonight doesn't hold a pick; the filed record does. Nothing to reset
   when fresh teams are generated, because there is nothing to go stale.
