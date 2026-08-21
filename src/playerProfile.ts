@@ -15,7 +15,13 @@
 import type { FixtureRecord, MatchLogEntry, TeamColor, TeamWins } from './types';
 import { TEAM_COLORS } from './balancer';
 import { hasResult } from './calibration';
-import { isMilestoneNight, isWinMilestone, winnerOf } from './milestones';
+import {
+  isFixtureWinMilestone,
+  isMilestoneNight,
+  isMvpMilestone,
+  isWinMilestone,
+  winnerOf,
+} from './milestones';
 
 // How much football before a *rate* is worth printing. The same bar the
 // rating calibration uses (`MIN_NIGHTS`), and deliberately one number rather
@@ -157,6 +163,78 @@ function ladder(count: number, isRung: (n: number) => boolean, ceiling: number):
 // them, low enough that this stays a handful of iterations.
 export const nightRungs = (nights: number): Rung[] => ladder(nights, isMilestoneNight, 5_000);
 export const winRungs = (wins: number): Rung[] => ladder(Math.floor(wins), isWinMilestone, 50_000);
+export const fixtureRungs = (won: number): Rung[] => ladder(won, isFixtureWinMilestone, 5_000);
+export const mvpRungs = (picks: number): Rung[] => ladder(picks, isMvpMilestone, 1_000);
+
+// --- Ladder badges ----------------------------------------------------------
+
+export interface LadderBadge {
+  key: string;
+  icon: string;
+  // what it is, short enough to wear: "25 nights"
+  label: string;
+  // how it was earned, in a sentence — shown on hover, and on tap, because a
+  // phone has no hover and a badge nobody can decode is decoration
+  detail: string;
+}
+
+// The top rung reached on each ladder, worn as a badge.
+//
+// The highest one only, not every rung crossed: a player four ladders deep
+// would otherwise carry a dozen chips, and "10 nights" stops being worth saying
+// the moment "25 nights" is true. The ladder card underneath still shows the
+// whole climb, so nothing is hidden — this is the headline of it.
+export function ladderBadges(
+  counts: Pick<ProfileCounts, 'nights' | 'nightsWon' | 'wins'>,
+  mvps: number,
+): LadderBadge[] {
+  const top = (rungs: Rung[]): number | null => {
+    const reached = rungs.filter((r) => r.reached);
+    return reached.length ? reached[reached.length - 1].target : null;
+  };
+
+  const out: LadderBadge[] = [];
+  const nights = top(nightRungs(counts.nights));
+  if (nights) {
+    out.push({
+      key: `nights-${nights}`,
+      icon: '🎽',
+      label: `${nights} nights`,
+      detail: `Played ${nights} recorded nights.`,
+    });
+  }
+  const wins = top(winRungs(counts.wins));
+  if (wins) {
+    out.push({
+      key: `wins-${wins}`,
+      icon: '🏆',
+      label: `${wins} wins`,
+      detail: `Their teams have won ${wins} matches with them on the pitch.`,
+    });
+  }
+  const fixtures = top(fixtureRungs(counts.nightsWon));
+  if (fixtures) {
+    out.push({
+      key: `fixtures-${fixtures}`,
+      icon: '🥇',
+      label: `${fixtures} nights won`,
+      detail: `Finished top of the night ${fixtures} times.`,
+    });
+  }
+  const picks = top(mvpRungs(mvps));
+  if (picks) {
+    out.push({
+      key: `mvp-${picks}`,
+      icon: '🌟',
+      label: picks === 1 ? 'First MVP' : `${picks} MVPs`,
+      detail:
+        picks === 1
+          ? 'Picked MVP for the first time.'
+          : `Picked MVP on ${picks} different nights.`,
+    });
+  }
+  return out;
+}
 
 // How far off the next rung is, or null when it has just been reached exactly.
 export function toGo(rungs: Rung[], count: number): { target: number; away: number } | null {

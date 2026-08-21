@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { AchievementKind } from '../achievements';
 import type { FixtureRecord, Player, TeamColor } from '../types';
 import { roleBadge } from '../types';
@@ -9,6 +9,9 @@ import { hasResult } from '../calibration';
 import type { Place } from '../playerProfile';
 import {
   MIN_PROFILE_NIGHTS,
+  fixtureRungs,
+  ladderBadges,
+  mvpRungs,
   nightRungs,
   profileCounts,
   profileNights,
@@ -173,6 +176,22 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
 
   const nextNight = toGo(nightRungs(counts.nights), counts.nights);
   const nextWin = toGo(winRungs(counts.wins), counts.wins);
+  const nextFixture = toGo(fixtureRungs(counts.nightsWon), counts.nightsWon);
+  const nextMvp = toGo(mvpRungs(mvps), mvps);
+  const earned = ladderBadges(counts, mvps);
+
+  // What the last tapped badge or medal said. A phone has no hover, so a
+  // `title` alone leaves half the app's users with an undecodable chip — and a
+  // modal for a one-line explanation is a heavier answer than the question
+  // deserves. This is a caption that appears under whichever row was touched,
+  // and goes away when something else is.
+  const [detail, setDetail] = useState<{ where: 'badges' | 'nights'; text: string } | null>(null);
+  const say = (where: 'badges' | 'nights', text: string) => () =>
+    setDetail((d) => (d?.text === text ? null : { where, text }));
+  const caption = (where: 'badges' | 'nights') =>
+    detail?.where === where ? (
+      <p className="mt-2 text-xs font-semibold text-amber-900/70">{detail.text}</p>
+    ) : null;
   const enoughLogged = shootouts.loggedNights >= MIN_PROFILE_NIGHTS;
   const role = STYLE_META[roleBadge(player)];
 
@@ -239,16 +258,34 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
           )}
         </header>
 
-        {badges.length > 0 && (
-          <div className="flex flex-wrap gap-1.5">
-            {badges.map((b) => (
-              <span
-                key={b.kind}
-                className={`rounded-full border px-2.5 py-1 text-xs font-bold shadow-sm ${BADGE_TONE[b.kind]}`}
-              >
-                {b.icon} {b.label}
-              </span>
-            ))}
+        {(badges.length > 0 || earned.length > 0) && (
+          <div>
+            <div className="flex flex-wrap gap-1.5">
+              {/* Ladder badges first — they are the things this player has
+                  finished, where the achievement badges are things they
+                  currently top. Both explain themselves on hover or a tap. */}
+              {earned.map((b) => (
+                <button
+                  key={b.key}
+                  title={b.detail}
+                  onClick={say('badges', b.detail)}
+                  className="rounded-full border border-amber-900/20 bg-white/80 px-2.5 py-1 text-xs font-bold text-amber-900 shadow-sm transition-transform hover:scale-105"
+                >
+                  {b.icon} {b.label}
+                </button>
+              ))}
+              {badges.map((b) => (
+                <button
+                  key={b.kind}
+                  title={b.label}
+                  onClick={say('badges', b.label)}
+                  className={`rounded-full border px-2.5 py-1 text-xs font-bold shadow-sm transition-transform hover:scale-105 ${BADGE_TONE[b.kind]}`}
+                >
+                  {b.icon} {b.label}
+                </button>
+              ))}
+            </div>
+            {caption('badges')}
           </div>
         )}
 
@@ -290,23 +327,27 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
                   third place — nobody finished anywhere — so it gets no medal
                   at all rather than the bottom one. */}
               <div className="flex flex-wrap gap-1.5">
-                {nights.map((n) => (
-                  <span
-                    key={n.fixtureId}
-                    title={`${n.date} — ${TEAM_META[n.shirt].label}${
-                      n.place === null
-                        ? ', no result recorded'
-                        : `, ${PLACE_LABEL[n.place]}${n.shared ? ' (shared)' : ''} on ${fmt(n.wins)} wins`
-                    }`}
-                    className={`grid h-8 w-8 place-items-center rounded-lg font-mono text-xs font-black shadow-sm ${
-                      n.place === null
-                        ? 'border border-dashed border-amber-900/25 text-amber-900/30'
-                        : MEDAL[n.place]
-                    }`}
-                  >
-                    {n.place ?? '·'}
-                  </span>
-                ))}
+                {nights.map((n) => {
+                  const said = `${n.date} — ${TEAM_META[n.shirt].label}${
+                    n.place === null
+                      ? ', no result recorded'
+                      : `, ${PLACE_LABEL[n.place]}${n.shared ? ' (shared)' : ''} on ${fmt(n.wins)} wins`
+                  }`;
+                  return (
+                    <button
+                      key={n.fixtureId}
+                      title={said}
+                      onClick={say('nights', said)}
+                      className={`grid h-8 w-8 place-items-center rounded-lg font-mono text-xs font-black shadow-sm transition-transform hover:scale-110 ${
+                        n.place === null
+                          ? 'border border-dashed border-amber-900/25 text-amber-900/30'
+                          : MEDAL[n.place]
+                      }`}
+                    >
+                      {n.place ?? '·'}
+                    </button>
+                  );
+                })}
               </div>
               <p className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-amber-900/55">
                 {([1, 2, 3] as Place[]).map((p) => (
@@ -326,6 +367,7 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
                   </span>
                 )}
               </p>
+              {caption('nights')}
             </Card>
 
             <div className="grid gap-3 sm:grid-cols-2">
@@ -333,6 +375,8 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
                 <div className="space-y-3">
                   <Progress now={counts.nights} next={nextNight} unit="nights" />
                   <Progress now={Math.floor(counts.wins)} next={nextWin} unit="wins" />
+                  <Progress now={counts.nightsWon} next={nextFixture} unit="nights won" />
+                  <Progress now={mvps} next={nextMvp} unit="MVPs" />
                 </div>
               </Card>
 

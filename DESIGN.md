@@ -1104,6 +1104,23 @@ has never recorded an individual. So a player's wins are the wins of the teams t
 their team**", not "most shootouts won". Said in the labels rather than in a disclaimer at the top:
 a banner explaining that the page doesn't mean what it looks like is a page that shouldn't say it.
 
+**Four ladders, and a badge for each one crossed.** Nights played, match wins, **nights won outright**
+(5 · 10 · 25 · then every 50) and **MVP picks** (1 · 3 · 5 · then every 10). A ladder only works on a
+count that can never go down, which is why the streaks are badges instead: progress that drops back to
+zero next week is not a ladder.
+
+`ladderBadges` wears the **top rung of each ladder only**. A player four ladders deep would otherwise
+carry a dozen chips, and "10 nights" stops being worth saying the moment "25 nights" is true — the
+ladder card underneath still shows the whole climb, so this is its headline rather than a summary of
+it. The first MVP is a rung of its own, because being picked at all is the event and a ladder starting
+at three would say nothing to almost anybody for a season.
+
+**Every badge and every medal explains itself on tap, not just on hover.** A `title` attribute is
+invisible on a phone, which is where this app is used, so a chip nobody can decode is decoration. The
+answer is a **caption**: tapping a badge or a night writes one sentence under that row, and tapping
+again or touching something else clears it. Deliberately not a popover or a modal — a one-line
+explanation asked for with a fingertip should not take the screen away from you to answer.
+
 The counted line is five tiles: nights, nights won, match wins, wins per night, and **MVP nights**.
 The MVP count carries no threshold, unlike the rate beside it — a pick either happened or it didn't,
 so `0` is the true answer rather than a small sample, and it is shown for everybody precisely so a

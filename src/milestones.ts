@@ -67,6 +67,22 @@ export function isWinMilestone(n: number): boolean {
   return n === 50 || n === 100 || n === 250 || (n >= 500 && n % 500 === 0);
 }
 
+// Nights a player's team finished top of. A different question from match wins
+// — a team can bank a big tally on one blowout and still top fewer nights than
+// one that edges every week — and at roughly a night in three these land near
+// nights 15 / 30 / 75 / 150.
+export function isFixtureWinMilestone(n: number): boolean {
+  return n === 5 || n === 10 || n === 25 || (n >= 50 && n % 50 === 0);
+}
+
+// MVP picks. One a night across the whole squad, so this ladder climbs far
+// slower than the others and the first rung is deliberately *one*: being picked
+// at all is the event, and a ladder starting at three would say nothing to
+// almost everybody for a season.
+export function isMvpMilestone(n: number): boolean {
+  return n === 1 || n === 3 || n === 5 || (n >= 10 && n % 10 === 0);
+}
+
 // Who took the night. Not something the app records — the organiser enters
 // three win counts (§2.6) — so it's derived: the team with strictly the most
 // wins took it, and a tie at the top means nobody did.

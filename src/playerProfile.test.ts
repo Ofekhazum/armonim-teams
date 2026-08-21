@@ -3,6 +3,9 @@ import type { FixtureRecord, MatchLogEntry, TeamColor } from './types';
 import {
   MIN_PROFILE_NIGHTS,
   loggedNightsFor,
+  fixtureRungs,
+  ladderBadges,
+  mvpRungs,
   nightRungs,
   profileCounts,
   profileNights,
@@ -314,5 +317,52 @@ describe('teammateCounts', () => {
     const fx = night(['a', 'g1'], ['c'], [], { black: 4, white: 1, blue: 0 });
     fx.players = fx.players.map((p) => (p.id === 'g1' ? { ...p, name: 'זרקא' } : p));
     expect(teammateCounts([fx], 'a')[0].name).toBe('זרקא');
+  });
+});
+
+describe('the other two ladders', () => {
+  it('marks nights-won rungs at 5, 10, 25 then every 50', () => {
+    expect(fixtureRungs(4).map((r) => r.target)).toEqual([5]);
+    expect(fixtureRungs(12).map((r) => r.target)).toEqual([5, 10, 25]);
+    expect(fixtureRungs(60).at(-1)!.target).toBe(100);
+  });
+
+  it('marks the first MVP as a rung of its own', () => {
+    // being picked at all is the event; a ladder starting at three would say
+    // nothing to almost anybody for a season
+    expect(mvpRungs(1)).toEqual([{ target: 1, reached: true }, { target: 3, reached: false }]);
+    expect(mvpRungs(0)).toEqual([{ target: 1, reached: false }]);
+  });
+});
+
+describe('ladderBadges', () => {
+  const counts = (over = {}) => ({ nights: 0, nightsWon: 0, wins: 0, ...over });
+
+  it('wears only the top rung of each ladder', () => {
+    // 25 nights makes "10 nights" not worth saying any more
+    const badges = ladderBadges(counts({ nights: 30 }), 0);
+    expect(badges.map((b) => b.label)).toEqual(['25 nights']);
+  });
+
+  it('says nothing for a player who has crossed nothing', () => {
+    expect(ladderBadges(counts({ nights: 9 }), 0)).toEqual([]);
+  });
+
+  it('carries a sentence explaining every badge', () => {
+    for (const b of ladderBadges(counts({ nights: 25, wins: 100, nightsWon: 10 }), 3)) {
+      expect(b.detail.length).toBeGreaterThan(10);
+      expect(b.detail.endsWith('.')).toBe(true);
+    }
+  });
+
+  it('names the first MVP differently from a count of them', () => {
+    expect(ladderBadges(counts(), 1)[0].label).toBe('First MVP');
+    expect(ladderBadges(counts(), 5)[0].label).toBe('5 MVPs');
+  });
+
+  it('counts a half-win as the half it is', () => {
+    // 49.5 is not 50 wins, and rounding up would hand out a badge unearned
+    expect(ladderBadges(counts({ wins: 49.5 }), 0)).toEqual([]);
+    expect(ladderBadges(counts({ wins: 50 }), 0).map((b) => b.label)).toEqual(['50 wins']);
   });
 });
