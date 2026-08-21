@@ -15,7 +15,7 @@
 // renders the right number — only the *transition* is late, never the time.
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { ClockState, LiveFixture } from './types';
+import type { ClockState, LiveFixture, MatchLogEntry } from './types';
 import { REMOTE_URL, type PublishResult } from './remote';
 
 export interface RemoteLive {
@@ -100,6 +100,29 @@ export async function publishClock(clock: ClockState): Promise<PublishResult> {
   }
 }
 
+// Writing down a finished match, from any device at the pitch — same reasoning
+// and same lack of a password as the clock above. Returns 'stale' when someone
+// else recorded first: the Worker only accepts one step at a time, so a phone
+// appending to a base three seconds out of date is refused rather than allowed
+// to erase the other person's match. The caller's answer to that is to stop
+// preferring its local copy and let the next poll land.
+export async function publishMatchLog(matchLog: MatchLogEntry[]): Promise<PublishResult> {
+  if (!REMOTE_URL) return 'not-configured';
+  try {
+    const res = await fetch(`${REMOTE_URL}/live/log`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ matchLog }),
+    });
+    if (res.status === 429) return 'rate-limited';
+    if (res.status === 409) return 'stale';
+    if (!res.ok) return 'error';
+    return 'ok';
+  } catch {
+    return 'error';
+  }
+}
+
 // How long a local clock press outranks whatever a poll brings back. A request
 // already in flight when someone hits Start carries the *previous* clock, and
 // landing it afterwards would snap the button back — the classic optimistic-
@@ -116,6 +139,9 @@ export interface LiveState {
   // Applies a clock press everywhere: on this screen immediately, and to
   // everyone else's on their next poll.
   setClock: (clock: ClockState) => void;
+  // The same, for writing down a match. Rolls back on this screen if the
+  // Worker says someone else got there first.
+  setMatchLog: (log: MatchLogEntry[]) => void;
   // For the device that just ended the night: drop it now rather than showing
   // a Live tab for another poll cycle after the organiser pressed End fixture.
   // They already know; everyone else finds out on their next poll.
@@ -159,11 +185,12 @@ export function useLiveFixture(enabled: boolean): LiveState {
             forgotten.current = false;
             live = remote.fixture !== null;
             setFixture((prev) => {
-              // keep a just-pressed clock, but take everything else the poll
-              // brought — teams can still change under us, and a fixture that
-              // has *ended* wins outright over any local press
+              // keep a just-pressed clock and a just-written match, but take
+              // everything else the poll brought — teams can still change under
+              // us, and a fixture that has *ended* wins outright over any local
+              // press
               if (prev && remote.fixture && fresh) {
-                return { ...remote.fixture, clock: prev.clock };
+                return { ...remote.fixture, clock: prev.clock, matchLog: prev.matchLog };
               }
               return remote.fixture;
             });
@@ -198,11 +225,22 @@ export function useLiveFixture(enabled: boolean): LiveState {
     void publishClock(clock);
   }, []);
 
+  const setMatchLog = useCallback((matchLog: MatchLogEntry[]) => {
+    pressedAt.current = Date.now();
+    setFixture((prev) => (prev ? { ...prev, matchLog } : prev));
+    void publishMatchLog(matchLog).then((result) => {
+      // Someone else wrote this match down first. Drop the grace window so the
+      // very next poll replaces our copy with theirs — holding a rejected entry
+      // on screen would show one phone a match the night doesn't have.
+      if (result === 'stale') pressedAt.current = 0;
+    });
+  }, []);
+
   const forget = useCallback(() => {
     pressedAt.current = Date.now();
     forgotten.current = true;
     setFixture(null);
   }, []);
 
-  return { fixture, setClock, forget };
+  return { fixture, setClock, setMatchLog, forget };
 }

@@ -74,16 +74,48 @@ describe('playerAchievements', () => {
     const ach = playerAchievements(history);
     expect(ach.get('a')!.mvps).toBe(2);
     expect(ach.get('a')!.achievements.find((x) => x.kind === 'mvp')?.label).toBe(
-      'Picked MVP 2 times',
+      'Most MVP picks — 2 times',
     );
     expect(ach.get('b')!.mvps).toBe(0);
+    expect(kindsFor(history, 'b')).not.toContain('mvp');
+  });
+
+  // The badge is for the top of the column, not for being in it — otherwise
+  // every regular ends up wearing one and it stops meaning anything.
+  it('gives the MVP badge only to whoever has been picked most', () => {
+    const history = [
+      night(day(1), ['a'], ['b'], { black: 3, white: 1, blue: 0 }, 'a'),
+      night(day(2), ['a'], ['b'], { black: 3, white: 1, blue: 0 }, 'a'),
+      night(day(3), ['a'], ['b'], { black: 1, white: 3, blue: 0 }, 'b'),
+    ];
+    expect(kindsFor(history, 'a')).toContain('mvp');
+    // b has a pick, and still no badge — one is not most
+    expect(playerAchievements(history).get('b')!.mvps).toBe(1);
+    expect(kindsFor(history, 'b')).not.toContain('mvp');
+  });
+
+  it('shares the MVP badge between players level at the top', () => {
+    const history = [
+      night(day(1), ['a'], ['b'], { black: 3, white: 1, blue: 0 }, 'a'),
+      night(day(2), ['a'], ['b'], { black: 1, white: 3, blue: 0 }, 'b'),
+    ];
+    expect(kindsFor(history, 'a')).toContain('mvp');
+    expect(kindsFor(history, 'b')).toContain('mvp');
+  });
+
+  it('gives nobody the MVP badge when no night has a pick', () => {
+    const history = [
+      night(day(1), ['a'], ['b'], { black: 3, white: 1, blue: 0 }),
+      night(day(2), ['a'], ['b'], { black: 3, white: 1, blue: 0 }),
+    ];
+    expect(kindsFor(history, 'a')).not.toContain('mvp');
     expect(kindsFor(history, 'b')).not.toContain('mvp');
   });
 
   it('says "1 time", not "1 times"', () => {
     const history = [night(day(1), ['a'], ['b'], { black: 3, white: 1, blue: 0 }, 'a')];
     expect(playerAchievements(history).get('a')!.achievements.find((x) => x.kind === 'mvp')?.label)
-      .toBe('Picked MVP 1 time');
+      .toBe('Most MVP picks — 1 time');
   });
 
   it('only calls someone ever-present once there are enough nights to mean it', () => {

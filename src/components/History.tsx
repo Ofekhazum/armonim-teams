@@ -12,7 +12,7 @@ import {
 import { buildWrapped, periodLabel, wrappedPeriods } from '../wrapped';
 import { shareWrappedImage } from '../wrappedImage';
 import { MIN_TRUST_NIGHTS, trustCorrelation, trustPoints, type TrustPoint } from '../trust';
-import { mvpCounts } from '../mvp';
+import { mvpCandidates, mvpCounts, winningTeams } from '../mvp';
 import { VETERAN_NIGHTS, playerAchievements, type AchievementKind } from '../achievements';
 import { TEAM_META, Name, fmtRating } from './ui';
 import MvpPicker from './MvpPicker';
@@ -143,7 +143,7 @@ const fmtWins = (w: number) => (Number.isInteger(w) ? String(w) : w.toFixed(1));
 const BADGE_KEY: { kind: AchievementKind; icon: string; text: string }[] = [
   { kind: 'most-wins', icon: '🥇', text: 'most wins' },
   { kind: 'most-fixtures', icon: '🏅', text: 'most nights won' },
-  { kind: 'mvp', icon: '🌟', text: 'MVP picks' },
+  { kind: 'mvp', icon: '🌟', text: 'most MVP picks' },
   { kind: 'iron-man', icon: '🦾', text: 'never misses' },
   { kind: 'win-streak', icon: '📈', text: 'winning run' },
   { kind: 'ever-present', icon: '✨', text: 'played every night' },
@@ -564,6 +564,10 @@ export default function History({
             .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0))
             .map((fx) => {
           const open = openId === fx.id;
+          // a night written down match by match, rather than tallied from
+          // memory at the end — the record is the matches, and the wins are
+          // just their sum (§2.18)
+          const logged = (fx.matchLog?.length ?? 0) > 0;
           const nameOf = (id: string) => fx.players.find((p) => p.id === id)?.name ?? '?';
           // a night can genuinely end level, so take everyone on the top score
           // rather than whoever a sort happened to put first
@@ -624,6 +628,12 @@ export default function History({
                             <span className="flex-1 text-sm font-bold text-amber-950">
                               {TEAM_META[c].emoji} {TEAM_META[c].label}
                             </span>
+                            {/* A logged night counts itself, so its tally is
+                                read-only here. Typing over it would leave the
+                                record saying one thing and the matches it is
+                                made of saying another — and the matches are
+                                what head-to-head and everything else per-match
+                                gets counted from. */}
                             <input
                               type="number"
                               inputMode="decimal"
@@ -632,9 +642,12 @@ export default function History({
                               step={0.5}
                               value={draft.wins[c] ?? ''}
                               onChange={(e) => setDraftWin(c, e.target.value)}
+                              readOnly={logged}
                               placeholder="–"
                               aria-label={`Matches won by ${TEAM_META[c].label}`}
-                              className="w-20 rounded-lg border border-amber-900/25 bg-white px-2 py-1 text-center font-bold text-amber-950"
+                              className={`w-20 rounded-lg border border-amber-900/25 px-2 py-1 text-center font-bold text-amber-950 ${
+                                logged ? 'bg-amber-900/[0.06]' : 'bg-white'
+                              }`}
                             />
                           </label>
                         ))}
@@ -650,16 +663,22 @@ export default function History({
                           className="rounded-lg border border-amber-900/25 bg-white px-2 py-1 font-semibold text-amber-950"
                         />
                       </label>
+                      {/* the only place the MVP is picked — the fixture page
+                          asks nothing about it, because the night isn't over
+                          while you're on that page. The list is the winning
+                          side only; see mvpCandidates. */}
                       <MvpPicker
-                        players={fx.players}
+                        players={mvpCandidates(fx, draft.wins)}
+                        winners={winningTeams(draft.wins)}
                         mvpId={draft.mvpId}
                         onChange={(mvpId) => setDraft((d) => (d ? { ...d, mvpId } : d))}
-                        title="🌟 MVP"
-                        description="Add or correct the standout-player pick for this night."
                       />
                       <p className="text-xs text-amber-900/50">
-                        Half a win means it was taken on penalties. The team sheet can't be
-                        changed — delete the night and save it again if the teams were wrong.
+                        {logged
+                          ? 'This night was logged match by match, so its wins are counted from the matches and can’t be typed over. '
+                          : 'Half a win means it was taken on penalties. '}
+                        The team sheet can't be changed — delete the night and save it again if the
+                        teams were wrong.
                       </p>
                       <div className="flex flex-wrap gap-2">
                         <button
@@ -691,7 +710,13 @@ export default function History({
                           </div>
                         ))}
                       </div>
+                      {/* The matches themselves are *not* listed here. Eighteen
+                          rows of "Blue beat White" is a wall to scroll past on
+                          the way to anything else, and nobody re-reads a night
+                          match by match. The count is the part worth showing —
+                          it says the log is on file without being the file. */}
                       <p className="text-xs text-amber-900/45">
+                        {logged ? `${fx.matchLog!.length} matches logged · ` : ''}
                         {totalWins(fx.wins)} wins across the night · {fx.players.length} players
                         {fx.mvpId && nameOf(fx.mvpId) !== '?' && (
                           <>
@@ -704,6 +729,19 @@ export default function History({
                           editing ratings — so it sits behind admin mode */}
                       {isAdmin && (
                         <div className="flex flex-wrap gap-2">
+                          {/* Same drawer as Edit result, named after the thing
+                              that's missing. Since the fixture page stopped
+                              asking, nothing else would ever mention that this
+                              night has no MVP — and a prompt nobody sees is a
+                              feature that quietly stops happening. */}
+                          {!fx.mvpId && (
+                            <button
+                              onClick={() => startEdit(fx)}
+                              className="rounded-lg border border-amber-500/60 bg-amber-100/60 px-3 py-1 text-xs font-bold text-amber-900 hover:border-orange-500"
+                            >
+                              🌟 Pick MVP
+                            </button>
+                          )}
                           <button
                             onClick={() => startEdit(fx)}
                             className="rounded-lg border border-amber-900/25 px-3 py-1 text-xs font-bold text-amber-900 hover:border-orange-500"

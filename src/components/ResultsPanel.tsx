@@ -14,6 +14,10 @@ interface Props {
   // tab and back. Omitted where there's nowhere to unlock from (no REMOTE_URL).
   onUnlockAdmin?: () => void;
   unlocking?: boolean;
+  // The night was logged match by match (§2.18), so these numbers were counted
+  // rather than typed. Shown, not editable: a tally you can edit alongside a
+  // log that disagrees with it is two records, and one of them is wrong.
+  fromLog?: boolean;
 }
 
 // Nothing entered yet.
@@ -31,6 +35,7 @@ export default function ResultsPanel({
   isAdmin,
   onUnlockAdmin,
   unlocking,
+  fromLog = false,
 }: Props) {
   // half-steps are meaningful (a shootout is worth half a win); anything finer
   // is a typo, so snap to the nearest half
@@ -54,7 +59,9 @@ export default function ResultsPanel({
 
   return (
     <div className="rounded-2xl border border-amber-900/15 bg-[#fffdf4]/70 p-4 shadow-sm">
-      <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+      <div
+        className={`flex flex-wrap items-center justify-between gap-2 ${fromLog ? 'mb-3' : 'mb-1'}`}
+      >
         <h3 className="font-bold text-amber-950">🏁 Tonight's results</h3>
         {isAdmin ? (
           <button
@@ -78,11 +85,17 @@ export default function ResultsPanel({
           </span>
         )}
       </div>
-      <p className="mb-3 text-xs text-amber-900/60">
-        How many matches each team won. Won it on penalties? That's half a win — tap <b>+</b> twice,
-        or type <b>0.5</b> directly. Saving shares the result with everyone, the same as publishing
-        the roster.
-      </p>
+      {/* A logged night explains itself — the matches are listed directly above
+          and the boxes are read-only, so the note only repeated what the screen
+          already showed. Typed-in nights still need the half-win rule spelling
+          out, because nothing on screen says it. */}
+      {!fromLog && (
+        <p className="mb-3 text-xs text-amber-900/60">
+          How many matches each team won. Won it on penalties? That's half a win — tap <b>+</b>{' '}
+          twice, or type <b>0.5</b> directly. Saving shares the result with everyone, the same as
+          publishing the roster.
+        </p>
+      )}
 
       <div className="grid gap-2 sm:grid-cols-3">
         {TEAM_COLORS.map((c) => {
@@ -97,7 +110,7 @@ export default function ResultsPanel({
               </span>
               <button
                 onClick={() => bump(c, -0.5)}
-                disabled={(wins[c] ?? 0) <= 0}
+                disabled={fromLog || (wins[c] ?? 0) <= 0}
                 aria-label={`Half a win fewer for ${TEAM_META[c].label}`}
                 className={step}
               >
@@ -111,13 +124,16 @@ export default function ResultsPanel({
                 step={0.5}
                 value={wins[c] ?? ''}
                 onChange={(e) => set(c, e.target.value)}
+                readOnly={fromLog}
                 placeholder="–"
                 aria-label={`Matches won by ${TEAM_META[c].label}`}
-                className="w-14 rounded-lg border border-amber-900/25 bg-white px-1 py-1 text-center text-lg font-bold text-amber-950"
+                className={`w-14 rounded-lg border border-amber-900/25 px-1 py-1 text-center text-lg font-bold text-amber-950 ${
+                  fromLog ? 'bg-amber-900/[0.04]' : 'bg-white'
+                }`}
               />
               <button
                 onClick={() => bump(c, 0.5)}
-                disabled={(wins[c] ?? 0) >= 99}
+                disabled={fromLog || (wins[c] ?? 0) >= 99}
                 aria-label={`Half a win more for ${TEAM_META[c].label}`}
                 className={step}
               >

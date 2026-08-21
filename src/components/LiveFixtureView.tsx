@@ -1,11 +1,14 @@
-import type { ClockState, LiveFixture } from '../types';
+import type { ClockState, LiveFixture, MatchLogEntry } from '../types';
 import { TEAM_COLORS } from '../balancer';
 import { Name, TEAM_META } from './ui';
 import MatchClock from './MatchClock';
+import MatchLog from './MatchLog';
+import ScoreBar from './ScoreBar';
 
 interface Props {
   fixture: LiveFixture;
   onChangeClock: (clock: ClockState) => void;
+  onChangeLog: (log: MatchLogEntry[]) => void;
   // Present for an organiser who is *not* running the night on this device —
   // see the note on the button below. Absent for everyone else.
   onEndFixture?: () => void;
@@ -24,16 +27,26 @@ const agoLabel = (startedAt: number): string => {
 // behind it (LivePlayer) has no ratings in it to leak and no result to edit,
 // so there is nothing here an organiser's screen would have shown differently.
 //
-// The clock is the exception, and deliberately so — it's shared, and anyone
-// can run it.
+// The clock and the match log are the exceptions, and deliberately so — both
+// are shared, and anyone can work them. A match ends and whoever is nearest a
+// phone writes down who won; there is no reason that has to be the organiser,
+// and every reason it shouldn't be (they are usually playing).
 //
 // Deliberately not the teams board. That one is a work surface — drag targets,
 // rating averages, keep-apart warnings — and this is the answer to one
 // question a player has while walking to the pitch: which shirt am I in, and
 // how long is left.
-export default function LiveFixtureView({ fixture, onChangeClock, onEndFixture }: Props) {
+export default function LiveFixtureView({
+  fixture,
+  onChangeClock,
+  onChangeLog,
+  onEndFixture,
+}: Props) {
   const byId = new Map(fixture.players.map((p) => [p.id, p]));
   const gkSet = new Set(fixture.gkIds);
+  // absent on a fixture published by an older build, which is a night with
+  // nothing written down rather than a broken one
+  const matchLog = fixture.matchLog ?? [];
 
   // Ending a night must never depend on which phone the organiser happens to
   // be holding — without this, an organiser whose browser was cleared could see
@@ -54,6 +67,7 @@ export default function LiveFixtureView({ fixture, onChangeClock, onEndFixture }
 
   return (
     <div className="space-y-4">
+      <ScoreBar clock={fixture.clock} log={matchLog} />
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <h2 className="flex items-center gap-2 text-lg font-black text-amber-950">
           <span className="relative flex h-2.5 w-2.5">
@@ -119,6 +133,8 @@ export default function LiveFixtureView({ fixture, onChangeClock, onEndFixture }
       </div>
 
       <MatchClock state={fixture.clock} onChange={onChangeClock} fixtureId={fixture.id} />
+
+      <MatchLog log={matchLog} onChange={onChangeLog} />
     </div>
   );
 }

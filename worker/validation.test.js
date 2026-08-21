@@ -3,6 +3,7 @@ import {
   isValidClock,
   isValidSubscription,
   isValidFixtures,
+  isLogStep,
   isValidLive,
   isValidPlayers,
   publicPlayer,
@@ -23,6 +24,8 @@ const fixture = (over = {}) => ({
   wins: { black: 3, white: 1, blue: 0 },
   ...over,
 });
+
+const match = (over = {}) => ({ a: 'black', b: 'white', winner: 'black', viaPenalties: false, ...over });
 
 describe('publicPlayer', () => {
   it('strips the fields that are statements about people, keeps the football ones', () => {
@@ -130,6 +133,46 @@ describe('isValidFixtures', () => {
 
   it('accepts an empty history — that is how the season is cleared', () => {
     expect(isValidFixtures([])).toBe(true);
+  });
+
+  // The log is what head-to-head and every other per-match statistic will be
+  // counted from, so it has to survive the trip out to KV and back intact —
+  // and it has to be refused rather than stored when it is nonsense.
+  it('accepts a night carrying its match log', () => {
+    expect(isValidFixtures([fixture({ matchLog: [match(), match({ winner: 'white' })] })])).toBe(
+      true,
+    );
+  });
+
+  it('accepts a night with no log — every night before the feature existed', () => {
+    expect(isValidFixtures([fixture()])).toBe(true);
+    expect(isValidFixtures([fixture({ matchLog: [] })])).toBe(true);
+  });
+
+  it('rejects a log whose winner was not on the pitch', () => {
+    expect(isValidFixtures([fixture({ matchLog: [match({ winner: 'blue' })] })])).toBe(false);
+  });
+
+  it('rejects a match a team played against itself', () => {
+    expect(isValidFixtures([fixture({ matchLog: [match({ b: 'black' })] })])).toBe(false);
+  });
+
+  it('rejects a shirt colour that is not one of the three', () => {
+    expect(isValidFixtures([fixture({ matchLog: [match({ b: 'red' })] })])).toBe(false);
+  });
+
+  it('rejects a missing or non-boolean penalties flag', () => {
+    expect(isValidFixtures([fixture({ matchLog: [match({ viaPenalties: undefined })] })])).toBe(
+      false,
+    );
+    expect(isValidFixtures([fixture({ matchLog: [match({ viaPenalties: 'yes' })] })])).toBe(false);
+  });
+
+  it('rejects a log that is not an array, or is absurdly long', () => {
+    expect(isValidFixtures([fixture({ matchLog: { a: 'black' } })])).toBe(false);
+    expect(
+      isValidFixtures([fixture({ matchLog: Array.from({ length: 101 }, () => match()) })]),
+    ).toBe(false);
   });
 });
 
@@ -326,5 +369,52 @@ describe('safeEqual', () => {
     expect(safeEqual(undefined, 'x')).toBe(false);
     expect(safeEqual({}, 'x')).toBe(false);
     expect(safeEqual(null, null)).toBe(false);
+  });
+});
+
+// The guard that makes a log anyone can write to safe. The endpoint takes a
+// whole list, so without this a phone three seconds out of date appends to an
+// old base and erases a match somebody else just recorded.
+describe('isLogStep', () => {
+  const m = (winner, over = {}) => ({ a: 'black', b: 'white', winner, viaPenalties: false, ...over });
+  const one = [m('black')];
+  const two = [m('black'), { a: 'black', b: 'blue', winner: 'blue', viaPenalties: false }];
+
+  it('accepts a match being written down', () => {
+    expect(isLogStep([], one)).toBe(true);
+    expect(isLogStep(one, two)).toBe(true);
+  });
+
+  it('accepts a match being undone', () => {
+    expect(isLogStep(two, one)).toBe(true);
+    expect(isLogStep(one, [])).toBe(true);
+  });
+
+  it('accepts the identical list — a retry, or two people recording the same result', () => {
+    expect(isLogStep(two, two)).toBe(true);
+    expect(isLogStep([], [])).toBe(true);
+  });
+
+  it('refuses a stale device that would erase a match it never saw', () => {
+    // it saw [], someone else recorded, and now it appends its own first match
+    expect(isLogStep(one, [m('white')])).toBe(false);
+  });
+
+  it('refuses a rewrite of history that keeps the same length', () => {
+    expect(isLogStep(one, [m('white')])).toBe(false);
+    expect(isLogStep(two, [two[0], { ...two[1], winner: 'black' }])).toBe(false);
+  });
+
+  it('refuses more than one step at a time, in either direction', () => {
+    expect(isLogStep([], two)).toBe(false);
+    expect(isLogStep(two, [])).toBe(false);
+  });
+
+  it('refuses an append onto a base that differs earlier on', () => {
+    expect(isLogStep(one, [m('white'), m('black')])).toBe(false);
+  });
+
+  it('counts the penalties flag as part of the match', () => {
+    expect(isLogStep(one, [m('black', { viaPenalties: true })])).toBe(false);
   });
 });
