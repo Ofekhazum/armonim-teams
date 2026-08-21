@@ -571,6 +571,30 @@ reuse `computeDuoRecords` (§2.10) with "everyone who played this month" as the 
 of "tonight's squad". `topMvps` is the one exception to "every line is a count, not a verdict" —
 see §2.12 for why that's fine.
 
+**Repeat guests are one person (`src/guests.ts`).** A guest is created on the night they turn up with
+a fresh `uid()`, because at that moment there is nothing to match them against — they are a name
+somebody typed into a box. Across a season that makes one person look like three, each with one night
+and a per-night number computed from a single result, sitting at the top of the standings saying
+nothing.
+
+`mergeGuestIdentities` collapses them by name, and three choices keep it safe. **Only ids absent from
+the roster are candidates**, so two squad members who share a first name are never welded together —
+the roster is where that identity question is already settled. **The earliest night wins**, so the
+canonical id is stable as history grows rather than being renumbered every time the guest plays
+again. And **it is applied on read, never on write**: `App.readHistory` is a derived value, the stored
+records keep the ids they were filed with, so saving, editing and publishing all still work on
+untouched data and a merge that turns out to be wrong is undone by changing a function rather than by
+repairing a database.
+
+Matching is exact after trimming and case-folding — no fuzzy matching, because quietly merging two
+genuinely different people is a far worse failure than leaving a duplicate row on screen.
+
+**The standings table starts at two nights** (`MIN_STANDINGS_NIGHTS`). One night gives a per-night
+number derived from a single result, which sorts to the top of the table and means nothing. Two is not
+a sample either, but it is the point at which a row is about a person rather than about an evening —
+a different question from `MIN_NIGHTS`, which governs whether the *"vs rating"* column will speak at
+all.
+
 ### 2.12 MVP picks
 
 The one deliberately subjective input in the app, sitting next to a whole design rule (§2.9) built

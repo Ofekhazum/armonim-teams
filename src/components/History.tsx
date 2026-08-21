@@ -53,6 +53,12 @@ const sortColumns = (isAdmin: boolean): { key: SortKey; label: string }[] => [
 
 const fmtWins = (w: number) => (Number.isInteger(w) ? String(w) : w.toFixed(1));
 
+// Nights before a player appears in the standings at all. Deliberately low —
+// this is about keeping one-night entries out of a career table, not about
+// statistical confidence, which `MIN_NIGHTS` handles separately for the
+// "vs rating" column.
+const MIN_STANDINGS_NIGHTS = 2;
+
 // The key under the standings. Deliberately worded as what was counted rather
 // than what it proves — "most wins in the club" and not "best player" — which
 // is the same line the milestones and duo records hold (§2.9).
@@ -137,7 +143,14 @@ export default function History({
     });
   };
 
-  const standings = useMemo(() => playerStandings(history), [history]);
+  // A one-off — a guest who came once, a player's first night — has a per-night
+  // number computed from a single result, which sits at the top of the table
+  // saying nothing. Two nights is not a sample either, but it is the point at
+  // which a row is about a person rather than about an evening.
+  const standings = useMemo(
+    () => playerStandings(history).filter((p) => p.nights >= MIN_STANDINGS_NIGHTS),
+    [history],
+  );
   const form = useMemo(() => playerForm(history, players), [history, players]);
   const suggestions = useMemo(
     () => suggestRatings(history, players).filter((s) => !dismissed.has(s.id)),
