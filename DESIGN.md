@@ -956,6 +956,13 @@ has never recorded an individual. So a player's wins are the wins of the teams t
 their team**", not "most shootouts won". Said in the labels rather than in a disclaimer at the top:
 a banner explaining that the page doesn't mean what it looks like is a page that shouldn't say it.
 
+The counted line is five tiles: nights, nights won, match wins, wins per night, and **MVP nights**.
+The MVP count carries no threshold, unlike the rate beside it — a pick either happened or it didn't,
+so `0` is the true answer rather than a small sample, and it is shown for everybody precisely so a
+zero reads as *none* rather than as *not tracked*. It comes off `playerAchievements`, which was
+already counting picks in order to decide who tops that column; counting them a second time here is
+how two numbers on one page end up disagreeing.
+
 **One threshold, `MIN_PROFILE_NIGHTS = 4`** — the same bar `MIN_NIGHTS` uses for rating calibration,
 and deliberately not a different number per statistic. A page showing "67%" under one heading and
 "not enough nights yet" under the next, off the same four nights, is one nobody can calibrate their

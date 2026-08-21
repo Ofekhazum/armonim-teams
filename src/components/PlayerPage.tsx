@@ -43,7 +43,10 @@ const Card = ({ title, children }: { title: string; children: React.ReactNode })
 );
 
 const Stat = ({ n, label }: { n: string; label: string }) => (
-  <div className="min-w-0 flex-1 rounded-xl bg-white/60 px-2 py-2 text-center">
+  // a floor rather than min-w-0: five tiles that all shrink stay on one line
+  // and squeeze the labels to nothing, where five that refuse to go below ~5rem
+  // wrap to 3 + 2 on a phone and stay readable
+  <div className="min-w-[4.75rem] flex-1 rounded-xl bg-white/60 px-2 py-2 text-center">
     <div className="font-mono text-xl font-black leading-none text-amber-950">{n}</div>
     <div className="mt-1 text-[11px] font-semibold leading-tight text-amber-900/60">{label}</div>
   </div>
@@ -73,10 +76,12 @@ export default function PlayerPage({
   const counts = useMemo(() => profileCounts(nights), [nights]);
   const shirts = useMemo(() => shirtNights(nights), [nights]);
   const shootouts = useMemo(() => shootoutRecord(history, player.id), [history, player.id]);
-  const badges = useMemo(
-    () => playerAchievements(history).get(player.id)?.achievements ?? [],
-    [history, player.id],
-  );
+  // one call, two answers: the badge row, and the MVP tally underneath it —
+  // playerAchievements already counts the picks while deciding who tops that
+  // column, and counting them twice is how two numbers end up disagreeing
+  const record = useMemo(() => playerAchievements(history).get(player.id), [history, player.id]);
+  const badges = record?.achievements ?? [];
+  const mvps = record?.mvps ?? 0;
 
   // Best and worst teammate, from the shrunk duo records (§2.10) — so four
   // nights at 100% doesn't get printed as a fact about a friendship.
@@ -158,7 +163,7 @@ export default function PlayerPage({
                 one or two short words and the "not enough football yet" case is
                 a dash plus a line underneath — not a label long enough to
                 reflow the whole row. */}
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <Stat n={String(counts.nights)} label="nights" />
               <Stat n={String(counts.nightsWon)} label="nights won" />
               <Stat n={fmt(counts.wins)} label="match wins" />
@@ -166,6 +171,11 @@ export default function PlayerPage({
                 n={counts.perNight === null ? '–' : counts.perNight.toFixed(1)}
                 label="per night"
               />
+              {/* No threshold on this one, unlike the rate beside it: a pick is
+                  a thing that either happened or didn't, and "0" is the true
+                  answer rather than a small sample of one. Shown for everybody
+                  so a zero is legible as none rather than as untracked. */}
+              <Stat n={String(mvps)} label={mvps === 1 ? 'MVP night' : 'MVP nights'} />
             </div>
             {counts.perNight === null && (
               <p className="-mt-1 text-xs text-amber-900/50">
