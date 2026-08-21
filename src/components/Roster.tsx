@@ -514,18 +514,46 @@ export default function Roster({
                 // to avoid (§2.16).
                 title={titles.get(p.id)?.title}
                 // the whole row, not a small "view" link: on a phone the row
-                // is the target your thumb is already aimed at
-                className={`flex cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 shadow-sm transition-colors hover:border-orange-500/60 ${
+                // is the target your thumb is already aimed at. It lifts on
+                // hover, which is the cheapest way to say "this is a door".
+                className={`group relative flex cursor-pointer items-center gap-3 overflow-hidden rounded-2xl border px-4 py-3 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-orange-500/60 hover:shadow-md ${
                   theme(p.id)
                 }`}
               >
-                <div className="min-w-0 flex-1">
+                {/* The badge's own emoji, set large and nearly transparent at
+                    the far edge — a watermark rather than an icon, so it reads
+                    as the card's character rather than as another thing to
+                    look at. Physically on the left because the row is RTL and
+                    the names live on the right. */}
+                {titles.get(p.id) && (
+                  <span
+                    aria-hidden
+                    className="pointer-events-none absolute -bottom-3 left-1 select-none text-6xl opacity-[0.14] transition-opacity duration-200 group-hover:opacity-25"
+                  >
+                    {titles.get(p.id)!.icon}
+                  </span>
+                )}
+                <div className="relative min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <Name className="truncate font-semibold text-amber-950">{p.name}</Name>
-                    <span title={STYLE_META[roleBadge(p)].label}>{STYLE_META[roleBadge(p)].icon}</span>
+                    <span
+                      title={STYLE_META[roleBadge(p)].label}
+                      className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-white/70 text-xs shadow-sm ring-1 ring-amber-900/10"
+                    >
+                      {STYLE_META[roleBadge(p)].icon}
+                    </span>
                     {isAdmin && !p.isGk && <SpectrumBar attack={p.attack} />}
                     {isAdmin && <Stars rating={p.rating} unknown={p.ratingUnknown} />}
                   </div>
+                  {titles.get(p.id) && (
+                    <div
+                      className={`mt-0.5 text-[11px] font-black uppercase tracking-[0.18em] ${
+                        TITLE_THEME[titles.get(p.id)!.kind].ink
+                      }`}
+                    >
+                      {titles.get(p.id)!.title}
+                    </div>
+                  )}
                   {(p.aliases ?? []).length > 0 && (
                     <div className="mt-0.5 truncate text-xs text-amber-900/50" title="Also known as">
                       aka {p.aliases!.join(', ')}

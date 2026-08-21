@@ -89,6 +89,9 @@ export const MIN_NIGHTS_FOR_TITLES = 5;
 export interface PlayerTitle {
   kind: AchievementKind;
   title: string;
+  // taken off the badge itself rather than a second lookup table, so the emoji
+  // on a themed roster row is always the one in the badge it came from
+  icon: string;
 }
 
 /** The title itself, with the badge it came from — which is what a theme keys off. */
@@ -103,7 +106,9 @@ export function titleBadgeFor(
   const found = TITLE_ORDER.find(
     (t) => held.has(t.kind) && recordedNights >= (t.minNights ?? MIN_NIGHTS_FOR_TITLES),
   );
-  return found ? { kind: found.kind, title: found.title } : null;
+  if (!found) return null;
+  const badge = achievements.find((a) => a.kind === found.kind)!;
+  return { kind: found.kind, title: found.title, icon: badge.icon };
 }
 
 export function titleFor(achievements: Achievement[], recordedNights: number): string | null {

@@ -24,8 +24,11 @@ import type { AchievementKind } from '../achievements';
 export interface TitleTheme {
   // border + background, applied to the row in place of its default surface
   card: string;
-  // an outer glow, for the two themes whose whole point is that they radiate
+  // an outer glow, for the themes whose whole point is that they radiate
   glow?: string;
+  // the title's own lettering. A phone has no hover, so the tooltip naming the
+  // title is invisible where the app is mostly used — the row has to say it.
+  ink: string;
 }
 
 export const TITLE_THEME: Record<AchievementKind, TitleTheme> = {
@@ -33,40 +36,48 @@ export const TITLE_THEME: Record<AchievementKind, TitleTheme> = {
   'most-wins': {
     card: 'border-amber-500/60 bg-gradient-to-br from-amber-200/80 via-amber-100/60 to-[#fffdf4]',
     glow: 'shadow-[0_0_18px_-4px_rgba(217,119,6,0.45)]',
+    ink: 'text-amber-700',
   },
   // Starlight — indigo dusk rather than more gold, so the two brightest titles
   // in the list never look like each other.
   mvp: {
     card: 'border-violet-400/55 bg-gradient-to-br from-violet-200/70 via-indigo-100/50 to-[#fffdf4]',
     glow: 'shadow-[0_0_18px_-6px_rgba(124,58,237,0.4)]',
+    ink: 'text-violet-700',
   },
   // Podium green — quietly dominant. Winning nights outright is the least
   // showy achievement in the app and the hardest to fluke.
   'most-fixtures': {
     card: 'border-emerald-600/50 bg-gradient-to-br from-emerald-200/70 via-emerald-50/60 to-[#fffdf4]',
+    ink: 'text-emerald-700',
   },
   // Gunmetal — cool and hard-edged, for the one earned at the penalty spot.
   shootouts: {
     card: 'border-slate-500/60 bg-gradient-to-br from-slate-300/70 via-slate-100/70 to-[#fffdf4]',
+    ink: 'text-slate-600',
   },
   // Clear sky — calm and even. Never missing a night is dependability, which
   // should not look like a trophy.
   'ever-present': {
     card: 'border-sky-500/45 bg-gradient-to-br from-sky-200/60 via-sky-50/60 to-[#fffdf4]',
+    ink: 'text-sky-700',
   },
   // Forged iron — warm rust, heavier border, the most solid-looking of the set.
   'iron-man': {
     card: 'border-orange-900/45 bg-gradient-to-br from-orange-300/60 via-amber-100/70 to-[#fffdf4]',
+    ink: 'text-orange-900/80',
   },
   // Fire — the loudest, and the only title that can appear on a short history,
   // which is fine: a run of winning nights is the most *now* thing here.
   'win-streak': {
     card: 'border-orange-500/70 bg-gradient-to-br from-red-300/60 via-orange-200/70 to-[#fffdf4]',
     glow: 'shadow-[0_0_20px_-4px_rgba(234,88,12,0.55)]',
+    ink: 'text-orange-700',
   },
   // Aged parchment — long service, worn rather than polished.
   veteran: {
     card: 'border-amber-800/40 bg-gradient-to-br from-amber-100/90 via-[#f3e7ce] to-[#fffdf4]',
+    ink: 'text-amber-800/80',
   },
 };
 
