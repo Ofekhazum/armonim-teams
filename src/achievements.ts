@@ -92,6 +92,11 @@ export function playerAchievements(history: FixtureRecord[]): Map<string, Player
   };
   const mostWins = topOf((id) => standings.find((s) => s.id === id)?.wins ?? 0);
   const mostFixtures = topOf((id) => fixturesWon.get(id) ?? 0);
+  // Same treatment as the other two: a badge for the top of the column, not
+  // for appearing in it. Every regular collects an MVP night eventually, and a
+  // badge nearly everyone wears stops being one — 🌟 means "most picked", the
+  // way 🥇 means "most wins".
+  const mostMvps = topOf((id) => mvps.get(id) ?? 0);
 
   const out = new Map<string, PlayerAchievements>();
   for (const s of standings) {
@@ -107,11 +112,11 @@ export function playerAchievements(history: FixtureRecord[]): Map<string, Player
     if (mostFixtures.has(s.id)) {
       list.push({ kind: 'most-fixtures', icon: '🏅', label: `Most nights won outright — ${won}` });
     }
-    if (mvpCount > 0) {
+    if (mostMvps.has(s.id)) {
       list.push({
         kind: 'mvp',
         icon: '🌟',
-        label: `Picked MVP ${mvpCount} time${mvpCount === 1 ? '' : 's'}`,
+        label: `Most MVP picks — ${mvpCount} time${mvpCount === 1 ? '' : 's'}`,
       });
     }
     if (attend >= MIN_ATTEND_STREAK) {

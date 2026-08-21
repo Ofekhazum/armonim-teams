@@ -1,5 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
-import type { ClockState, FixtureRecord, LiveFixture, Player, Session, Teams } from '../types';
+import type {
+  ClockState,
+  FixtureRecord,
+  LiveFixture,
+  MatchLogEntry,
+  Player,
+  Session,
+  Teams,
+} from '../types';
 import { ATTACK_DEFAULT, initialClock, liveFixtureId, roleBadge } from '../types';
 import {
   emptySession,
@@ -11,6 +19,7 @@ import {
   uid,
 } from '../storage';
 import { generateTeams, targetSizes } from '../balancer';
+import { sameLog, winsFromLog } from '../matchLog';
 import { parseImportList, resolveImportedNames } from '../importRoster';
 import { ROOMS_ENABLED, hostRoom, roomShareUrl } from '../liveRoom';
 import { REMOTE_URL } from '../remote';
@@ -46,6 +55,12 @@ interface Props {
   // this device is on its own.
   liveClock: ClockState | null;
   onShareClock: (clock: ClockState) => void;
+  // The same arrangement for the night's results. Anyone at the pitch can write
+  // a match down (§2.15), so while a fixture is live the shared log outranks
+  // this device's copy — and the session mirrors it, because the session is
+  // what gets filed into history.
+  liveLog: MatchLogEntry[] | null;
+  onShareLog: (log: MatchLogEntry[]) => void;
 }
 
 const MIN_PLAYERS = 13;
@@ -62,9 +77,26 @@ export default function MatchDay({
   onShareLive,
   liveClock,
   onShareClock,
+  liveLog,
+  onShareLog,
 }: Props) {
   const { unlockAdmin, unlocking } = useAdminUnlock(setAdminWord);
   const [step, setStep] = useState<'players' | 'gk'>('players');
+
+  // While a fixture is live the shared log is the record — someone else may
+  // have written the last match down — so it outranks this device's copy, the
+  // same way liveClock outranks session.clock.
+  const matchLog = liveLog ?? session.matchLog;
+
+  // …and the session is kept in step with it, because the session is what
+  // saveNight files into history. Without this, a night where two people took
+  // turns recording would be filed with only the matches this phone happened
+  // to enter. The equality check is what stops the poll and the session
+  // ping-ponging off each other every three seconds.
+  useEffect(() => {
+    if (!liveLog || sameLog(liveLog, session.matchLog)) return;
+    setSession({ ...session, matchLog: liveLog });
+  }, [liveLog]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // guest form
   const [gName, setGName] = useState('');
@@ -243,7 +275,6 @@ export default function MatchDay({
       // these teams are new, so a tally typed against the old ones — and the
       // history record it was filed into — no longer describes them
       wins: emptyWins(),
-      mvpId: null,
       savedFixtureId: null,
     });
   };
@@ -273,6 +304,9 @@ export default function MatchDay({
     teams: { black: [...teams.black], white: [...teams.white], blue: [...teams.blue] },
     gkIds: effectiveGkIds,
     clock,
+    // normally empty — but a night taken back to the teams board and started
+    // again keeps whatever was already written down
+    matchLog: session.matchLog,
   });
 
   // Locks tonight's teams in, switches to the read-only fixture page, and puts
@@ -334,13 +368,23 @@ export default function MatchDay({
       date: new Date().toISOString().slice(0, 10),
       teams: { black: [...teams.black], white: [...teams.white], blue: [...teams.blue] },
       players: todays.map((p) => ({ id: p.id, name: p.name, rating: p.rating })),
-      // a team left blank simply didn't win any
-      wins: {
-        black: session.wins.black ?? 0,
-        white: session.wins.white ?? 0,
-        blue: session.wins.blue ?? 0,
-      },
-      ...(session.mvpId ? { mvpId: session.mvpId } : {}),
+      // A logged night counts itself; a team left blank on a hand-typed one
+      // simply didn't win any. Never both — two records that can disagree is
+      // how a night ends up with a tally that doesn't match the matches.
+      //
+      // The *shared* log, not this device's copy: a match written down on
+      // somebody else's phone is as much a part of tonight as one written here.
+      wins: matchLog.length
+        ? winsFromLog(matchLog)
+        : {
+            black: session.wins.black ?? 0,
+            white: session.wins.white ?? 0,
+            blue: session.wins.blue ?? 0,
+          },
+      ...(matchLog.length ? { matchLog } : {}),
+      // No mvpId: it is picked afterwards, on the History tab. App.saveFixture
+      // carries any existing pick across a re-save so filing the night again
+      // doesn't wipe it.
     });
     setSession({ ...session, savedFixtureId: id });
   };
@@ -424,15 +468,33 @@ export default function MatchDay({
         players={todays}
         history={history}
         gkIds={effectiveGkIds}
-        wins={session.wins}
+        wins={matchLog.length ? winsFromLog(matchLog) : session.wins}
         onChangeWins={(wins) => setSession({ ...session, wins })}
+        matchLog={matchLog}
+        onChangeLog={(next) => {
+          // Writing down a result means that match is over, and the very next
+          // thing anyone does is put the clock back for the following one. So
+          // do it here rather than making them press it: the session write is
+          // one call so the log and the clock cannot land separately, and the
+          // publish is the same one the manual press made — no extra round
+          // trip, and instant on this phone because local state moves first.
+          //
+          // Only on a result being *added*. Undoing one is a correction to the
+          // record, not the end of a match, and resetting a clock that is
+          // running would be the wrong kind of surprise.
+          const recorded = next.length > matchLog.length;
+          const clock = recorded ? initialClock() : session.clock;
+          setSession({ ...session, matchLog: next, clock });
+          // publishes the log, and the clock reset with it — the same handler
+          // the spectator view calls, so a match written down on someone
+          // else's phone behaves identically to one written down here
+          onShareLog(next);
+        }}
         clock={liveClock ?? session.clock}
         onChangeClock={changeClock}
         // derived locally rather than read off the poll, so the organiser's own
         // toggle appears the instant they press Start rather than a poll later
         liveFixtureId={session.liveStartedAt !== null ? liveFixtureId(session.liveStartedAt) : null}
-        mvpId={session.mvpId}
-        onChangeMvp={(mvpId) => setSession({ ...session, mvpId })}
         onSaveResults={saveNight}
         saved={session.savedFixtureId !== null}
         savedFixtureId={session.savedFixtureId}
