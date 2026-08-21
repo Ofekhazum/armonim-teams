@@ -1358,6 +1358,16 @@ Nothing decided that — the strips were written on the organiser's page and sim
 They are counts of who has turned up, which is the group's own record, and the group is who they are
 about. So they moved into `TonightFacts`, which both pages render.
 
+The teams themselves went the same way, into **`TeamCards`** — one set of cards, the compact form
+(names in wrapped chips, ~3 lines a team) that the organiser's page already used. The live view had
+been drawing its own taller one-row-per-player version, which was not a different *decision* either,
+just a second piece of markup that drifted. What a viewer's payload genuinely cannot supply arrives
+as an optional prop and is simply absent: `order` (the organiser sorts gloves-first then along the
+attack spectrum — a `LivePlayer` has no attack value, so the viewer gets the board's own order),
+`note` (the "Guest of ניב" / "Attacking" tooltip, both read off a `Player`'s private half), and
+`aside`, the one place a rating may appear. The component is generic over the player shape so the
+organiser keeps a full `Player` in `note` without a cast.
+
 **What stays with the organiser is a short list, and every item on it is a decision rather than a
 count**: *Tonight's result* (the tally that gets filed), *End fixture*, *Back to teams*, and the
 **rating averages** — team `avg`, and the *balance gap*, which is those same averages subtracted, so
