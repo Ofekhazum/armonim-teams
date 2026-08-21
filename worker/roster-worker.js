@@ -9,6 +9,7 @@
 //   GET  /live         → public read of the fixture being played right now
 //   POST /live         → start/update/end it; requires the secret word
 //   POST /live/clock   → start/pause the match clock; NO password, see below
+//   POST /live/log     → write down a finished match; NO password, see below
 //   GET  /push/key     → the VAPID public key a browser needs to subscribe
 //   POST /push/subscribe   → opt this device into match-clock notifications
 //   POST /push/unsubscribe → opt it out again
@@ -238,6 +239,7 @@ export function isValidLive(live) {
   if (!TEAM_COLORS.every((c) => isIdList(live.teams[c], MAX_FIXTURE_PLAYERS))) return false;
   if (!isIdList(live.gkIds, MAX_FIXTURE_PLAYERS)) return false;
   if (!isValidClock(live.clock)) return false;
+  if (live.matchLog !== undefined && !isValidMatchLog(live.matchLog)) return false;
   return true;
 }
 
@@ -257,6 +259,29 @@ export function isValidMatchLog(log) {
     if (typeof m.viaPenalties !== 'boolean') return false;
     return true;
   });
+}
+
+// Is `next` a legitimate one-step move from `prev`? One match written down,
+// one undone, or the identical list sent twice.
+//
+// This is what makes a log anyone can write to safe. The endpoint takes a whole
+// list, so without this a phone whose last poll was three seconds stale would
+// append to an old base and erase a match somebody else had just recorded —
+// silent data loss in the exact feature being added. Rejecting instead means
+// the loser of a race sees the true log on their next poll, which is the answer
+// they wanted anyway: somebody already wrote it down.
+export function isLogStep(prev, next) {
+  const same = (a, b) =>
+    a.length === b.length &&
+    a.every(
+      (m, i) =>
+        m.a === b[i].a && m.b === b[i].b && m.winner === b[i].winner &&
+        m.viaPenalties === b[i].viaPenalties,
+    );
+  if (same(prev, next)) return true; // a retry, or two people recording the same result
+  if (next.length === prev.length + 1) return same(prev, next.slice(0, -1)); // recorded
+  if (next.length === prev.length - 1) return same(prev.slice(0, -1), next); // undone
+  return false;
 }
 
 export function isValidFixtures(fixtures) {
@@ -452,6 +477,46 @@ export default {
       };
       await env.ROSTER_KV.put('live', JSON.stringify(payload), { expirationTtl: LIVE_TTL_S });
       await rescheduleNotifications(env, parsed.body.clock);
+      return json({ ok: true, version: payload.version });
+    }
+
+    // --- The second one, and for the same reason -----------------------------
+    // Writing down who won is the other thing that happens at the moment a
+    // match ends, done by whoever is nearest the phone. Routing it through the
+    // organiser makes it as useless as routing the clock through them would.
+    //
+    // Narrow in the same way: it can only replace the `matchLog` of a fixture
+    // that is already live, and only by one step at a time (see isLogStep), so
+    // it cannot create a fixture, end one, touch teams or ratings, or wipe a
+    // night's record wholesale. A rejected write costs the sender a poll.
+    if (url.pathname === '/live/log' && request.method === 'POST') {
+      const gate = await countAttempt(limiterFor(env, `clock:${ip}`), CLOCK_LIMIT, CLOCK_WINDOW_MS);
+      if (gate.blocked) {
+        return json({ error: 'too many attempts' }, 429, {
+          'Retry-After': String(gate.retryAfter),
+        });
+      }
+      const parsed = await readBody(request);
+      if (parsed.tooBig) return json({ error: 'too large' }, 413);
+      if (parsed.bad || !parsed.body || typeof parsed.body !== 'object') {
+        return json({ error: 'bad json' }, 400);
+      }
+      if (!isValidMatchLog(parsed.body.matchLog)) return json({ error: 'bad match log' }, 400);
+
+      const current = await readRecord(env, 'live');
+      if (!current?.value?.fixture) return json({ error: 'no live fixture' }, 404);
+
+      const stored = current.value.fixture.matchLog ?? [];
+      if (!isLogStep(stored, parsed.body.matchLog)) {
+        // somebody else got there first; the sender's next poll has the truth
+        return json({ error: 'stale log', matchLog: stored }, 409);
+      }
+
+      const payload = {
+        version: Date.now(),
+        fixture: { ...current.value.fixture, matchLog: parsed.body.matchLog },
+      };
+      await env.ROSTER_KV.put('live', JSON.stringify(payload), { expirationTtl: LIVE_TTL_S });
       return json({ ok: true, version: payload.version });
     }
 

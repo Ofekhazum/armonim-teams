@@ -669,6 +669,7 @@ What a normal user gets, and why:
 | Monthly recap generator | — | ✓ | a produced thing the organiser sends out, not a button on everyone's screen |
 | Tonight's fixture: teams | ✓ | | the one thing a player actually opens the app for |
 | Starting / pausing the match clock | ✓ | | 8-minute matches; whoever is nearest the phone runs it (§2.15) |
+| Writing down who won a match | ✓ | | same reason as the clock — the organiser is usually playing (§2.18) |
 | Tonight's results; the MVP pick (on History) | — | ✓ | the organiser's calls, recorded once |
 | Starting / ending a fixture | — | ✓ | exactly one night can be live at a time |
 
@@ -759,9 +760,10 @@ only the *transition* is late, never the number. `Session.clock` survives as a l
 refresh while offline. Publishing happens on start/pause/next-match — a handful a match, not one a
 tick, since the seconds in between are counted down locally by each device.
 
-**Anyone can run it**, which is the one place this app accepts an unauthenticated write. At 8
-minutes a match, whoever is nearest the phone has to be able to start it; routing that through the
-organiser makes the clock useless. `POST /live/clock` therefore takes no secret, and is kept safe by
+**Anyone can run it**, which is one of the two places this app accepts an unauthenticated write
+(the other is writing down a finished match, §2.18 — same reasoning, same shape). At 8 minutes a
+match, whoever is nearest the phone has to be able to start it; routing that through the organiser
+makes the clock useless. `POST /live/clock` therefore takes no secret, and is kept safe by
 being *narrow* instead: it replaces only the `clock` field of a fixture that is **already live**, so
 it cannot create a fixture, cannot end one, and cannot touch teams, players, ratings, the roster or
 the history — the handler copies the validated clock onto the stored record and ignores everything
@@ -876,6 +878,34 @@ History shows the log's **count** — *"18 matches logged"* — and not the matc
 tried and reverted: eighteen rows of *"Blue beat White"* is a wall to scroll past on the way to
 anything else, and nobody re-reads a night one match at a time. The count does the only job the
 expanded night needs from it, which is to say the data survived being filed.
+
+**Anyone at the pitch can write a match down**, not only the organiser — the same call the clock
+makes, for the same reason: a match ends, and whoever is nearest a phone records it. The organiser is
+usually one of the twenty-two people busy playing, and funnelling every result through them is how a
+log ends up with holes in it. So `matchLog` is a field on `LiveFixture`, `MatchLog.tsx` renders in
+the spectator view (`LiveFixtureView`) as well as the organiser's fixture page, and there is a second
+password-free write on the Worker: **`POST /live/log`**.
+
+Two writers make concurrency real, and the endpoint takes a whole list, so a phone whose last poll
+was three seconds stale would append to an old base and *erase* a match somebody else had just
+recorded — silent data loss in the exact feature being added. **`isLogStep(prev, next)`** is the
+answer: a write is accepted only if it is one match longer (recorded), one shorter (undone), or
+identical (a retry, or two people recording the same result — which converges rather than
+duplicating). Anything else is a **409**, and the client's response is to stop preferring its local
+copy so the next poll lands the truth. The loser of a race sees what actually happened within one
+poll, which is the answer they wanted: somebody already wrote it down.
+
+The organiser's session **mirrors** the shared log (`sameLog` guards the poll and the session from
+chasing each other), because the session is what `saveNight` files into history — without it, a night
+where two people took turns recording would be filed with only the matches that one phone entered.
+`adoptLive` seeds it too, so an organiser picking the night up on a second device inherits the
+matches already played. And recording a result resets the clock from *whichever* device did it:
+`App.shareLog` owns that rule, so the spectator view and the fixture page cannot drift apart.
+
+**How fast others see it:** exactly as fast as a clock press, because it is the same record and the
+same poll. Which means it is only as good as §2.15's latency — the person tapping always sees it
+immediately (local state moves first), and everyone else sees it on their next poll after the write
+lands.
 
 **Not yet counted.** The log is stored and shared but nothing derives from it beyond `winsFromLog`
 yet — head-to-head between two shirts, matches played versus wins collected, how often a night went
@@ -1214,9 +1244,10 @@ saved nights accumulate in the History tab (§2.6).
   (there is nothing here worth recovering an hour later), a 12-hour KV TTL, and `POST` with a null
   fixture deletes the key rather than storing an empty one, so "is anything live" stays a question
   about existence. `isValidLive` in the Worker checks the clock's shape as strictly as the rest —
-  a non-numeric `endsAt` would render as `NaN` on fifteen phones at once. `POST /live/clock` is the
-  one route in this Worker with no password on it; see §2.15 for the reasoning and the limits that
-  make it safe.
+  a non-numeric `endsAt` would render as `NaN` on fifteen phones at once. `POST /live/clock` and
+  `POST /live/log` are the two routes in this Worker with no password on them; see §2.15 and §2.18
+  for the reasoning and the limits that make them safe — including `isLogStep`, which only lets the
+  log move one match at a time so a stale phone can't erase somebody else's result.
 - **Match-clock notifications (optional)**: `src/push.ts` + `worker/push.js` +
   `worker/clock-notifier.js`, a `ClockNotifier` Durable Object holding the subscriptions and one
   alarm — see §2.17. `public/sw.js` is the only service worker in the project and deliberately does

@@ -80,6 +80,24 @@ export function consecutiveMatches(log: MatchLogEntry[], team: TeamColor): numbe
   return run;
 }
 
+// Are these the same night's matches? Compared field by field rather than by
+// reference or JSON, because the two copies being compared arrive from
+// different places — one polled off the Worker, one held in the session — and
+// are never the same object even when they say the same thing. Used to stop a
+// poll and a local write chasing each other round every three seconds.
+export function sameLog(a: MatchLogEntry[], b: MatchLogEntry[]): boolean {
+  return (
+    a.length === b.length &&
+    a.every(
+      (m, i) =>
+        m.a === b[i].a &&
+        m.b === b[i].b &&
+        m.winner === b[i].winner &&
+        m.viaPenalties === b[i].viaPenalties,
+    )
+  );
+}
+
 // Recording a result. Kept as a function rather than an array push so the
 // caller cannot file a match between two teams that were not the ones on the
 // pitch — the pairing is not the organiser's to choose after the first one.

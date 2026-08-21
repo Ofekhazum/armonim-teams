@@ -243,4 +243,9 @@ export interface LiveFixture {
   teams: Teams;
   gkIds: string[];
   clock: ClockState;
+  // The night's results as they happen, shared and writable by anyone at the
+  // pitch for the same reason the clock is: whoever is nearest the phone when a
+  // match ends is who writes it down. Optional because a fixture published by
+  // an older build won't carry one — read it as `?? []`.
+  matchLog?: MatchLogEntry[];
 }

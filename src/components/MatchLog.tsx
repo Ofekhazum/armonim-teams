@@ -17,12 +17,17 @@ import { TEAM_META } from './ui';
 // there is never a pairing to choose again. Recording a match is therefore one
 // question — who won — and one toggle for whether it went to penalties. Two
 // taps, between matches, while the teams are swapping over.
+//
+// Anyone at the pitch can do it, not only the organiser — the same call the
+// clock makes (§2.15). A match ends and whoever is nearest a phone writes it
+// down; funnelling that through one person is how a log ends up with holes in
+// it. The shared record is one step behind the safest concurrent write the
+// Worker will accept, so two people recording the same result is fine and a
+// stale phone can't erase somebody else's match.
 
 interface Props {
   log: MatchLogEntry[];
   onChange: (log: MatchLogEntry[]) => void;
-  // saving the night is the organiser's, and so is writing down what happened
-  isAdmin: boolean;
 }
 
 const Chip = ({ color }: { color: TeamColor }) => (
@@ -34,7 +39,7 @@ const Chip = ({ color }: { color: TeamColor }) => (
 const SELECT =
   'rounded-lg border border-amber-900/25 bg-white px-2 py-1.5 text-sm font-semibold text-amber-950 outline-none focus:border-orange-500';
 
-export default function MatchLog({ log, onChange, isAdmin }: Props) {
+export default function MatchLog({ log, onChange }: Props) {
   const pair = nextPairing(log);
   // Only ever used for the opening pairing — every later one is decided by the
   // result, not by anybody choosing.
@@ -92,7 +97,7 @@ export default function MatchLog({ log, onChange, isAdmin }: Props) {
         <h3 className="font-bold text-amber-950">📋 Matches</h3>
         {log.length > 0 && (
           <span className="text-xs text-amber-900/60">
-            {log.length} played{isAdmin ? ' · tally below is counted from these' : ''}
+            {log.length} played
           </span>
         )}
       </div>
@@ -102,11 +107,7 @@ export default function MatchLog({ log, onChange, isAdmin }: Props) {
           the night goes on — and the thing being pushed away is the one part
           anybody touches, roughly every ten minutes, usually standing up. What
           has already happened can be scrolled to; what happens next cannot. */}
-      {!isAdmin ? (
-        log.length === 0 && (
-          <p className="text-sm text-amber-900/60">Nothing played yet.</p>
-        )
-      ) : pair === null ? (
+      {pair === null ? (
         <div className="space-y-2">
           <p className="text-sm text-amber-900/70">
             Who kicks off? This is the only pairing anyone picks — after it, the winner stays on

@@ -1,6 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
-import type { AppState, FixtureRecord, LiveFixture, Player, Session, TeamWins } from './types';
-import { ATTACK_DEFAULT } from './types';
+import type {
+  AppState,
+  FixtureRecord,
+  LiveFixture,
+  MatchLogEntry,
+  Player,
+  Session,
+  TeamWins,
+} from './types';
+import { ATTACK_DEFAULT, initialClock } from './types';
 import { emptySession, loadState, saveState } from './storage';
 import { mergePrivateFields, mergePublicRoster } from './rosterMerge';
 import { preserveMvp } from './mvp';
@@ -50,8 +58,24 @@ export default function App() {
   // The fixture being played right now, polled from the Worker (§2.14). This
   // is how a player finds out there's a game on and what team they're on,
   // given Match day is hidden from them.
-  const { fixture: liveFixture, setClock: setLiveClock, forget: forgetLive } = useLiveFixture(true);
+  const {
+    fixture: liveFixture,
+    setClock: setLiveClock,
+    setMatchLog: setLiveLog,
+    forget: forgetLive,
+  } = useLiveFixture(true);
   const offeredLive = useRef(false);
+
+  // Writing down a match, from whichever device did it. The clock going back to
+  // the start is part of *recording a result*, not part of the fixture page
+  // (§2.18) — so it lives here, where both the organiser's screen and the
+  // spectator view reach it, rather than being implemented twice and drifting.
+  // Only on a result being added: an undo is a correction, not a whistle.
+  const shareLog = (log: MatchLogEntry[]) => {
+    const recorded = log.length > (liveFixture?.matchLog?.length ?? 0);
+    setLiveLog(log);
+    if (recorded) setLiveClock(initialClock());
+  };
 
   // An organiser tapping Live during their own night wants their own screen —
   // milestones, MVP, the result, End fixture — not the spectator cut of it. So
@@ -123,6 +147,10 @@ export default function App() {
       fixtureStarted: true,
       liveStartedAt: fixture.startedAt,
       clock: fixture.clock,
+      // the matches already written down tonight, by whoever wrote them —
+      // without this an organiser adopting the night mid-fixture would file it
+      // as if nothing had been played
+      matchLog: fixture.matchLog ?? [],
     });
     // no tab change needed: this device is now running the night, so the Live
     // tab renders the full fixture page on the very next paint
@@ -408,6 +436,8 @@ export default function App() {
       onShareLive={shareLive}
       liveClock={liveFixture?.clock ?? null}
       onShareClock={setLiveClock}
+      liveLog={liveFixture?.matchLog ?? null}
+      onShareLog={shareLog}
     />
   );
 
@@ -457,6 +487,7 @@ export default function App() {
           <LiveFixtureView
             fixture={liveFixture}
             onChangeClock={setLiveClock}
+            onChangeLog={shareLog}
             // an organiser looking at a night some other device started still
             // owns it, and must be able to stop it — see the note in the view
             onEndFixture={

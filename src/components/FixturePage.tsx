@@ -229,7 +229,7 @@ export default function FixturePage({
 
       <MatchClock state={clock} onChange={onChangeClock} fixtureId={liveFixtureId} />
 
-      <MatchLog log={matchLog} onChange={onChangeLog} isAdmin={isAdmin} />
+      <MatchLog log={matchLog} onChange={onChangeLog} />
 
       {/* The MVP is not picked here. It's the one subjective call the app
           collects, and asking for it mid-fixture asks the wrong question at

@@ -7,6 +7,7 @@ import {
   pointsFor,
   recordMatch,
   restingTeam,
+  sameLog,
   winsFromLog,
 } from './matchLog';
 import type { MatchLogEntry } from './types';
@@ -158,5 +159,39 @@ describe('pointsFor and loserOf', () => {
     expect(pointsFor(m('black', 'white', 'black', true))).toBe(0.5);
     expect(loserOf(m('black', 'white', 'black'))).toBe('white');
     expect(loserOf(m('white', 'black', 'black'))).toBe('white');
+  });
+});
+
+// Two copies of the night arrive from different places — one polled off the
+// Worker, one held in the session — so they are never the same object even when
+// they say the same thing. Without this check they chase each other every poll.
+describe('sameLog', () => {
+  it('sees two separately-built copies of the same night as equal', () => {
+    const a = [m('black', 'white', 'black'), m('black', 'blue', 'blue', true)];
+    const b = [m('black', 'white', 'black'), m('black', 'blue', 'blue', true)];
+    expect(sameLog(a, b)).toBe(true);
+    expect(a === b).toBe(false); // the point: reference equality would say no
+  });
+
+  it('two empty nights are the same night', () => {
+    expect(sameLog([], [])).toBe(true);
+  });
+
+  it('notices a different length', () => {
+    expect(sameLog([m('black', 'white', 'black')], [])).toBe(false);
+  });
+
+  it('notices a different winner', () => {
+    expect(sameLog([m('black', 'white', 'black')], [m('black', 'white', 'white')])).toBe(false);
+  });
+
+  it('notices a win that became a shootout', () => {
+    expect(sameLog([m('black', 'white', 'black')], [m('black', 'white', 'black', true)])).toBe(
+      false,
+    );
+  });
+
+  it('notices a different pairing', () => {
+    expect(sameLog([m('black', 'white', 'black')], [m('black', 'blue', 'black')])).toBe(false);
   });
 });
