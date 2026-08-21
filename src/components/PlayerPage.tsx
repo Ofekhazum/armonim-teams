@@ -73,9 +73,14 @@ const MEDAL: Record<Place, string> = {
 
 const PLACE_LABEL: Record<Place, string> = { 1: '1st', 2: '2nd', 3: '3rd' };
 
+// White is the awkward one: a fill light enough to read as *white* is nearly
+// the colour of the card behind it, and amber-200 — the obvious way out — just
+// reads as yellow. So it gets a true white fill plus an inset edge, the same
+// trick the white team card uses, which is what makes it look like a shirt
+// rather than a missing bar.
 const SHIRT_BAR: Record<TeamColor, string> = {
   black: 'bg-stone-800',
-  white: 'bg-amber-200',
+  white: 'bg-white ring-1 ring-inset ring-amber-900/30',
   blue: 'bg-blue-700',
 };
 
