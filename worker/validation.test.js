@@ -3,13 +3,13 @@ import {
   isValidClock,
   isValidSubscription,
   isValidFixtures,
-  isLogStep,
   isValidLive,
   isValidPlayers,
   publicPlayer,
   safeEqual,
   staleVersion,
 } from './roster-worker.js';
+import { isLogStep } from './clock-notifier.js';
 
 const player = (over = {}) => ({ id: 'p1', name: 'אופק', rating: 4, attack: 50, ...over });
 

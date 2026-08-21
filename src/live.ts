@@ -36,15 +36,16 @@ export interface RemoteLive {
 // on their other phone, and a minute of nothing reads as broken even though
 // it isn't. Half a minute is still cheap — worst case one request per device
 // per 30s, and only while someone is actually looking at it.
-// Ten seconds while live was too long to press Start next to someone and have
-// their phone agree with yours. Three is the shortest that is still honest
-// about what it can deliver: the live record is held in KV, whose reads are
-// edge-cached, so polling faster than that mostly buys requests rather than
-// freshness. If a transition still takes noticeably longer than this on a real
-// night, the cache is the floor and no interval will fix it — the record has to
-// move to a Durable Object, which is strongly consistent. That is the whole
-// reason this number is worth watching rather than just lowering again.
-const POLL_LIVE_MS = 3_000;
+// A real night settled the question the last interval change was asking: three
+// seconds of polling still felt slow, because the floor was never the interval.
+// The live record was in KV, whose reads are edge-cached, so a clock paused a
+// minute ago could still be read as running. It lives in a Durable Object now
+// (§2.15) — strongly consistent, so a read after a write sees the write — and
+// the interval is finally the whole of the delay rather than the smaller half
+// of it. Two seconds while live is therefore worth what it costs: polling
+// stops entirely on a hidden tab, so this is paid by the handful of phones
+// actually looking at a clock, not by fifteen sitting in pockets.
+const POLL_LIVE_MS = 2_000;
 const POLL_IDLE_MS = 15_000;
 
 export async function fetchLive(): Promise<RemoteLive | null> {
@@ -105,20 +106,30 @@ export async function publishClock(clock: ClockState): Promise<PublishResult> {
 // appending to a base three seconds out of date is refused rather than allowed
 // to erase the other person's match. The caller's answer to that is to stop
 // preferring its local copy and let the next poll land.
-export async function publishMatchLog(matchLog: MatchLogEntry[]): Promise<PublishResult> {
-  if (!REMOTE_URL) return 'not-configured';
+export interface LogWrite {
+  result: PublishResult | 'stale';
+  // what the night actually says, returned with a refusal so the phone that
+  // lost the race can show the truth immediately instead of waiting a poll out
+  matchLog?: MatchLogEntry[];
+}
+
+export async function publishMatchLog(matchLog: MatchLogEntry[]): Promise<LogWrite> {
+  if (!REMOTE_URL) return { result: 'not-configured' };
   try {
     const res = await fetch(`${REMOTE_URL}/live/log`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ matchLog }),
     });
-    if (res.status === 429) return 'rate-limited';
-    if (res.status === 409) return 'stale';
-    if (!res.ok) return 'error';
-    return 'ok';
+    if (res.status === 429) return { result: 'rate-limited' };
+    if (res.status === 409) {
+      const body = (await res.json().catch(() => ({}))) as { matchLog?: MatchLogEntry[] };
+      return { result: 'stale', matchLog: body.matchLog };
+    }
+    if (!res.ok) return { result: 'error' };
+    return { result: 'ok' };
   } catch {
-    return 'error';
+    return { result: 'error' };
   }
 }
 
@@ -126,7 +137,12 @@ export async function publishMatchLog(matchLog: MatchLogEntry[]): Promise<Publis
 // already in flight when someone hits Start carries the *previous* clock, and
 // landing it afterwards would snap the button back — the classic optimistic-
 // update race. Comfortably longer than a round trip, far shorter than a match.
-const LOCAL_CLOCK_GRACE_MS = 4000;
+// Was four seconds, chosen when a round trip had to survive KV's cache. It is
+// now comfortably longer than a trip to a Durable Object, and shorter matters:
+// this window is also how long *someone else's* press is ignored, and at a
+// pitch where anyone can hit pause, two people reaching for a phone at once is
+// not a rare event.
+const LOCAL_CLOCK_GRACE_MS = 2000;
 
 export interface LiveState {
   fixture: LiveFixture | null;
@@ -222,11 +238,13 @@ export function useLiveFixture(enabled: boolean): LiveState {
   const setMatchLog = useCallback((matchLog: MatchLogEntry[]) => {
     pressedAt.current = Date.now();
     setFixture((prev) => (prev ? { ...prev, matchLog } : prev));
-    void publishMatchLog(matchLog).then((result) => {
-      // Someone else wrote this match down first. Drop the grace window so the
-      // very next poll replaces our copy with theirs — holding a rejected entry
-      // on screen would show one phone a match the night doesn't have.
-      if (result === 'stale') pressedAt.current = 0;
+    void publishMatchLog(matchLog).then(({ result, matchLog: theirs }) => {
+      if (result !== 'stale') return;
+      // Someone else wrote this match down first. Take what the night actually
+      // says, right now — the refusal came back with it. Waiting for the next
+      // poll instead is what makes a tap look like it vanished for no reason.
+      pressedAt.current = 0;
+      if (theirs) setFixture((prev) => (prev ? { ...prev, matchLog: theirs } : prev));
     });
   }, []);
 

@@ -36,37 +36,12 @@ export { ClockNotifier } from './clock-notifier.js';
 
 import { bytesToB64u, publicKeyBytes } from './push.js';
 
-// One notifier for the whole club — there is only ever one clock.
+// One object for the whole club — there is only ever one night on. It holds
+// the live fixture, who wants telling about the clock, and the alarm that does
+// the telling. Those used to be a KV key plus two best-effort side calls; they
+// are one object now because they were always one thing, and because a clock
+// stored in KV was being read stale (§2.15).
 const notifier = (env) => env.CLOCK_NOTIFIER.get(env.CLOCK_NOTIFIER.idFromName('clock'));
-
-// Every write that moves the clock has to reach the notifier, because the
-// announcements are scheduled from `endsAt` rather than counted down to. Best
-// effort on purpose: failing to schedule a buzz must never fail the write that
-// actually runs the match.
-async function rescheduleNotifications(env, clock) {
-  try {
-    await notifier(env).fetch('https://notifier/schedule', {
-      method: 'POST',
-      body: JSON.stringify({ clock }),
-    });
-  } catch {
-    // notifications are a nicety; the fixture and the clock are not
-  }
-}
-
-// Which night the notifier is holding subscriptions for. Told on every write
-// to /live, so that ending a fixture — or starting a different one — drops
-// everyone who had opted into the last one. Same best-effort rule.
-async function notifyFixtureChanged(env, id) {
-  try {
-    await notifier(env).fetch('https://notifier/fixture', {
-      method: 'POST',
-      body: JSON.stringify({ id }),
-    });
-  } catch {
-    // ditto
-  }
-}
 
 // Deliberately open: GET /roster is meant to be readable by anyone with the
 // app, and the POSTs are gated on the secret word rather than on origin — a
@@ -130,11 +105,6 @@ const CLOCK_WINDOW_MS = 10 * 60 * 1000;
 // How long the copy displaced by a publish is kept around. Long enough that a
 // bad write discovered weeks later is still recoverable.
 const SNAPSHOT_TTL_S = 90 * 24 * 60 * 60;
-
-// A live fixture is one evening. Same reasoning as the live rooms' 12-hour
-// idle expiry: a night nobody remembered to end shouldn't read as in progress
-// the next morning.
-const LIVE_TTL_S = 12 * 60 * 60;
 
 const ROOM_PATH = /^\/room\/([A-Za-z0-9_-]{1,64})$/;
 
@@ -259,29 +229,6 @@ export function isValidMatchLog(log) {
     if (typeof m.viaPenalties !== 'boolean') return false;
     return true;
   });
-}
-
-// Is `next` a legitimate one-step move from `prev`? One match written down,
-// one undone, or the identical list sent twice.
-//
-// This is what makes a log anyone can write to safe. The endpoint takes a whole
-// list, so without this a phone whose last poll was three seconds stale would
-// append to an old base and erase a match somebody else had just recorded —
-// silent data loss in the exact feature being added. Rejecting instead means
-// the loser of a race sees the true log on their next poll, which is the answer
-// they wanted anyway: somebody already wrote it down.
-export function isLogStep(prev, next) {
-  const same = (a, b) =>
-    a.length === b.length &&
-    a.every(
-      (m, i) =>
-        m.a === b[i].a && m.b === b[i].b && m.winner === b[i].winner &&
-        m.viaPenalties === b[i].viaPenalties,
-    );
-  if (same(prev, next)) return true; // a retry, or two people recording the same result
-  if (next.length === prev.length + 1) return same(prev, next.slice(0, -1)); // recorded
-  if (next.length === prev.length - 1) return same(prev.slice(0, -1), next); // undone
-  return false;
 }
 
 export function isValidFixtures(fixtures) {
@@ -434,9 +381,12 @@ export default {
 
     // public read of the fixture being played right now, if any — this is the
     // one everyone in the group polls on a match night
+    // Straight through to the Durable Object rather than KV: this is polled
+    // every couple of seconds by everyone at the pitch, and KV's edge cache
+    // was serving them a clock that had been paused a minute ago (§2.15).
     if (url.pathname === '/live' && request.method === 'GET') {
-      const current = await readRecord(env, 'live');
-      return json(current ? current.value : { version: 0, fixture: null });
+      const res = await notifier(env).fetch('https://notifier/live');
+      return json(await res.json());
     }
 
     // --- The one write in this Worker with no password on it ----------------
@@ -466,18 +416,15 @@ export default {
       }
       if (!isValidClock(parsed.body.clock)) return json({ error: 'bad clock' }, 400);
 
-      const current = await readRecord(env, 'live');
-      // no fixture on → nothing to run a clock for. Notably this is what stops
-      // this endpoint being a way to conjure one.
-      if (!current?.value?.fixture) return json({ error: 'no live fixture' }, 404);
-
-      const payload = {
-        version: Date.now(),
-        fixture: { ...current.value.fixture, clock: parsed.body.clock },
-      };
-      await env.ROSTER_KV.put('live', JSON.stringify(payload), { expirationTtl: LIVE_TTL_S });
-      await rescheduleNotifications(env, parsed.body.clock);
-      return json({ ok: true, version: payload.version });
+      // Storing the clock and rescheduling its announcements are now one trip
+      // into one object, so they cannot half-happen. No fixture on → nothing to
+      // run a clock for, which is what stops this being a way to conjure one.
+      const res = await notifier(env).fetch('https://notifier/live/clock', {
+        method: 'POST',
+        body: JSON.stringify({ clock: parsed.body.clock }),
+      });
+      if (res.status === 404) return json({ error: 'no live fixture' }, 404);
+      return json(await res.json());
     }
 
     // --- The second one, and for the same reason -----------------------------
@@ -503,21 +450,14 @@ export default {
       }
       if (!isValidMatchLog(parsed.body.matchLog)) return json({ error: 'bad match log' }, 400);
 
-      const current = await readRecord(env, 'live');
-      if (!current?.value?.fixture) return json({ error: 'no live fixture' }, 404);
-
-      const stored = current.value.fixture.matchLog ?? [];
-      if (!isLogStep(stored, parsed.body.matchLog)) {
-        // somebody else got there first; the sender's next poll has the truth
-        return json({ error: 'stale log', matchLog: stored }, 409);
-      }
-
-      const payload = {
-        version: Date.now(),
-        fixture: { ...current.value.fixture, matchLog: parsed.body.matchLog },
-      };
-      await env.ROSTER_KV.put('live', JSON.stringify(payload), { expirationTtl: LIVE_TTL_S });
-      return json({ ok: true, version: payload.version });
+      // The step check lives inside the object, not here: it is a read
+      // followed by a write that depends on what was read, and only the
+      // Durable Object can do that without a race in the middle.
+      const res = await notifier(env).fetch('https://notifier/live/log', {
+        method: 'POST',
+        body: JSON.stringify({ matchLog: parsed.body.matchLog }),
+      });
+      return json(await res.json(), res.status);
     }
 
     // --- Match-clock notifications ------------------------------------------
@@ -624,25 +564,14 @@ export default {
         if (!isValidLive(fixture)) {
           return json({ error: 'bad live fixture' }, 400);
         }
-        if (fixture === null) {
-          await env.ROSTER_KV.delete('live');
-          // the night is over; nothing left to announce, and nobody left
-          // subscribed — alerts are asked for one night at a time
-          await rescheduleNotifications(env, null);
-          await notifyFixtureChanged(env, null);
-          return json({ ok: true, version: Date.now() });
-        }
-        const payload = { version: Date.now(), fixture };
-        await env.ROSTER_KV.put('live', JSON.stringify(payload), {
-          // an organiser who closes the tab mid-night shouldn't leave a
-          // fixture that reads as live until someone notices
-          expirationTtl: LIVE_TTL_S,
+        // One trip: stores it (or clears it), reschedules the announcements,
+        // and drops the subscriptions if this is a different night from the
+        // last. Passing null is what ends the night.
+        const res = await notifier(env).fetch('https://notifier/live/put', {
+          method: 'POST',
+          body: JSON.stringify({ fixture }),
         });
-        await rescheduleNotifications(env, fixture.clock);
-        // a no-op for the many writes within one night; only a *different*
-        // fixture clears the subscriptions
-        await notifyFixtureChanged(env, fixture.id);
-        return json({ ok: true, version: payload.version });
+        return json(await res.json());
       }
 
       if (url.pathname === '/history') {

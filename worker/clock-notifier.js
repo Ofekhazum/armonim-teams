@@ -21,6 +21,13 @@ const ONE_MINUTE_MS = 60 * 1000;
 // A club, not a stadium. Also bounds what one alarm has to fan out to.
 const MAX_SUBSCRIPTIONS = 200;
 
+// KV gave the live record a 12-hour expiry for free, which is what stopped an
+// organiser who closed the tab mid-night leaving a fixture that reads as live
+// forever. Durable Object storage has no TTL, so the same guarantee is applied
+// on read instead — cheaper than an alarm, and this object's single alarm is
+// already spoken for by the announcements.
+const LIVE_TTL_MS = 12 * 60 * 60 * 1000;
+
 // An alarm can fire slightly late; anything within this of now is "due" rather
 // than "still to come", so a late wake-up doesn't leave a trigger stranded in
 // the pending list forever.
@@ -71,6 +78,30 @@ export function hostOf(endpoint) {
 // The full-time one is the interesting case: what happens next depends on the
 // score, which this app deliberately never learns (§2.8). So rather than a
 // half-answer, it states both branches with the commoner one first.
+// Is `next` a legitimate one-step move from `prev`? One match written down,
+// one undone, or the identical list sent twice.
+//
+// This is what makes a log anyone can write to safe. The write carries a whole
+// list, so without this a phone whose last poll was stale would append to an
+// old base and erase a match somebody else had just recorded. Rejecting instead
+// means the loser of a race is handed the real log and adopts it.
+//
+// It lives beside the storage it guards, because the check and the write it
+// guards have to happen without anything in between.
+export function isLogStep(prev, next) {
+  const same = (a, b) =>
+    a.length === b.length &&
+    a.every(
+      (m, i) =>
+        m.a === b[i].a && m.b === b[i].b && m.winner === b[i].winner &&
+        m.viaPenalties === b[i].viaPenalties,
+    );
+  if (same(prev, next)) return true; // a retry, or two people recording the same result
+  if (next.length === prev.length + 1) return same(prev, next.slice(0, -1)); // recorded
+  if (next.length === prev.length - 1) return same(prev.slice(0, -1), next); // undone
+  return false;
+}
+
 export function messageFor(kind, period) {
   if (kind === 'one-minute') {
     return period === 'added'
@@ -129,13 +160,70 @@ export class ClockNotifier {
     // the server simply no longer has it, and its own toggle reads off again
     // because that is keyed to the fixture id too.
     if (path === '/fixture') {
-      const id = body.id ?? null;
-      const previous = (await this.state.storage.get('fixture')) ?? null;
-      if (id !== previous) {
-        await this.state.storage.put('fixture', id);
-        await this.state.storage.delete('subs');
+      return Response.json({ ok: true, cleared: await this.fixtureChanged(body.id ?? null) });
+    }
+
+    // --- The live fixture itself ------------------------------------------
+    // Held here rather than in KV because KV is eventually consistent and its
+    // reads are edge-cached with a 60-second floor: a clock that is paused and
+    // resumed every few minutes was being read stale, and no poll interval
+    // could fix it. A Durable Object is strongly consistent — a read after a
+    // write sees the write — which is the only property this record ever
+    // needed. It also puts the record in the same object as the alarm it
+    // drives, so storing a clock and rescheduling its announcements is one
+    // trip that cannot half-happen.
+
+    if (path === '/live') {
+      return Response.json(await this.live());
+    }
+
+    if (path === '/live/put') {
+      const fixture = body.fixture ?? null;
+      const version = Date.now();
+      if (fixture === null) await this.state.storage.delete('live');
+      else await this.state.storage.put('live', { version, fixture });
+      // a different night means nobody is subscribed to this one yet (§2.17)
+      await this.fixtureChanged(fixture ? fixture.id : null);
+      await this.schedule(fixture ? fixture.clock : null);
+      return Response.json({ ok: true, version });
+    }
+
+    // Replaces only the clock, and only on a fixture that is already live —
+    // the narrowness is what makes this safe to expose without a password.
+    if (path === '/live/clock') {
+      const current = await this.live();
+      if (!current.fixture) return Response.json({ error: 'no live fixture' }, { status: 404 });
+      const version = Date.now();
+      await this.state.storage.put('live', {
+        version,
+        fixture: { ...current.fixture, clock: body.clock },
+      });
+      await this.schedule(body.clock);
+      return Response.json({ ok: true, version });
+    }
+
+    // The same, for the night's results — and this one has to be *here* rather
+    // than in the Worker, because it is a compare-and-swap: read the stored
+    // log, check the write is a legal one-step move from it, then write. Split
+    // across a KV read and a KV write that is a race with a stale read in the
+    // middle, which is precisely how the first version of this rejected every
+    // match anyone logged. A Durable Object is single-threaded and strongly
+    // consistent, so the read and the write cannot be pulled apart.
+    if (path === '/live/log') {
+      const current = await this.live();
+      if (!current.fixture) return Response.json({ error: 'no live fixture' }, { status: 404 });
+      const stored = current.fixture.matchLog ?? [];
+      if (!isLogStep(stored, body.matchLog)) {
+        // somebody else recorded first — hand back what the night actually
+        // says, so the sender can adopt it now rather than wait for a poll
+        return Response.json({ error: 'stale log', matchLog: stored }, { status: 409 });
       }
-      return Response.json({ ok: true, cleared: id !== previous });
+      const version = Date.now();
+      await this.state.storage.put('live', {
+        version,
+        fixture: { ...current.fixture, matchLog: body.matchLog },
+      });
+      return Response.json({ ok: true, version, matchLog: body.matchLog });
     }
 
     // Push is a chain of links that each fail silently — the browser hands out
@@ -188,6 +276,27 @@ export class ClockNotifier {
 
   async subscriptions() {
     return (await this.state.storage.get('subs')) ?? [];
+  }
+
+  // The night as anyone watching sees it. Expiry is enforced here rather than
+  // stored, so a stale record simply stops being live rather than needing
+  // anything to have run.
+  async live() {
+    const rec = await this.state.storage.get('live');
+    if (!rec?.fixture) return { version: 0, fixture: null };
+    if (Date.now() - rec.fixture.startedAt > LIVE_TTL_MS) return { version: 0, fixture: null };
+    return rec;
+  }
+
+  // Alerts are asked for one night at a time: any change of fixture — ended,
+  // or replaced — drops every subscription. Returns whether it did, which is
+  // only of interest to the test.
+  async fixtureChanged(id) {
+    const previous = (await this.state.storage.get('fixture')) ?? null;
+    if (id === previous) return false;
+    await this.state.storage.put('fixture', id);
+    await this.state.storage.delete('subs');
+    return true;
   }
 
   // Recomputed from scratch on every clock change rather than patched: pausing,
