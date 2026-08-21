@@ -351,24 +351,24 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
                   );
                 })}
               </div>
-              <p className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-amber-900/55">
-                {([1, 2, 3] as Place[]).map((p) => (
-                  <span key={p} className="flex items-center gap-1">
-                    <span className={`inline-block h-3 w-3 rounded-sm ${MEDAL[p]}`} />
-                    {p === 1 ? 'gold' : p === 2 ? 'silver' : 'bronze'}
-                  </span>
-                ))}
-                {counts.bestRun >= 2 && (
-                  <span>
-                    best run <b className="text-amber-900">{counts.bestRun}</b>
-                  </span>
-                )}
-                {counts.currentRun >= 2 && (
-                  <span>
-                    on <b className="text-amber-900">{counts.currentRun}</b> right now 🔥
-                  </span>
-                )}
-              </p>
+              {/* No gold/silver/bronze key underneath. The squares are 1, 2 and
+                  3 in medal colours — a legend spelling that out is a caption on
+                  a thing nobody was confused by, and it was the widest line in
+                  the card. Only the runs get a line, and only when there is one. */}
+              {(counts.bestRun >= 2 || counts.currentRun >= 2) && (
+                <p className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-amber-900/55">
+                  {counts.bestRun >= 2 && (
+                    <span>
+                      best run <b className="text-amber-900">{counts.bestRun}</b>
+                    </span>
+                  )}
+                  {counts.currentRun >= 2 && (
+                    <span>
+                      on <b className="text-amber-900">{counts.currentRun}</b> right now 🔥
+                    </span>
+                  )}
+                </p>
+              )}
               {caption('nights')}
             </Card>
 

@@ -1146,7 +1146,9 @@ is the same gold wherever it appears and the row can be scanned instead of read.
 night has all three, so a row of medals is a complete season in one line — and unlike a win/lose mark
 it separates the second-place nights from the ones spent bottom. Metallic gradients rather than flat
 fills, because flat gold and flat bronze are two similar oranges at 8px; the numeral inside is the
-part that survives colourblindness and a bad screen. And the milestone rungs became **filling bars**: "no nights milestone
+part that survives colourblindness and a bad screen — which is also why the gold/silver/bronze key
+that once sat under the ribbon is gone. A square reading **2** in silver does not need a caption
+saying silver means second, and the key was the widest line in the card. And the milestone rungs became **filling bars**: "no nights milestone
 yet" said nothing twice, where `4 / 10 nights · 6 to go` says the same thing and shows the distance.
 
 **A night with no result recorded gets no medal**, rather than the bottom one — nobody finished
