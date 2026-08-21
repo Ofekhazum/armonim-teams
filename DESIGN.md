@@ -1145,13 +1145,17 @@ suppressed by the general bar falls through to the next one the player holds rat
 them, so a four-night history can show *On a Run* while *Ever Present* waits — and once the history
 is deep enough the rarer title takes the headline back.
 
-`titleFor` picks the badge a player holds that fewest people *can* hold
-and says it as a name — Top of the Club, The Star, Night Taker, Nerves of Steel, then the threshold
-badges (Ever Present, Iron Man, On a Run, Veteran) as fallbacks. It is not a new fact: every title is
-the badge underneath it, and the count that earned it is on screen beside it. The four column titles
-come first precisely because only one player (or a tie) can hold each, so a title is distinguishing
-rather than decorative. Nobody with no badges gets one — an invented title for everybody would be the
-first verdict in the app.
+`titleFor` picks the highest-ranked badge a player holds and says it as
+a name: **Top of the Club → The Star → On a Run → Night Taker → Ever Present → Iron Man → Veteran →
+Nerves of Steel.** It is not a new fact — every title is the badge underneath it, and the count that
+earned it is on screen beside it.
+
+That order is a **judgement about what is worth wearing**, not a derivation. Ranking by rarity was
+the first attempt and it read wrong: it put *Nerves of Steel* — a single-holder badge, but one earned
+on a technicality of how matches happened to end — above a live winning run, which is the thing
+anyone at the pitch would actually mention. So `TITLE_ORDER` is the club's call, set in one place,
+and the roster skins follow it rather than keeping a ranking of their own. Nobody with no badges gets
+a title — an invented one for everybody would be the first verdict in the app.
 
 **A titled player wears their title on the roster.** `TITLE_THEME` (`components/titleTheme.ts`) skins
 the roster row: champion gold, starlight, podium green, gunmetal, clear sky, forged iron, fire, aged

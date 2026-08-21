@@ -45,22 +45,27 @@ export const VETERAN_NIGHTS = 25;
 // it, said as a name instead of a sentence, and the count that earned it is
 // always on screen beside it.
 //
-// The four "top of the column" badges come first because exactly one person
-// (or a tie) can hold each; the threshold badges below them are open to anyone
-// who plays long enough, so they are the fallback rather than the headline.
+// Ordered by how much the club wants a player to be *wearing* it, which is a
+// judgement rather than something derivable. Rarity was the first ordering and
+// it read wrong: it put "most shootouts won by your team" — a single-holder
+// badge, but one earned on a technicality of how matches ended — above a live
+// winning run, which is the thing anyone at the pitch would actually mention.
+// So this list is the organiser's call, set here in one place, and the roster
+// skins follow it rather than keeping a ranking of their own.
 const TITLE_ORDER: { kind: AchievementKind; title: string; minNights?: number }[] = [
   { kind: 'most-wins', title: 'Top of the Club' },
   { kind: 'mvp', title: 'The Star' },
+  // Third, and the only one that carries its own evidence: a run of
+  // MIN_WIN_STREAK winning nights cannot exist in a history shorter than
+  // MIN_WIN_STREAK, so unlike "played every night" it can never be an artefact
+  // of a thin record. It is therefore also let through early, on its own terms
+  // — which makes it the first title the club will ever see.
+  { kind: 'win-streak', title: 'On a Run', minNights: MIN_WIN_STREAK },
   { kind: 'most-fixtures', title: 'Night Taker' },
-  { kind: 'shootouts', title: 'Nerves of Steel' },
   { kind: 'ever-present', title: 'Ever Present' },
   { kind: 'iron-man', title: 'Iron Man' },
-  // The one title that carries its own evidence: a run of MIN_WIN_STREAK
-  // winning nights cannot exist in a history shorter than MIN_WIN_STREAK, so
-  // it can never be an artefact of a thin record the way "played every night"
-  // can. It is therefore let through early, on its own terms.
-  { kind: 'win-streak', title: 'On a Run', minNights: MIN_WIN_STREAK },
   { kind: 'veteran', title: 'Veteran' },
+  { kind: 'shootouts', title: 'Nerves of Steel' },
 ].map((t) => ({ ...t, kind: t.kind as AchievementKind }));
 
 // No titles until the club has this many recorded nights behind it. A title is
