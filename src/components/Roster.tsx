@@ -120,9 +120,9 @@ export default function Roster({
   // A titled player wears their theme; everyone else keeps the plain surface.
   const theme = (id: string): string => {
     const t = titles.get(id);
-    if (!t) return PLAIN_ROW;
-    const { card, glow } = TITLE_THEME[t.kind];
-    return glow ? `${card} ${glow}` : card;
+    const skin = t && TITLE_THEME[t.kind];
+    if (!skin) return PLAIN_ROW;
+    return skin.glow ? `${skin.card} ${skin.glow}` : skin.card;
   };
 
   const startAdd = () => {

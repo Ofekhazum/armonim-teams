@@ -33,7 +33,11 @@ export interface TitleTheme {
   ink: string;
 }
 
-export const TITLE_THEME: Record<AchievementKind, TitleTheme> = {
+// Partial on purpose: only badges that are *titles* have a skin, and not every
+// badge is one. 📈 "longest winning run" is the case that proves it — a fine
+// thing to wear as a badge, but a run somebody finished last winter should not
+// set a player's colours today. That job belongs to 🔥, the run they are on.
+export const TITLE_THEME: Partial<Record<AchievementKind, TitleTheme>> = {
   // Champion gold — the same language the Team of the Month card speaks.
   'most-wins': {
     card: 'border-amber-500/60 bg-gradient-to-br from-amber-200/80 via-amber-100/60 to-[#fffdf4]',
@@ -71,7 +75,7 @@ export const TITLE_THEME: Record<AchievementKind, TitleTheme> = {
   },
   // Fire — the loudest, and the only title that can appear on a short history,
   // which is fine: a run of winning nights is the most *now* thing here.
-  'win-streak': {
+  'active-run': {
     card: 'border-orange-500/70 bg-gradient-to-br from-red-300/60 via-orange-200/70 to-[#fffdf4]',
     glow: 'shadow-[0_0_20px_-4px_rgba(234,88,12,0.55)]',
     ink: 'text-orange-700',

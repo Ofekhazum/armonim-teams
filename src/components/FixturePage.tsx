@@ -189,12 +189,6 @@ export default function FixturePage({
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-amber-900">
             {pending.map((f) => {
               switch (f.kind) {
-                case 'nth-night':
-                  return (
-                    <span key={`n${f.id}`}>
-                      🎉 <Name className="font-bold">{f.name}</Name>'s {f.target}th night
-                    </span>
-                  );
                 case 'nth-win':
                   return (
                     <span key={`w${f.id}`}>

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type {
   AppState,
   FixtureRecord,
@@ -12,6 +12,7 @@ import { ATTACK_DEFAULT, initialClock } from './types';
 import { emptySession, loadState, saveState } from './storage';
 import { mergePrivateFields, mergePublicRoster } from './rosterMerge';
 import { preserveMvp } from './mvp';
+import { mergeGuestIdentities } from './guests';
 import { publishLive, useLiveFixture } from './live';
 import LiveFixtureView from './components/LiveFixtureView';
 import {
@@ -287,6 +288,17 @@ export default function App() {
 
   const setSession = (session: Session) => setState((s) => ({ ...s, session }));
 
+  // History as everything *reads* it: the same records, with a guest who has
+  // turned up more than once counted as one person rather than as a new
+  // stranger each night (§2.6). Derived rather than stored — `state.history`
+  // keeps the ids it was filed with, so saving, editing and publishing all
+  // still work on the untouched records, and a merge that turns out wrong is
+  // undone by changing a function rather than by repairing data.
+  const readHistory = useMemo(
+    () => mergeGuestIdentities(state.history, new Set(state.players.map((p) => p.id))),
+    [state.history, state.players],
+  );
+
   // History is shared, like the roster — but unlike the roster's manual
   // "📢 Publish" button, every admin write here pushes immediately, since
   // asking someone to separately publish after recording every night's scores
@@ -428,7 +440,7 @@ export default function App() {
     <MatchDay
       players={state.players}
       session={state.session}
-      history={state.history}
+      history={readHistory}
       setSession={setSession}
       isAdmin={isAdmin}
       setAdminWord={setAdminWord}
@@ -518,7 +530,7 @@ export default function App() {
       ) : tab === 'roster' ? (
         <Roster
           players={state.players}
-          history={state.history}
+          history={readHistory}
           onChange={setPlayers}
           adminWord={adminWord}
           setAdminWord={setAdminWord}
@@ -526,7 +538,7 @@ export default function App() {
         />
       ) : tab === 'history' ? (
         <History
-          history={state.history}
+          history={readHistory}
           players={state.players}
           isAdmin={isAdmin}
           onApplyRating={applyRating}

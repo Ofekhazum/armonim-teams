@@ -22,6 +22,7 @@ export type AchievementKind =
   | 'shootouts'
   | 'iron-man'
   | 'win-streak'
+  | 'active-run'
   | 'ever-present'
   | 'veteran';
 
@@ -60,12 +61,14 @@ const TITLE_ORDER: { kind: AchievementKind; title: string; minNights?: number }[
   // MIN_WIN_STREAK, so unlike "played every night" it can never be an artefact
   // of a thin record. It is therefore also let through early, on its own terms
   // — which makes it the first title the club will ever see.
-  { kind: 'win-streak', title: 'On a Run', minNights: MIN_WIN_STREAK },
+  { kind: 'active-run', title: 'On a Run', minNights: MIN_WIN_STREAK },
   { kind: 'most-fixtures', title: 'Night Taker' },
   { kind: 'ever-present', title: 'Ever Present' },
+  // above Iron Man: turning up is a habit, holding your nerve at the spot is
+  // an event — and only one of the two has to be earned again each time
+  { kind: 'shootouts', title: 'Nerves of Steel' },
   { kind: 'iron-man', title: 'Iron Man' },
   { kind: 'veteran', title: 'Veteran' },
-  { kind: 'shootouts', title: 'Nerves of Steel' },
 ].map((t) => ({ ...t, kind: t.kind as AchievementKind }));
 
 // No titles until the club has this many recorded nights behind it. A title is
@@ -136,6 +139,16 @@ function longestWinRun(apps: { won: boolean }[]): number {
   return best;
 }
 
+// The run they are on *right now*, which is a different fact from the longest
+// one they have ever had — and the only one of the two worth wearing. A player
+// who won three on the trot last winter is not "on a run"; the title says
+// something is happening, so it has to still be happening.
+function activeWinRun(apps: { won: boolean }[]): number {
+  let n = 0;
+  for (let i = apps.length - 1; i >= 0 && apps[i].won; i--) n++;
+  return n;
+}
+
 // How many recorded nights, counting back from the most recent one, this
 // player has appeared at without a gap. Same shape as the iron-man milestone
 // on the fixture page, read over the whole season rather than tonight.
@@ -160,10 +173,12 @@ export function playerAchievements(history: FixtureRecord[]): Map<string, Player
 
   const fixturesWon = new Map<string, number>();
   const winRun = new Map<string, number>();
+  const liveRun = new Map<string, number>();
   for (const s of standings) {
     const apps = appearances(s.id, recorded);
     fixturesWon.set(s.id, apps.filter((a) => a.won).length);
     winRun.set(s.id, longestWinRun(apps));
+    liveRun.set(s.id, activeWinRun(apps));
   }
 
   // Ties share the badge rather than being broken arbitrarily — two players
@@ -192,6 +207,7 @@ export function playerAchievements(history: FixtureRecord[]): Map<string, Player
     const won = fixturesWon.get(s.id) ?? 0;
     const mvpCount = mvps.get(s.id) ?? 0;
     const streak = winRun.get(s.id) ?? 0;
+    const onNow = liveRun.get(s.id) ?? 0;
     const attend = attendanceStreak(s.id, recorded);
 
     if (mostWins.has(s.id)) {
@@ -223,6 +239,12 @@ export function playerAchievements(history: FixtureRecord[]): Map<string, Player
     }
     if (streak >= MIN_WIN_STREAK) {
       list.push({ kind: 'win-streak', icon: '📈', label: `Longest winning run — ${streak} nights` });
+    }
+    // A separate badge from the one above, deliberately: "the longest run they
+    // ever had" and "the run they are on" answer different questions, and only
+    // the second one is news.
+    if (onNow >= MIN_WIN_STREAK) {
+      list.push({ kind: 'active-run', icon: '🔥', label: `On a ${onNow}-night winning run` });
     }
     if (recorded.length >= MIN_NIGHTS_FOR_EVER_PRESENT && s.nights === recorded.length) {
       list.push({ kind: 'ever-present', icon: '✨', label: `Played every night — all ${s.nights}` });
