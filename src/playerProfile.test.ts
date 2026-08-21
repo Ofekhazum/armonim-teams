@@ -11,6 +11,7 @@ import {
   placeOf,
   sharedPlace,
   shootoutWins,
+  teammateCounts,
   toGo,
   winRungs,
 } from './playerProfile';
@@ -272,5 +273,46 @@ describe('shootouts', () => {
     expect(loggedNightsFor(history, 'a')).toBe(1);
     expect(loggedNightsFor(history, 'c')).toBe(1);
     expect(loggedNightsFor(history, 'b')).toBe(2);
+  });
+});
+
+// The plain count that the Teammates card leads with. Separate from the duo
+// records on purpose: this is who someone plays alongside, which is always
+// true, rather than whether a pair beats chance, which almost never fires.
+describe('teammateCounts', () => {
+  it('counts nights on the same team, and how many they won', () => {
+    const history = [
+      night(['a', 'b'], ['c'], [], { black: 4, white: 1, blue: 0 }),
+      night(['a', 'b'], ['c'], [], { black: 1, white: 4, blue: 0 }),
+      night(['a'], ['b'], [], { black: 4, white: 1, blue: 0 }),
+    ];
+    const mates = teammateCounts(history, 'a');
+    expect(mates.find((m) => m.id === 'b')).toMatchObject({ together: 2, won: 1 });
+    // the third night they were opponents, so it counts for neither
+    expect(mates.find((m) => m.id === 'c')).toBeUndefined();
+  });
+
+  it('sorts by nights together, most first', () => {
+    const history = [
+      night(['a', 'b', 'c'], ['x'], [], { black: 4, white: 1, blue: 0 }),
+      night(['a', 'b'], ['x'], [], { black: 4, white: 1, blue: 0 }),
+    ];
+    expect(teammateCounts(history, 'a').map((m) => m.id)).toEqual(['b', 'c']);
+  });
+
+  it('skips nights with no result, since "won" would be a guess', () => {
+    const history = [untallied(['a', 'b'], ['c'], [])];
+    expect(teammateCounts(history, 'a')).toEqual([]);
+  });
+
+  it('is empty for someone who has never played', () => {
+    expect(teammateCounts([night(['a'], ['b'], [], { black: 4, white: 1, blue: 0 })], 'ghost'))
+      .toEqual([]);
+  });
+
+  it('names a guest from the night they played, not from a roster', () => {
+    const fx = night(['a', 'g1'], ['c'], [], { black: 4, white: 1, blue: 0 });
+    fx.players = fx.players.map((p) => (p.id === 'g1' ? { ...p, name: 'זרקא' } : p));
+    expect(teammateCounts([fx], 'a')[0].name).toBe('זרקא');
   });
 });

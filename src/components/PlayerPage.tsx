@@ -4,7 +4,7 @@ import type { FixtureRecord, Player, TeamColor } from '../types';
 import { roleBadge } from '../types';
 import { TEAM_COLORS } from '../balancer';
 import { playerAchievements, titleFor } from '../achievements';
-import { computeDuoRecords, MIN_TOGETHER } from '../duos';
+import { computeDuoRecords } from '../duos';
 import { hasResult } from '../calibration';
 import type { Place } from '../playerProfile';
 import {
@@ -14,6 +14,7 @@ import {
   profileNights,
   shirtNights,
   shootoutRecord,
+  teammateCounts,
   toGo,
   winRungs,
 } from '../playerProfile';
@@ -142,6 +143,7 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
   const counts = useMemo(() => profileCounts(nights), [nights]);
   const shirts = useMemo(() => shirtNights(nights), [nights]);
   const shootouts = useMemo(() => shootoutRecord(history, player.id), [history, player.id]);
+  const mates = useMemo(() => teammateCounts(history, player.id), [history, player.id]);
   // one call, two answers: the badge row, and the MVP tally underneath it —
   // playerAchievements already counts the picks while deciding who tops that
   // column, and counting them twice is how two numbers end up disagreeing
@@ -359,37 +361,51 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2">
-              <Card title="Teammates">
-                {duos.best || duos.worst ? (
-                  <div className="space-y-2 text-sm text-amber-950">
-                    {duos.best && (
-                      <div className="rounded-xl bg-emerald-400/10 px-3 py-2">
-                        <div className="text-[11px] font-bold uppercase tracking-wide text-emerald-800/70">
-                          🤝 Best with
-                        </div>
-                        <Name className="font-black">{other(duos.best)}</Name>{' '}
-                        <span className="text-amber-900/60">
-                          — {duos.best.won} of {duos.best.together} nights
-                        </span>
-                      </div>
-                    )}
-                    {duos.worst && (
-                      <div className="rounded-xl bg-amber-900/[0.05] px-3 py-2">
-                        <div className="text-[11px] font-bold uppercase tracking-wide text-amber-900/50">
-                          🙃 Leanest with
-                        </div>
-                        <Name className="font-black">{other(duos.worst)}</Name>{' '}
-                        <span className="text-amber-900/60">
-                          — {duos.worst.won} of {duos.worst.together} nights
-                        </span>
+              <Card title="Teammates" hint="most nights together">
+                {mates.length === 0 ? (
+                  <p className="text-sm text-amber-900/55">No recorded nights yet.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {/* The plain count first, because it is always true. Who
+                        somebody actually plays alongside is interesting on its
+                        own and needs no claim attached to it. */}
+                    <ul className="space-y-1 text-sm">
+                      {mates.slice(0, 3).map((m) => (
+                        <li key={m.id} className="flex items-baseline gap-2">
+                          <Name className="min-w-0 flex-1 truncate font-bold text-amber-950">
+                            {m.name}
+                          </Name>
+                          <span className="shrink-0 text-xs text-amber-900/60">
+                            <b className="text-amber-900">{m.together}</b> together ·{' '}
+                            {m.won} won
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                    {/* And the harder claim underneath, only when a pair has
+                        genuinely separated itself from chance (§2.10). Silent
+                        most seasons, which is the point of it. */}
+                    {(duos.best || duos.worst) && (
+                      <div className="space-y-1.5 border-t border-amber-900/10 pt-2">
+                        {duos.best && (
+                          <div className="rounded-xl bg-emerald-400/10 px-3 py-1.5 text-sm">
+                            <span className="text-[11px] font-bold uppercase tracking-wide text-emerald-800/70">
+                              🤝 Wins more with{' '}
+                            </span>
+                            <Name className="font-black text-amber-950">{other(duos.best)}</Name>
+                          </div>
+                        )}
+                        {duos.worst && (
+                          <div className="rounded-xl bg-amber-900/[0.05] px-3 py-1.5 text-sm">
+                            <span className="text-[11px] font-bold uppercase tracking-wide text-amber-900/50">
+                              🙃 Wins less with{' '}
+                            </span>
+                            <Name className="font-black text-amber-950">{other(duos.worst)}</Name>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
-                ) : (
-                  <p className="text-sm text-amber-900/55">
-                    Needs {MIN_TOGETHER} nights alongside the same player before a pair says
-                    anything.
-                  </p>
                 )}
               </Card>
 

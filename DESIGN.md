@@ -1201,6 +1201,19 @@ title is more than a list row can carry, and the roster is a list you scan rathe
 read. The title still appears in full under the name on the player page, which is where one person
 is the whole subject.
 
+**The Teammates card leads with a count, not a claim.** It first lists who this player has actually
+played alongside most (`teammateCounts` — nights together and how many their team won), and only
+underneath, when it has genuinely been earned, the §2.10 duo record.
+
+That split came from the card being useless in practice. The duo test is shrunk hard on purpose: a
+pair needs to win around **60% of their nights together** against a base rate near a third before it
+says anything — roughly **6 of 8, or 9 of 15** — so across fifteen recorded nights with players
+deliberately kept together, it stayed silent for everybody. Worse, the empty state blamed
+`MIN_TOGETHER`, telling the organiser it needed four nights together when four nights together was
+never the blocker. Two separate faults: a card that could only ever say "not yet", and copy that
+explained the wrong reason. Who somebody plays with is always true and needs no claim attached; the
+claim about chemistry stays where it earned its caution.
+
 **No organiser half.** Ratings, the attack spectrum, the keep-apart list and "beats what their rating
 expects" are the organiser's working notes about a person, and this is the most screenshot-able page
 in the app. They stay on the roster row and in the edit form, behind admin, exactly where they were —

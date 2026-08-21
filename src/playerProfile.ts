@@ -164,6 +164,51 @@ export function toGo(rungs: Rung[], count: number): { target: number; away: numb
   return next ? { target: next.target, away: next.target - Math.floor(count) } : null;
 }
 
+// --- Teammates --------------------------------------------------------------
+
+export interface TeammateCount {
+  id: string;
+  name: string;
+  together: number; // nights on the same team, with a result recorded
+  won: number; // how many of those their team took
+}
+
+// Who this player has actually played alongside, most often first.
+//
+// A plain count, and deliberately separate from `computeDuoRecords` (§2.10),
+// which answers a much harder question: whether a pair does *better* than
+// chance. That test is shrunk hard on purpose — a pair needs to win around 60%
+// of their nights together against a base rate near a third before it will say
+// anything, which is roughly 6 of 8 or 9 of 15 — so on an ordinary season it is
+// silent, and a card that only had that to show was a card that only ever said
+// "not yet". This says who someone plays with, which is always true and always
+// interesting, and leaves the claim about chemistry to the part that earned it.
+export function teammateCounts(history: FixtureRecord[], id: string): TeammateCount[] {
+  const nameOf = new Map<string, string>();
+  const counts = new Map<string, { together: number; won: number }>();
+
+  for (const fx of history) {
+    if (!hasResult(fx.wins)) continue;
+    const shirt = shirtOf(fx, id);
+    if (!shirt) continue;
+    const won = winnerOf(fx) === shirt;
+    for (const other of fx.teams[shirt]) {
+      if (other === id) continue;
+      const rec = counts.get(other) ?? { together: 0, won: 0 };
+      rec.together++;
+      if (won) rec.won++;
+      counts.set(other, rec);
+      nameOf.set(other, fx.players.find((p) => p.id === other)?.name ?? '?');
+    }
+  }
+
+  return [...counts.entries()]
+    .map(([other, rec]) => ({ id: other, name: nameOf.get(other) ?? '?', ...rec }))
+    .sort(
+      (a, b) => b.together - a.together || b.won - a.won || a.name.localeCompare(b.name, 'he'),
+    );
+}
+
 // --- Shootouts --------------------------------------------------------------
 
 export interface ShootoutRecord {
