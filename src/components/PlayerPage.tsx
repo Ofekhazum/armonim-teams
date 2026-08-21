@@ -407,7 +407,7 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2">
-              <Card title="With and against">
+              <Card title="Mates and rivals">
                 {!picks.playedMost && !picks.facedMost ? (
                   <p className="text-sm text-amber-900/55">
                     {counts.nights < MIN_PROFILE_NIGHTS

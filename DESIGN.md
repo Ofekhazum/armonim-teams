@@ -1218,7 +1218,7 @@ title is more than a list row can carry, and the roster is a list you scan rathe
 read. The title still appears in full under the name on the player page, which is where one person
 is the whole subject.
 
-**With and against.** `matchups` walks history once and counts, for every player this one has shared
+**Mates and rivals.** `matchups` walks history once and counts, for every player this one has shared
 a pitch with: nights alongside, how many of those were taken, nights on opposite sides, and who took
 those. The app had always counted who somebody plays *with* and never who they play *against*, even
 though every night puts them opposite ten people — the most naturally competitive thing in the ledger
