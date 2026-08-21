@@ -11,7 +11,7 @@
 // win totals a night cannot support (§2.9), and is the reason this file has no
 // probabilities in it.
 
-import type { FixtureRecord, Player } from './types';
+import type { FixtureRecord, TonightPlayer } from './types';
 import { hasResult } from './calibration';
 import {
   MIN_ATTEND_STREAK,
@@ -81,7 +81,7 @@ function winRun(apps: { won: boolean }[]): number {
  * counting it would have the radar describe a thing that has already happened.
  */
 export function pendingTonight(
-  todays: Player[],
+  todays: TonightPlayer[],
   history: FixtureRecord[],
   tonightId?: string | null,
 ): PendingFact[] {
@@ -138,7 +138,7 @@ export interface Bounty {
  * one of them, and picking arbitrarily would invent a target.
  */
 export function bountyTonight(
-  todays: Player[],
+  todays: TonightPlayer[],
   history: FixtureRecord[],
   tonightId?: string | null,
 ): Bounty | null {

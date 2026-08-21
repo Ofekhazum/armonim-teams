@@ -1,4 +1,4 @@
-import type { FixtureRecord, Player, TeamColor } from './types';
+import type { FixtureRecord, TeamColor, TonightPlayer } from './types';
 import { TEAM_COLORS } from './balancer';
 import { hasResult } from './calibration';
 
@@ -182,7 +182,7 @@ const sizeOf = (m: Milestone): number =>
  * ever be true. Before the result is entered, the two are the same thing.
  */
 export function tonightsMilestones(
-  todays: Player[],
+  todays: TonightPlayer[],
   history: FixtureRecord[],
   tonightId?: string | null,
 ): Milestone[] {

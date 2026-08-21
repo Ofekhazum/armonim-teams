@@ -218,18 +218,23 @@ export default function TeamsBoard({
           </button>
         )}
         <div className="flex-1" />
-        <span
-          className={`rounded-full px-3 py-1 text-xs font-bold ${
-            spread <= 0.35
-              ? 'bg-green-600/15 text-green-800'
-              : spread <= 0.7
-                ? 'bg-amber-500/25 text-amber-900'
-                : 'bg-red-600/15 text-red-800'
-          }`}
-          title="Difference between the strongest and weakest team's average rating"
-        >
-          Balance gap: {spread.toFixed(2)}
-        </span>
+        {/* The balance gap is the difference between those same averages, so it
+            hides with them — a guest told the gap is 0.60 has been told what
+            the ratings say, just arithmetically. */}
+        {showPrivateNotes && (
+          <span
+            className={`rounded-full px-3 py-1 text-xs font-bold ${
+              spread <= 0.35
+                ? 'bg-green-600/15 text-green-800'
+                : spread <= 0.7
+                  ? 'bg-amber-500/25 text-amber-900'
+                  : 'bg-red-600/15 text-red-800'
+            }`}
+            title="Difference between the strongest and weakest team's average rating"
+          >
+            Balance gap: {spread.toFixed(2)}
+          </span>
+        )}
         <button
           onClick={shareImages}
           disabled={sharingImages}
@@ -304,8 +309,14 @@ export default function TeamsBoard({
                     ))}
                   </select>
                 </h3>
+                {/* The average is a rating average, and ratings are the
+                    organiser's private opinion of people (§2.9) — so it goes
+                    behind the same flag the keep-apart notes are behind. A
+                    live-room guest renders this same board and gets the count
+                    only, which is the part that is a fact about tonight. */}
                 <span className={`text-xs font-semibold ${m.sub}`}>
-                  {s.size} players · avg {s.avg.toFixed(1)}
+                  {s.size} players
+                  {showPrivateNotes && ` · avg ${s.avg.toFixed(1)}`}
                   {s.gkCount > 1 && ` · ${s.gkCount} 🧤`}
                 </span>
               </div>

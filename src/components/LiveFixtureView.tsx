@@ -1,12 +1,15 @@
-import type { ClockState, LiveFixture, MatchLogEntry } from '../types';
+import { useMemo } from 'react';
+import type { ClockState, FixtureRecord, LiveFixture, MatchLogEntry } from '../types';
 import { TEAM_COLORS } from '../balancer';
 import { Name, TEAM_META } from './ui';
 import MatchClock from './MatchClock';
 import MatchLog from './MatchLog';
 import ScoreBar from './ScoreBar';
+import TonightFacts from './TonightFacts';
 
 interface Props {
   fixture: LiveFixture;
+  history: FixtureRecord[];
   onChangeClock: (clock: ClockState) => void;
   onChangeLog: (log: MatchLogEntry[]) => void;
   // Present for an organiser who is *not* running the night on this device —
@@ -36,8 +39,15 @@ const agoLabel = (startedAt: number): string => {
 // rating averages, keep-apart warnings — and this is the answer to one
 // question a player has while walking to the pitch: which shirt am I in, and
 // how long is left.
+//
+// Everything else this page carries is what the organiser's fixture page
+// carries, via TonightFacts (§2.21). The gap between the two was never a
+// decision: the milestones and the radar are counts of who has turned up, the
+// group's own record, and they were sitting behind an admin word purely because
+// that is the page they were written on.
 export default function LiveFixtureView({
   fixture,
+  history,
   onChangeClock,
   onChangeLog,
   onEndFixture,
@@ -47,6 +57,18 @@ export default function LiveFixtureView({
   // absent on a fixture published by an older build, which is a night with
   // nothing written down rather than a broken one
   const matchLog = fixture.matchLog ?? [];
+
+  // Tonight, excluded from its own arithmetic. The organiser's page has the
+  // saved record's id to do this with; a viewer doesn't — the live fixture is
+  // keyed by kick-off time and the history record by a uid — so the date does
+  // the job. It is the same date the record is filed under (both UTC, both from
+  // toISOString), and two fixtures on one date has never happened. Without it,
+  // a night whose result went in early would count itself: everyone's tenth
+  // night would silently become their eleventh while they were still playing.
+  const past = useMemo(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    return history.filter((fx) => fx.date !== today);
+  }, [history]);
 
   // Ending a night must never depend on which phone the organiser happens to
   // be holding — without this, an organiser whose browser was cleared could see
@@ -131,6 +153,8 @@ export default function LiveFixtureView({
           );
         })}
       </div>
+
+      <TonightFacts players={fixture.players} history={past} />
 
       <MatchClock state={fixture.clock} onChange={onChangeClock} fixtureId={fixture.id} />
 

@@ -498,6 +498,7 @@ export default function App() {
         ) : liveFixture ? (
           <LiveFixtureView
             fixture={liveFixture}
+            history={readHistory}
             onChangeClock={setLiveClock}
             onChangeLog={shareLog}
             // an organiser looking at a night some other device started still

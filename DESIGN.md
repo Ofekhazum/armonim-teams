@@ -409,6 +409,11 @@ deliberately doesn't collect one live (see the constraint above). So:
 - At **0:00** it beeps three times and offers the one decision the score governs: **⚽ Level — added
   time** (2:00, golden goal), or **⏭ Next match** if the match was already settled. One tap, at a
   natural break — not a running tally.
+- **Added time starts on that tap**, rather than loading a paused 2:00 and waiting for Start. It is
+  the one period that isn't a separate decision: the two minutes begin the moment somebody says the
+  score is level, and the players are already standing there. The extra press was pure ceremony and,
+  on the night, got forgotten. Everything else still waits for ▶️ — a fresh match starts when the
+  teams are ready, which genuinely is its own moment.
 - Added time expiring lands on *"Still level — penalties"*.
 - A match ending early on a two-goal lead just ends with **⏭ Next match**, same as any other.
 
@@ -1344,6 +1349,33 @@ has no record of who kept goal — `gkIds` lives on the session, never on a `Fix
 position-based lineup would be invented, and inventing one on a card five people get named on is
 exactly the wrong place to guess. Shirt numbers come from the live roster, since a fixture record
 keeps a name and a rating but never a number.
+
+### 2.21 One live page, two roles (`TonightFacts.tsx`)
+
+The organiser and the group were looking at two different pages while the same night was on.
+`FixturePage` had **🎯 On the line tonight** and the milestone/duo row; `LiveFixtureView` had neither.
+Nothing decided that — the strips were written on the organiser's page and simply never travelled.
+They are counts of who has turned up, which is the group's own record, and the group is who they are
+about. So they moved into `TonightFacts`, which both pages render.
+
+**What stays with the organiser is a short list, and every item on it is a decision rather than a
+count**: *Tonight's result* (the tally that gets filed), *End fixture*, *Back to teams*, and the
+**rating averages** — team `avg`, and the *balance gap*, which is those same averages subtracted, so
+it hides with them (§2.9: ratings are one person's opinion of people and never leave the organiser's
+screen). That last one was a genuine leak rather than a design: `TeamsBoard` is also what a live-room
+guest sees, and it was printing `avg 3.4` on every team card to anyone holding a share link.
+
+**A viewer excludes tonight by date, not by id.** The organiser's page knows `savedFixtureId`; a
+viewer's live fixture is keyed `live-<kickoff>` and the saved record by a `uid`, so the two cannot be
+matched up. Both are filed with a UTC `toISOString().slice(0,10)` date, and two fixtures have never
+shared one — so a record dated today *is* tonight. Without the exclusion, a night whose result went in
+early counts itself, and everybody's tenth night quietly becomes their eleventh while they are still
+playing.
+
+`TonightPlayer` in `types.ts` is what made this cheap: `milestones.ts`, `radar.ts` and `duos.ts` read
+an id, a name and `isGuest` and nothing else, so typing them to that rather than to `Player` lets a
+viewer's ratings-free `LivePlayer` run the identical arithmetic. The private half of a `Player` was
+never needed to say whose 50th win is on the line — it just happened to be in scope.
 
 ## 3. Team generation algorithm
 

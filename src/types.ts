@@ -183,6 +183,18 @@ export interface LivePlayer {
   isGuest?: boolean;
 }
 
+// Everything that counts what tonight means — milestones.ts, radar.ts, duos.ts
+// — reads exactly three fields, and none of them is a rating. Typing them this
+// way rather than `Player[]` is what lets a viewer's phone run the same
+// arithmetic from a `LivePlayer`: the facts about who has turned up are the
+// group's, and the roster's private opinions never had to travel to produce
+// them (§2.14).
+export interface TonightPlayer {
+  id: string;
+  name: string;
+  isGuest?: boolean;
+}
+
 export type ClockPeriod = 'regulation' | 'added';
 
 // The house rules for a match, in milliseconds (see DESIGN.md §2.8). They live

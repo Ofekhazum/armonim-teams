@@ -205,6 +205,19 @@ export default function MatchClock({ state, onChange, fixtureId = null }: Props)
     press({ period: p, endsAt: null, remaining: fullLength(p), ended: false });
   };
 
+  // Added time is the one period that starts itself. Pressing "Level" at full
+  // time is not a decision about *when* to restart — the two minutes begin the
+  // moment somebody says the score is level, and the players are standing on
+  // the pitch waiting for them. Loading a paused two minutes and asking for a
+  // second press cost time nobody had and, on the night, got forgotten.
+  // Everything else still waits for Start: a fresh match begins when the teams
+  // are ready, which is a genuinely separate moment.
+  const startAdded = () => {
+    unlock();
+    shoutedRef.current = false;
+    press({ period: 'added', endsAt: Date.now() + ADDED_MS, remaining: ADDED_MS, ended: false });
+  };
+
   const shouting = period === 'regulation' && running && remaining <= SHOUT_AT_MS;
   const addedTime = period === 'added';
   // `>=` rather than `===` so a match that has had time added before kickoff
@@ -267,10 +280,7 @@ export default function MatchClock({ state, onChange, fixtureId = null }: Props)
 
             {/* the one moment the score decides what happens next */}
             {finished && !addedTime && (
-              <button
-                onClick={() => toPeriod('added')}
-                className={`${btn} bg-orange-600 text-amber-50`}
-              >
+              <button onClick={startAdded} className={`${btn} bg-orange-600 text-amber-50`}>
                 ⚽ Level — added time
               </button>
             )}
@@ -337,7 +347,7 @@ export default function MatchClock({ state, onChange, fixtureId = null }: Props)
           // device, publishes to everyone, and unlocks the beeper
           onStart={controllable ? start : undefined}
           onPause={controllable ? pause : undefined}
-          onAdded={controllable ? () => toPeriod('added') : undefined}
+          onAdded={controllable ? startAdded : undefined}
           onNext={controllable ? () => toPeriod('regulation') : undefined}
           onAddTime={controllable ? addTime : undefined}
           onExit={() => setPitch(false)}

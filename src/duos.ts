@@ -1,4 +1,4 @@
-import type { FixtureRecord, Player } from './types';
+import type { FixtureRecord, TonightPlayer } from './types';
 import { hasResult } from './calibration';
 import { teamOf, winnerOf } from './milestones';
 
@@ -142,7 +142,7 @@ export function computeDuoRecords(
  * a good while. That's intended.
  */
 export function duoFacts(
-  todays: Player[],
+  todays: TonightPlayer[],
   history: FixtureRecord[],
   tonightId?: string | null,
 ): DuoFact[] {

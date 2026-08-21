@@ -10,11 +10,9 @@ import type {
 } from '../types';
 import { roleBadge } from '../types';
 import { TEAM_COLORS, lineupOrder, teamStats } from '../balancer';
-import { tonightsMilestones } from '../milestones';
-import { bountyTonight, pendingTonight } from '../radar';
-import { duoFacts } from '../duos';
 import { Name, STYLE_META, TEAM_META } from './ui';
 import MatchClock from './MatchClock';
+import TonightFacts from './TonightFacts';
 import ResultsPanel from './ResultsPanel';
 import MatchLog from './MatchLog';
 import ScoreBar from './ScoreBar';
@@ -81,29 +79,6 @@ export default function FixturePage({
   const stats = Object.fromEntries(
     TEAM_COLORS.map((c) => [c, teamStats(teams[c], byId, gkSet)]),
   ) as Record<TeamColor, ReturnType<typeof teamStats>>;
-  // What tonight could turn into, as against what it already is (§2.20). Same
-  // ledger, read one night short of the line — and same exclusion of tonight's
-  // own record, since tonight is the thing being asked about.
-  const pending = useMemo(
-    () => pendingTonight(players, history, savedFixtureId),
-    [players, history, savedFixtureId],
-  );
-  const bounty = useMemo(
-    () => bountyTonight(players, history, savedFixtureId),
-    [players, history, savedFixtureId],
-  );
-
-  const milestones = useMemo(
-    // savedFixtureId so tonight isn't double-counted as a past night once the
-    // result goes in — and so career-win crossings can see tonight's wins
-    () => tonightsMilestones(players, history, savedFixtureId),
-    [players, history, savedFixtureId],
-  );
-  const duos = useMemo(
-    () => duoFacts(players, history, savedFixtureId),
-    [players, history, savedFixtureId],
-  );
-
   // Ending the night throws away whatever hasn't been filed, so the warning
   // says so specifically rather than leaving it to be discovered afterwards.
   const unsavedResult = !saved && TEAM_COLORS.some((c) => wins[c] != null);
@@ -148,8 +123,11 @@ export default function FixturePage({
                 <h3 className={`text-sm font-black ${m.header}`}>
                   {m.emoji} {m.label}
                 </h3>
+                {/* count always, average only for the organiser — same rule as
+                    the teams board and the live view */}
                 <span className={`text-[11px] font-semibold ${m.sub}`}>
-                  {s.size} · avg {s.avg.toFixed(1)}
+                  {s.size}
+                  {isAdmin && ` · avg ${s.avg.toFixed(1)}`}
                 </span>
               </div>
               <ul dir="rtl" className="flex flex-wrap gap-1">
@@ -178,111 +156,7 @@ export default function FixturePage({
         })}
       </div>
 
-      {/* Forward-looking, so it sits above the facts about what has already
-          happened rather than mixed in with them. A player reading this before
-          kick-off is being told what is at stake, not what is true. */}
-      {(pending.length > 0 || bounty) && (
-        <div className="rounded-2xl border border-orange-500/25 bg-orange-50/60 px-4 py-2.5">
-          <h3 className="mb-1 text-[11px] font-black uppercase tracking-wide text-orange-800/70">
-            🎯 On the line tonight
-          </h3>
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-amber-900">
-            {pending.map((f) => {
-              switch (f.kind) {
-                case 'nth-win':
-                  return (
-                    <span key={`w${f.id}`}>
-                      🏆 <Name className="font-bold">{f.name}</Name> is {f.away} from{' '}
-                      {f.target} career wins
-                    </span>
-                  );
-                case 'iron-man':
-                  return (
-                    <span key={`i${f.id}`}>
-                      🦾 <Name className="font-bold">{f.name}</Name> makes it {f.current + 1}{' '}
-                      nights in a row by turning up
-                    </span>
-                  );
-                case 'win-streak':
-                  return (
-                    <span key={`s${f.id}`}>
-                      📈 <Name className="font-bold">{f.name}</Name>'s team wins and that's{' '}
-                      {f.current + 1} nights running
-                    </span>
-                  );
-              }
-            })}
-          </div>
-          {bounty && (
-            <p className="mt-1.5 border-t border-orange-500/15 pt-1.5 text-sm font-semibold text-orange-900">
-              🎖️ Bounty — <Name className="font-black">{bounty.name}</Name> is on{' '}
-              {bounty.nights} winning nights. Somebody end it.
-            </p>
-          )}
-        </div>
-      )}
-
-      {(milestones.length > 0 || duos.length > 0) && (
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-2xl border border-amber-900/15 bg-[#fffdf4]/70 px-4 py-2.5 text-sm text-amber-900">
-          {/* Wording stays factual on purpose — "won 3 nights running" is a
-              count, "on fire" would be a claim about how they're playing that
-              a night's three win totals can't back up (§2.9). */}
-          {milestones.map((m) => {
-            switch (m.kind) {
-              case 'debut-group':
-                return <span key="debuts">✨ {m.count} first nights tonight</span>;
-              case 'debut':
-                return (
-                  <span key={m.id}>
-                    ✨ First night for <Name className="font-bold">{m.name}</Name>
-                  </span>
-                );
-              case 'nth-night':
-                return (
-                  <span key={m.id}>
-                    🎉 <Name className="font-bold">{m.name}</Name>'s {m.nights}th night
-                  </span>
-                );
-              case 'nth-win':
-                return (
-                  <span key={`w${m.id}`}>
-                    🏆 <Name className="font-bold">{m.name}</Name>'s {m.wins}th win
-                  </span>
-                );
-              case 'iron-man':
-                return (
-                  <span key={`i${m.id}`}>
-                    🦾 <Name className="font-bold">{m.name}</Name> hasn't missed a night in{' '}
-                    {m.nights} straight
-                  </span>
-                );
-              case 'win-streak':
-                return (
-                  <span key={`s${m.id}`}>
-                    📈 <Name className="font-bold">{m.name}</Name> has won {m.nights} nights running
-                  </span>
-                );
-              case 'winless':
-                return (
-                  <span key={`l${m.id}`}>
-                    💤 <Name className="font-bold">{m.name}</Name> hasn't won in {m.nights} nights
-                  </span>
-                );
-            }
-          })}
-          {/* Always the raw record ("won 5 of 8 nights together"), never a
-              verdict like "these two click" — see the sample-size note in
-              duos.ts for why the stronger claim isn't available. */}
-          {duos.map((d) => (
-            <span key={`${d.kind}${d.aName}${d.bName}`}>
-              {d.kind === 'together-better' ? '🤝' : '🙃'}{' '}
-              <Name className="font-bold">{d.aName}</Name> &{' '}
-              <Name className="font-bold">{d.bName}</Name> have won {d.won} of their{' '}
-              {d.together} nights together
-            </span>
-          ))}
-        </div>
-      )}
+      <TonightFacts players={players} history={history} tonightId={savedFixtureId} />
 
       <MatchClock state={clock} onChange={onChangeClock} fixtureId={liveFixtureId} />
 
