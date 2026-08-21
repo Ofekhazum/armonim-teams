@@ -17,6 +17,7 @@
 
 import type { WrappedStats } from './wrapped';
 import type { ShareImageResult } from './shareImage';
+import { renderShirtImage } from './shirtImage';
 
 const W = 720;
 const PAD = 44;
@@ -597,9 +598,37 @@ const canvasBlob = (canvas: HTMLCanvasElement): Promise<Blob | null> =>
 // Shares every page in one go — on a phone, picking "Save Image"/"Save to
 // Photos" from the share sheet drops all of them into the gallery at once,
 // same pattern as shirtImage.ts's three team shirts.
-export async function shareWrappedImage(stats: WrappedStats): Promise<ShareImageResult> {
+/**
+ * The Team of the Month card: the month's five, drawn onto the gold shirt
+ * template (§2.21).
+ *
+ * Reuses `renderShirtImage` rather than drawing its own pentagon — the boxes
+ * are hand-measured against that artwork and the gold template shares it
+ * exactly, so a second implementation would only be a second thing to keep in
+ * step. Shirt numbers come from the live roster, since history stores a name
+ * and a rating but never a number.
+ */
+export async function renderTeamOfMonth(
+  stats: WrappedStats,
+  numberOf?: Map<string, number | undefined>,
+): Promise<HTMLCanvasElement | null> {
+  if (stats.teamOfMonth.length === 0) return null;
+  return renderShirtImage(
+    'gold',
+    stats.teamOfMonth.map((p) => ({ name: p.name, number: numberOf?.get(p.id) })),
+  );
+}
+
+export async function shareWrappedImage(
+  stats: WrappedStats,
+  numberOf?: Map<string, number | undefined>,
+): Promise<ShareImageResult> {
   try {
     const canvases = renderWrappedImages(stats);
+    // last, so the recap reads as pages of numbers and then the thing people
+    // actually want to send on
+    const totm = await renderTeamOfMonth(stats, numberOf);
+    if (totm) canvases.push(totm);
     const files: File[] = [];
     for (let i = 0; i < canvases.length; i++) {
       const blob = await canvasBlob(canvases[i]);

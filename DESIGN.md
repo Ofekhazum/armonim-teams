@@ -1040,6 +1040,42 @@ manufactured rivalry, and it names **nobody on a tie**: two players level on the
 bounty on one of them, and picking arbitrarily would invent the target. The copy is about the streak
 rather than the player, which is what keeps a bit of needling on the right side of §2.9.
 
+### 2.21 Team of the Month (`src/wrapped.ts`, `shirtImage.ts`)
+
+The month's five, drawn onto a **gold shirt card** and shared as the last page of the monthly recap
+(§2.11). The artwork is the same five-shirt pentagon the team cards use — its title is already
+*קבוצת החודש* — so `renderShirtImage` gained a fourth template rather than a second implementation of
+the same drawing. That meant resizing the gold asset to exactly 2288×4096 like the other three: the
+name and number boxes are hand-measured against that geometry, and it arrived at a slightly different
+aspect ratio.
+
+**Two gates, and they do different jobs.**
+
+- **Eligibility** — at least `ceil(month's nights ÷ 2)` nights played. Without it the team is whoever
+  happened to be there on a good night: one appearance at a high rate would outrank a month of steady
+  football, which is the opposite of what "of the month" means.
+- **The score**, a rate rather than a total: `(match wins + 2 × nights won + 3 × MVP picks) ÷ nights
+  played`. Match wins are the base currency at four or five a night. A night taken *outright* is worth
+  two more, which separates the player who kept edging nights from the one who banked a single
+  blowout. An MVP is worth three — a real thumb on the scale for the one human judgement the app
+  records, without letting a single pick outrank a month of winning.
+
+Ties break on the parts in the order they matter: more nights played, then more MVPs, then more
+nights won, then the name — so the fifth slot is decided by something rather than by whichever way
+the sort fell.
+
+**The formula is deliberately not shown.** Everywhere else this app prints the rule beside the
+number, and the reasoning holds there; here it would turn a card people want to send to each other
+into a specification. `TotmPlayer` still carries the parts that made the score, so the pick can be
+explained if it is ever queried — the arithmetic has to be *defensible*, which is a different
+requirement from having to be read.
+
+**Ordering on the card is by score, not by position.** The top shirt is the top of the list. History
+has no record of who kept goal — `gkIds` lives on the session, never on a `FixtureRecord` — so a
+position-based lineup would be invented, and inventing one on a card five people get named on is
+exactly the wrong place to guess. Shirt numbers come from the live roster, since a fixture record
+keeps a name and a rating but never a number.
+
 ### 2.17 Match-clock notifications (`src/push.ts`, `worker/push.js`, `worker/clock-notifier.js`)
 
 A buzz at one minute left and at the whistle, on any phone that opts in — including one that is

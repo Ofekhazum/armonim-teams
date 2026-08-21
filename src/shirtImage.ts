@@ -14,19 +14,30 @@ import type { ShareImageResult } from './shareImage';
 import blackShirtUrl from './shirt_images/black_team_shirt.webp';
 import whiteShirtUrl from './shirt_images/white_team_shirt.webp';
 import blueShirtUrl from './shirt_images/blue_team_shirt.webp';
+import goldShirtUrl from './shirt_images/gold_team_shirt.webp';
 
-const SHIRT_URL: Record<TeamColor, string> = {
+// The three shirts a night is played in, plus the gold one nobody wears: the
+// Team of the Month card (§2.21). Same artwork, same five-shirt pentagon, same
+// hand-measured boxes — which is the whole reason the card was cheap, and why
+// the gold template had to be resized to match the other three exactly.
+export type ShirtTemplate = TeamColor | 'gold';
+
+const SHIRT_URL: Record<ShirtTemplate, string> = {
   black: blackShirtUrl,
   white: whiteShirtUrl,
   blue: blueShirtUrl,
+  gold: goldShirtUrl,
 };
 
 // Dark shirts get light lettering with a dark outline and vice versa, so a
 // name reads clearly against the busy nebula texture underneath it.
-const TEXT_STYLE: Record<TeamColor, { fill: string; stroke: string }> = {
+const TEXT_STYLE: Record<ShirtTemplate, { fill: string; stroke: string }> = {
   black: { fill: '#fdfaf3', stroke: 'rgba(0,0,0,0.85)' },
   white: { fill: '#211407', stroke: 'rgba(255,255,255,0.92)' },
   blue: { fill: '#f2f8ff', stroke: 'rgba(4,12,36,0.85)' },
+  // the gold shirts are dark inside a bright outline, so lettering follows the
+  // dark-shirt rule rather than the gold of the border
+  gold: { fill: '#fff6df', stroke: 'rgba(38,24,0,0.88)' },
 };
 
 interface Box {
@@ -133,7 +144,7 @@ export interface ShirtPlayer {
 }
 
 export async function renderShirtImage(
-  color: TeamColor,
+  color: ShirtTemplate,
   players: ShirtPlayer[],
 ): Promise<HTMLCanvasElement> {
   const img = await loadImage(SHIRT_URL[color]);

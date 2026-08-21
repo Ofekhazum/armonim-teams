@@ -316,7 +316,12 @@ export default function History({
             onClick={async () => {
               if (!wrappedPeriod) return;
               setSharingWrapped(true);
-              await shareWrappedImage(buildWrapped(history, wrappedPeriod));
+              // shirt numbers live on the roster, never in a fixture record —
+              // the Team of the Month card wants them
+              await shareWrappedImage(
+                buildWrapped(history, wrappedPeriod),
+                new Map(players.map((p) => [p.id, p.number])),
+              );
               setSharingWrapped(false);
             }}
             disabled={sharingWrapped || !wrappedPeriod}
