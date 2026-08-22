@@ -124,6 +124,47 @@ describe('writeRecap', () => {
     globalThis.fetch = original;
   });
 
+  it('says why an answer came back empty, which is never obvious', async () => {
+    // the one that actually happened: 2.5 Flash thinks by default and spends
+    // the output budget doing it, so the reply arrives with no content at all
+    const env = { GEMINI_KEY: 'k' };
+    const original = globalThis.fetch;
+    globalThis.fetch = async () =>
+      new Response(JSON.stringify({ candidates: [{ finishReason: 'MAX_TOKENS', content: {} }] }), {
+        status: 200,
+      });
+    expect(await writeRecap(env, facts())).toEqual({ error: 'empty (MAX_TOKENS)' });
+    globalThis.fetch = original;
+  });
+
+  it('turns thinking off, so the budget pays for the answer', async () => {
+    const env = { GEMINI_KEY: 'k' };
+    const original = globalThis.fetch;
+    let sent;
+    globalThis.fetch = async (_url, init) => {
+      sent = JSON.parse(init.body);
+      return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: 'ok' }] } }] }));
+    };
+    await writeRecap(env, facts());
+    expect(sent.generationConfig.thinkingConfig).toEqual({ thinkingBudget: 0 });
+    globalThis.fetch = original;
+  });
+
+  it('passes on what Google said when it refused', async () => {
+    // a wrong model name and a key with the API disabled are both "upstream
+    // 404" until the message comes with them
+    const env = { GEMINI_KEY: 'k' };
+    const original = globalThis.fetch;
+    globalThis.fetch = async () =>
+      new Response(JSON.stringify({ error: { message: 'models/gemini-9 is not found' } }), {
+        status: 404,
+      });
+    const out = await writeRecap(env, facts());
+    expect(out.error).toContain('404');
+    expect(out.error).toContain('gemini-9 is not found');
+    globalThis.fetch = original;
+  });
+
   it('joins the parts of a good answer back together', async () => {
     const env = { GEMINI_KEY: 'k' };
     const original = globalThis.fetch;

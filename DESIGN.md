@@ -1531,6 +1531,16 @@ in the loop: the organiser reads a draft nobody else can see, then publishes it.
 is saved — `autoRecap` in `src/recap.ts` is already that call, kept unused on purpose. Nothing about
 the route, the prompt or the storage has to change.
 
+**Two things the first real call taught, both worth keeping written down.** Gemini 2.5 Flash has
+*thinking on by default and pays for it out of `maxOutputTokens`*, so a budget sized for the answer
+is spent before the answer starts — the reply comes back with `finishReason: MAX_TOKENS`, no content
+at all, and a few hundred thinking tokens billed. `thinkingConfig: { thinkingBudget: 0 }` turns it
+off, because writing a report from finished counts is not a reasoning problem. And the failure
+*message* mattered as much as the failure: a missing key, a wrong model name and an empty generation
+all arrived as the same 502 and the same sentence — "Gemini turned it down" — which named none of
+them. The worker knew which; it just wasn't saying. It says now, verbatim, including whatever Google
+put in the error body.
+
 **A recap is decoration and never load-bearing.** Every failure — no key, quota exhausted, a safety
 refusal, no network — comes back as a message under the page, and the page renders exactly as it does
 today. A tallied night has no recap button at all, because there is no sequence to write about and a

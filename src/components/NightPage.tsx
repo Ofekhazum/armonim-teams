@@ -179,15 +179,19 @@ export default function NightPage({
     [fixture, history, players],
   );
 
-  const say = (error: string) =>
+  // The reason, verbatim where there is one. A message that covers four
+  // different causes with one sentence is a message that costs an evening.
+  const say = (error: string, detail?: string) =>
     setFailed(
-      error === 'unavailable'
-        ? 'Gemini turned it down — out of quota, or it refused this one. Try again later.'
-        : error === 'not-configured'
-          ? 'No reporter on this deployment yet (the worker needs GEMINI_KEY).'
-          : error === 'wrong-word'
-            ? 'That admin word was refused.'
-            : 'Could not reach the reporter.',
+      error === 'not-configured'
+        ? 'No reporter on this deployment: the worker has no GEMINI_KEY set.'
+        : error === 'wrong-word'
+          ? 'That admin word was refused.'
+          : error === 'rate-limited'
+            ? 'Too many attempts from here. Give it ten minutes.'
+            : error === 'unavailable'
+              ? `Gemini turned it down${detail ? ` — ${detail}` : ''}`
+              : 'Could not reach the reporter.',
     );
 
   const write = async () => {
@@ -196,7 +200,7 @@ export default function NightPage({
     setFailed(null);
     const out = await draftRecap(fixture.id, facts, adminWord);
     setBusy(null);
-    if ('error' in out) say(out.error);
+    if ('error' in out) say(out.error, out.detail);
     else setDraft(out.text);
   };
 
@@ -205,7 +209,7 @@ export default function NightPage({
     setBusy('saving');
     const out = await saveRecap(fixture.id, draft, adminWord);
     setBusy(null);
-    if ('error' in out) return say(out.error);
+    if ('error' in out) return say(out.error, out.detail);
     setSaved({ text: draft, at: Date.now() });
     setDraft(null);
   };
@@ -213,7 +217,7 @@ export default function NightPage({
   const forget = async () => {
     if (!adminWord || !confirm('Delete this recap for everyone?')) return;
     const out = await clearRecap(fixture.id, adminWord);
-    if ('error' in out) return say(out.error);
+    if ('error' in out) return say(out.error, out.detail);
     setSaved(null);
   };
 
@@ -460,7 +464,9 @@ export default function NightPage({
               </p>
             )}
 
-            {failed && <p className="mt-2 text-xs text-red-700">{failed}</p>}
+            {failed && (
+              <p className="mt-2 whitespace-pre-wrap break-words text-xs text-red-700">{failed}</p>
+            )}
 
             <div className="mt-3 flex flex-wrap gap-2">
               {(saved || draft) && (

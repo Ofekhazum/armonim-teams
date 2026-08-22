@@ -22,7 +22,15 @@ const DEFAULT_MODEL = 'gemini-2.5-flash';
 
 // Long enough for three paragraphs of Hebrew, short enough that a runaway
 // generation cannot cost us the day's quota.
-const MAX_TOKENS = 900;
+//
+// Raised from 900 after the first real call came back empty. On 2.5 Flash
+// *thinking is on by default and its tokens are spent out of this same budget*,
+// so a cap sized for the answer gets eaten before the answer starts: the reply
+// arrives with `finishReason: MAX_TOKENS`, zero content and a few hundred
+// thinking tokens. `thinkingBudget: 0` below turns it off — a match report from
+// finished counts is not a reasoning problem — and the headroom here is belt
+// and braces.
+const MAX_TOKENS = 1600;
 // A recap is banter, not a legal document — but the numbers in it are load
 // bearing, so this sits below the playful end.
 const TEMPERATURE = 0.9;
@@ -145,7 +153,13 @@ export async function writeRecap(env, facts) {
       headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
       body: JSON.stringify({
         contents: [{ role: 'user', parts: [{ text: buildPrompt(facts) }] }],
-        generationConfig: { temperature: TEMPERATURE, maxOutputTokens: MAX_TOKENS },
+        generationConfig: {
+          temperature: TEMPERATURE,
+          maxOutputTokens: MAX_TOKENS,
+          // see MAX_TOKENS: thinking is on by default on 2.5 Flash and is paid
+          // for out of the same budget as the reply
+          thinkingConfig: { thinkingBudget: 0 },
+        },
       }),
     });
   } catch {
@@ -153,7 +167,19 @@ export async function writeRecap(env, facts) {
   }
 
   if (res.status === 429) return { error: 'quota' };
-  if (!res.ok) return { error: `upstream ${res.status}` };
+  if (!res.ok) {
+    // Google says *why* in the body — a wrong model name, a key with the API
+    // disabled, a referrer restriction — and every one of those reads as a
+    // generic outage without it. Worth the twenty characters.
+    let why = '';
+    try {
+      const body = await res.json();
+      why = body?.error?.message ? `: ${String(body.error.message).slice(0, 200)}` : '';
+    } catch {
+      why = '';
+    }
+    return { error: `upstream ${res.status}${why}` };
+  }
 
   let data;
   try {
@@ -167,10 +193,13 @@ export async function writeRecap(env, facts) {
   const blocked = data?.promptFeedback?.blockReason;
   if (blocked) return { error: `blocked: ${blocked}` };
 
-  const text = (data?.candidates?.[0]?.content?.parts ?? [])
+  const candidate = data?.candidates?.[0];
+  const text = (candidate?.content?.parts ?? [])
     .map((p) => p?.text ?? '')
     .join('')
     .trim();
-  if (!text) return { error: 'empty' };
+  // An empty answer always has a reason attached, and the reason is the whole
+  // difference between "it refused" and "it never got started".
+  if (!text) return { error: `empty (${candidate?.finishReason ?? 'no candidate'})` };
   return { text };
 }

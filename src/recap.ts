@@ -25,7 +25,12 @@ export type RecapError =
   | 'unavailable' // Gemini said no: quota, safety filter, or simply down
   | 'error';
 
-export type RecapResult = { text: string } | { error: RecapError };
+// What the worker said when it turned the request down. Carried through and
+// shown, because the first real failure of this feature was a missing key, a
+// wrong model name and an empty generation all wearing the same sentence —
+// "Gemini turned it down" — which told nobody anything. The worker already
+// knows which of the three it was.
+export type RecapResult = { text: string } | { error: RecapError; detail?: string };
 
 /** Whatever has been written for this night, or null. Public — anybody reads. */
 export async function fetchRecap(fixtureId: string): Promise<StoredRecap | null> {
@@ -52,10 +57,16 @@ const post = async (body: unknown): Promise<RecapResult> => {
     });
     if (res.status === 401) return { error: 'wrong-word' };
     if (res.status === 429) return { error: 'rate-limited' };
-    // 502 is the Worker reporting what Gemini told it — quota, a safety
-    // refusal, an outage. All of them mean "no recap right now", and none of
-    // them mean the app is broken.
-    if (res.status === 502) return { error: 'unavailable' };
+    // 502 is the worker reporting what Gemini told it — quota, a safety
+    // refusal, an outage, or no key configured at all. All of them mean "no
+    // recap right now" and none of them mean the app is broken, but they need
+    // very different things done about them, so the reason travels.
+    if (res.status === 502) {
+      const said = await res.json().catch(() => ({}) as { error?: string });
+      const detail = typeof said.error === 'string' ? said.error : undefined;
+      if (detail === 'not-configured') return { error: 'not-configured' };
+      return { error: 'unavailable', detail };
+    }
     if (!res.ok) return { error: 'error' };
     const data = (await res.json()) as { text?: string };
     return typeof data.text === 'string' ? { text: data.text } : { error: 'error' };
