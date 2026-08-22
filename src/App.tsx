@@ -542,6 +542,9 @@ export default function App() {
           history={readHistory}
           players={state.players}
           isAdmin={isAdmin}
+          // the word itself, not just the flag: writing a recap is a server
+          // call the worker authenticates, the same as publishing a roster
+          adminWord={adminWord}
           onApplyRating={applyRating}
           onDeleteFixture={deleteFixture}
           onEditFixture={editFixture}

@@ -14,6 +14,8 @@
 //   POST /push/subscribe   → opt this device into match-clock notifications
 //   POST /push/unsubscribe → opt it out again
 //   POST /push/test        → buzz now and report what the push service said
+//   GET  /recap?id=…   → public read of a night's written recap, if there is one
+//   POST /recap        → write one for a night; requires the secret word
 //   POST /verify       → check the secret word (used to unlock admin mode)
 //   GET  /room/:id     → WebSocket upgrade into a live team-picking room
 //
@@ -35,6 +37,7 @@ export { RateLimiter } from './rate-limit.js';
 export { ClockNotifier } from './clock-notifier.js';
 
 import { bytesToB64u, publicKeyBytes } from './push.js';
+import { isValidFacts, recapKey, writeRecap } from './recap.js';
 
 // One object for the whole club — there is only ever one night on. It holds
 // the live fixture, who wants telling about the clock, and the alarm that does
@@ -379,6 +382,20 @@ export default {
       return json(current ? current.value : { version: 0, fixtures: null });
     }
 
+    // public read of a night's recap. Anybody may read one; only the organiser
+    // may write one, which is what /recap below is for.
+    if (url.pathname === '/recap' && request.method === 'GET') {
+      const id = url.searchParams.get('id');
+      if (!isStr(id, 200)) return json({ error: 'bad id' }, 400);
+      const raw = await env.ROSTER_KV.get(recapKey(id));
+      if (!raw) return json({ text: null });
+      try {
+        return json(JSON.parse(raw));
+      } catch {
+        return json({ text: null });
+      }
+    }
+
     // public read of the fixture being played right now, if any — this is the
     // one everyone in the group polls on a match night
     // Straight through to the Durable Object rather than KV: this is polled
@@ -504,7 +521,15 @@ export default {
     }
 
     // everything below is a POST guarded by the secret word
-    const guarded = ['/roster', '/roster/full', '/history', '/live', '/verify', '/push/test'];
+    const guarded = [
+      '/roster',
+      '/roster/full',
+      '/history',
+      '/live',
+      '/recap',
+      '/verify',
+      '/push/test',
+    ];
     if (guarded.includes(url.pathname) && request.method === 'POST') {
       // checked before we do any other work, so a flood costs us as little as
       // possible. Counts the attempt in the same call that decides on it —
@@ -572,6 +597,46 @@ export default {
           body: JSON.stringify({ fixture }),
         });
         return json(await res.json());
+      }
+
+      // Write a night's recap.
+      //
+      // Three things in one route, because they are one act with a human
+      // optionally standing in the middle of it:
+      //
+      //   { facts }             → generate and hand it back, store nothing
+      //   { facts, save: true } → generate and store it in the same call
+      //   { text }              → store this text, generated or edited
+      //   { text: null }        → forget the recap for this night
+      //
+      // The first two are the whole difference between today's flow — the
+      // organiser reads it before anyone else does — and the automatic one
+      // this is built for: the same call with `save`, made the moment a night
+      // is filed, with nobody in the loop. Nothing else has to change.
+      if (url.pathname === '/recap') {
+        if (!isStr(body.fixtureId, 200)) return json({ error: 'bad id' }, 400);
+        const key = recapKey(body.fixtureId);
+
+        if (body.text === null) {
+          await env.ROSTER_KV.delete(key);
+          return json({ ok: true, text: null });
+        }
+
+        if (isStr(body.text, 8000)) {
+          const stored = { text: body.text, at: Date.now() };
+          await env.ROSTER_KV.put(key, JSON.stringify(stored));
+          return json({ ok: true, ...stored });
+        }
+
+        if (!isValidFacts(body.facts)) return json({ error: 'bad facts' }, 400);
+        const written = await writeRecap(env, body.facts);
+        if (written.error) return json({ error: written.error }, 502);
+        if (body.save === true) {
+          const stored = { text: written.text, at: Date.now() };
+          await env.ROSTER_KV.put(key, JSON.stringify(stored));
+          return json({ ok: true, ...stored });
+        }
+        return json({ ok: true, text: written.text });
       }
 
       if (url.pathname === '/history') {

@@ -1,10 +1,13 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { FixtureRecord, Player, TeamColor, TonightPlayer } from '../types';
 import { TEAM_COLORS } from '../balancer';
 import { tonightsMilestones } from '../milestones';
 import { duoFacts } from '../duos';
 import { nightStory } from '../nightStory';
 import type { NightFact } from '../nightStory';
+import { recapFacts } from '../recapFacts';
+import type { StoredRecap } from '../recap';
+import { clearRecap, draftRecap, fetchRecap, saveRecap } from '../recap';
 import { Name, TEAM_META, fmtWins } from './ui';
 import { MilestoneStrip } from './TonightFacts';
 
@@ -21,6 +24,9 @@ interface Props {
   fixture: FixtureRecord;
   history: FixtureRecord[];
   players: Player[]; // the roster, only to tell a guest from a squad member
+  // The organiser writes the recap; everyone else reads whatever was written.
+  // `adminWord` is absent for everyone else, which is the whole of the gate.
+  adminWord?: string | null;
   // The nights either side of this one, already in date order by the caller.
   // Null at the ends of the archive, which is what greys the arrow out.
   older: FixtureRecord | null;
@@ -93,6 +99,7 @@ export default function NightPage({
   fixture,
   history,
   players,
+  adminWord = null,
   older,
   newer,
   onGo,
@@ -119,6 +126,27 @@ export default function NightPage({
     scroller.current?.scrollTo({ top: 0 });
   }, [fixture.id]);
 
+  // The recap belongs to the night rather than to this session, so it is asked
+  // for when the page opens and dropped when it closes — including when the
+  // page stays open and steps to another night.
+  const [saved, setSaved] = useState<StoredRecap | null>(null);
+  const [draft, setDraft] = useState<string | null>(null);
+  const [busy, setBusy] = useState<'writing' | 'saving' | null>(null);
+  const [failed, setFailed] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setSaved(null);
+    setDraft(null);
+    setFailed(null);
+    fetchRecap(fixture.id).then((r) => {
+      if (!cancelled) setSaved(r);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [fixture.id]);
+
   const story = useMemo(() => nightStory(fixture), [fixture]);
   const log = fixture.matchLog ?? [];
   const nameOf = (id: string) => fixture.players.find((p) => p.id === id)?.name ?? '?';
@@ -143,6 +171,57 @@ export default function NightPage({
     [tonight, asOf, fixture.id],
   );
   const duos = useMemo(() => duoFacts(tonight, asOf, fixture.id), [tonight, asOf, fixture.id]);
+
+  // Every number the reporter is given, gathered from the same functions this
+  // page draws itself from — so the recap can only ever say what the page says.
+  const facts = useMemo(
+    () => recapFacts(fixture, history, players),
+    [fixture, history, players],
+  );
+
+  const say = (error: string) =>
+    setFailed(
+      error === 'unavailable'
+        ? 'Gemini turned it down — out of quota, or it refused this one. Try again later.'
+        : error === 'not-configured'
+          ? 'No reporter on this deployment yet (the worker needs GEMINI_KEY).'
+          : error === 'wrong-word'
+            ? 'That admin word was refused.'
+            : 'Could not reach the reporter.',
+    );
+
+  const write = async () => {
+    if (!facts || !adminWord) return;
+    setBusy('writing');
+    setFailed(null);
+    const out = await draftRecap(fixture.id, facts, adminWord);
+    setBusy(null);
+    if ('error' in out) say(out.error);
+    else setDraft(out.text);
+  };
+
+  const keep = async () => {
+    if (!draft || !adminWord) return;
+    setBusy('saving');
+    const out = await saveRecap(fixture.id, draft, adminWord);
+    setBusy(null);
+    if ('error' in out) return say(out.error);
+    setSaved({ text: draft, at: Date.now() });
+    setDraft(null);
+  };
+
+  const forget = async () => {
+    if (!adminWord || !confirm('Delete this recap for everyone?')) return;
+    const out = await clearRecap(fixture.id, adminWord);
+    if ('error' in out) return say(out.error);
+    setSaved(null);
+  };
+
+  const share = () => {
+    const text = `${fixture.date}\n\n${saved?.text ?? draft ?? ''}`;
+    if (navigator.share) void navigator.share({ text }).catch(() => {});
+    else void navigator.clipboard?.writeText(text);
+  };
 
   const top = Math.max(...TEAM_COLORS.map((c) => fixture.wins[c] ?? 0));
   const winners = TEAM_COLORS.filter((c) => (fixture.wins[c] ?? 0) === top && top > 0);
@@ -341,6 +420,100 @@ export default function NightPage({
         {/* What that night turned out to be for the people in it — the same
             strip the fixture page shows before kick-off, counted as of then. */}
         <MilestoneStrip milestones={milestones} duos={duos} />
+
+        {/* The report. It lives here rather than in a share sheet: the night
+            page is where a night is read, and a recap that only exists in
+            WhatsApp is gone by Thursday. Sharing is the extra, not the point. */}
+        {(saved || draft || (adminWord && facts)) && (
+          <section className="rounded-2xl border border-amber-900/15 bg-[#fffdf4]/70 p-4 shadow-sm">
+            <div className="mb-2 flex flex-wrap items-baseline gap-2">
+              <h3 className="text-[11px] font-black uppercase tracking-wide text-amber-900/45">
+                📰 The report
+              </h3>
+              {saved && !draft && (
+                <span className="text-[10px] text-amber-900/35">
+                  written {new Date(saved.at).toLocaleDateString()}
+                </span>
+              )}
+              {draft && (
+                <span className="text-[10px] font-bold uppercase tracking-wide text-orange-700/70">
+                  draft — nobody else can see this yet
+                </span>
+              )}
+            </div>
+
+            {/* Hebrew, so the block is right-to-left and the paragraphs keep
+                their own breaks. `whitespace-pre-wrap` rather than splitting on
+                newlines: the model's paragraphing is part of what was written. */}
+            {(draft ?? saved?.text) && (
+              <p
+                dir="rtl"
+                className="whitespace-pre-wrap text-[15px] leading-relaxed text-amber-950"
+              >
+                {draft ?? saved?.text}
+              </p>
+            )}
+
+            {!draft && !saved && (
+              <p className="text-sm text-amber-900/55">
+                Nothing written for this night yet.
+              </p>
+            )}
+
+            {failed && <p className="mt-2 text-xs text-red-700">{failed}</p>}
+
+            <div className="mt-3 flex flex-wrap gap-2">
+              {(saved || draft) && (
+                <button
+                  onClick={share}
+                  className="rounded-lg border border-amber-900/25 px-3 py-1 text-xs font-bold text-amber-900 hover:border-orange-500"
+                >
+                  📤 Share
+                </button>
+              )}
+              {adminWord && facts && (
+                <>
+                  <button
+                    onClick={write}
+                    disabled={busy !== null}
+                    className="rounded-lg bg-orange-600 px-3 py-1 text-xs font-bold text-amber-50 hover:scale-105 disabled:opacity-50"
+                  >
+                    {busy === 'writing'
+                      ? 'writing…'
+                      : saved || draft
+                        ? '↻ Write another'
+                        : '✍️ Write the report'}
+                  </button>
+                  {draft && (
+                    <>
+                      <button
+                        onClick={keep}
+                        disabled={busy !== null}
+                        className="rounded-lg border border-emerald-600/50 px-3 py-1 text-xs font-bold text-emerald-800 hover:bg-emerald-50 disabled:opacity-50"
+                      >
+                        {busy === 'saving' ? 'saving…' : '✓ Publish this one'}
+                      </button>
+                      <button
+                        onClick={() => setDraft(null)}
+                        className="rounded-lg border border-amber-900/25 px-3 py-1 text-xs font-bold text-amber-900 hover:border-orange-500"
+                      >
+                        Discard
+                      </button>
+                    </>
+                  )}
+                  {saved && !draft && (
+                    <button
+                      onClick={forget}
+                      className="rounded-lg border border-red-500/50 px-3 py-1 text-xs font-bold text-red-700 hover:bg-red-50"
+                    >
+                      🗑️ Delete
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
+          </section>
+        )}
       </div>
     </div>
   );

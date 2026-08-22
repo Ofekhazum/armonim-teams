@@ -1483,6 +1483,59 @@ counts as a joke error code. It was honest (pull-only, every line a real number)
 useful: the counts above already say the same things, and saying them twice in a funnier font is
 weight on the page rather than information on it.
 
+### 2.24 The night reporter (`src/recapFacts.ts`, `worker/recap.js`)
+
+A Hebrew match report for a logged night, written by Gemini and read **on the night's own page**. Not
+a share sheet and not a clipboard trick: the night page is where a night is read, and a recap that
+only ever exists in WhatsApp is gone by Thursday. Sharing is a button on it, not the point of it.
+
+**The key cannot be in the client.** Vite compiles env values into the bundle, so a key in the app is
+a key in everybody's DevTools. `GEMINI_KEY` is a wrangler secret and the browser never talks to
+Google — it posts counts to `POST /recap`, behind the admin word and the same per-IP limiter that
+guards every other write.
+
+**The Worker builds the prompt; the client sends only facts.** The client could send finished prompt
+text and save the Worker a job — and then anyone holding the admin word could make our key write
+anything at all. A validated facts shape (`isValidFacts`) can only ever produce a match report.
+
+**Facts, never the log.** `recapFacts` flattens what `nightStory`, `milestones` and `duos` already
+computed into a few hundred bytes of finished numbers. A model handed eighteen raw results will do
+the arithmetic itself and get it wrong, and a report that says Blue won seven when they won five is
+worse than no report. It carries no ratings, no attack values, no keep-apart lists and no ids: what
+leaves the app is roughly what is already on the night page (§2.9).
+
+**The guard rail is against confident invention.** This data has no goals, no scorers, no assists and
+no saves — a sports-writer prompt with nothing said about that will supply all four from imagination.
+So the prompt states what the data is, what it is not, and that nothing outside it may appear, and
+the tests assert those clauses are present. It also explains the rotation, without which none of the
+numbers make sense, and it forbids touching a player's name — Hebrew names must survive verbatim.
+
+**Written for the audience, not for the app.** Output is Hebrew, because it is read in a Hebrew
+WhatsApp group by people whose names are Hebrew; the app's own chrome being English is a fact about
+the app, not about who reads it. The block renders `dir="rtl"` with `whitespace-pre-wrap`, since the
+model's paragraphing is part of what it wrote. Team colours travel as English identifiers and the
+prompt maps them to השחורים / הלבנים / הכחולים, so changing the output language stays a prompt edit
+rather than a change to what gets counted.
+
+**Stored in its own KV key**, `recap:<fixtureId>`, never on the fixture record. No schema change, no
+migration, nothing that can damage a night — and it is the honest split: the record is what happened,
+a recap is generated prose that can be thrown away and written again. It is also stored rather than
+generated per reader, or fifteen phones would each write a different report of the same night and
+spend the quota doing it.
+
+**Built for the automatic version it is not yet.** `POST /recap` takes `{ facts }` (write it, store
+nothing), `{ facts, save: true }` (write and store in one call), `{ text }` (store what the organiser
+approved) or `{ text: null }` (forget it). Today the app uses the first and third, which is the human
+in the loop: the organiser reads a draft nobody else can see, then publishes it. Turning that into
+"a report appears the moment a night is filed" is the second variant called from wherever a fixture
+is saved — `autoRecap` in `src/recap.ts` is already that call, kept unused on purpose. Nothing about
+the route, the prompt or the storage has to change.
+
+**A recap is decoration and never load-bearing.** Every failure — no key, quota exhausted, a safety
+refusal, no network — comes back as a message under the page, and the page renders exactly as it does
+today. A tallied night has no recap button at all, because there is no sequence to write about and a
+model asked to describe one anyway would invent it.
+
 ## 3. Team generation algorithm
 
 Balancing is a small constrained optimization. With ≤15 players, brute force is too big
