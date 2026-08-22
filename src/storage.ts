@@ -102,6 +102,20 @@ const NAME_KEY = 'armonim-my-name';
 export const getMyName = (): string | null => localStorage.getItem(NAME_KEY);
 export const setMyName = (name: string) => localStorage.setItem(NAME_KEY, name);
 
+// --- History tab: is the past-nights shelf open? ----------------------------
+// Remembered per device rather than held in component state, because the tabs
+// unmount — so without this, hiding the shelf would last until the next time
+// anyone looked at anything else, which is not what hiding something means.
+// Open is the default: the shelf is what the tab is for.
+
+const NIGHTS_SHELF_KEY = 'armonim-nights-shelf';
+
+export const getNightsShelfOpen = (): boolean =>
+  localStorage.getItem(NIGHTS_SHELF_KEY) !== 'hidden';
+
+export const setNightsShelfOpen = (open: boolean) =>
+  localStorage.setItem(NIGHTS_SHELF_KEY, open ? 'open' : 'hidden');
+
 // The host's {roomId, adminToken} for the fixture currently live, if any —
 // kept so a page refresh doesn't demote the host to a regular guest.
 
