@@ -311,22 +311,23 @@ export default function NightPage({
               <h3 className="mb-2 text-[11px] font-black uppercase tracking-wide text-amber-900/45">
                 How it went, match by match
               </h3>
-              <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] font-bold uppercase tracking-wide text-amber-900/45">
-                {TEAM_COLORS.map((c) => (
-                  <span key={c} className="flex items-center gap-1">
-                    <span className={`h-2.5 w-2.5 rounded-sm ${RIBBON[c].tile}`} />
-                    {TEAM_META[c].label}
-                  </span>
-                ))}
-                <span className="text-amber-900/35">· thin bar = who they beat</span>
+              {/* No colour key. A black tile is the black team on a page whose
+                  own team cards are those three colours — spelling it out was
+                  three words explaining something already looked at. The bar
+                  is the one mark here that cannot say itself. */}
+              <div className="mb-2 text-[10px] font-bold uppercase tracking-wide text-amber-900/35">
+                thin bar = who they beat
               </div>
-              {/* The tiles share the width rather than being fixed, so a
-                  night fits on a phone without a sideways scroll — the flow is
-                  the point, and a flow you have to drag to see is not one.
-                  Below ~1.1rem each they stop sharing and the row scrolls,
-                  which only a very long night reaches. */}
-              <div className="overflow-x-auto pb-1">
-                <div className="flex w-full items-center">
+              {/* Sized to be read rather than to fit. These used to share the
+                  width so a night never scrolled, and on a phone an 18-match
+                  night came out at ~19px a tile: the numbers were unreadable
+                  and the runs were slivers. The row scrolls anyway past a
+                  dozen matches, so the choice was never scroll-or-not — it was
+                  legible-and-scrolling versus tiny-and-scrolling. */}
+              {/* Bleeds through the card's padding so a long night scrolls
+                  edge to edge instead of inside a narrower window. */}
+              <div className="-mx-4 overflow-x-auto px-4 pb-1">
+                <div className="flex w-max items-center">
                   {log.map((m, i) => {
                     const loser = m.winner === m.a ? m.b : m.a;
                     // a run is one block: no gap inside it, rounded at both
@@ -339,20 +340,20 @@ export default function NightPage({
                         title={`Match ${i + 1}: ${TEAM_META[m.winner].label} beat ${
                           TEAM_META[loser].label
                         }${m.viaPenalties ? ' on penalties' : ''}`}
-                        className={`relative grid h-9 min-w-[1.1rem] flex-1 basis-0 place-items-center overflow-hidden font-mono text-[9px] font-black ${
+                        className={`relative grid h-14 w-11 shrink-0 place-items-center overflow-hidden font-mono text-base font-black ${
                           RIBBON[m.winner].tile
-                        } ${opens ? (i === 0 ? 'rounded-l-lg' : 'ml-1.5 rounded-l-lg') : ''} ${
-                          closes ? 'rounded-r-lg' : ''
+                        } ${opens ? (i === 0 ? 'rounded-l-xl' : 'ml-2 rounded-l-xl') : ''} ${
+                          closes ? 'rounded-r-xl' : ''
                         }`}
                       >
                         {i + 1}
                         {m.viaPenalties && (
-                          <span className="absolute right-0.5 top-0 text-[8px] opacity-70">½</span>
+                          <span className="absolute right-1 top-0.5 text-[10px] opacity-70">½</span>
                         )}
                         {/* who lost it, in a bar along the bottom — the one
                             thing the winner's colour cannot say on its own */}
                         <span
-                          className={`absolute inset-x-0 bottom-0 h-1 ${RIBBON[loser].tile}`}
+                          className={`absolute inset-x-0 bottom-0 h-1.5 ${RIBBON[loser].tile}`}
                         />
                       </span>
                     );

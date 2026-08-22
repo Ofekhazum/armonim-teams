@@ -1443,11 +1443,22 @@ the failure mode to watch for, not a missing detector.
 different from the night before it. A cheap defence against a page that reads identically every week;
 the real defence is that the numbers underneath differ.
 
-**The timeline is three lanes, one column per match.** A team's own matches are filled when they won
-and outlined when they lost, and the matches they sat out are left as a gap — which is what makes the
-rotation legible: you can watch a team hold the pitch for five columns and see who was standing
-about. A won cell wears the team's own card palette rather than a colour invented for the chart, so
-it matches every other place the three shirts appear.
+**The timeline is one row, one tile per match, painted in the winner's colour.** It began as three
+lanes — a row per team, filled when they won, outlined when they lost, a gap where they sat out —
+which was complete and unreadable: three rows to cross-reference before you knew who won match four.
+The row that replaced it says the same thing by *being* the sequence. **A run is one block**, no gap
+inside it and rounded at both ends, so holding the pitch looks like holding the pitch, and the gap
+before the next block is where a team came off. The loser is a thin bar along the bottom of each
+tile, which is the one fact the winner's colour cannot state on its own. Tiles wear the team's own
+card palette rather than a colour invented for the chart.
+
+**No colour key, and the tiles are sized to be read.** The key spelled out black/white/blue directly
+above three team cards in those colours — words explaining something already being looked at. The
+sizing was the real bug: tiles used to *share* the row's width so a night never scrolled, which on a
+phone made an 18-match night about 19px a tile, numbers unreadable and runs reduced to slivers. Past
+a dozen matches it scrolled regardless, so the choice was never scroll-or-not — it was legible and
+scrolling versus tiny and scrolling. Fixed 44×56px now, bleeding through the card's padding so the
+row scrolls edge to edge.
 
 **Nothing is stored.** A night whose result is corrected next week should tell the corrected story,
 and a stored summary would quietly go on telling the old one — the same reasoning as the read-time
