@@ -24,15 +24,22 @@ interface Props {
   onClose: () => void;
 }
 
-// The lanes read left to right, one column per match. A team's own matches are
-// filled when they won and outlined when they lost; the matches they sat out
-// are left as a gap, which is what makes the rotation visible — you can see a
-// team hold the pitch for five columns, and see who was standing about.
+// One tile per match, coloured by who won it — and because the winner stays
+// on, the pitch only changes hands when the colour changes. So a run reads as
+// a solid block and a night nobody could hold reads as stripes, which is the
+// whole shape of an evening in one line.
 //
-// A won cell wears the team's own card palette rather than a colour invented
-// here, so the timeline matches every other place the three shirts appear and
-// stays contrast-checked with them.
-const LOST_CELL = 'border border-amber-900/20 text-amber-900/30';
+// This replaced three lanes (one per team, marking won / lost / sat out). That
+// version was a presence chart rather than a flow: it took three rows to say
+// what one says, and the white team's win tile was cream on a cream page, so
+// half the night was invisible. Hence the deliberately un-subtle palette here
+// rather than `TEAM_META.card` — a ribbon tile has to hold its own against the
+// tile beside it, where a team card only has to sit on the page.
+const RIBBON: Record<TeamColor, { tile: string }> = {
+  black: { tile: 'bg-stone-800 text-stone-100' },
+  white: { tile: 'bg-white text-amber-950 ring-1 ring-inset ring-amber-900/25' },
+  blue: { tile: 'bg-blue-800 text-blue-50' },
+};
 
 const factLine = (f: NightFact): string => {
   switch (f.kind) {
@@ -156,45 +163,52 @@ export default function NightPage({ fixture, history, players, onClose }: Props)
               <h3 className="mb-2 text-[11px] font-black uppercase tracking-wide text-amber-900/45">
                 How it went, match by match
               </h3>
+              <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] font-bold uppercase tracking-wide text-amber-900/45">
+                {TEAM_COLORS.map((c) => (
+                  <span key={c} className="flex items-center gap-1">
+                    <span className={`h-2.5 w-2.5 rounded-sm ${RIBBON[c].tile}`} />
+                    {TEAM_META[c].label}
+                  </span>
+                ))}
+                <span className="text-amber-900/35">· thin bar = who they beat</span>
+              </div>
+              {/* The tiles share the width rather than being fixed, so a
+                  night fits on a phone without a sideways scroll — the flow is
+                  the point, and a flow you have to drag to see is not one.
+                  Below ~1.1rem each they stop sharing and the row scrolls,
+                  which only a very long night reaches. */}
               <div className="overflow-x-auto pb-1">
-                <div className="min-w-max space-y-1">
-                  {TEAM_COLORS.map((c) => (
-                    <div key={c} className="flex items-center gap-1">
-                      <span className="w-6 shrink-0 text-sm">{TEAM_META[c].emoji}</span>
-                      {log.map((m, i) => {
-                        const inIt = m.a === c || m.b === c;
-                        const won = m.winner === c;
-                        return (
-                          <span
-                            key={i}
-                            title={`Match ${i + 1}: ${TEAM_META[m.winner].label} beat ${
-                              TEAM_META[m.winner === m.a ? m.b : m.a].label
-                            }${m.viaPenalties ? ' on penalties' : ''}`}
-                            className={`grid h-6 w-6 shrink-0 place-items-center rounded font-mono text-[10px] font-black ${
-                              !inIt
-                                ? 'text-amber-900/15'
-                                : won
-                                  ? `border ${TEAM_META[c].card}`
-                                  : LOST_CELL
-                            }`}
-                          >
-                            {!inIt ? '·' : won ? (m.viaPenalties ? '½' : '✓') : ''}
-                          </span>
-                        );
-                      })}
-                    </div>
-                  ))}
-                  <div className="flex items-center gap-1 pt-0.5">
-                    <span className="w-6 shrink-0" />
-                    {log.map((_, i) => (
+                <div className="flex w-full items-center">
+                  {log.map((m, i) => {
+                    const loser = m.winner === m.a ? m.b : m.a;
+                    // a run is one block: no gap inside it, rounded at both
+                    // ends, so holding the pitch *looks* like holding the pitch
+                    const opens = i === 0 || log[i - 1].winner !== m.winner;
+                    const closes = i === log.length - 1 || log[i + 1].winner !== m.winner;
+                    return (
                       <span
                         key={i}
-                        className="w-6 shrink-0 text-center font-mono text-[9px] text-amber-900/30"
+                        title={`Match ${i + 1}: ${TEAM_META[m.winner].label} beat ${
+                          TEAM_META[loser].label
+                        }${m.viaPenalties ? ' on penalties' : ''}`}
+                        className={`relative grid h-9 min-w-[1.1rem] flex-1 basis-0 place-items-center overflow-hidden font-mono text-[9px] font-black ${
+                          RIBBON[m.winner].tile
+                        } ${opens ? (i === 0 ? 'rounded-l-lg' : 'ml-1.5 rounded-l-lg') : ''} ${
+                          closes ? 'rounded-r-lg' : ''
+                        }`}
                       >
-                        {(i + 1) % 5 === 0 || i === 0 ? i + 1 : ''}
+                        {i + 1}
+                        {m.viaPenalties && (
+                          <span className="absolute right-0.5 top-0 text-[8px] opacity-70">½</span>
+                        )}
+                        {/* who lost it, in a bar along the bottom — the one
+                            thing the winner's colour cannot say on its own */}
+                        <span
+                          className={`absolute inset-x-0 bottom-0 h-1 ${RIBBON[loser].tile}`}
+                        />
                       </span>
-                    ))}
-                  </div>
+                    );
+                  })}
                 </div>
               </div>
               {/* The numbers the shape is read from, said plainly. The facts
