@@ -211,6 +211,48 @@ describe('recapFacts', () => {
     expect(f.notes.some((n) => n.startsWith('Played at least 4 and won none'))).toBe(true);
   });
 
+  it('says who spent the night watching', () => {
+    // black hold the pitch and blue barely get on
+    const fx = night('AWWWWWW');
+    const f = recapFacts(fx, [fx], roster)!;
+    expect(f.notes.some((n) => n.includes('watched more football than they played'))).toBe(true);
+  });
+
+  it('caps how much of any one kind travels', () => {
+    // fifteen players all wearing three shirts would otherwise crowd out the
+    // once-a-season story before it is even looked at
+    const season = Array.from({ length: 12 }, (_, i) => ({
+      ...night('AWN'),
+      id: `s${i}`,
+      date: `2026-0${i < 9 ? 6 : 7}-${String((i % 9) + 1).padStart(2, '0')}`,
+    }));
+    const f = recapFacts(season[11], season, roster)!;
+    expect(f.notes.length).toBeLessThanOrEqual(10);
+    const shirtLines = f.notes.filter((n) => n.includes('of their'));
+    expect(shirtLines.length).toBeLessThanOrEqual(2);
+  });
+
+  it('welcomes a guest who took the night off the regulars', () => {
+    const past = Array.from({ length: 3 }, (_, i) => ({
+      ...night('AWN'),
+      id: `q${i}`,
+      date: `2026-05-0${i + 1}`,
+    }));
+    const withGuest: FixtureRecord = {
+      ...night('AWWWWWW'), // black take the night
+      id: 'guest-night',
+      date: '2026-05-09',
+      teams: { black: ['zarka'], white: ['w1'], blue: ['u1'] },
+      players: [
+        { id: 'zarka', name: 'זרקא', rating: 3 },
+        { id: 'w1', name: 'ירין', rating: 2 },
+        { id: 'u1', name: 'ניב', rating: 5 },
+      ],
+    };
+    const f = recapFacts(withGuest, [...past, withGuest], roster)!;
+    expect(f.notes.some((n) => n.includes('זרקא') && n.includes('guest'))).toBe(true);
+  });
+
   it('stays small enough to be a prompt rather than a database dump', () => {
     const fx = night('AWWNWNWWN');
     const size = JSON.stringify(recapFacts(fx, [fx], roster)).length;

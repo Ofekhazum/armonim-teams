@@ -40,7 +40,7 @@ const DEFAULT_MODEL = 'gemini-3.6-flash';
 // So: budget for the thinking *and* the writing, with room to spare. Output
 // tokens are the cheap part of a weekly report, and the free tier's limit is a
 // million a minute.
-const MAX_TOKENS = 8000;
+const MAX_TOKENS = 10000;
 // A recap is banter, not a legal document — but the numbers in it are load
 // bearing, so this sits below the playful end.
 const TEMPERATURE = 0.9;
@@ -170,8 +170,9 @@ ${list(facts.milestones, '- nothing was reached')}
 PAIRS WORTH MENTIONING
 ${list(facts.duos, '- none')}
 
-PERSONAL STORIES IN THIS NIGHT
-${list(facts.notes ?? [], '- none')}
+THE STORIES IN THIS NIGHT
+These are the good material. They are written as bare facts on purpose; your job is to turn the ones you use into the funniest true sentences in the report. Use as many as you can fit naturally, and give the strangest one room to breathe.
+${list(facts.notes ?? [], '- none this week; find the story in the results instead')}
 
 HOW TO WRITE IT.
 
@@ -186,7 +187,7 @@ Then five paragraphs, in this order, 280 to 380 words in total:
 1. THE OPENING. What kind of night it was and who won it. Use the shape, the number of matches, the lead changes and the change index. Do not open with the date.
 2. THE WINNERS. The team that took the night: their points, how many matches they played, their longest run, and the players in that team by name.
 3. THE OTHER TWO TEAMS. One or two sentences each, both of them, by name — points, matches played, longest run, and at least one player named from each. Neither team may be skipped, even if their night was quiet. A team that won nothing gets a line about that.
-4. THE PEOPLE. Milestones reached, the personal stories above, the player of the night, and anyone who won a lot or a little. If somebody beat an opponent who usually beats them, that is the best line in the report — say the old record and the new one. Somebody who played four or more and won nothing gets a sympathetic ribbing, not a kicking.
+4. THE PEOPLE. This is the heart of the report and it should be the longest paragraph. Milestones reached, the stories above, the player of the night, and anyone who won a lot or a little. Somebody who played four or more and won nothing gets a sympathetic ribbing rather than a kicking. Superstition is encouraged — if somebody keeps winning in one shirt colour, that is a curse and a blessing, not a coincidence.
 5. THE SIGN-OFF. One or two sentences looking forward to next week. Make somebody a promise or a threat about it.
 
 Rules:

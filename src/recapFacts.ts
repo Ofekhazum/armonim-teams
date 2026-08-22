@@ -25,7 +25,9 @@ import { TEAM_COLORS } from './balancer';
 import { duoFacts } from './duos';
 import { tonightsMilestones } from './milestones';
 import { nightStory, playerNight } from './nightStory';
-import { MIN_FACED, matchups } from './playerProfile';
+import { MIN_FACED, matchups, profileCounts, profileNights } from './playerProfile';
+import { isWinMilestone } from './milestones';
+import { lean, playerArcs } from './playerArcs';
 
 export interface RecapTeam {
   team: string; // 'Black' | 'White' | 'Blue' — named, not coded, so the model reads it
@@ -69,9 +71,27 @@ export interface RecapFacts {
 // How far behind somebody has to be, over how many matches, before the player
 // who keeps beating them counts as a bogey team rather than an opponent.
 const BOGEY_BEHIND = 4;
-// At most this many personal notes: the report is about a night, and fifteen
-// individual sub-plots is a list rather than a story.
-const MAX_NOTES = 8;
+// At most this many notes in total, and at most this many of any one kind.
+//
+// The cap is the point rather than a safety valve. A report is about 350 words;
+// hand it twelve equally-weighted facts and it picks three at random and
+// mentions none of them properly. Every detector below is gated so that it
+// fires on a night when the thing actually happened, and the two of each rule
+// stops one popular kind — a squad of fifteen all having worn three shirts —
+// crowding out the rare one.
+const MAX_NOTES = 10;
+const MAX_PER_KIND = 2;
+
+// Shirt luck: nights in a colour before it is worth a superstition, and how far
+// apart two colours have to be to be worth remarking on.
+const MIN_SHIRT_NIGHTS = 4;
+const SHIRT_GAP = 0.3;
+// A player is "back" after this many club nights away.
+const AWAY_NIGHTS = 3;
+// A career win milestone this close is worth pointing at.
+const NEAR_MILESTONE = 6;
+// A team that played this share of the night or less spent it watching.
+const BENCH_SHARE = 0.6;
 
 // English team keys even though the recap is written in Hebrew: these are
 // identifiers the prompt maps to Hebrew names, not copy. Keeping the facts in
@@ -202,46 +222,173 @@ function nightNotes(fixture: FixtureRecord, history: FixtureRecord[]): string[] 
   const log = fixture.matchLog ?? [];
   if (log.length === 0) return [];
   const before = history.filter((fx) => fx.date < fixture.date);
+  const asOf = history.filter((fx) => fx.date <= fixture.date);
   const teamOf = (id: string) => TEAM_COLORS.find((c) => fixture.teams[c].includes(id)) ?? null;
+  const rosterOf = new Set(before.flatMap((fx) => fx.players.map((p) => p.id)));
 
-  // tonight's head-to-head between each pair of teams
-  const pair = new Map<string, { won: number; lost: number }>();
-  const key = (a: TeamColor, b: TeamColor) => `${a}|${b}`;
+  // Notes are collected per kind and merged at the end, so one crowded kind
+  // cannot eat the whole list before a rarer one is even looked at.
+  const kinds = new Map<string, string[]>();
+  const add = (kind: string, line: string) => {
+    const got = kinds.get(kind) ?? [];
+    if (got.length < MAX_PER_KIND) got.push(line);
+    kinds.set(kind, got);
+  };
+
+  // tonight's head-to-head between each pair of teams, in order, so both the
+  // rivalry note and the turnaround below can be read off it
+  const meetings = new Map<string, TeamColor[]>();
+  const pairKey = (a: TeamColor, b: TeamColor) => [a, b].sort().join('|');
   for (const m of log) {
     const loser = m.winner === m.a ? m.b : m.a;
-    const w = pair.get(key(m.winner, loser)) ?? { won: 0, lost: 0 };
-    w.won++;
-    pair.set(key(m.winner, loser), w);
-    const l = pair.get(key(loser, m.winner)) ?? { won: 0, lost: 0 };
-    l.lost++;
-    pair.set(key(loser, m.winner), l);
+    const k = pairKey(m.winner, loser);
+    meetings.set(k, [...(meetings.get(k) ?? []), m.winner]);
   }
 
-  const notes: string[] = [];
+  // 🔁 Revenge inside the night — beaten twice by the same team early, and
+  // beating them at least twice later. Two-and-two rather than one-and-one,
+  // because with three teams sharing a pitch a single win back is just the
+  // evening happening.
+  for (const [k, winners] of meetings) {
+    const [a, b] = k.split('|') as TeamColor[];
+    for (const [x, y] of [
+      [a, b],
+      [b, a],
+    ] as [TeamColor, TeamColor][]) {
+      const lostEarly = winners.slice(0, 2).every((w) => w === y);
+      const wonLate = winners.slice(2).filter((w) => w === x).length >= 2;
+      if (winners.length >= 4 && lostEarly && wonLate) {
+        add(
+          'revenge',
+          `${LABEL[x]} lost their first two meetings with ${LABEL[y]} tonight and then beat them twice`,
+        );
+      }
+    }
+  }
+
+  // 🪑 Bench time — the team that spent the night watching.
+  for (const c of TEAM_COLORS) {
+    const played = log.filter((m) => m.a === c || m.b === c).length;
+    if (played / log.length <= BENCH_SHARE) {
+      add(
+        'bench',
+        `${LABEL[c]} were only on the pitch for ${played} of the ${log.length} matches — they watched more football than they played`,
+      );
+    }
+  }
 
   for (const p of fixture.players) {
-    if (notes.length >= MAX_NOTES) break;
     const mine = teamOf(p.id);
     if (!mine) continue;
+    const isGuest = !rosterOf.has(p.id);
+    const mine_ = mine;
+
+    // ⭐ Guest form — somebody's mate turning up and taking the night off the
+    // regulars, which is the most enjoyable result in five-a-side.
+    if (isGuest) {
+      const top = Math.max(...TEAM_COLORS.map((c) => fixture.wins[c] ?? 0));
+      if (top > 0 && (fixture.wins[mine_] ?? 0) === top) {
+        add('guest', `${p.name} was a guest tonight and finished on the winning team`);
+      }
+      // everything below reads a career, and a guest does not have one
+      continue;
+    }
+
+    const mine_nights = profileNights(asOf, p.id);
+    const past = profileNights(before, p.id);
+
+    // 👕 Shirt luck — the colour they win in against the one they do not.
+    // Superstition, and said as superstition: three shirts is not a treatment
+    // effect, it is a thing to blame.
+    const byShirt = TEAM_COLORS.map((c) => {
+      const inIt = mine_nights.filter((n) => n.shirt === c && n.won !== null);
+      const won = inIt.filter((n) => n.won).length;
+      return { c, played: inIt.length, rate: inIt.length ? won / inIt.length : 0, won };
+    }).filter((x) => x.played >= MIN_SHIRT_NIGHTS);
+    if (byShirt.length >= 2) {
+      const best = [...byShirt].sort((x, y) => y.rate - x.rate)[0];
+      const worst = [...byShirt].sort((x, y) => x.rate - y.rate)[0];
+      if (best.c !== worst.c && best.rate - worst.rate >= SHIRT_GAP) {
+        add(
+          'shirt',
+          `${p.name} has won ${best.won} of their ${best.played} nights in ${LABEL[best.c].toLowerCase()} and ${worst.won} of their ${worst.played} in ${LABEL[worst.c].toLowerCase()}${
+            mine_ === best.c
+              ? ` — and tonight they were in ${LABEL[best.c].toLowerCase()}`
+              : mine_ === worst.c
+                ? ` — and tonight they were in ${LABEL[worst.c].toLowerCase()}`
+                : ''
+          }`,
+        );
+      }
+    }
+
+    // 🕰️ First night since — how many club nights went by without them.
+    const lastSeen = past[past.length - 1];
+    if (lastSeen) {
+      const missed = before.filter((fx) => fx.date > lastSeen.date).length;
+      if (missed >= AWAY_NIGHTS) {
+        add(
+          'return',
+          `${p.name} is back after missing ${missed} nights — their last one was ${lastSeen.date}`,
+        );
+      }
+    }
+
+    // 💤 The drought ended — nights on a losing side, and tonight not.
+    const decided = past.filter((n) => n.won !== null);
+    let drought = 0;
+    for (let i = decided.length - 1; i >= 0 && decided[i].won === false; i--) drought++;
+    const tonightWon = mine_nights[mine_nights.length - 1]?.won === true;
+    if (tonightWon && drought >= 4) {
+      add(
+        'drought',
+        `${p.name} had not been on a winning team for ${drought} nights, and tonight they were`,
+      );
+    }
+
+    // 🎯 Now N from a milestone — said after the night rather than before it,
+    // which is the difference between a promise and a countdown.
+    const wins = Math.floor(profileCounts(mine_nights).wins);
+    for (let w = wins + 1; w <= wins + NEAR_MILESTONE; w++) {
+      if (isWinMilestone(w)) {
+        add('milestone', `${p.name} is now ${w - wins} match wins short of ${w}`);
+        break;
+      }
+    }
+
+    // ⏳ Late surge — the half of a night they are actually good in. This is
+    // the one number here that is about a habit rather than an event, which is
+    // why it waits for both halves to be worth comparing (see playerArcs).
+    const arcs = playerArcs(before, p.id);
+    const which = lean(arcs);
+    if (which === 'late' || which === 'early') {
+      add(
+        'halves',
+        which === 'late'
+          ? `${p.name} is a slow starter: ${arcs.early.won} of ${arcs.early.played} in their first matches of a night, ${arcs.late.won} of ${arcs.late.played} in their last`
+          : `${p.name} fades: ${arcs.early.won} of ${arcs.early.played} in their first matches of a night, ${arcs.late.won} of ${arcs.late.played} in their last`,
+      );
+    }
 
     // who, coming into tonight, had the clearest hold over them
     const bogey = matchups(before, p.id)
       .filter((m) => m.faced >= MIN_FACED && m.beatenBy - m.beat >= BOGEY_BEHIND)
       .sort((a, b) => b.beatenBy - b.beat - (a.beatenBy - a.beat))[0];
-    if (!bogey) continue;
-
-    const theirs = teamOf(bogey.id);
-    if (!theirs || theirs === mine) continue;
-    const tonight = pair.get(key(mine, theirs));
-    if (!tonight || tonight.won <= tonight.lost) continue;
-
-    // Said as a story rather than as a record. The first version read
-    // "came into tonight 2-8 down against ירין across their careers, and
-    // tonight ניב's team beat ירין's 3-1", which is four numbers for one joke
-    // and buries the joke under them.
-    notes.push(
-      `${p.name} nearly always comes off worse against ${bogey.name} — and tonight ${p.name}'s team beat theirs`,
-    );
+    if (bogey) {
+      const theirs = teamOf(bogey.id);
+      const k = theirs && theirs !== mine_ ? pairKey(mine_, theirs) : null;
+      const won = k ? (meetings.get(k) ?? []).filter((w) => w === mine_).length : 0;
+      const lost = k ? (meetings.get(k) ?? []).length - won : 0;
+      if (k && won > lost) {
+        // Said as a story rather than as a record. The first version read
+        // "came into tonight 2-8 down against ירין across their careers", which
+        // is four numbers for one joke and buries the joke under them.
+        add(
+          'bogey',
+          `${p.name} nearly always comes off worse against ${bogey.name} — and tonight ${p.name}'s team beat theirs`,
+        );
+      }
+    }
   }
 
   // Who had the most of the night and who had the least of it. Both are in the
@@ -254,32 +401,29 @@ function nightNotes(fixture: FixtureRecord, history: FixtureRecord[]): string[] 
     if (!n) continue;
     if (n.won > best.won) best = { names: [p.name], won: n.won };
     else if (n.won === best.won && best.won > 0) best.names.push(p.name);
-    // a long evening with nothing to show for it, which is a fact about their
-    // team's results and fair game — see the teasing rule in the prompt
     if (n.won === 0 && n.played >= 4) rough.push(p.name);
   }
   if (best.won > 0 && best.names.length <= 5) {
-    notes.push(`Most matches won tonight: ${best.names.join(', ')} with ${best.won}`);
+    add('best', `Most matches won tonight: ${best.names.join(', ')} with ${best.won}`);
   }
   if (rough.length > 0 && rough.length <= 5) {
-    notes.push(`Played at least 4 and won none of them: ${rough.join(', ')}`);
+    add('rough', `Played at least 4 and won none of them: ${rough.join(', ')}`);
   }
 
-  // A personal best, which the app has never told anybody about: the most
-  // matches they have ever won in one evening.
-  for (const p of fixture.players) {
-    if (notes.length >= MAX_NOTES) break;
-    const n = playerNight(fixture, p.id);
-    if (!n || n.won < 3) continue;
-    let bestEver = 0;
-    for (const fx of before) {
-      const had = playerNight(fx, p.id);
-      if (had && had.won > bestEver) bestEver = had.won;
-    }
-    if (bestEver > 0 && n.won > bestEver) {
-      notes.push(`${p.name} won more matches tonight than on any night they have played before`);
-    }
-  }
-
-  return notes.slice(0, MAX_NOTES);
+  // Rarest first, so the cap drops the ordinary end. A squad of fifteen
+  // produces shirt records every week; a drought breaking is a season event.
+  const ORDER = [
+    'bogey',
+    'drought',
+    'revenge',
+    'return',
+    'guest',
+    'milestone',
+    'shirt',
+    'halves',
+    'bench',
+    'best',
+    'rough',
+  ];
+  return ORDER.flatMap((k) => kinds.get(k) ?? []).slice(0, MAX_NOTES);
 }

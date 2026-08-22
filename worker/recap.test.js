@@ -140,12 +140,17 @@ describe('buildPrompt', () => {
     expect(p).toMatch(/Never stop mid-sentence/);
   });
 
-  it('carries the personal stories, and says plainly when there are none', () => {
-    const withNote = buildPrompt(
-      facts({ notes: ['ניב came into tonight 2-8 down against ירין'] }),
-    );
-    expect(withNote).toContain('2-8 down against ירין');
-    expect(buildPrompt(facts({ notes: [] }))).toContain('PERSONAL STORIES');
+  it('carries the stories, and says plainly when there are none', () => {
+    const withNote = buildPrompt(facts({ notes: ['ניב nearly always comes off worse against ירין'] }));
+    expect(withNote).toContain('comes off worse against ירין');
+    expect(buildPrompt(facts({ notes: [] }))).toContain('none this week');
+  });
+
+  it('tells the model the notes are material rather than lines to print', () => {
+    // they arrive as bare facts on purpose; a fact printed as written is the
+    // statistical vibe this whole feature keeps sliding back into
+    expect(p).toMatch(/written as bare facts on purpose/);
+    expect(p).toMatch(/funniest true sentences/);
   });
 });
 

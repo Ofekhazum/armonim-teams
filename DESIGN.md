@@ -1578,6 +1578,21 @@ turned up once above regulars who had played all season, and the report duly rep
 it meant something. A standing needs a minimum-nights rule before it is worth quoting — §2.6 has one
 for exactly this reason — and the report is about a night rather than a season.
 
+**Eight detectors feed `notes`, and the cap is the point rather than a safety valve.** 👕 shirt luck
+(the colour they win in against the one they do not), 🔁 revenge inside the night (beaten twice by the
+same team early, beating them twice later), 🪑 bench time, 🕰️ first night back after missing three or
+more, 💤 a drought of four losing nights ending, ⭐ a guest finishing on the winning team, 🎯 how few
+wins short of a career milestone they now are, and ⏳ which half of a night they are actually good in.
+A report is about 350 words: hand it twelve equally-weighted facts and it picks three at random and
+mentions none of them properly. So each detector is gated to fire on a night when the thing actually
+happened, at most two of any one kind travel, and they are ordered rarest first — a squad of fifteen
+produces shirt records every week, where a drought breaking is a season event.
+
+**The notes are written as bare facts on purpose**, and the prompt says so: they are material, not
+lines to print. A fact printed as written is the statistical vibe this feature keeps sliding back
+into — *"מדד השינוי: 47"*, *"came into tonight 2-8 down"* — and the fix each time has been to send
+less number and more situation.
+
 **Personal history is told as a story, not as a record.** The bogey line first read *"came into
 tonight 2-8 down against ירין across their careers, and tonight ניב's team beat ירין's 3-1"* — four
 numbers stacked around one joke, which is three too many. It is one sentence now, and the prompt says
