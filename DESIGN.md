@@ -1861,6 +1861,43 @@ guarding against, not the chaining one. The end-of-night dialog takes it conditi
 **Not covered by a test.** There is no jsdom or component-test setup in this repo (§7), so this is
 verified by reading and by use on a phone; the logic is deliberately small enough to read.
 
+### 2.27 The organiser's note (`FixtureRecord.note`)
+
+**One box, at the end of the night, that never appears on a page.** Everything the reporter is handed
+is *counted* — who beat whom, in what order — which is exactly why a night full of things that
+happened can read as a night of arithmetic. The ball over the fence is not in the match log and never
+will be. So filing a night now asks one optional question, and whatever is typed goes to the reporter
+and nowhere else.
+
+**A second step rather than a box on the ending panel**, because it only applies to a night being
+kept: one being thrown away has nothing worth remembering. Empty is the normal answer and costs one
+tap. `NOTE_MAX` is 280 — the reporter is being given a detail to hang a joke on, not a second match
+report to compete with the first.
+
+**It is never rendered.** Not on the fixture page, not on the night page, not for an admin. A note
+printed on the page it describes is the report's punchline printed above the report — and the whole
+value of it is that the write-up says something nobody could have worked out from the results. The
+only place it is visible is the field you edit it in.
+
+**Editing and deleting are admin-only**, in the same History drawer as the result and the MVP pick,
+which is where every other correction to a filed night already lives. Emptying the box deletes it;
+`note` is spread as an explicit `undefined` for exactly the reason `mvpId` is (§2.6), since a key
+merely omitted from the patch would leave the old value in place.
+
+**Three layers had to agree** for a note to survive. `recapFacts` carries it as `said`, absent rather
+than empty so the prompt never has to ignore a blank field. `isValidFacts` caps it at 400 — the one
+field in that payload that is prose rather than a counted thing, so the one that could arrive as a
+wall of text. And `isValidFixtures` on the Worker had to be taught to allow it, without which filing
+a night that had one would have failed the publish of *the entire season*, not just the note.
+
+**The prompt frames it as evidence, not licence.** It is presented as true and as the best thing in
+the record — nothing else there is an actual event — and told to work it in properly and be as funny
+about it as it deserves. Then three fences: do not invent detail around it, do not treat it as
+permission to describe goals or saves (the standing rule against inventing football, §2.24), and the
+ribbing line applies to whoever is named in it like everything else. The heading and the sentence in
+paragraph 4 pointing at it are both conditional, so a night without a note carries no empty section
+for the model to fill in.
+
 ## 3. Team generation algorithm
 
 Balancing is a small constrained optimization. With ≤15 players, brute force is too big

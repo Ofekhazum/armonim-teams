@@ -8,7 +8,7 @@ import type {
   TeamColor,
   Teams,
 } from '../types';
-import { roleBadge } from '../types';
+import { NOTE_MAX, roleBadge } from '../types';
 import { TEAM_COLORS, lineupOrder, teamStats } from '../balancer';
 import { STYLE_META } from './ui';
 import MatchClock from './MatchClock';
@@ -37,7 +37,7 @@ interface Props {
   // the live fixture this page is running, if it has been published — what the
   // alerts toggle attaches an opt-in to
   liveFixtureId: string | null;
-  onSaveResults: () => void;
+  onSaveResults: (note?: string) => void;
   saved: boolean;
   savedFixtureId: string | null;
   isAdmin: boolean;
@@ -80,16 +80,22 @@ export default function FixturePage({
   // it: the real question is not whether to end but what to do with the result
   // first, and a browser dialog can only offer yes and no.
   const [ending, setEnding] = useState(false);
+  // The second step, and only for somebody who chose to file: a night that is
+  // being thrown away has nothing to remember about it.
+  const [noting, setNoting] = useState(false);
+  const [note, setNote] = useState('');
   // Only while the dialog is up. A modal is a `fixed inset-0` panel like any
   // other, and the page behind it scrolling — or rubber-banding out from under
   // it on iOS — is the same bug (see scrollLock.ts).
-  useScrollLock(ending);
+  useScrollLock(ending || noting);
   const anyResult = matchLog.length > 0 || TEAM_COLORS.some((c) => (wins[c] ?? 0) > 0);
   const finish = (fileIt: boolean) => {
     // Filed first, then ended: `onSaveResults` reads the session that
     // `onEndFixture` is about to clear.
-    if (fileIt) onSaveResults();
+    if (fileIt) onSaveResults(note.trim() || undefined);
     setEnding(false);
+    setNoting(false);
+    setNote('');
     onEndFixture();
   };
 
@@ -142,6 +148,56 @@ export default function FixturePage({
           hands is a bad place to keep a decision you can only make once. It
           lives on the History tab now, on the night it belongs to (§2.13). */}
 
+      {/* One question after filing, and the only free text anywhere in a
+          fixture record. Everything else the reporter is handed is counted —
+          who beat whom, in what order — which is exactly why a night full of
+          things that happened reads as a night of arithmetic. The ball over
+          the fence is not in the match log and never will be.
+
+          A second step rather than a box on the panel before it, because it
+          only applies to a night being kept: one being thrown away has nothing
+          to remember about it. Empty is the normal answer and costs one tap. */}
+      {noting && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-amber-950/40 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-amber-900/20 bg-[#fffdf4] p-5 shadow-xl">
+            <h3 className="text-lg font-black text-amber-950">Anything worth remembering?</h3>
+            <p className="mt-2 text-sm text-amber-900/70">
+              Optional, and it goes to the reporter — the one thing in the night's write-up that
+              can't be worked out from the results. Skip it and nothing changes.
+            </p>
+            <textarea
+              value={note}
+              onChange={(e) => setNote(e.target.value.slice(0, NOTE_MAX))}
+              rows={3}
+              autoFocus
+              placeholder="טום העיף את הכדור מעבר לגדר 5 פעמים"
+              className="mt-3 w-full rounded-xl border border-amber-900/25 bg-white px-3 py-2 text-sm text-amber-950 outline-none focus:border-orange-500"
+            />
+            <div className="mt-1 text-right text-[11px] text-amber-900/35">
+              {note.trim().length}/{NOTE_MAX}
+            </div>
+            <div className="mt-3 flex flex-col gap-2">
+              <button
+                onClick={() => finish(true)}
+                className="rounded-xl bg-orange-600 px-4 py-2.5 text-sm font-bold text-amber-50 shadow-sm transition-transform hover:scale-[1.02]"
+              >
+                🗂️ {note.trim() ? 'Save with the note & end' : 'Save to history & end'}
+              </button>
+              <button
+                onClick={() => {
+                  setNote('');
+                  setNoting(false);
+                  setEnding(true);
+                }}
+                className="rounded-xl border border-amber-900/25 px-4 py-2 text-sm font-bold text-amber-900 hover:border-orange-500"
+              >
+                ← Back
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* The end of the night, asked properly. Three answers rather than two:
           the result is filed and the night ends, the night ends and the result
           is thrown away, or neither yet. */}
@@ -163,7 +219,10 @@ export default function FixturePage({
             <div className="mt-4 flex flex-col gap-2">
               {isAdmin ? (
                 <button
-                  onClick={() => finish(true)}
+                  onClick={() => {
+                    setEnding(false);
+                    setNoting(true);
+                  }}
                   className="rounded-xl bg-orange-600 px-4 py-2.5 text-sm font-bold text-amber-50 shadow-sm transition-transform hover:scale-[1.02]"
                 >
                   🗂️ {saved ? 'Update history & end' : 'Save to history & end'}

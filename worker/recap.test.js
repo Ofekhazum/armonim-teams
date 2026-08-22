@@ -91,6 +91,22 @@ describe('buildPrompt', () => {
     expect(buildPrompt(facts({ winners: [] }))).toContain('nobody');
   });
 
+  it('puts the organiser’s note in the prompt, and says nothing when there is none', () => {
+    const said = buildPrompt(facts({ said: 'Tom kicked the ball over the fence 5 times' }));
+    expect(said).toContain('WHAT THE ORGANISER SAID HAPPENED');
+    expect(said).toContain('Tom kicked the ball over the fence 5 times');
+    // it must not become a licence to describe the football itself
+    expect(said).toMatch(/do not treat it as permission to describe goals/i);
+    // and a night without one carries no empty heading for the model to fill
+    expect(p).not.toContain('WHAT THE ORGANISER SAID HAPPENED');
+  });
+
+  it('accepts a note in the facts, and refuses a wall of text', () => {
+    expect(isValidFacts(facts({ said: 'a real thing that happened' }))).toBe(true);
+    expect(isValidFacts(facts({ said: 'x'.repeat(401) }))).toBe(false);
+    expect(isValidFacts(facts({ said: 7 }))).toBe(false);
+  });
+
   it('says the shirts are redrawn, and keeps next week off the colours', () => {
     // The one thing about this club a model cannot infer from a night's
     // results: the colours are reassigned every week, so a sign-off promising

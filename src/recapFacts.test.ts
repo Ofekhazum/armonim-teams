@@ -253,6 +253,18 @@ describe('recapFacts', () => {
     expect(f.notes.some((n) => n.includes('זרקא') && n.includes('guest'))).toBe(true);
   });
 
+  it('passes the organiser’s note through, and omits it when there is none', () => {
+    // The only line in the payload the app did not work out for itself (§2.27),
+    // and the only route by which something off the scoreboard reaches the
+    // report. Absent and empty are the same thing, so an empty one does not
+    // travel as a field the prompt then has to ignore.
+    const fx = night('AWN', { note: '  טום העיף את הכדור מעבר לגדר 5 פעמים  ' });
+    expect(recapFacts(fx, [fx], roster)!.said).toBe('טום העיף את הכדור מעבר לגדר 5 פעמים');
+
+    expect(recapFacts(night('AWN'), [night('AWN')], roster)!.said).toBeUndefined();
+    expect(recapFacts(night('AWN', { note: '   ' }), [night('AWN')], roster)!.said).toBeUndefined();
+  });
+
   it('stays small enough to be a prompt rather than a database dump', () => {
     const fx = night('AWWNWNWWN');
     const size = JSON.stringify(recapFacts(fx, [fx], roster)).length;

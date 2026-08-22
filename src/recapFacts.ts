@@ -66,6 +66,12 @@ export interface RecapFacts {
   // says: who had the best of it, and — the one worth having — who ran into
   // the opponent who usually beats them and came out ahead.
   notes: string[];
+  // What the organiser typed as they filed the night, if anything. Everything
+  // else here was counted; this is the only line the app did not work out for
+  // itself, and it is the only route by which something that happened off the
+  // scoreboard — the ball over the fence, the shirt worn inside out — reaches
+  // the report at all.
+  said?: string;
 }
 
 // How far behind somebody has to be, over how many matches, before the player
@@ -202,6 +208,7 @@ export function recapFacts(
     milestones,
     duos,
     notes,
+    ...(fixture.note?.trim() ? { said: fixture.note.trim() } : {}),
   };
 }
 

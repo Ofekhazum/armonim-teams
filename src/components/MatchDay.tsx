@@ -8,7 +8,14 @@ import type {
   Session,
   Teams,
 } from '../types';
-import { ATTACK_DEFAULT, emptyWins, initialClock, liveFixtureId, roleBadge } from '../types';
+import {
+  ATTACK_DEFAULT,
+  NOTE_MAX,
+  emptyWins,
+  initialClock,
+  liveFixtureId,
+  roleBadge,
+} from '../types';
 import {
   emptySession,
   getHostRoom,
@@ -350,7 +357,7 @@ export default function MatchDay({
   // piling up duplicates, so correcting a typo doesn't invent a second night.
   // The team sheet and everyone's name/rating are snapshotted, because guests
   // vanish and ratings move — history has to stay readable years later.
-  const saveNight = () => {
+  const saveNight = (note?: string) => {
     // defense in depth: the button that calls this is already hidden for a
     // non-admin, but a write that reaches App.syncHistory needs the admin
     // word regardless of how it got triggered
@@ -376,6 +383,9 @@ export default function MatchDay({
             blue: session.wins.blue ?? 0,
           },
       ...(matchLog.length ? { matchLog } : {}),
+      // Only when there is one. An absent note and an empty one are the same
+      // thing, and the reporter's payload should not have to tell them apart.
+      ...(note ? { note: note.slice(0, NOTE_MAX) } : {}),
       // No mvpId: it is picked afterwards, on the History tab. App.saveFixture
       // carries any existing pick across a re-save so filing the night again
       // doesn't wipe it.

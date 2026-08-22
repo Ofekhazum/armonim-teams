@@ -139,6 +139,12 @@ export const emptyWins = (): DraftTeamWins => ({ black: null, white: null, blue:
 // Who played, captured at the time. Guests are one-off and renames happen, so
 // a fixture keeps its own copy of names/ratings rather than pointing at the
 // live roster and going stale.
+// How long the organiser's note may be. Sized for a sentence or two of
+// "what happened that the scoreboard missed" — the reporter is being given a
+// detail to hang a joke on, not a second match report to compete with the
+// first. Enforced on the way in and again on the Worker.
+export const NOTE_MAX = 280;
+
 export interface FixturePlayer {
   id: string;
   name: string;
@@ -162,6 +168,15 @@ export interface FixtureRecord {
   // id from `players` (guests included); see src/mvp.ts for how it's tallied
   // into a count.
   mvpId?: string;
+  // Whatever the organiser thought was worth remembering, typed as the night
+  // was filed — "Tom put it over the fence five times". The one thing on a
+  // fixture that is neither counted nor derived, and the only route by which
+  // something the app cannot see gets into the night's report (§2.24).
+  //
+  // Kept on the record rather than alongside it because a report is usually
+  // written days later, off a page that reads the night back: a note that
+  // lived in the session would be gone by then.
+  note?: string;
 }
 
 export interface AppState {

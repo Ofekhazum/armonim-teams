@@ -119,6 +119,10 @@ export function isValidFacts(facts) {
     isStrList(facts.duos, 6) &&
     // absent on a client that predates these; an empty list, not a fault
     (facts.notes === undefined || isStrList(facts.notes, 10)) &&
+    // the organiser's own line. Capped here as well as in the app: this is the
+    // one field in the payload that is prose rather than a counted thing, so
+    // it is the one that could arrive as a wall of text.
+    (facts.said === undefined || isStr(facts.said, 400)) &&
     // sent by one build and taken back out; accepted so an older client is not
     // refused, ignored by the prompt
     (facts.table === undefined || isStrList(facts.table, 5))
@@ -182,7 +186,16 @@ ${list(facts.milestones, '- nothing was reached')}
 PAIRS WORTH MENTIONING
 ${list(facts.duos, '- none')}
 
-THE STORIES IN THIS NIGHT
+${
+    facts.said
+      ? `WHAT THE ORGANISER SAID HAPPENED
+"${facts.said}"
+
+This is the one line here that was not counted — somebody who was there typed it as they filed the night, and it is true. It is also the only thing in this report that the scoreboard could never have told you, so use it: work it into the report properly, give it a sentence of its own or more, and be as funny about it as it deserves. Do not invent detail around it — say what it says and no more than what it says — and do not treat it as permission to describe goals, saves or moments in the matches. Whoever is named in it is fair game on exactly the terms below: the ribbing rules apply to this line like everything else.
+
+`
+      : ''
+  }THE STORIES IN THIS NIGHT
 These are the good material. They are written as bare facts on purpose; your job is to turn the ones you use into the funniest true sentences in the report. Use as many as you can fit naturally, and give the strangest one room to breathe.
 ${list(facts.notes ?? [], '- none this week; find the story in the results instead')}
 
@@ -199,7 +212,11 @@ Then five paragraphs, in this order, 280 to 380 words in total:
 1. THE OPENING. What kind of night it was and who won it. Use the shape, the number of matches, the lead changes and the change index. Do not open with the date.
 2. THE WINNERS. The team that took the night: their points, how many matches they played, their longest run, and the players in that team by name.
 3. THE OTHER TWO TEAMS. One or two sentences each, both of them, by name — points, matches played, longest run, and at least one player named from each. Neither team may be skipped, even if their night was quiet. A team that won nothing gets a line about that.
-4. THE PEOPLE. This is the heart of the report and it should be the longest paragraph. Milestones reached, the stories above, the player of the night, and anyone who won a lot or a little. Somebody who played four or more and won nothing gets a sympathetic ribbing rather than a kicking. Superstition is encouraged — if somebody keeps winning in one shirt colour, that is a curse and a blessing, not a coincidence.
+4. THE PEOPLE. This is the heart of the report and it should be the longest paragraph.${
+    facts.said
+      ? ' The line under WHAT THE ORGANISER SAID HAPPENED belongs here, and it is the best thing you have been given — nothing else in this record is an actual event.'
+      : ''
+  } Milestones reached, the stories above, the player of the night, and anyone who won a lot or a little. Somebody who played four or more and won nothing gets a sympathetic ribbing rather than a kicking. Superstition is encouraged — if somebody keeps winning in one shirt colour, that is a curse and a blessing, not a coincidence.
 5. THE SIGN-OFF. One or two sentences looking forward to next week. Make somebody a promise or a threat about it — and it must be **people, by name**. Never aim it at a shirt colour: the teams are redrawn, so "if השחורים don't start winning next week" is a threat against five people who will not be in that team. Name the players you are coming for.
 
 Rules:
