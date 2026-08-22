@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import type { FixtureRecord, Player, TeamColor, TonightPlayer } from '../types';
 import { TEAM_COLORS } from '../balancer';
 import { tonightsMilestones } from '../milestones';
@@ -21,7 +21,36 @@ interface Props {
   fixture: FixtureRecord;
   history: FixtureRecord[];
   players: Player[]; // the roster, only to tell a guest from a squad member
+  // The nights either side of this one, already in date order by the caller.
+  // Null at the ends of the archive, which is what greys the arrow out.
+  older: FixtureRecord | null;
+  newer: FixtureRecord | null;
+  onGo: (fixtureId: string) => void;
   onClose: () => void;
+}
+
+// One step through the archive. Rendered even when there is nowhere to go, so
+// the row does not reflow as you reach either end of the season.
+function Step({
+  to,
+  onGo,
+  label,
+}: {
+  to: FixtureRecord | null;
+  onGo: (id: string) => void;
+  label: string;
+}) {
+  return (
+    <button
+      disabled={!to}
+      onClick={() => to && onGo(to.id)}
+      title={to ? to.date : 'nothing recorded that way'}
+      className="rounded-lg border border-amber-900/25 px-2.5 py-1.5 text-xs font-bold text-amber-900 transition-colors hover:border-orange-500 disabled:opacity-30 disabled:hover:border-amber-900/25"
+    >
+      {label}
+      {to && <span className="ml-1.5 font-mono font-normal text-amber-900/50">{to.date}</span>}
+    </button>
+  );
 }
 
 // One tile per match, coloured by who won it — and because the winner stays
@@ -60,14 +89,35 @@ const factLine = (f: NightFact): string => {
   }
 };
 
-export default function NightPage({ fixture, history, players, onClose }: Props) {
+export default function NightPage({
+  fixture,
+  history,
+  players,
+  older,
+  newer,
+  onGo,
+  onClose,
+}: Props) {
+  // Left goes back in time, right comes forward — the arrows point the way the
+  // dates run, not the way the list is sorted.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
+      if (e.key === 'ArrowLeft' && older) onGo(older.id);
+      if (e.key === 'ArrowRight' && newer) onGo(newer.id);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  }, [onClose, onGo, older, newer]);
+
+  // Stepping to another night must start at the top of it. Without this the
+  // overlay keeps the scroll position from the night before, so a short night
+  // after a long one opens somewhere in the middle of itself — or, worse, below
+  // its own content.
+  const scroller = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    scroller.current?.scrollTo({ top: 0 });
+  }, [fixture.id]);
 
   const story = useMemo(() => nightStory(fixture), [fixture]);
   const log = fixture.matchLog ?? [];
@@ -98,19 +148,30 @@ export default function NightPage({ fixture, history, players, onClose }: Props)
   const winners = TEAM_COLORS.filter((c) => (fixture.wins[c] ?? 0) === top && top > 0);
 
   return (
-    <div className="fixed inset-0 z-40 overflow-y-auto bg-[#fdf6e3]">
+    <div ref={scroller} className="fixed inset-0 z-40 overflow-y-auto bg-[#fdf6e3]">
       <div className="mx-auto max-w-3xl space-y-3 px-3 pb-16 pt-4 sm:px-6">
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={onClose}
             className="rounded-lg border border-amber-900/25 px-3 py-1.5 text-sm font-bold text-amber-900 transition-colors hover:border-orange-500"
           >
-            ← Back
+            ✕ Close
           </button>
-          <span className="text-sm text-amber-900/50">{fixture.date}</span>
+          <div className="flex-1" />
+          {/* The neighbouring dates are on the buttons rather than under them:
+              an arrow that says where it goes needs no explaining, and reading
+              a season is mostly checking you have not already seen this one. */}
+          <Step to={older} onGo={onGo} label="← older" />
+          <Step to={newer} onGo={onGo} label="newer →" />
         </div>
 
         <div className="rounded-2xl border border-amber-900/15 bg-gradient-to-br from-amber-100/70 via-[#fffdf4] to-[#fffdf4] p-4 shadow-sm">
+          {/* The date belongs on the night rather than up in the toolbar: the
+              arrows carry their own dates now, and with three of them in one
+              row the one you are actually reading was the easiest to lose. */}
+          <div className="text-[11px] font-bold uppercase tracking-wide text-amber-900/40">
+            {fixture.date}
+          </div>
           <h2 className="text-2xl font-black tracking-tight text-amber-950">
             {story ? story.headline : 'The night'}
           </h2>

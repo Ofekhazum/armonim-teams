@@ -86,7 +86,16 @@ export default function History({
   // the night being read back in full, over the top of everything — same
   // overlay pattern as a player page (§2.22)
   const [storyId, setStoryId] = useState<string | null>(null);
-  const story = history.find((fx) => fx.id === storyId) ?? null;
+  // Newest first by date, not by when a night happened to be saved — one filed
+  // late, or one whose date was corrected, still sorts where it belongs. The
+  // same order the list is drawn in, so stepping through the overlay walks the
+  // rows in the order they are on screen.
+  const nights = useMemo(
+    () => [...history].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0)),
+    [history],
+  );
+  const at = storyId === null ? -1 : nights.findIndex((fx) => fx.id === storyId);
+  const story = at >= 0 ? nights[at] : null;
   const periods = useMemo(() => wrappedPeriods(history), [history]);
   const [wrappedPeriod, setWrappedPeriod] = useState('');
   const [sharingWrapped, setSharingWrapped] = useState(false);
@@ -460,12 +469,8 @@ export default function History({
           <span className="text-sm font-normal text-amber-900/50">({history.length})</span>
           <span className="text-xs text-amber-900/40">{nightsExpanded ? '▲ hide' : '▼ show'}</span>
         </button>
-        {/* newest first by date, not by when it happened to be saved — a night
-            filed late, or one whose date was corrected, still sorts correctly */}
         {nightsExpanded &&
-          [...history]
-            .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0))
-            .map((fx) => {
+          nights.map((fx) => {
           const open = openId === fx.id;
           // a night written down match by match, rather than tallied from
           // memory at the end — the record is the matches, and the wins are
@@ -692,6 +697,10 @@ export default function History({
           fixture={story}
           history={history}
           players={players}
+          // newest first, so the next entry along is the older night
+          older={nights[at + 1] ?? null}
+          newer={nights[at - 1] ?? null}
+          onGo={setStoryId}
           onClose={() => setStoryId(null)}
         />
       )}

@@ -1436,6 +1436,13 @@ a tenth night that was already a fifteenth), and guest-ness is **inferred** from
 `FixturePlayer` carries a name and a rating but never a guest flag — without that, a returning guest
 would be making their debut on every night page in the archive.
 
+**The archive is walkable.** ← older / newer → step to the nights either side without closing the
+overlay, with arrow keys bound to the same thing and the neighbour's date printed on the button —
+reading back through a season is mostly checking whether you have already seen this one. The scroll
+position resets on every step, or a short night opened after a long one starts somewhere in the
+middle of itself. The dates run left to right regardless of the list being newest-first, because an
+arrow points the way time goes, not the way an array is sorted.
+
 **A tallied night gets the page and says why it is thin**, rather than rendering empty boxes: there
 is no sequence in three totals, and inventing one would be making it up. Same honesty as the
 head-to-head card (§2.18).
