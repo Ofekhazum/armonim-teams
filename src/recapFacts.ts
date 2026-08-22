@@ -26,6 +26,7 @@ import { duoFacts } from './duos';
 import { tonightsMilestones } from './milestones';
 import { nightStory, playerNight } from './nightStory';
 import { MIN_FACED, matchups } from './playerProfile';
+import { playerStandings } from './calibration';
 
 export interface RecapTeam {
   team: string; // 'Black' | 'White' | 'Blue' — named, not coded, so the model reads it
@@ -64,6 +65,10 @@ export interface RecapFacts {
   // says: who had the best of it, and — the one worth having — who ran into
   // the opponent who usually beats them and came out ahead.
   notes: string[];
+  // Where the club stands after tonight, top few only. Group context: a report
+  // that can say somebody has gone top of the club is telling the group
+  // something about their season rather than only about their evening.
+  table: string[];
 }
 
 // How far behind somebody has to be, over how many matches, before the player
@@ -71,7 +76,9 @@ export interface RecapFacts {
 const BOGEY_BEHIND = 4;
 // At most this many personal notes: the report is about a night, and fifteen
 // individual sub-plots is a list rather than a story.
-const MAX_NOTES = 5;
+const MAX_NOTES = 8;
+// How many of the club's leaders travel with the report.
+const TABLE_SIZE = 3;
 
 // English team keys even though the recap is written in Hebrew: these are
 // identifiers the prompt maps to Hebrew names, not copy. Keeping the facts in
@@ -149,6 +156,12 @@ export function recapFacts(
   );
 
   const notes = nightNotes(fixture, history);
+  // the club as it stands *including* tonight — this is the standing the group
+  // wakes up to, unlike the head-to-head records in `notes`, which have to be
+  // quoted as they were before the night in order to say what changed
+  const table = playerStandings(asOf)
+    .slice(0, TABLE_SIZE)
+    .map((s, i) => `${i + 1}. ${s.name} — ${s.wins} wins from ${s.nights} nights`);
 
   const players: RecapPlayerLine[] = [];
   for (const p of fixture.players) {
@@ -177,6 +190,7 @@ export function recapFacts(
     milestones,
     duos,
     notes,
+    table,
   };
 }
 
@@ -235,18 +249,44 @@ function nightNotes(fixture: FixtureRecord, history: FixtureRecord[]): string[] 
     );
   }
 
-  // who had the most of the night, which the per-player list contains but
-  // buries — the model should not have to sort fifteen rows to find it
+  // Who had the most of the night and who had the least of it. Both are in the
+  // per-player list already, and both are buried in it — the model should not
+  // have to sort fifteen rows to find the story, and if it has to, it won't.
   let best: { names: string[]; won: number } = { names: [], won: 0 };
+  const rough: string[] = [];
   for (const p of fixture.players) {
     const n = playerNight(fixture, p.id);
     if (!n) continue;
     if (n.won > best.won) best = { names: [p.name], won: n.won };
     else if (n.won === best.won && best.won > 0) best.names.push(p.name);
+    // a long evening with nothing to show for it, which is a fact about their
+    // team's results and fair game — see the teasing rule in the prompt
+    if (n.won === 0 && n.played >= 4) rough.push(p.name);
   }
   if (best.won > 0 && best.names.length <= 5) {
     notes.push(`Most matches won tonight: ${best.names.join(', ')} with ${best.won}`);
   }
+  if (rough.length > 0 && rough.length <= 5) {
+    notes.push(`Played at least 4 and won none of them: ${rough.join(', ')}`);
+  }
 
-  return notes;
+  // A personal best, which the app has never told anybody about: the most
+  // matches they have ever won in one evening.
+  for (const p of fixture.players) {
+    if (notes.length >= MAX_NOTES) break;
+    const n = playerNight(fixture, p.id);
+    if (!n || n.won < 3) continue;
+    let bestEver = 0;
+    for (const fx of before) {
+      const had = playerNight(fx, p.id);
+      if (had && had.won > bestEver) bestEver = had.won;
+    }
+    if (bestEver > 0 && n.won > bestEver) {
+      notes.push(
+        `${p.name} won ${n.won} matches tonight, more than they have ever won in one night before (${bestEver})`,
+      );
+    }
+  }
+
+  return notes.slice(0, MAX_NOTES);
 }

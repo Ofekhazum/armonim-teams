@@ -103,12 +103,31 @@ describe('buildPrompt', () => {
     expect(p).toMatch(/do not check your work inside those tags/i);
   });
 
-  it('hands over the shape of the night as a description, not as a metric', () => {
-    // "Change index: 47 out of 100" came back in a report as מדד השינוי — an
-    // internal name for an internal number, quoted at a group who have never
-    // seen either
+  it('does not hand over the change index at all', () => {
+    // It came back in a report as מדד השינוי — an internal name for an
+    // internal number, quoted at a group who have seen neither. Softening the
+    // instruction was tried; not sending it is the version that cannot fail.
     expect(p).not.toContain('Change index');
-    expect(p).toMatch(/never be printed as a figure or given a name of their own/);
+    expect(p).not.toContain('changed hands: 61');
+    expect(p).not.toContain('61');
+  });
+
+  it('still asks for the shape of the night in plain words', () => {
+    expect(p).toContain('Shape of the night');
+    expect(p).toMatch(/never as a figure or under a name of its own/);
+  });
+
+  it('asks for a made-up reporter, and a different one each time', () => {
+    expect(p).toContain('מדווח מהמגרש');
+    expect(p).toMatch(/A different one every time/);
+    // the byline must not be somebody who is playing
+    expect(p).toMatch(/never use the name of anyone playing tonight/i);
+  });
+
+  it('carries where the club stands after tonight', () => {
+    const withTable = buildPrompt(facts({ table: ['1. ניב — 47 wins from 20 nights'] }));
+    expect(withTable).toContain('TOP OF THE CLUB AFTER TONIGHT');
+    expect(withTable).toContain('47 wins from 20 nights');
   });
 
   it('asks for whole sentences and a length worth reading', () => {

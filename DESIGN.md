@@ -1568,6 +1568,15 @@ answers `400 Request contains an invalid argument` without naming it — so matc
 was useless. Each form is tried in turn and a 400 moves to the next: three calls worst case, only
 ever after a failure.
 
+**The change index is not sent at all.** It came back in a report as *מדד השינוי: 47*, an internal
+name for an internal number quoted at a group who have seen neither. Instructing the model to phrase
+it in words was tried first; not sending it is the version that cannot fail. The night's *shape*
+still travels, because it is a word rather than a figure.
+
+**The byline is invented on the spot.** Each report opens `📻 <reporter> מדווח מהמגרש` with a
+different absurd name every week — never a real journalist, never anybody playing. It costs nothing,
+it varies for free, and it is what makes the thing read as a broadcast rather than as a summary.
+
 **`notes` is the part worth having.** `nightNotes` walks each player's career head-to-head as it
 stood *strictly before* this night and looks for their **bogey** — the opponent whose team keeps
 beating theirs — turning up on the other side and losing. Nothing else in the app can say that:

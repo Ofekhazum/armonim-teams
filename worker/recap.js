@@ -107,8 +107,9 @@ export function isValidFacts(facts) {
     isStrList(facts.moments, 12) &&
     isStrList(facts.milestones, 20) &&
     isStrList(facts.duos, 6) &&
-    // absent on a client that predates personal notes; an empty list, not a fault
-    (facts.notes === undefined || isStrList(facts.notes, 8))
+    // absent on a client that predates these; an empty list, not a fault
+    (facts.notes === undefined || isStrList(facts.notes, 10)) &&
+    (facts.table === undefined || isStrList(facts.table, 5))
   );
 }
 
@@ -148,7 +149,6 @@ THE NIGHT — ${facts.date}
 Matches played: ${facts.matches}
 Decided on penalties: ${facts.penalties}
 The lead changed hands: ${facts.leadChanges} times
-How often the pitch changed hands: ${facts.chaos} of every 100 matches were won by a different team from the one that won the match before
 Shape of the night: ${facts.flavour}
 Winner of the night: ${facts.winners.length ? facts.winners.join(' and ') : 'nobody — no result recorded'}
 Player of the night: ${facts.mvp ?? 'not chosen'}
@@ -171,22 +171,32 @@ ${list(facts.duos, '- none')}
 PERSONAL STORIES IN THIS NIGHT
 ${list(facts.notes ?? [], '- none')}
 
+TOP OF THE CLUB AFTER TONIGHT
+${list(facts.table ?? [], '- not enough nights on record yet')}
+
 HOW TO WRITE IT.
 
-Structure — five paragraphs, in this order, 280 to 380 words in total:
+Open with a byline on its own line, in this shape:
+
+📻 <name of the reporter> מדווח מהמגרש
+
+Invent the reporter. A different one every time, and an absurd one: an over-serious Hebrew sports-broadcaster name, or a ridiculous pun on one, the kind of byline that would never appear in a real newspaper. Never use a real journalist's name, and never use the name of anyone playing tonight.
+
+Then five paragraphs, in this order, 280 to 380 words in total:
 
 1. THE OPENING. What kind of night it was and who won it. Use the shape, the number of matches, the lead changes and the change index. Do not open with the date.
 2. THE WINNERS. The team that took the night: their points, how many matches they played, their longest run, and the players in that team by name.
 3. THE OTHER TWO TEAMS. One or two sentences each, both of them, by name — points, matches played, longest run, and at least one player named from each. Neither team may be skipped, even if their night was quiet. A team that won nothing gets a line about that.
-4. THE PEOPLE. Milestones reached, the personal stories above, the player of the night, and anyone who won a lot or a little. If somebody beat an opponent who usually beats them, that is the best line in the report — say the old record and the new one.
-5. THE SIGN-OFF. One or two sentences. Look forward to next week.
+4. THE PEOPLE. Milestones reached, the personal stories above, the player of the night, and anyone who won a lot or a little. If somebody beat an opponent who usually beats them, that is the best line in the report — say the old record and the new one. Somebody who played four or more and won nothing gets a sympathetic ribbing, not a kicking.
+5. THE SIGN-OFF. Where the club stands after tonight, if that is known, and one or two sentences looking forward to next week.
 
 Rules:
 - Every paragraph must be a complete thought that finishes. Never stop mid-sentence.
 - The voice of an over-excited sports broadcaster who takes an amateur football night far too seriously. Funny, warm, a bit dramatic. A few emojis, not a wall of them.
+- Be properly funny rather than politely funny. Wind people up about their results, invent grand titles for them, treat a five-a-side night like a cup final, be mock-outraged on somebody's behalf. The group knows each other well and a report nobody laughs at is not worth writing.
 - Name real people, and tease them about results only — never about ability, fitness, body, or anything not in the record above. These fifteen people play together every week and all of them will read this.
 - Every number must come from the record above, unchanged. If something is not written above, it did not happen and must not be mentioned.
-- Two of these are descriptions, not statistics, and must never be printed as a figure or given a name of their own: how often the pitch changed hands, and the shape of the night. Say what they mean in ordinary words — a night that swung constantly, a night one team ran away with — the way a commentator would. Nobody in this group has heard of an index.
+- The shape of the night is a description rather than a statistic: say what it means in ordinary words — a night that swung constantly, a night one team ran away with — the way a commentator would, and never as a figure or under a name of its own.
 - Do not describe any single match as an event. You do not know how any of them looked.
 - No headline, no title, no bullet points, no markdown, no closing sign-off line with your name. Just the five paragraphs, ready to be pasted into a group chat as they are.
 

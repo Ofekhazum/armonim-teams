@@ -199,6 +199,27 @@ describe('recapFacts', () => {
     expect(f.notes.some((n) => n.includes('came into tonight'))).toBe(false);
   });
 
+  it('carries where the club stands, which is the group half of the story', () => {
+    const season = Array.from({ length: 4 }, (_, i) => ({
+      ...night('AWN'),
+      id: `s${i}`,
+      date: `2026-06-0${i + 1}`,
+    }));
+    const f = recapFacts(season[3], season, roster)!;
+    expect(f.table.length).toBeGreaterThan(0);
+    expect(f.table[0]).toMatch(/^1\. .+ — .+ wins from \d+ nights$/);
+  });
+
+  it('names a long evening with nothing to show for it', () => {
+    // teasing about results is the point; the prompt is what keeps it to
+    // results rather than to anybody's ability
+    // black hold the pitch all night; white come back on for matches 1, 3, 5
+    // and 7 and are beaten every time
+    const fx = night('AWWWWWW');
+    const f = recapFacts(fx, [fx], roster)!;
+    expect(f.notes.some((n) => n.startsWith('Played at least 4 and won none'))).toBe(true);
+  });
+
   it('stays small enough to be a prompt rather than a database dump', () => {
     const fx = night('AWWNWNWWN');
     const size = JSON.stringify(recapFacts(fx, [fx], roster)).length;
