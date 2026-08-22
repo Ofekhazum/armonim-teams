@@ -368,10 +368,11 @@ export default function App() {
   // saving again from there would quietly undo the edit.
   const editFixture = (
     id: string,
-    patch: { wins: TeamWins; date: string; mvpId?: string },
+    patch: { wins: TeamWins; date: string; mvpId?: string; note?: string },
   ) => {
-    // mvpId is spread as-is, including when it's explicitly undefined (that's
-    // how the edit form clears a wrong pick) — JSON.stringify drops it either way
+    // mvpId and note are spread as-is, including when explicitly undefined —
+    // that is how the edit form clears a wrong pick, and how it deletes a note.
+    // JSON.stringify drops an undefined key either way.
     const history = state.history.map((f) => (f.id === id ? { ...f, ...patch } : f));
     setState((s) => ({
       ...s,

@@ -83,6 +83,10 @@ const MAX_ALIASES = 20;
 const MAX_NAME_CHARS = 60;
 const MAX_ID_CHARS = 64;
 const MAX_DATE_CHARS = 20;
+// The organiser's free-text note on a fixture. Generous against the app's own
+// 280, because a record filed by an older or newer build should not be the
+// thing that makes an entire season's publish bounce.
+const MAX_NOTE_CHARS = 400;
 const TEAM_COLORS = ['black', 'white', 'blue'];
 
 // Whatever a publish stores here is served back to every device in the club,
@@ -278,6 +282,11 @@ export function isValidFixtures(fixtures) {
     if (!fx.wins || typeof fx.wins !== 'object') return false;
     if (!TEAM_COLORS.every((c) => Number.isFinite(fx.wins[c]))) return false;
     if (fx.mvpId !== undefined && !isStr(fx.mvpId, MAX_ID_CHARS)) return false;
+    // The organiser's note (§2.27). Never rendered anywhere — it exists to be
+    // handed to the reporter — but it rides in the fixture record, so it has
+    // to be allowed through here or publishing a night that has one would fail
+    // the whole list. Length-capped like everything else that is prose.
+    if (fx.note !== undefined && !isStr(fx.note, MAX_NOTE_CHARS)) return false;
     // absent on every night recorded before the log existed, which is fine —
     // those nights are a tally and always will be
     if (fx.matchLog !== undefined && !isValidMatchLog(fx.matchLog)) return false;

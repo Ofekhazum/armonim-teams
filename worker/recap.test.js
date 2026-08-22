@@ -91,6 +91,53 @@ describe('buildPrompt', () => {
     expect(buildPrompt(facts({ winners: [] }))).toContain('nobody');
   });
 
+  it('puts the organiser’s note in the prompt, and says nothing when there is none', () => {
+    const said = buildPrompt(facts({ said: 'Tom kicked the ball over the fence 5 times' }));
+    expect(said).toContain('SOMETHING ELSE THAT HAPPENED TONIGHT');
+    expect(said).toContain('Tom kicked the ball over the fence 5 times');
+    // it must not become a licence to describe the football itself
+    expect(said).toMatch(/do not treat it as permission to describe goals/i);
+    // and a night without one carries no empty heading for the model to fill
+    expect(p).not.toContain('SOMETHING ELSE THAT HAPPENED TONIGHT');
+  });
+
+  it('tells the reporter it saw the thing itself, and not to invent a culprit', () => {
+    // Both from a real report. It wrote "according to the organisers of the
+    // round, who revealed a remarkable statistic", and then blamed two players
+    // the note never mentioned for a ball nobody was said to have kicked.
+    const said = buildPrompt(facts({ said: 'the ball went over the fence about 5 times' }));
+    expect(said).toContain('YOU SAW IT YOURSELF');
+    expect(said).toMatch(/never say where this came from/i);
+    // ...without killing the invented-source joke, which shares its
+    // vocabulary and is one of the best things the reporter does
+    expect(said).toMatch(/is a joke and is still very welcome/i);
+    expect(said).toMatch(/if it names nobody, it belongs to nobody/i);
+    expect(said).toMatch(/do not guess who did it/i);
+    // The sign-off is where this leaks: it demands names, so the model names
+    // players and hooks them to the nearest concrete event. A real report
+    // closed by telling six people to aim for the pitch and not over the
+    // fence, for a ball nobody was said to have kicked.
+    expect(said).toMatch(/no player's name may appear anywhere near it/i);
+    expect(said).toMatch(/this holds in EVERY paragraph/i);
+    expect(said).toMatch(/if the line names nobody, next week is not about it/i);
+  });
+
+  it('rations the invented-source joke rather than banning or repeating it', () => {
+    expect(p).toContain('Once, maybe twice in the whole report');
+    expect(p).toMatch(/turned its best joke into a verbal tic/i);
+  });
+
+  it('points the sign-off at results rather than at an unattributed event', () => {
+    expect(p).toMatch(/called out for \*\*their own results tonight\*\*/i);
+    expect(p).toMatch(/never aim it at an event nobody was named for/i);
+  });
+
+  it('accepts a note in the facts, and refuses a wall of text', () => {
+    expect(isValidFacts(facts({ said: 'a real thing that happened' }))).toBe(true);
+    expect(isValidFacts(facts({ said: 'x'.repeat(401) }))).toBe(false);
+    expect(isValidFacts(facts({ said: 7 }))).toBe(false);
+  });
+
   it('says the shirts are redrawn, and keeps next week off the colours', () => {
     // The one thing about this club a model cannot infer from a night's
     // results: the colours are reassigned every week, so a sign-off promising

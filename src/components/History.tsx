@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { DraftTeamWins, FixtureRecord, Player, TeamColor, TeamWins } from '../types';
+import { NOTE_MAX } from '../types';
 import { TEAM_COLORS } from '../balancer';
 import {
   MIN_NIGHTS,
@@ -32,7 +33,7 @@ interface Props {
   onDeleteFixture: (fixtureId: string) => void;
   onEditFixture: (
     fixtureId: string,
-    patch: { wins: TeamWins; date: string; mvpId?: string },
+    patch: { wins: TeamWins; date: string; mvpId?: string; note?: string },
   ) => void;
 }
 
@@ -40,6 +41,7 @@ interface Draft {
   wins: DraftTeamWins;
   date: string;
   mvpId: string | null;
+  note: string;
 }
 
 type SortKey = 'name' | 'nights' | 'wins' | 'fixtures' | 'mvps' | 'perNight' | 'vsRating';
@@ -226,7 +228,7 @@ export default function History({
 
   const startEdit = (fx: FixtureRecord) => {
     setEditId(fx.id);
-    setDraft({ wins: { ...fx.wins }, date: fx.date, mvpId: fx.mvpId ?? null });
+    setDraft({ wins: { ...fx.wins }, date: fx.date, mvpId: fx.mvpId ?? null, note: fx.note ?? '' });
   };
 
   const cancelEdit = () => {
@@ -249,6 +251,9 @@ export default function History({
       // pick" the patch spread in App.tsx would leave the old id in place
       // instead of clearing it
       mvpId: draft.mvpId ?? undefined,
+      // Emptying the box is how a note is deleted — see the comment above for
+      // why this key is always present rather than omitted when there is none.
+      note: draft.note.trim() || undefined,
     });
     cancelEdit();
   };
@@ -773,6 +778,30 @@ export default function History({
                     mvpId={draft.mvpId}
                     onChange={(mvpId) => setDraft((d) => (d ? { ...d, mvpId } : d))}
                   />
+                  {/* The organiser's note (§2.27). Written as the night was
+                      filed, and editable only here, by an admin — it is never
+                      rendered for anyone, including them: it exists to be
+                      handed to the reporter, and a note printed on the page it
+                      describes is the punchline printed above the joke.
+                      Emptying the box deletes it. */}
+                  <label className="block text-xs text-amber-900/70">
+                    Note for the reporter
+                    <textarea
+                      value={draft.note}
+                      onChange={(e) =>
+                        setDraft((d) =>
+                          d ? { ...d, note: e.target.value.slice(0, NOTE_MAX) } : d,
+                        )
+                      }
+                      rows={2}
+                      placeholder="Something the results can't say — empty to delete"
+                      className="mt-1 w-full rounded-lg border border-amber-900/25 bg-white px-2 py-1.5 text-sm text-amber-950 outline-none focus:border-orange-500"
+                    />
+                    <span className="text-[10px] text-amber-900/35">
+                      {draft.note.trim().length}/{NOTE_MAX} · never shown on any page — it only goes
+                      to the reporter
+                    </span>
+                  </label>
                   <p className="text-xs text-amber-900/50">
                     {editingLogged
                       ? 'This night was logged match by match, so its wins are counted from the matches and can’t be typed over. '

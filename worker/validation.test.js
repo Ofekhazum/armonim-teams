@@ -116,6 +116,15 @@ describe('isValidFixtures', () => {
     expect(isValidFixtures([fixture({ mvpId: 7 })])).toBe(false);
   });
 
+  it('lets the organiser’s note through, and refuses a wall of text', () => {
+    // §2.27. It is never rendered, but it rides in the record — so if this
+    // rejected it, filing a night with a note would bounce the entire season's
+    // publish rather than just the note.
+    expect(isValidFixtures([fixture({ note: 'טום העיף את הכדור מעבר לגדר 5 פעמים' })])).toBe(true);
+    expect(isValidFixtures([fixture({ note: 'x'.repeat(401) })])).toBe(false);
+    expect(isValidFixtures([fixture({ note: 12 })])).toBe(false);
+  });
+
   it('rejects a fixture player with a non-string name', () => {
     expect(
       isValidFixtures([fixture({ players: [{ id: 'p1', name: ['אופק'], rating: 4 }] })]),

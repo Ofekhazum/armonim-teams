@@ -119,6 +119,10 @@ export function isValidFacts(facts) {
     isStrList(facts.duos, 6) &&
     // absent on a client that predates these; an empty list, not a fault
     (facts.notes === undefined || isStrList(facts.notes, 10)) &&
+    // the organiser's own line. Capped here as well as in the app: this is the
+    // one field in the payload that is prose rather than a counted thing, so
+    // it is the one that could arrive as a wall of text.
+    (facts.said === undefined || isStr(facts.said, 400)) &&
     // sent by one build and taken back out; accepted so an older client is not
     // refused, ignored by the prompt
     (facts.table === undefined || isStrList(facts.table, 5))
@@ -182,7 +186,26 @@ ${list(facts.milestones, '- nothing was reached')}
 PAIRS WORTH MENTIONING
 ${list(facts.duos, '- none')}
 
-THE STORIES IN THIS NIGHT
+${
+    facts.said
+      ? `SOMETHING ELSE THAT HAPPENED TONIGHT
+"${facts.said}"
+
+This is true, and it is the only thing in this record that is an *event* rather than a number — so use it, give it a sentence of its own or more, and let it be one of the best bits of the report.
+
+YOU SAW IT YOURSELF. You were at the pitch tonight. Never say where this came from — no "according to the organisers", no "it was reported that", no mention of anyone having handed you this. You watched it happen, and you write it that way. (This is about not citing a source for something you witnessed. The invented, obviously-ridiculous attribution described further down — "sources close to the changing room say" — is a joke and is still very welcome; it is a different thing entirely.)
+
+WHO IT BELONGS TO. Read the line above and see whether it names a player.
+- If it names someone, it is theirs. Go after them for it by name, as hard as the rest of the report goes after anybody.
+- If it names nobody, it belongs to nobody, and NO PLAYER'S NAME MAY APPEAR ANYWHERE NEAR IT. Report it as a thing that happened tonight, with no author. Do not guess who did it. Do not pin it on a player or a team. Do not tell anybody to do better at it, aim straighter, or stop doing it next week. Naming a culprit the line does not name is inventing something, and it is the same offence as inventing a goal.
+
+This holds in EVERY paragraph, and the last one is where it gets broken. The sign-off asks you to name players — name them for their RESULTS, for the matches they lost and the nights they went home empty. A report that ends by telling six players to keep the ball on the pitch next week has just blamed six people for something nobody was said to have done. If the line names nobody, next week is not about it.
+
+Say what it says and no more than what it says. Do not invent surrounding detail, and do not treat it as permission to describe goals, saves or moments inside the matches. Match your tone to what it actually is: most of these are absurd and deserve to be treated as such, but if it is not a funny thing, report it straight rather than forcing a joke onto it.
+
+`
+      : ''
+  }THE STORIES IN THIS NIGHT
 These are the good material. They are written as bare facts on purpose; your job is to turn the ones you use into the funniest true sentences in the report. Use as many as you can fit naturally, and give the strangest one room to breathe.
 ${list(facts.notes ?? [], '- none this week; find the story in the results instead')}
 
@@ -199,8 +222,12 @@ Then five paragraphs, in this order, 280 to 380 words in total:
 1. THE OPENING. What kind of night it was and who won it. Use the shape, the number of matches, the lead changes and the change index. Do not open with the date.
 2. THE WINNERS. The team that took the night: their points, how many matches they played, their longest run, and the players in that team by name.
 3. THE OTHER TWO TEAMS. One or two sentences each, both of them, by name — points, matches played, longest run, and at least one player named from each. Neither team may be skipped, even if their night was quiet. A team that won nothing gets a line about that.
-4. THE PEOPLE. This is the heart of the report and it should be the longest paragraph. Milestones reached, the stories above, the player of the night, and anyone who won a lot or a little. Somebody who played four or more and won nothing gets a sympathetic ribbing rather than a kicking. Superstition is encouraged — if somebody keeps winning in one shirt colour, that is a curse and a blessing, not a coincidence.
-5. THE SIGN-OFF. One or two sentences looking forward to next week. Make somebody a promise or a threat about it — and it must be **people, by name**. Never aim it at a shirt colour: the teams are redrawn, so "if השחורים don't start winning next week" is a threat against five people who will not be in that team. Name the players you are coming for.
+4. THE PEOPLE. This is the heart of the report and it should be the longest paragraph.${
+    facts.said
+      ? ' The line under SOMETHING ELSE THAT HAPPENED TONIGHT belongs here, and it is the best thing you have been given — nothing else in this record is an actual event.'
+      : ''
+  } Milestones reached, the stories above, the player of the night, and anyone who won a lot or a little. Somebody who played four or more and won nothing gets a sympathetic ribbing rather than a kicking. Superstition is encouraged — if somebody keeps winning in one shirt colour, that is a curse and a blessing, not a coincidence.
+5. THE SIGN-OFF. One or two sentences looking forward to next week. Make somebody a promise or a threat about it — and it must be **people, by name**, called out for **their own results tonight**: who won nothing, who won everything, who is on a run. Never aim it at a shirt colour: the teams are redrawn, so "if השחורים don't start winning next week" is a threat against five people who will not be in that team. And never aim it at an event nobody was named for — see WHO IT BELONGS TO above if there is a line up there.
 
 Rules:
 - Every paragraph must be a complete thought that finishes. Never stop mid-sentence.
@@ -209,7 +236,7 @@ Rules:
 WHO IS READING THIS. A WhatsApp group of friends who have played together for years and take the mickey out of each other constantly. They asked for this and they want it sharp. A polite report is a failed report — if nobody would send it a laughing emoji, it was not worth writing.
 
 - Go at people by name and be merciless about their results. Hand out nicknames and grand titles and take them away again. Declare feuds, curses, dynasties and conspiracies that do not exist. Demand explanations. Call for somebody to be dropped, sold, investigated, or given a statue. Be mock-outraged, mock-heartbroken, or openly biased about who you think should have won.
-- Absurd attribution is welcome — "sources close to the changing room", "witnesses say", "he is understood to be furious" — as long as it is plainly ridiculous rather than a plausible quote somebody might think was real. Never write a realistic quotation and attribute it to a player.
+- Absurd attribution is welcome — "sources close to the changing room", "witnesses say", "he is understood to be furious" — as long as it is plainly ridiculous rather than a plausible quote somebody might think was real. Never write a realistic quotation and attribute it to a player. **Once, maybe twice in the whole report.** It is a punchline, and a report where every second sentence has an anonymous source has turned its best joke into a verbal tic.
 - A player who lost all night should be roasted for it properly, not sympathetically. A player who won everything should be accused of something.
 - Emojis: a few, placed where a broadcaster would raise their voice. Not one per sentence.
 - The personal stories are stories, not statistics. If somebody usually loses to an opponent and beat them tonight, that is a rivalry and a headline — write it as one, do not print it as a record.

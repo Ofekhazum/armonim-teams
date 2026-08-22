@@ -1861,6 +1861,68 @@ guarding against, not the chaining one. The end-of-night dialog takes it conditi
 **Not covered by a test.** There is no jsdom or component-test setup in this repo (§7), so this is
 verified by reading and by use on a phone; the logic is deliberately small enough to read.
 
+### 2.27 The organiser's note (`FixtureRecord.note`)
+
+**One box, at the end of the night, that never appears on a page.** Everything the reporter is handed
+is *counted* — who beat whom, in what order — which is exactly why a night full of things that
+happened can read as a night of arithmetic. The ball over the fence is not in the match log and never
+will be. So filing a night now asks one optional question, and whatever is typed goes to the reporter
+and nowhere else.
+
+**A second step rather than a box on the ending panel**, because it only applies to a night being
+kept: one being thrown away has nothing worth remembering. Empty is the normal answer and costs one
+tap. `NOTE_MAX` is 280 — the reporter is being given a detail to hang a joke on, not a second match
+report to compete with the first.
+
+**It is never rendered.** Not on the fixture page, not on the night page, not for an admin. A note
+printed on the page it describes is the report's punchline printed above the report — and the whole
+value of it is that the write-up says something nobody could have worked out from the results. The
+only place it is visible is the field you edit it in.
+
+**Editing and deleting are admin-only**, in the same History drawer as the result and the MVP pick,
+which is where every other correction to a filed night already lives. Emptying the box deletes it;
+`note` is spread as an explicit `undefined` for exactly the reason `mvpId` is (§2.6), since a key
+merely omitted from the patch would leave the old value in place.
+
+**Three layers had to agree** for a note to survive. `recapFacts` carries it as `said`, absent rather
+than empty so the prompt never has to ignore a blank field. `isValidFacts` caps it at 400 — the one
+field in that payload that is prose rather than a counted thing, so the one that could arrive as a
+wall of text. And `isValidFixtures` on the Worker had to be taught to allow it, without which filing
+a night that had one would have failed the publish of *the entire season*, not just the note.
+
+**The prompt frames it as evidence, not licence.** It arrives under *SOMETHING ELSE THAT HAPPENED
+TONIGHT*, presented as true and as the best thing in the record — nothing else there is an actual
+event. Then the fences, two of which were added after a first attempt got both of them wrong:
+
+- **The reporter saw it.** The first draft opened with *"according to the organisers of the round,
+  who revealed a remarkable statistic"* — which turns a broadcaster who was at the pitch into
+  somebody reading a memo. It is now told never to say where it came from: no sources, no reports,
+  no one having handed it anything. It was there. **With one carve-out written into the same
+  paragraph**, because that rule and the report's best joke share a vocabulary: the *invented*
+  absurd source — *"גורמים המקורבים לחדר ההלבשה מוסרים כי ירין כבר דורש חקירה דחופה לגבי איכות
+  הדשא"* — is a punchline, not a citation, and a model reading "no sources say" literally would have
+  quietly stopped writing them. It is rationed rather than encouraged, though: once or twice in a
+  report, since a device on every second sentence stops being a joke and becomes a verbal tic.
+- **Attribution follows the words, not the guess.** Given *"the ball went over the fence about five
+  times"*, the first draft told two named players to aim better — neither of whom the line mentions.
+  So: if it names somebody, it is theirs and they get both barrels; if it names nobody, it belongs to
+  nobody, and inventing a culprit is the same offence as inventing a goal.
+- **And the sign-off is where that rule breaks**, which took a second attempt to see. Paragraph 5
+  *demands* names — it is the paragraph that threatens somebody about next week — so the model names
+  players and hooks them to the most concrete thing in the record, which is the note. The next report
+  closed by telling six players to aim for the pitch rather than over the fence, for a ball nobody
+  had been said to kick. Two rules were fighting and the note lost. Now the ban is stated as holding
+  in *every* paragraph with the sign-off called out by name, and paragraph 5 is pointed at what it
+  should have been aimed at all along: a player's **own results** — who won nothing, who won
+  everything, who is on a run.
+- **Say what it says**, invent no surrounding detail, and do not read it as permission to describe
+  goals or saves (the standing rule against inventing football, §2.24). Tone follows the event —
+  most are absurd and should be treated as such, but a note that is not funny is reported straight
+  rather than having a joke forced onto it.
+
+The heading and the sentence in paragraph 4 pointing at it are both conditional, so a night without a
+note carries no empty section for the model to fill in.
+
 ## 3. Team generation algorithm
 
 Balancing is a small constrained optimization. With ≤15 players, brute force is too big
