@@ -1408,7 +1408,7 @@ draws, arriving at the opposite answer because the unit changed.
 at }`, not *"Blue finally ended Black's reign!"*. Hand-written strings are the thing that goes stale:
 six patterns and a dozen matches a night is the same three lines every week by about week five,
 which is how a feature like this dies. A fact with its numbers attached can be written up differently
-every time by whatever does the writing — which is also what lets a reporter (§2.23, still to be
+every time by whatever does the writing — which is also what lets a reporter (still to be
 built) consume the same output without a second detection pass.
 
 Seven detectors, each with a threshold that exists to keep it **rare**: `streak-broken` (a run of
@@ -1439,6 +1439,42 @@ would be making their debut on every night page in the archive.
 **A tallied night gets the page and says why it is thin**, rather than rendering empty boxes: there
 is no sequence in three totals, and inventing one would be making it up. Same honesty as the
 head-to-head card (§2.18).
+
+### 2.23 When a player's football happens (`src/playerArcs.ts`, `src/diagnostics.ts`)
+
+Everything else about a player counts nights — turned up, won, took the night. This counts **when**,
+which only exists on nights logged match by match and only became askable when the log did. One walk
+over a player's own match sequence answers three questions: how the match *after a loss* went (winner
+stays on, so losing puts you on the bench for exactly one match), their first matches of a night
+against their last, and which quarter of the evening their wins land in.
+
+**Coming off a loss is measured against the club, not against 50%** — and that is the difference
+between a metric and a mirage. After your team loses you sit one out and come back against a team
+that has just played two in a row. Everybody's number is lifted by the same rotation, so a raw 60%
+looks like character in a player who is exactly ordinary. `clubBounce` counts the same situation
+across every team on every logged night, per team-match rather than per player (the five in a team
+share one result, and counting it five times would make the baseline look better sampled than it is).
+
+**Counts, never traits, and the floors say so.** `MIN_ARC_NIGHTS` (4 logged nights) gates the card;
+`MIN_BOUNCE` and `MIN_HALF` gate the individual lines on top of it, because a player can clear four
+nights and still have barely come off a loss. `NOTABLE_GAP` (20 points) is the width below which
+`lean()` returns **'level'** rather than naming a direction. Four fixtures is about thirty matches:
+enough to say what the record did, nowhere near enough to separate a resilient player from a lucky
+one, so the app says *"won 9 of 14 coming back on"* and never *"mentally resilient"*.
+
+**Run diagnostics** is the same counts wearing a costume: a mock system scan whose every line is a
+real number out of the record (`ERR 0x404 · firewall: no defence found against ירין — beaten 8
+times, 2 the other way`). Two rules hold it up. It is **pulled, never pushed** — no badge, nothing
+that goes looking for whoever is having a bad month and points at them by name on a page fifteen
+people can see; the button is on everybody's page and somebody has to press it. And it dresses up a
+count rather than issuing a diagnosis: *"won 2 of 9 in the last quarter"* is a fact in a silly hat,
+where *"poor stamina"* would be a claim about a body drawn from thirty matches. It is never empty
+either — a clean record gets `OK 0x00`, because a scan that reports nothing reads as broken rather
+than as good news.
+
+The bad quarter is compared with **their own rate across the rest of the night**, so the line says
+"worse than they usually are" rather than "worse than somebody else" — which is both kinder and the
+only version the sample supports.
 
 ## 3. Team generation algorithm
 

@@ -22,6 +22,17 @@ import {
   toGo,
   winRungs,
 } from '../playerProfile';
+import {
+  MIN_ARC_NIGHTS,
+  MIN_BOUNCE,
+  NOTABLE_GAP,
+  bounceVsClub,
+  clubBounce,
+  lean,
+  playerArcs,
+  rate,
+} from '../playerArcs';
+import { diagnose } from '../diagnostics';
 import { Name, STYLE_META, TEAM_META } from './ui';
 
 // One player's page (§2.19). Everything on it is counted from history — the
@@ -145,6 +156,15 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
   const counts = useMemo(() => profileCounts(nights), [nights]);
   const shirts = useMemo(() => shirtNights(nights), [nights]);
   const shootouts = useMemo(() => shootoutRecord(history, player.id), [history, player.id]);
+  // When their football happened, which only logged nights can answer (§2.23)
+  const arcs = useMemo(() => playerArcs(history, player.id), [history, player.id]);
+  const club = useMemo(() => clubBounce(history), [history]);
+  const earlyLate = lean(arcs);
+  const vsClub = bounceVsClub(arcs, club);
+  const enoughArcs = arcs.loggedNights >= MIN_ARC_NIGHTS;
+  // Pulled, never pushed: nothing runs until somebody asks it to, and the ask
+  // is on everyone's page rather than appearing on whoever is struggling.
+  const [scan, setScan] = useState<ReturnType<typeof diagnose> | null>(null);
   const picks = useMemo(
     () => matchupPicks(matchups(history, player.id), counts.nights),
     [history, player.id],
@@ -546,6 +566,171 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
                 )}
               </Card>
             </div>
+
+            {/* When their football happens, as against how much of it there is
+                (§2.23). Held to counts on purpose: the record is allowed to say
+                what it says, and the app never turns that into a word about
+                somebody's character. */}
+            <Card
+              title="Across the night"
+              hint={enoughArcs ? `${arcs.matches} matches` : undefined}
+            >
+              {!enoughArcs ? (
+                <p className="text-sm text-amber-900/55">
+                  This one needs nights logged match by match — {arcs.loggedNights} so far,{' '}
+                  {MIN_ARC_NIGHTS} needed. A tallied night says how much they won, never when.
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  <div>
+                    <div className="mb-1 flex items-baseline justify-between">
+                      <span className="text-[11px] font-bold uppercase tracking-wide text-amber-900/45">
+                        Where their wins land
+                      </span>
+                      <span className="text-[10px] text-amber-900/40">
+                        first quarter → last
+                      </span>
+                    </div>
+                    <div className="flex gap-1">
+                      {arcs.quarters.map((q, i) => {
+                        const r = rate(q);
+                        return (
+                          <div key={i} className="flex-1">
+                            <div
+                              className="flex h-12 items-end overflow-hidden rounded-lg bg-amber-900/[0.06]"
+                              title={`${q.won} of ${q.played} matches won in this quarter of the night`}
+                            >
+                              <div
+                                className="w-full rounded-lg bg-gradient-to-t from-orange-500 to-amber-400"
+                                style={{ height: `${(r ?? 0) * 100}%` }}
+                              />
+                            </div>
+                            <div className="mt-1 text-center font-mono text-[10px] font-bold text-amber-900/50">
+                              {q.played ? `${q.won}/${q.played}` : '—'}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="space-y-1 border-t border-amber-900/10 pt-2 text-sm">
+                    <div className="flex flex-wrap items-baseline gap-x-2">
+                      <span className="shrink-0 text-[11px] font-bold uppercase tracking-wide text-amber-900/45">
+                        🌅 Early v late
+                      </span>
+                      {earlyLate === null ? (
+                        <span className="text-xs text-amber-900/50">
+                          not enough of either half yet
+                        </span>
+                      ) : (
+                        <span className="text-xs text-amber-900/60">
+                          <b className="text-amber-900">
+                            {arcs.early.won}/{arcs.early.played}
+                          </b>{' '}
+                          in their first matches,{' '}
+                          <b className="text-amber-900">
+                            {arcs.late.won}/{arcs.late.played}
+                          </b>{' '}
+                          in their last
+                          {earlyLate === 'level'
+                            ? ' — no real difference'
+                            : earlyLate === 'late'
+                              ? ' — the record finishes stronger'
+                              : ' — the record starts stronger'}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex flex-wrap items-baseline gap-x-2">
+                      <span className="shrink-0 text-[11px] font-bold uppercase tracking-wide text-amber-900/45">
+                        🪑 Off the bench
+                      </span>
+                      {vsClub === null ? (
+                        <span className="text-xs text-amber-900/50">
+                          {arcs.bounce.played} matches back on after a loss — {MIN_BOUNCE} needed
+                        </span>
+                      ) : (
+                        <span className="text-xs text-amber-900/60">
+                          won{' '}
+                          <b className="text-amber-900">
+                            {arcs.bounce.won} of {arcs.bounce.played}
+                          </b>{' '}
+                          coming back on after a loss, against{' '}
+                          <b className="text-amber-900">{Math.round((rate(club) ?? 0) * 100)}%</b>{' '}
+                          for the club
+                          {Math.abs(vsClub) < NOTABLE_GAP
+                            ? ' — right about the club rate'
+                            : vsClub > 0
+                              ? ' — above it'
+                              : ' — below it'}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  {/* The comparison is the whole point of the line above it:
+                      losing puts you on the bench for exactly one match and
+                      back on against a team that has just played two, so every
+                      one of these numbers is flattered by the rotation. Only
+                      the gap to everybody else means anything. */}
+                  <p className="text-[10px] leading-snug text-amber-900/35">
+                    Counts, not a verdict. Coming off a loss you return against a team that has just
+                    played two in a row, which lifts everybody's number — so it is only read against
+                    what the whole club does in the same spot.
+                  </p>
+
+                  {/* The joke, with its receipts attached. Every line is one of
+                      the counts above wearing a costume, and it only ever runs
+                      because somebody pressed the button. */}
+                  <div className="border-t border-amber-900/10 pt-2">
+                    <button
+                      onClick={() =>
+                        setScan(
+                          scan
+                            ? null
+                            : diagnose({
+                                name: player.name,
+                                arcs,
+                                club,
+                                bogey: picks.bogey,
+                                shootouts,
+                                wins: counts.wins,
+                                nights: counts.nights,
+                              }),
+                        )
+                      }
+                      className="rounded-lg border border-amber-900/25 bg-stone-800 px-3 py-1.5 font-mono text-[11px] font-bold text-lime-300 transition-transform hover:scale-105"
+                    >
+                      {scan ? '× close' : '> run diagnostics'}
+                    </button>
+                    {scan && (
+                      <div className="mt-2 space-y-1.5 rounded-xl bg-stone-900 p-3 font-mono text-[11px] leading-snug text-stone-300">
+                        <div className="text-stone-500">
+                          scanning {arcs.matches} matches across {arcs.loggedNights} logged nights…
+                        </div>
+                        {scan.map((d) => (
+                          <div key={d.code}>
+                            <span
+                              className={
+                                d.level === 'error'
+                                  ? 'text-rose-400'
+                                  : d.level === 'warn'
+                                    ? 'text-amber-300'
+                                    : 'text-lime-400'
+                              }
+                            >
+                              {d.code}
+                            </span>{' '}
+                            <span className="text-stone-200">{d.headline}</span>
+                            <div className="text-stone-500">└ {d.detail}</div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </Card>
           </>
         )}
       </div>
