@@ -229,26 +229,59 @@ sync (offline, wrong word, rate-limited) still commits locally — the app alert
 the correction silently, but the device with the fix is now ahead of everyone else's until it
 reconnects and saves again.
 
-**Past nights are a deck of cards, and each card is a door.** They were an accordion: tap a row, get
-three team sheets and a strip of admin buttons, with *📖 Read the night* a small button two taps in.
-That was the right shape while there was nothing behind the row — and the wrong one from the moment
-§2.22 gave every night a page with a headline, a ribbon and a report on it. So the list lost its
-show/hide toggle (it is now the reason to open the tab, not a wall to hide) and each night became one
-card that **opens the night page when tapped anywhere on it**: date, the winning shirt with 👑 and
-its points, the night's own headline, a **fingerprint ribbon**, and a line of counts. The team sheets
-are not lost — they are on the page the card opens, next to everything else about that night, which
-is where somebody looking them up wants to be anyway.
+**Past nights are a strip of cards, above the numbers.** They were an accordion: tap a row, get three
+team sheets and a strip of admin buttons, with *📖 Read the night* a small button two taps in. That
+was the right shape while there was nothing behind the row — and the wrong one from the moment §2.22
+gave every night a page with a headline, a ribbon and a report on it.
 
-The fingerprint is one bar per *run*, widths in proportion, no numbers and no losers: a wide bar is a
-team that would not come off, a row of thin ones is an evening nobody could hold. It shares the row's
-width, which is exactly what the night page's own ribbon must not do (§2.22) — the difference is that
-nothing on this one is meant to be *read*.
+So the nights moved **above the table** (the table is reference; a night is a story) and became a row
+that **scrolls sideways**, the same gesture as the ribbon on the night page itself. Sideways matters:
+a season is forty nights, and forty full-width cards is a wall to scroll past on the way to anything
+else, where forty squares is a shelf you skim. Each card is a **summary and deliberately not the
+evening** — date, the night's own headline, the winning shirt with 👑 and its points, and a line of
+counts — and it opens the night page when tapped anywhere on it. An earlier version drew a miniature
+of the match-by-match ribbon on every card; it was cut because the full-size one is the first thing
+the page behind it draws, and printing the same thing twice at two sizes just makes the strip a worse
+copy of a better view. The team sheets are on that page too, next to everything else about the night.
 
-**Correcting a night afterwards** (admin only, History tab): the card's **⋯** corner opens a drawer
-with *✏️ Edit result* — the three win counts and the date — *🌟 Pick MVP* where there isn't one, and
-*🗑️ Delete this night*. A corner rather than a row across the bottom of every card, because
-correcting a night is rare and there are a season's worth of these; and nothing at all for a
-non-admin, who now sees a clean card instead of the same padlock line repeated down the whole
+**Who won is a band across the top of the card**, in the winning team's ribbon colour, with the chip
+below it kept as the exact number. At shelf size a chip is something you *read* and a band is
+something you see — and seeing it is the point, because scanning six cards for a run of one colour is
+the thing a row of small pills could not do. A tie splits the band between both winners.
+
+Details the first drafts got wrong. The counts line read **"18 matches · 15 played"**: the second
+number was taken for matches, which is exactly what it looks like beside the first, and it turned out
+to be the same fifteen every week — so it is gone rather than reworded. The **MVP** was the only
+person named on the card and simultaneously the faintest thing on it, same size and grey as the
+counts; it wears a tinted star chip now.
+
+**The scrollbar is hidden and the shelf drags.** `.no-scrollbar` (`index.css`, both the Firefox and
+WebKit spellings, since neither alone is enough) — cards cut off mid-shelf already say the row
+scrolls, and a track drawn under them is a second thing to look at. Taking the bar away leaves a
+mouse with nothing, so `useDragScroll` adds click-and-drag: **mouse only**, because touch already has
+momentum scrolling that taking over would only make worse. Two details make it feel right rather than
+fight the cards — a `DRAG_SLOP` of 6px, so a hand that shifts two pixels while pressing a card still
+opens that night; and a capture-phase click handler that swallows the click at the end of a real
+drag, since a pointer that went down on a card and came up on it is a click by every definition the
+browser has. **Pointer capture is taken when the drag becomes real, never on `pointerdown`** — this
+one shipped broken and is worth writing down. Capturing at the start retargets the whole gesture to
+the strip, so the click ending an ordinary press fires on the container instead of the card beneath
+it, and every card stopped opening. Capture once past the slop and an ordinary click is never
+touched, while a drag still gets what capture is for: a button released off the edge ends the drag
+instead of leaving the shelf glued to the mouse. Scroll snapping was dropped in the same change: it fights a drag that sets `scrollLeft`
+directly.
+
+**The shelf can be hidden**, and the choice is remembered per device (`armonim-nights-shelf`) rather
+than held in component state, because the tabs unmount — without that, hiding it would last until the
+next time anyone looked at anything else, which is not what hiding something means. It defaults to
+open: the shelf is what the tab is for, but forty cards is still forty cards on the way to the
+numbers, and somebody who only wants the table should be able to say so once.
+
+**Correcting a night afterwards** (admin only, History tab): a card's **⋯** corner opens one drawer
+**under the strip** with *✏️ Edit result* — the three win counts and the date — *🌟 Pick MVP* where
+there isn't one, and *🗑️ Delete this night*. Under the strip rather than inside the card, because a
+card in a sideways row has nowhere to open downwards without shoving the row about; and nothing at
+all for a non-admin, who sees a clean card instead of the same padlock line repeated down the whole
 archive. The team sheet
 is deliberately not editable, since it's a snapshot of who actually played; a genuinely wrong sheet
 means deleting the night and saving it again. Two consistency details live in `App.tsx` rather than
@@ -261,17 +294,18 @@ re-dated still sorts correctly.
 so the table is nights / wins / wins-per-night. Without a matches-played count there is no true
 win percentage — wins-per-night is the honest rate.
 
+It is titled **📊 Career numbers** and not "Standings", and it gives nobody a position. A league table
+says *who is winning*; this counts what happened and cannot support that claim — a player collects
+whatever their team won, five shirts at a time, and the app's own rule is counts rather than verdicts
+(§2.9). Numbered places were tried and taken straight back out: a rank is a verdict wearing a digit,
+and on a *sortable* table it is not even a stable one, since it changes meaning with every header
+tapped.
+
 Seven sortable columns will not fit a phone and never will, so the fix is not to drop columns but to
 stop the **name** leaving with them: the first column is `sticky left-0`, and a number read sideways
 still says whose it is. That is also why this one card is opaque rather than the usual `/70` — a
 translucent sticky cell lets the rows it is holding scroll visibly underneath it, which reads as a
-rendering fault rather than a design. Rows alternate, and each carries its **position in whatever
-order is currently on screen**, which is the only thing a rank can honestly mean on a sortable table.
-The top-three tint comes off entirely under an A→Z sort, where a gold disc on row one would be
-claiming something about a name beginning with aleph. The tint is a disc and not a 🥇: the table
-already carries per-player badges that mean specific things (🥇 most wins, 🌟 most MVP picks), and a
-second gold circle competing with them for the same glance is how a key becomes necessary — which is
-what the player page's medal key was deleted for.
+rendering fault rather than a design. Rows alternate, and that is the whole of the decoration.
 
 **Rating suggestions** (`calibration.ts`, History tab, admin only). Each night is turned into three
 *pairwise* observations — black vs white, black vs blue, white vs blue — where the outcome is each
@@ -1489,6 +1523,12 @@ phone made an 18-match night about 19px a tile, numbers unreadable and runs redu
 a dozen matches it scrolled regardless, so the choice was never scroll-or-not — it was legible and
 scrolling versus tiny and scrolling. Fixed 44×56px now, bleeding through the card's padding so the
 row scrolls edge to edge.
+
+**One fact per line** in the milestone strip (`MilestoneStrip`, shared with the fixture page).
+Wrapped inline they ran together — two facts could share a line while a third straddled two, so
+"🏆 הלחמי's 50th win" and "💪 פוגל hasn't missed a night in 10 straight" read as one long sentence
+about somebody. They are separate claims about separate people, and a line break is the cheapest
+possible way to say so.
 
 **Nothing is stored.** A night whose result is corrected next week should tell the corrected story,
 and a stored summary would quietly go on telling the old one — the same reasoning as the read-time
