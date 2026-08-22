@@ -32,7 +32,6 @@ import {
   playerArcs,
   rate,
 } from '../playerArcs';
-import { diagnose } from '../diagnostics';
 import { Name, STYLE_META, TEAM_META } from './ui';
 
 // One player's page (§2.19). Everything on it is counted from history — the
@@ -162,9 +161,6 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
   const earlyLate = lean(arcs);
   const vsClub = bounceVsClub(arcs, club);
   const enoughArcs = arcs.loggedNights >= MIN_ARC_NIGHTS;
-  // Pulled, never pushed: nothing runs until somebody asks it to, and the ask
-  // is on everyone's page rather than appearing on whoever is struggling.
-  const [scan, setScan] = useState<ReturnType<typeof diagnose> | null>(null);
   const picks = useMemo(
     () => matchupPicks(matchups(history, player.id), counts.nights),
     [history, player.id],
@@ -678,56 +674,6 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
                     played two in a row, which lifts everybody's number — so it is only read against
                     what the whole club does in the same spot.
                   </p>
-
-                  {/* The joke, with its receipts attached. Every line is one of
-                      the counts above wearing a costume, and it only ever runs
-                      because somebody pressed the button. */}
-                  <div className="border-t border-amber-900/10 pt-2">
-                    <button
-                      onClick={() =>
-                        setScan(
-                          scan
-                            ? null
-                            : diagnose({
-                                name: player.name,
-                                arcs,
-                                club,
-                                bogey: picks.bogey,
-                                shootouts,
-                                wins: counts.wins,
-                                nights: counts.nights,
-                              }),
-                        )
-                      }
-                      className="rounded-lg border border-amber-900/25 bg-stone-800 px-3 py-1.5 font-mono text-[11px] font-bold text-lime-300 transition-transform hover:scale-105"
-                    >
-                      {scan ? '× close' : '> run diagnostics'}
-                    </button>
-                    {scan && (
-                      <div className="mt-2 space-y-1.5 rounded-xl bg-stone-900 p-3 font-mono text-[11px] leading-snug text-stone-300">
-                        <div className="text-stone-500">
-                          scanning {arcs.matches} matches across {arcs.loggedNights} logged nights…
-                        </div>
-                        {scan.map((d) => (
-                          <div key={d.code}>
-                            <span
-                              className={
-                                d.level === 'error'
-                                  ? 'text-rose-400'
-                                  : d.level === 'warn'
-                                    ? 'text-amber-300'
-                                    : 'text-lime-400'
-                              }
-                            >
-                              {d.code}
-                            </span>{' '}
-                            <span className="text-stone-200">{d.headline}</span>
-                            <div className="text-stone-500">└ {d.detail}</div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
                 </div>
               )}
             </Card>

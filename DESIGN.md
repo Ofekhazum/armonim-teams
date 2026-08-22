@@ -1440,7 +1440,7 @@ would be making their debut on every night page in the archive.
 is no sequence in three totals, and inventing one would be making it up. Same honesty as the
 head-to-head card (§2.18).
 
-### 2.23 When a player's football happens (`src/playerArcs.ts`, `src/diagnostics.ts`)
+### 2.23 When a player's football happens (`src/playerArcs.ts`)
 
 Everything else about a player counts nights — turned up, won, took the night. This counts **when**,
 which only exists on nights logged match by match and only became askable when the log did. One walk
@@ -1462,19 +1462,10 @@ nights and still have barely come off a loss. `NOTABLE_GAP` (20 points) is the w
 enough to say what the record did, nowhere near enough to separate a resilient player from a lucky
 one, so the app says *"won 9 of 14 coming back on"* and never *"mentally resilient"*.
 
-**Run diagnostics** is the same counts wearing a costume: a mock system scan whose every line is a
-real number out of the record (`ERR 0x404 · firewall: no defence found against ירין — beaten 8
-times, 2 the other way`). Two rules hold it up. It is **pulled, never pushed** — no badge, nothing
-that goes looking for whoever is having a bad month and points at them by name on a page fifteen
-people can see; the button is on everybody's page and somebody has to press it. And it dresses up a
-count rather than issuing a diagnosis: *"won 2 of 9 in the last quarter"* is a fact in a silly hat,
-where *"poor stamina"* would be a claim about a body drawn from thirty matches. It is never empty
-either — a clean record gets `OK 0x00`, because a scan that reports nothing reads as broken rather
-than as good news.
-
-The bad quarter is compared with **their own rate across the rest of the night**, so the line says
-"worse than they usually are" rather than "worse than somebody else" — which is both kinder and the
-only version the sample supports.
+A **diagnostics panel** was built here and taken back out — a mock system scan printing each of these
+counts as a joke error code. It was honest (pull-only, every line a real number) and it was not
+useful: the counts above already say the same things, and saying them twice in a funnier font is
+weight on the page rather than information on it.
 
 ## 3. Team generation algorithm
 
