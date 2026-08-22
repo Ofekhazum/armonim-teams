@@ -219,3 +219,17 @@ press **👕 Register team** on the History tab for each month, or `POST /awards
 
 A month is never re-registered once it has a team, so a correction made with **👕 Register team**
 survives every later cron run.
+
+### Which model writes it
+
+`GEMINI_MODEL` is optional. Without it the Worker walks a list, best first, and drops to the next one
+whenever a model answers 429 (out of quota), 404 (retired), or a 5xx (down):
+
+    gemini-3.6-flash → gemini-3.5-flash → gemini-3.5-flash-lite → gemini-3.1-flash-lite → gemini-3-flash
+
+The first is the best writer and has the tightest free-tier quota (~20 requests a day); the lite ones
+allow ~500. So a heavy day degrades to a plainer report instead of no report.
+
+Setting `GEMINI_MODEL` puts that model at the *front* of the list rather than replacing it, so a
+pinned model still falls back if it refuses. Either `gemini-3.6-flash` or `models/gemini-3.6-flash`
+works.

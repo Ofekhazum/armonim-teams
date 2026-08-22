@@ -1607,6 +1607,37 @@ a key in everybody's DevTools. `GEMINI_KEY` is a wrangler secret and the browser
 Google — it posts counts to `POST /recap`, behind the admin word and the same per-IP limiter that
 guards every other write.
 
+**The model is a waterfall, not a name.** The free tier's problem is that it is *uneven* rather than
+small: `gemini-3.6-flash` writes the best report and allows about twenty requests a day, while the
+lite models allow five hundred. One night re-rolled three times while somebody tunes the wording, on
+the same day the archive is being backfilled, walks through twenty without noticing — and the failure
+was total, because a single 429 meant the feature was simply gone until tomorrow.
+
+So `MODELS` is an ordered list, best first, and a refusal moves down it. The report is written by the
+best model that will take it, and the worst case is a plainer report rather than no report. It also
+retires the other failure this feature has actually had: `gemini-2.5-flash` was the only name in the
+file until Google answered "no longer available to new users", and the feature stopped. A single name
+is a single point of failure; now a name going stale costs one 404 and the next model down.
+
+`FALL_THROUGH` is `{400, 404, 429, 500, 502, 503, 504}`. The 5xxs and 429 are the obvious ones — a
+quota that is per-model, an outage that might not be. 404 is there because that is what a retired
+model answers. 400 is there because by the time it is checked the thinking-config retries have
+already been exhausted, so it means *this* model will not take this request and the next one might.
+**401 and 403 are deliberately absent**: a rejected key is rejected by every model, so falling
+through would turn one clear error into five identical slow ones.
+
+**A 200 ends the walk, whatever it contains.** An empty or untagged answer is a *content* failure,
+and asking four more models to have a go at it would spend five quotas on one bad report. Those have
+their own fixes — `MAX_TOKENS`, the report tags — and neither of them is "ask somebody else".
+
+Two bounds worth knowing. The worst case is fifteen calls (three thinking shapes × five models), only
+reachable when every model rejects every shape, which means the payload is wrong rather than the
+quota — and a 400 costs no tokens. And when everything refuses, an all-429 result reports as plain
+`quota`, while a mixed one names each model and its answer, because five identical numbers is a
+paragraph nobody can read and five different ones is a diagnosis. `GEMINI_MODEL` still exists and
+now *jumps the queue* rather than replacing it, since pinning one model used to pin its failure too;
+it accepts the `models/…` prefix Google's own docs use.
+
 **Generating has a second limiter, and that one never refunds.** Every guarded write costs a KV put,
 which is ours and cheap, so the publish limiter hands a *correct* word its attempt back (§7) — right
 for a roster, wrong for this. A draft is up to three calls on the club's Gemini key against a free
