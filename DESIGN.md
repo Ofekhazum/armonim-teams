@@ -263,7 +263,12 @@ momentum scrolling that taking over would only make worse. Two details make it f
 fight the cards — a `DRAG_SLOP` of 6px, so a hand that shifts two pixels while pressing a card still
 opens that night; and a capture-phase click handler that swallows the click at the end of a real
 drag, since a pointer that went down on a card and came up on it is a click by every definition the
-browser has. Scroll snapping was dropped in the same change: it fights a drag that sets `scrollLeft`
+browser has. **Pointer capture is taken when the drag becomes real, never on `pointerdown`** — this
+one shipped broken and is worth writing down. Capturing at the start retargets the whole gesture to
+the strip, so the click ending an ordinary press fires on the container instead of the card beneath
+it, and every card stopped opening. Capture once past the slop and an ordinary click is never
+touched, while a drag still gets what capture is for: a button released off the edge ends the drag
+instead of leaving the shelf glued to the mouse. Scroll snapping was dropped in the same change: it fights a drag that sets `scrollLeft`
 directly.
 
 **The shelf can be hidden**, and the choice is remembered per device (`armonim-nights-shelf`) rather

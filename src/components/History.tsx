@@ -77,11 +77,10 @@ function useDragScroll() {
 
   const onPointerDown = (e: React.PointerEvent) => {
     const el = ref.current;
+    // Cleared for *every* pointer, not just the mouse: a stale `moved` left
+    // over from a drag is a swallowed tap on the touch that follows it.
+    drag.current = { down: false, moved: false, startX: 0, startLeft: 0 };
     if (!el || e.pointerType !== 'mouse' || e.button !== 0) return;
-    // Capture, so a button released outside the strip still ends the drag.
-    // Without it, letting go off the edge leaves `down` set and the shelf
-    // follows the mouse around the page with nothing held down.
-    el.setPointerCapture(e.pointerId);
     drag.current = { down: true, moved: false, startX: e.clientX, startLeft: el.scrollLeft };
   };
 
@@ -89,8 +88,18 @@ function useDragScroll() {
     const el = ref.current;
     if (!drag.current.down || !el) return;
     const dx = e.clientX - drag.current.startX;
-    if (!drag.current.moved && Math.abs(dx) < DRAG_SLOP) return;
-    drag.current.moved = true;
+    if (!drag.current.moved) {
+      if (Math.abs(dx) < DRAG_SLOP) return;
+      drag.current.moved = true;
+      // Captured here, and NOT on pointerdown. Capturing at the start
+      // retargets the whole gesture to this container, so the click ending an
+      // ordinary press fires on the strip instead of on the card under it —
+      // which is exactly how the cards stopped opening. Capture once the drag
+      // is real, and an ordinary click is never touched; a drag still gets
+      // the thing capture is for, which is a button released off the edge
+      // still ending the drag instead of leaving the shelf glued to the mouse.
+      el.setPointerCapture(e.pointerId);
+    }
     el.scrollLeft = drag.current.startLeft - dx;
   };
 
@@ -101,10 +110,10 @@ function useDragScroll() {
   // A drag that finishes over a card would otherwise open that night: the
   // pointer went down on it and came up on it, which is a click by every
   // definition the browser has. Caught on the way down, before the card's own
-  // handler runs. `moved` is cleared by the next pointerdown, so a drag that
-  // ends over empty space cannot swallow the click after it.
+  // handler runs, and cleared as it is spent — one drag swallows one click.
   const onClickCapture = (e: React.MouseEvent) => {
     if (!drag.current.moved) return;
+    drag.current.moved = false;
     e.preventDefault();
     e.stopPropagation();
   };
@@ -450,7 +459,6 @@ export default function History({
               {shelfOpen ? '▲ hide' : '▼ show'}
             </span>
           </button>
-          {shelfOpen && <span className="text-xs text-amber-900/35">tap one to read it back</span>}
         </div>
 
         {shelfOpen && (
