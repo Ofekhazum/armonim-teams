@@ -188,10 +188,18 @@ ${list(facts.duos, '- none')}
 
 ${
     facts.said
-      ? `WHAT THE ORGANISER SAID HAPPENED
+      ? `SOMETHING ELSE THAT HAPPENED TONIGHT
 "${facts.said}"
 
-This is the one line here that was not counted — somebody who was there typed it as they filed the night, and it is true. It is also the only thing in this report that the scoreboard could never have told you, so use it: work it into the report properly, give it a sentence of its own or more, and be as funny about it as it deserves. Do not invent detail around it — say what it says and no more than what it says — and do not treat it as permission to describe goals, saves or moments in the matches. Whoever is named in it is fair game on exactly the terms below: the ribbing rules apply to this line like everything else.
+This is true, and it is the only thing in this record that is an *event* rather than a number — so use it, give it a sentence of its own or more, and let it be one of the best bits of the report.
+
+YOU SAW IT YOURSELF. You were at the pitch tonight. Never say where this came from — no "according to the organisers", no "it was reported that", no "sources say", no mention of anyone having told you. You watched it happen, and you write it that way.
+
+WHO IT BELONGS TO. Read the line above and see whether it names a player.
+- If it names someone, it is theirs. Go after them for it by name, as hard as the rest of the report goes after anybody.
+- If it names nobody, it belongs to nobody. Report it as a thing that happened tonight. Do NOT guess who did it, do NOT pin it on a player or a team, and do NOT use it as a reason to tell any particular player to do better or aim straighter. Naming a culprit the line does not name is inventing something, and it is the same offence as inventing a goal.
+
+Say what it says and no more than what it says. Do not invent surrounding detail, and do not treat it as permission to describe goals, saves or moments inside the matches. Match your tone to what it actually is: most of these are absurd and deserve to be treated as such, but if it is not a funny thing, report it straight rather than forcing a joke onto it.
 
 `
       : ''
@@ -214,7 +222,7 @@ Then five paragraphs, in this order, 280 to 380 words in total:
 3. THE OTHER TWO TEAMS. One or two sentences each, both of them, by name — points, matches played, longest run, and at least one player named from each. Neither team may be skipped, even if their night was quiet. A team that won nothing gets a line about that.
 4. THE PEOPLE. This is the heart of the report and it should be the longest paragraph.${
     facts.said
-      ? ' The line under WHAT THE ORGANISER SAID HAPPENED belongs here, and it is the best thing you have been given — nothing else in this record is an actual event.'
+      ? ' The line under SOMETHING ELSE THAT HAPPENED TONIGHT belongs here, and it is the best thing you have been given — nothing else in this record is an actual event.'
       : ''
   } Milestones reached, the stories above, the player of the night, and anyone who won a lot or a little. Somebody who played four or more and won nothing gets a sympathetic ribbing rather than a kicking. Superstition is encouraged — if somebody keeps winning in one shirt colour, that is a curse and a blessing, not a coincidence.
 5. THE SIGN-OFF. One or two sentences looking forward to next week. Make somebody a promise or a threat about it — and it must be **people, by name**. Never aim it at a shirt colour: the teams are redrawn, so "if השחורים don't start winning next week" is a threat against five people who will not be in that team. Name the players you are coming for.

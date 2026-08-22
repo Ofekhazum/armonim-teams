@@ -1890,13 +1890,25 @@ field in that payload that is prose rather than a counted thing, so the one that
 wall of text. And `isValidFixtures` on the Worker had to be taught to allow it, without which filing
 a night that had one would have failed the publish of *the entire season*, not just the note.
 
-**The prompt frames it as evidence, not licence.** It is presented as true and as the best thing in
-the record — nothing else there is an actual event — and told to work it in properly and be as funny
-about it as it deserves. Then three fences: do not invent detail around it, do not treat it as
-permission to describe goals or saves (the standing rule against inventing football, §2.24), and the
-ribbing line applies to whoever is named in it like everything else. The heading and the sentence in
-paragraph 4 pointing at it are both conditional, so a night without a note carries no empty section
-for the model to fill in.
+**The prompt frames it as evidence, not licence.** It arrives under *SOMETHING ELSE THAT HAPPENED
+TONIGHT*, presented as true and as the best thing in the record — nothing else there is an actual
+event. Then the fences, two of which were added after a first attempt got both of them wrong:
+
+- **The reporter saw it.** The first draft opened with *"according to the organisers of the round,
+  who revealed a remarkable statistic"* — which turns a broadcaster who was at the pitch into
+  somebody reading a memo. It is now told never to say where it came from: no sources, no reports,
+  no one having told it anything. It was there.
+- **Attribution follows the words, not the guess.** Given *"the ball went over the fence about five
+  times"*, the first draft told two named players to aim better — neither of whom the line mentions.
+  So: if it names somebody, it is theirs and they get both barrels; if it names nobody, it belongs to
+  nobody, and inventing a culprit is the same offence as inventing a goal.
+- **Say what it says**, invent no surrounding detail, and do not read it as permission to describe
+  goals or saves (the standing rule against inventing football, §2.24). Tone follows the event —
+  most are absurd and should be treated as such, but a note that is not funny is reported straight
+  rather than having a joke forced onto it.
+
+The heading and the sentence in paragraph 4 pointing at it are both conditional, so a night without a
+note carries no empty section for the model to fill in.
 
 ## 3. Team generation algorithm
 

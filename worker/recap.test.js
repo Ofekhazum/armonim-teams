@@ -93,12 +93,23 @@ describe('buildPrompt', () => {
 
   it('puts the organiser’s note in the prompt, and says nothing when there is none', () => {
     const said = buildPrompt(facts({ said: 'Tom kicked the ball over the fence 5 times' }));
-    expect(said).toContain('WHAT THE ORGANISER SAID HAPPENED');
+    expect(said).toContain('SOMETHING ELSE THAT HAPPENED TONIGHT');
     expect(said).toContain('Tom kicked the ball over the fence 5 times');
     // it must not become a licence to describe the football itself
     expect(said).toMatch(/do not treat it as permission to describe goals/i);
     // and a night without one carries no empty heading for the model to fill
-    expect(p).not.toContain('WHAT THE ORGANISER SAID HAPPENED');
+    expect(p).not.toContain('SOMETHING ELSE THAT HAPPENED TONIGHT');
+  });
+
+  it('tells the reporter it saw the thing itself, and not to invent a culprit', () => {
+    // Both from a real report. It wrote "according to the organisers of the
+    // round, who revealed a remarkable statistic", and then blamed two players
+    // the note never mentioned for a ball nobody was said to have kicked.
+    const said = buildPrompt(facts({ said: 'the ball went over the fence about 5 times' }));
+    expect(said).toContain('YOU SAW IT YOURSELF');
+    expect(said).toMatch(/never say where this came from/i);
+    expect(said).toMatch(/if it names nobody, it belongs to nobody/i);
+    expect(said).toMatch(/do not guess who did it/i);
   });
 
   it('accepts a note in the facts, and refuses a wall of text', () => {
