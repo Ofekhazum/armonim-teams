@@ -229,9 +229,27 @@ sync (offline, wrong word, rate-limited) still commits locally — the app alert
 the correction silently, but the device with the fix is now ahead of everyone else's until it
 reconnects and saves again.
 
-**Correcting a night afterwards** (admin only, History tab — a non-admin sees a line saying so,
-since an empty panel reads as a bug rather than a lock): expanding a past night offers
-*✏️ Edit result* — the three win counts and the date — and *🗑️ Delete this night*. The team sheet
+**Past nights are a deck of cards, and each card is a door.** They were an accordion: tap a row, get
+three team sheets and a strip of admin buttons, with *📖 Read the night* a small button two taps in.
+That was the right shape while there was nothing behind the row — and the wrong one from the moment
+§2.22 gave every night a page with a headline, a ribbon and a report on it. So the list lost its
+show/hide toggle (it is now the reason to open the tab, not a wall to hide) and each night became one
+card that **opens the night page when tapped anywhere on it**: date, the winning shirt with 👑 and
+its points, the night's own headline, a **fingerprint ribbon**, and a line of counts. The team sheets
+are not lost — they are on the page the card opens, next to everything else about that night, which
+is where somebody looking them up wants to be anyway.
+
+The fingerprint is one bar per *run*, widths in proportion, no numbers and no losers: a wide bar is a
+team that would not come off, a row of thin ones is an evening nobody could hold. It shares the row's
+width, which is exactly what the night page's own ribbon must not do (§2.22) — the difference is that
+nothing on this one is meant to be *read*.
+
+**Correcting a night afterwards** (admin only, History tab): the card's **⋯** corner opens a drawer
+with *✏️ Edit result* — the three win counts and the date — *🌟 Pick MVP* where there isn't one, and
+*🗑️ Delete this night*. A corner rather than a row across the bottom of every card, because
+correcting a night is rare and there are a season's worth of these; and nothing at all for a
+non-admin, who now sees a clean card instead of the same padlock line repeated down the whole
+archive. The team sheet
 is deliberately not editable, since it's a snapshot of who actually played; a genuinely wrong sheet
 means deleting the night and saving it again. Two consistency details live in `App.tsx` rather than
 the component: editing or deleting the night that is *still open on Match Day* also patches
@@ -242,6 +260,18 @@ re-dated still sorts correctly.
 **Standings** (`playerStandings`): a player collects whatever their team won on nights they played,
 so the table is nights / wins / wins-per-night. Without a matches-played count there is no true
 win percentage — wins-per-night is the honest rate.
+
+Seven sortable columns will not fit a phone and never will, so the fix is not to drop columns but to
+stop the **name** leaving with them: the first column is `sticky left-0`, and a number read sideways
+still says whose it is. That is also why this one card is opaque rather than the usual `/70` — a
+translucent sticky cell lets the rows it is holding scroll visibly underneath it, which reads as a
+rendering fault rather than a design. Rows alternate, and each carries its **position in whatever
+order is currently on screen**, which is the only thing a rank can honestly mean on a sortable table.
+The top-three tint comes off entirely under an A→Z sort, where a gold disc on row one would be
+claiming something about a name beginning with aleph. The tint is a disc and not a 🥇: the table
+already carries per-player badges that mean specific things (🥇 most wins, 🌟 most MVP picks), and a
+second gold circle competing with them for the same glance is how a key becomes necessary — which is
+what the player page's medal key was deleted for.
 
 **Rating suggestions** (`calibration.ts`, History tab, admin only). Each night is turned into three
 *pairwise* observations — black vs white, black vs blue, white vs blue — where the outcome is each

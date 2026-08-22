@@ -7,14 +7,30 @@ export const STYLE_META: Record<RoleBadge, { icon: string; label: string }> = {
   gk: { icon: '🧤', label: 'Goalkeeper' },
 };
 
+// `tile` is the ribbon palette — deliberately louder than `card`. A ribbon
+// tile has to hold its own against the tile pressed up beside it, where a team
+// card only has to sit on the page; white's card is cream on a cream page,
+// which as a ribbon made half a night invisible. Shared here rather than kept
+// in one component because two pages now draw the same ribbon at two sizes
+// (the night page's, and the fingerprint on each History card).
 export const TEAM_META: Record<
   TeamColor,
-  { label: string; emoji: string; card: string; header: string; sub: string; row: string; ring: string }
+  {
+    label: string;
+    emoji: string;
+    card: string;
+    tile: string;
+    header: string;
+    sub: string;
+    row: string;
+    ring: string;
+  }
 > = {
   black: {
     label: 'Black',
     emoji: '⚫',
     card: 'bg-stone-900 border-stone-700 text-stone-100',
+    tile: 'bg-stone-800 text-stone-100',
     header: 'text-stone-100',
     sub: 'text-stone-400',
     row: 'border-stone-700 hover:bg-stone-800',
@@ -24,6 +40,7 @@ export const TEAM_META: Record<
     label: 'White',
     emoji: '⚪',
     card: 'bg-[#fffdf4] border-amber-900/25 text-amber-950',
+    tile: 'bg-white text-amber-950 ring-1 ring-inset ring-amber-900/25',
     header: 'text-amber-950',
     sub: 'text-amber-900/60',
     row: 'border-amber-900/15 hover:bg-amber-100/70',
@@ -33,6 +50,7 @@ export const TEAM_META: Record<
     label: 'Blue',
     emoji: '🔵',
     card: 'bg-blue-900 border-blue-700 text-blue-50',
+    tile: 'bg-blue-800 text-blue-50',
     header: 'text-blue-50',
     sub: 'text-blue-300',
     row: 'border-blue-800 hover:bg-blue-800/70',

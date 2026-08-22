@@ -67,14 +67,8 @@ function Step({
 // This replaced three lanes (one per team, marking won / lost / sat out). That
 // version was a presence chart rather than a flow: it took three rows to say
 // what one says, and the white team's win tile was cream on a cream page, so
-// half the night was invisible. Hence the deliberately un-subtle palette here
-// rather than `TEAM_META.card` — a ribbon tile has to hold its own against the
-// tile beside it, where a team card only has to sit on the page.
-const RIBBON: Record<TeamColor, { tile: string }> = {
-  black: { tile: 'bg-stone-800 text-stone-100' },
-  white: { tile: 'bg-white text-amber-950 ring-1 ring-inset ring-amber-900/25' },
-  blue: { tile: 'bg-blue-800 text-blue-50' },
-};
+// half the night was invisible. The palette that fixed it is `TEAM_META.tile`
+// (see ui.tsx), shared with the fingerprint History draws on every night card.
 
 const factLine = (f: NightFact): string => {
   switch (f.kind) {
@@ -341,7 +335,7 @@ export default function NightPage({
                           TEAM_META[loser].label
                         }${m.viaPenalties ? ' on penalties' : ''}`}
                         className={`relative grid h-14 w-11 shrink-0 place-items-center overflow-hidden font-mono text-base font-black ${
-                          RIBBON[m.winner].tile
+                          TEAM_META[m.winner].tile
                         } ${opens ? (i === 0 ? 'rounded-l-xl' : 'ml-2 rounded-l-xl') : ''} ${
                           closes ? 'rounded-r-xl' : ''
                         }`}
@@ -353,7 +347,7 @@ export default function NightPage({
                         {/* who lost it, in a bar along the bottom — the one
                             thing the winner's colour cannot say on its own */}
                         <span
-                          className={`absolute inset-x-0 bottom-0 h-1.5 ${RIBBON[loser].tile}`}
+                          className={`absolute inset-x-0 bottom-0 h-1.5 ${TEAM_META[loser].tile}`}
                         />
                       </span>
                     );
