@@ -26,7 +26,6 @@ import { duoFacts } from './duos';
 import { tonightsMilestones } from './milestones';
 import { nightStory, playerNight } from './nightStory';
 import { MIN_FACED, matchups } from './playerProfile';
-import { playerStandings } from './calibration';
 
 export interface RecapTeam {
   team: string; // 'Black' | 'White' | 'Blue' — named, not coded, so the model reads it
@@ -65,10 +64,6 @@ export interface RecapFacts {
   // says: who had the best of it, and — the one worth having — who ran into
   // the opponent who usually beats them and came out ahead.
   notes: string[];
-  // Where the club stands after tonight, top few only. Group context: a report
-  // that can say somebody has gone top of the club is telling the group
-  // something about their season rather than only about their evening.
-  table: string[];
 }
 
 // How far behind somebody has to be, over how many matches, before the player
@@ -77,8 +72,6 @@ const BOGEY_BEHIND = 4;
 // At most this many personal notes: the report is about a night, and fifteen
 // individual sub-plots is a list rather than a story.
 const MAX_NOTES = 8;
-// How many of the club's leaders travel with the report.
-const TABLE_SIZE = 3;
 
 // English team keys even though the recap is written in Hebrew: these are
 // identifiers the prompt maps to Hebrew names, not copy. Keeping the facts in
@@ -155,13 +148,12 @@ export function recapFacts(
     (d) => `${d.aName} and ${d.bName} have won ${d.won} of their ${d.together} nights together`,
   );
 
+  // A club table was sent for one version and taken back out. Ranked on wins,
+  // it put somebody who had turned up once above regulars who had played all
+  // season, and the report repeated that as though it meant something. A
+  // standing needs a minimum-nights rule to be worth quoting (§2.6 has one for
+  // exactly this reason) — and the report is about a night, not a season.
   const notes = nightNotes(fixture, history);
-  // the club as it stands *including* tonight — this is the standing the group
-  // wakes up to, unlike the head-to-head records in `notes`, which have to be
-  // quoted as they were before the night in order to say what changed
-  const table = playerStandings(asOf)
-    .slice(0, TABLE_SIZE)
-    .map((s, i) => `${i + 1}. ${s.name} — ${s.wins} wins from ${s.nights} nights`);
 
   const players: RecapPlayerLine[] = [];
   for (const p of fixture.players) {
@@ -190,7 +182,6 @@ export function recapFacts(
     milestones,
     duos,
     notes,
-    table,
   };
 }
 
@@ -244,8 +235,12 @@ function nightNotes(fixture: FixtureRecord, history: FixtureRecord[]): string[] 
     const tonight = pair.get(key(mine, theirs));
     if (!tonight || tonight.won <= tonight.lost) continue;
 
+    // Said as a story rather than as a record. The first version read
+    // "came into tonight 2-8 down against ירין across their careers, and
+    // tonight ניב's team beat ירין's 3-1", which is four numbers for one joke
+    // and buries the joke under them.
     notes.push(
-      `${p.name} came into tonight ${bogey.beat}-${bogey.beatenBy} down against ${bogey.name} across their careers, and tonight ${p.name}'s team beat ${bogey.name}'s ${tonight.won}-${tonight.lost}`,
+      `${p.name} nearly always comes off worse against ${bogey.name} — and tonight ${p.name}'s team beat theirs`,
     );
   }
 
@@ -282,9 +277,7 @@ function nightNotes(fixture: FixtureRecord, history: FixtureRecord[]): string[] 
       if (had && had.won > bestEver) bestEver = had.won;
     }
     if (bestEver > 0 && n.won > bestEver) {
-      notes.push(
-        `${p.name} won ${n.won} matches tonight, more than they have ever won in one night before (${bestEver})`,
-      );
+      notes.push(`${p.name} won more matches tonight than on any night they have played before`);
     }
   }
 

@@ -124,10 +124,15 @@ describe('buildPrompt', () => {
     expect(p).toMatch(/never use the name of anyone playing tonight/i);
   });
 
-  it('carries where the club stands after tonight', () => {
+  it('does not quote a club table, which ranked a one-night player over regulars', () => {
     const withTable = buildPrompt(facts({ table: ['1. ניב — 47 wins from 20 nights'] }));
-    expect(withTable).toContain('TOP OF THE CLUB AFTER TONIGHT');
-    expect(withTable).toContain('47 wins from 20 nights');
+    expect(withTable).not.toContain('TOP OF THE CLUB');
+    expect(withTable).not.toContain('47 wins');
+  });
+
+  it('asks for the rivalry as a story rather than as a record', () => {
+    expect(p).toMatch(/stories, not statistics/);
+    expect(p).toMatch(/do not print it as a record/);
   });
 
   it('asks for whole sentences and a length worth reading', () => {

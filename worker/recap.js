@@ -109,6 +109,8 @@ export function isValidFacts(facts) {
     isStrList(facts.duos, 6) &&
     // absent on a client that predates these; an empty list, not a fault
     (facts.notes === undefined || isStrList(facts.notes, 10)) &&
+    // sent by one build and taken back out; accepted so an older client is not
+    // refused, ignored by the prompt
     (facts.table === undefined || isStrList(facts.table, 5))
   );
 }
@@ -171,9 +173,6 @@ ${list(facts.duos, '- none')}
 PERSONAL STORIES IN THIS NIGHT
 ${list(facts.notes ?? [], '- none')}
 
-TOP OF THE CLUB AFTER TONIGHT
-${list(facts.table ?? [], '- not enough nights on record yet')}
-
 HOW TO WRITE IT.
 
 Open with a byline on its own line, in this shape:
@@ -188,12 +187,14 @@ Then five paragraphs, in this order, 280 to 380 words in total:
 2. THE WINNERS. The team that took the night: their points, how many matches they played, their longest run, and the players in that team by name.
 3. THE OTHER TWO TEAMS. One or two sentences each, both of them, by name — points, matches played, longest run, and at least one player named from each. Neither team may be skipped, even if their night was quiet. A team that won nothing gets a line about that.
 4. THE PEOPLE. Milestones reached, the personal stories above, the player of the night, and anyone who won a lot or a little. If somebody beat an opponent who usually beats them, that is the best line in the report — say the old record and the new one. Somebody who played four or more and won nothing gets a sympathetic ribbing, not a kicking.
-5. THE SIGN-OFF. Where the club stands after tonight, if that is known, and one or two sentences looking forward to next week.
+5. THE SIGN-OFF. One or two sentences looking forward to next week. Make somebody a promise or a threat about it.
 
 Rules:
 - Every paragraph must be a complete thought that finishes. Never stop mid-sentence.
 - The voice of an over-excited sports broadcaster who takes an amateur football night far too seriously. Funny, warm, a bit dramatic. A few emojis, not a wall of them.
-- Be properly funny rather than politely funny. Wind people up about their results, invent grand titles for them, treat a five-a-side night like a cup final, be mock-outraged on somebody's behalf. The group knows each other well and a report nobody laughs at is not worth writing.
+- Be properly funny, and do not hold back. Wind people up about their results, hand out grand titles and nicknames, treat a five-a-side night like a cup final, be mock-outraged on somebody's behalf, declare feuds and dynasties that do not exist. The group know each other well and a report nobody laughs at is not worth writing. The one line you never cross is below.
+- Emojis: a few, placed where a broadcaster would raise their voice. Not one per sentence.
+- The personal stories are stories, not statistics. If somebody usually loses to an opponent and beat them tonight, that is a rivalry and a headline — write it as one, do not print it as a record.
 - Name real people, and tease them about results only — never about ability, fitness, body, or anything not in the record above. These fifteen people play together every week and all of them will read this.
 - Every number must come from the record above, unchanged. If something is not written above, it did not happen and must not be mentioned.
 - The shape of the night is a description rather than a statistic: say what it means in ordinary words — a night that swung constantly, a night one team ran away with — the way a commentator would, and never as a figure or under a name of its own.

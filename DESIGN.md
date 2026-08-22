@@ -1573,6 +1573,16 @@ name for an internal number quoted at a group who have seen neither. Instructing
 it in words was tried first; not sending it is the version that cannot fail. The night's *shape*
 still travels, because it is a word rather than a figure.
 
+**A club table was sent for one version and taken back out.** Ranked on wins, it put somebody who had
+turned up once above regulars who had played all season, and the report duly repeated that as though
+it meant something. A standing needs a minimum-nights rule before it is worth quoting — §2.6 has one
+for exactly this reason — and the report is about a night rather than a season.
+
+**Personal history is told as a story, not as a record.** The bogey line first read *"came into
+tonight 2-8 down against ירין across their careers, and tonight ניב's team beat ירין's 3-1"* — four
+numbers stacked around one joke, which is three too many. It is one sentence now, and the prompt says
+in as many words that a rivalry is a headline rather than a record.
+
 **The byline is invented on the spot.** Each report opens `📻 <reporter> מדווח מהמגרש` with a
 different absurd name every week — never a real journalist, never anybody playing. It costs nothing,
 it varies for free, and it is what makes the thing read as a broadcast rather than as a summary.

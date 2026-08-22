@@ -184,8 +184,10 @@ describe('recapFacts', () => {
     const f = recapFacts(tonight, [...past, tonight], roster)!;
     // whether a bogey exists depends on the fixtures above; what must always
     // hold is that a note quotes the record from *before* tonight
+    // said as a story rather than as a record: at most the one thing that
+    // happened, never four career numbers stacked up around the joke
     for (const n of f.notes) {
-      if (n.includes('came into tonight')) expect(n).toMatch(/down against/);
+      if (n.includes('comes off worse')) expect(n).toMatch(/beat theirs$/);
     }
     // and the night's best is always there once anybody won anything
     expect(f.notes.some((n) => n.startsWith('Most matches won tonight'))).toBe(true);
@@ -196,18 +198,7 @@ describe('recapFacts', () => {
     const f = recapFacts(fx, [fx], roster)!;
     // one night of history and nothing before it: nobody has a career record
     // to have overturned, so there is nothing of the kind to say
-    expect(f.notes.some((n) => n.includes('came into tonight'))).toBe(false);
-  });
-
-  it('carries where the club stands, which is the group half of the story', () => {
-    const season = Array.from({ length: 4 }, (_, i) => ({
-      ...night('AWN'),
-      id: `s${i}`,
-      date: `2026-06-0${i + 1}`,
-    }));
-    const f = recapFacts(season[3], season, roster)!;
-    expect(f.table.length).toBeGreaterThan(0);
-    expect(f.table[0]).toMatch(/^1\. .+ — .+ wins from \d+ nights$/);
+    expect(f.notes.some((n) => n.includes('comes off worse'))).toBe(false);
   });
 
   it('names a long evening with nothing to show for it', () => {

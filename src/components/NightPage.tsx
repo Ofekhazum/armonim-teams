@@ -292,7 +292,9 @@ export default function NightPage({
               {TEAM_COLORS.map((c) => (
                 <div key={c} className={`rounded-xl border p-2.5 text-xs ${TEAM_META[c].card}`}>
                   <div className={`font-black ${TEAM_META[c].header}`}>
-                    {TEAM_META[c].emoji} {TEAM_META[c].label} — {fmtWins(fixture.wins[c] ?? 0)}
+                    {TEAM_META[c].emoji} {TEAM_META[c].label}
+                    {winners.includes(c) && <span title="Won the night"> 👑</span>} —{' '}
+                    {fmtWins(fixture.wins[c] ?? 0)}
                   </div>
                   <div className={TEAM_META[c].sub}>
                     {fixture.teams[c].map((id) => nameOf(id)).join(', ') || '—'}
@@ -392,6 +394,10 @@ export default function NightPage({
                     <div className="mb-1.5 flex items-baseline justify-between gap-x-2 px-0.5">
                       <h3 className={`text-sm font-black ${TEAM_META[c].header}`}>
                         {TEAM_META[c].emoji} {TEAM_META[c].label}
+                        {/* who took the night, said on the card as well as in
+                            the header — the points are right there beside it,
+                            but a crown is read without arithmetic */}
+                        {winners.includes(c) && <span title="Won the night"> 👑</span>}
                       </h3>
                       {/* Points, and nothing else. Not wins, so this agrees
                           with the result at the top of the page — a match taken
