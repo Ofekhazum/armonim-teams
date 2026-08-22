@@ -249,15 +249,15 @@ export default function NightPage({ fixture, history, players, onClose }: Props)
                       <h3 className={`text-sm font-black ${TEAM_META[c].header}`}>
                         {TEAM_META[c].emoji} {TEAM_META[c].label}
                       </h3>
-                      {/* Points of matches played — the pair a tally can never
-                          give you: a team on two from two had a different night
-                          from one on two from six. Points rather than wins so
-                          this agrees with the result at the top of the page,
-                          where a match taken on penalties is worth half (§2.8).
-                          Written out rather than as `5.5/12`, which reads as a
-                          score or a date depending on who is looking. */}
+                      {/* Points, and nothing else. Not wins, so this agrees
+                          with the result at the top of the page — a match taken
+                          on penalties is worth half (§2.8) — and not `4.5 from
+                          12`, because the number beside a team's name on the
+                          night they played is the one thing nobody has to be
+                          told the meaning of. How many they played is still in
+                          the ribbon above, one tile per match. */}
                       <span className={`text-[11px] font-semibold ${TEAM_META[c].sub}`}>
-                        {fmtWins(t.points)} pts from {t.played}
+                        {fmtWins(t.points)}
                       </span>
                     </div>
                     <ul dir="rtl" className="flex flex-wrap gap-1">
