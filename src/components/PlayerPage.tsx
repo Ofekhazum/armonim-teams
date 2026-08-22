@@ -664,16 +664,6 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
                       )}
                     </div>
                   </div>
-                  {/* The comparison is the whole point of the line above it:
-                      losing puts you on the bench for exactly one match and
-                      back on against a team that has just played two, so every
-                      one of these numbers is flattered by the rotation. Only
-                      the gap to everybody else means anything. */}
-                  <p className="text-[10px] leading-snug text-amber-900/35">
-                    Counts, not a verdict. Coming off a loss you return against a team that has just
-                    played two in a row, which lifts everybody's number — so it is only read against
-                    what the whole club does in the same spot.
-                  </p>
                 </div>
               )}
             </Card>

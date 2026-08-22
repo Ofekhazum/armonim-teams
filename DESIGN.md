@@ -1454,6 +1454,9 @@ that has just played two in a row. Everybody's number is lifted by the same rota
 looks like character in a player who is exactly ordinary. `clubBounce` counts the same situation
 across every team on every logged night, per team-match rather than per player (the five in a team
 share one result, and counting it five times would make the baseline look better sampled than it is).
+The club rate is printed **inside the line** — *"against 52% for the club"* — rather than explained in
+a footnote under the card. A caveat nobody reads is not a caveat; the comparison has to be in the
+sentence, and once it is, the footnote was only repeating it.
 
 **Counts, never traits, and the floors say so.** `MIN_ARC_NIGHTS` (4 logged nights) gates the card;
 `MIN_BOUNCE` and `MIN_HALF` gate the individual lines on top of it, because a player can clear four
