@@ -1515,9 +1515,25 @@ a key in everybody's DevTools. `GEMINI_KEY` is a wrangler secret and the browser
 Google — it posts counts to `POST /recap`, behind the admin word and the same per-IP limiter that
 guards every other write.
 
+**Generating has a second limiter, and that one never refunds.** Every guarded write costs a KV put,
+which is ours and cheap, so the publish limiter hands a *correct* word its attempt back (§7) — right
+for a roster, wrong for this. A draft is up to three calls on the club's Gemini key against a free
+tier with a daily cap, so an admin word that leaked would otherwise be an unlimited supply of
+somebody else's tokens, discovered only when the reporter went dead for everyone. `RECAP_LIMIT` is
+twelve an hour per IP, counted only on the generate path and only after `isValidFacts` passes — a
+malformed flood spends nothing upstream and so must not spend the budget either. **Saving an approved
+draft and deleting one stay free**: they cost a KV write, and being told to wait before you can save
+the report already on your screen would be a penalty for the wrong act. The two 429s are told apart
+by name in the body, because "wait ten minutes" and "you have had enough" are different sentences.
+
 **The Worker builds the prompt; the client sends only facts.** The client could send finished prompt
 text and save the Worker a job — and then anyone holding the admin word could make our key write
-anything at all. A validated facts shape (`isValidFacts`) can only ever produce a match report.
+anything at all. `isValidFacts` pins the *shape*, so the rules, the format and the line nobody
+crosses live in the Worker and cannot be sent from outside — but names and story lines are free text
+in the prompt, so the word still steers what comes back. That is the right amount of protection
+rather than a gap: the same word already stores 8000 arbitrary characters via `{ text }`, so what is
+being defended is the key, not the text — it must not become a general text generator for whoever
+holds the word.
 
 **Facts, never the log.** `recapFacts` flattens what `nightStory`, `milestones` and `duos` already
 computed into a few hundred bytes of finished numbers. A model handed eighteen raw results will do

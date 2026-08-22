@@ -7,8 +7,16 @@
 //
 // **The Worker builds the prompt, the client only sends counts.** The client
 // could send finished prompt text and save this file a job, and then anyone
-// holding the admin word could make our key write anything at all. Facts in a
-// validated shape can only ever produce a match report.
+// holding the admin word could make our key write anything at all.
+//
+// Note what that does and does not buy. `isValidFacts` checks the *shape* —
+// the rules, the format and the line nobody crosses are written here and
+// cannot be sent from outside — but the names and the story lines are free
+// text pasted into the prompt, so somebody with the word can still steer what
+// comes back. That is not the hole it sounds like: the same word already
+// stores 8000 characters of anything at all via `{ text }`. What this stops is
+// the *key* becoming a general-purpose text generator for whoever holds the
+// word, which is Google's problem with us rather than ours with the club.
 //
 // **Nothing invented.** The data has no goals, no scorers, no assists, no
 // saves — it has who beat whom, in what order. A sports-writer prompt with no

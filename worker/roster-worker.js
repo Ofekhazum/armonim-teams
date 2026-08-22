@@ -92,6 +92,23 @@ const MAX_BODY_BYTES = 512 * 1024;
 const PUBLISH_LIMIT = 10;
 const PUBLISH_WINDOW_MS = 10 * 60 * 1000;
 
+// Drafts per IP, and the one budget in this file that a *correct* word cannot
+// get back.
+//
+// Every other guarded write costs us a KV put, which is ours, cheap, and
+// idempotent — so refunding a right answer is exactly right there. Writing a
+// report is not that: it is up to three calls on the club's Gemini key against
+// a free tier with a daily cap, so a word that leaked would be an unlimited
+// supply of somebody else's tokens, and the first anyone would know of it is
+// the reporter being dead for everyone.
+//
+// A dozen an hour is set by what the act actually looks like: one report a
+// week, rerolled two or three times when the first one comes back flat. Nobody
+// writing a report for a real night gets near this, which is the whole test of
+// a limit — it has to be invisible to the person it is not aimed at.
+const RECAP_LIMIT = 12;
+const RECAP_WINDOW_MS = 60 * 60 * 1000;
+
 // Room upgrades are unauthenticated by design — the share link is the
 // invitation — so the only thing standing between a script and an unbounded
 // number of Durable Objects is this. Set well above what a real match night
@@ -629,6 +646,26 @@ export default {
         }
 
         if (!isValidFacts(body.facts)) return json({ error: 'bad facts' }, 400);
+
+        // Only generation is rated, and only once the payload is known to be
+        // worth a call — a malformed flood costs nothing upstream, so it must
+        // not eat the budget of somebody with a real night to write about.
+        //
+        // Storing an approved draft and deleting a recap stay free on purpose.
+        // They spend nothing but a KV write, and being made to wait before you
+        // can save the report already on your screen would be a penalty for
+        // the wrong act entirely.
+        const gen = await countAttempt(
+          limiterFor(env, `recap:${ip}`),
+          RECAP_LIMIT,
+          RECAP_WINDOW_MS,
+        );
+        if (gen.blocked) {
+          return json({ error: 'too many recaps' }, 429, {
+            'Retry-After': String(gen.retryAfter),
+          });
+        }
+
         const written = await writeRecap(env, body.facts);
         if (written.error) return json({ error: written.error }, 502);
         if (body.save === true) {

@@ -189,9 +189,11 @@ export default function NightPage({
           ? 'That admin word was refused.'
           : error === 'rate-limited'
             ? 'Too many attempts from here. Give it ten minutes.'
-            : error === 'unavailable'
-              ? `Gemini turned it down${detail ? ` — ${detail}` : ''}`
-              : 'Could not reach the reporter.',
+            : error === 'too-many-recaps'
+              ? 'That is a dozen reports in an hour. The reporter has gone for a lie down — try again later.'
+                : error === 'unavailable'
+                  ? `Gemini turned it down${detail ? ` — ${detail}` : ''}`
+                  : 'Could not reach the reporter.',
     );
 
   const write = async () => {

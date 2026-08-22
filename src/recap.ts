@@ -21,7 +21,8 @@ export interface StoredRecap {
 export type RecapError =
   | 'not-configured' // no worker, or no GEMINI_KEY set on it
   | 'wrong-word'
-  | 'rate-limited'
+  | 'rate-limited' // too many wrong words from this address
+  | 'too-many-recaps' // the right word, but a dozen drafts in an hour
   | 'unavailable' // Gemini said no: quota, safety filter, or simply down
   | 'error';
 
@@ -56,7 +57,15 @@ const post = async (body: unknown): Promise<RecapResult> => {
       body: JSON.stringify(body),
     });
     if (res.status === 401) return { error: 'wrong-word' };
-    if (res.status === 429) return { error: 'rate-limited' };
+    // Two different 429s wearing one status. One means the word is being
+    // guessed at from this address; the other means the word was right and the
+    // reporter has written a dozen of these in an hour. They ask for very
+    // different things — wait ten minutes, versus you have had enough — so the
+    // worker names which, the same way it names a 502.
+    if (res.status === 429) {
+      const said = await res.json().catch(() => ({}) as { error?: string });
+      return { error: said.error === 'too many recaps' ? 'too-many-recaps' : 'rate-limited' };
+    }
     // 502 is the worker reporting what Gemini told it — quota, a safety
     // refusal, an outage, or no key configured at all. All of them mean "no
     // recap right now" and none of them mean the app is broken, but they need
