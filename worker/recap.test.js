@@ -253,7 +253,8 @@ describe('writeRecap', () => {
     globalThis.fetch = async () => {
       throw new Error('offline');
     };
-    expect(await writeRecap(env, facts())).toEqual({ error: 'unreachable' });
+    // one per model in the waterfall, and none of them reachable
+    expect((await writeRecap(env, facts())).error).toMatch(/every model refused/);
     globalThis.fetch = original;
   });
 
@@ -305,7 +306,7 @@ describe('writeRecap', () => {
         JSON.stringify({ candidates: [{ content: { parts: [{ text: '<report>ok</report>' }] } }] }),
       );
     };
-    expect(await writeRecap(env, facts())).toEqual({ text: 'ok' });
+    expect(await writeRecap(env, facts())).toMatchObject({ text: 'ok' });
     // a different way of asking the second time, not the same request again
     expect(bodies[0].generationConfig.thinkingConfig).not.toEqual(
       bodies[1].generationConfig.thinkingConfig,
@@ -314,17 +315,154 @@ describe('writeRecap', () => {
   });
 
   it('gives up once it has run out of ways to ask, rather than hammering', async () => {
+    // Bounded, and worth knowing the bound: three ways of asking for thinking
+    // off, times five models in the waterfall. Only ever reached when every
+    // model rejects every shape of the request, which means the payload is
+    // wrong rather than the quota — and a 400 costs no tokens, so fifteen fast
+    // refusals is cheap next to never trying the model that would have said yes.
+    const env = { GEMINI_KEY: 'k' };
+    const original = globalThis.fetch;
+    let calls = 0;
+    globalThis.fetch = async () => {
+      calls++;
+      return new Response(JSON.stringify({ error: { message: 'Bad argument' } }), { status: 400 });
+    };
+    const out = await writeRecap(env, facts());
+    expect(calls).toBe(15);
+    expect(out.error).toContain('Bad argument');
+    globalThis.fetch = original;
+  });
+
+  // --- The waterfall (§2.24) ------------------------------------------------
+  // The free tier's problem is that it is uneven, not that it is small: the
+  // best model allows about twenty requests a day, the lite ones five hundred.
+  // These are about what happens when the good one says no.
+
+  const okReply = () =>
+    new Response(
+      JSON.stringify({ candidates: [{ content: { parts: [{ text: '<report>דוח</report>' }] } }] }),
+    );
+
+  // Answers `status` to the first `n` models and a real report to the next.
+  const refuseFirst = (n, status, seen) => async (url) => {
+    seen.push(String(url).match(/models\/([^:]+):/)[1]);
+    return seen.length <= n ? new Response('{}', { status }) : okReply();
+  };
+
+  it('drops to the next model when the good one is out of quota', async () => {
+    const env = { GEMINI_KEY: 'k' };
+    const original = globalThis.fetch;
+    const seen = [];
+    globalThis.fetch = refuseFirst(1, 429, seen);
+    const out = await writeRecap(env, facts());
+    expect(out.text).toBe('דוח');
+    // written by the second model, and it says which
+    expect(out.model).toBe('gemini-3.5-flash');
+    expect(seen).toEqual(['gemini-3.6-flash', 'gemini-3.5-flash']);
+    globalThis.fetch = original;
+  });
+
+  it('keeps falling until something takes it, best first', async () => {
+    const env = { GEMINI_KEY: 'k' };
+    const original = globalThis.fetch;
+    const seen = [];
+    globalThis.fetch = refuseFirst(3, 429, seen);
+    const out = await writeRecap(env, facts());
+    expect(out.model).toBe('gemini-3.1-flash-lite');
+    // in order, no skipping: the best model that will take it writes the report
+    expect(seen).toEqual([
+      'gemini-3.6-flash',
+      'gemini-3.5-flash',
+      'gemini-3.5-flash-lite',
+      'gemini-3.1-flash-lite',
+    ]);
+    globalThis.fetch = original;
+  });
+
+  it('falls through an outage and a retired model too', async () => {
+    for (const status of [500, 503, 404]) {
+      const original = globalThis.fetch;
+      const seen = [];
+      globalThis.fetch = refuseFirst(1, status, seen);
+      const out = await writeRecap({ GEMINI_KEY: 'k' }, facts());
+      expect(out.text, `status ${status}`).toBe('דוח');
+      globalThis.fetch = original;
+    }
+  });
+
+  it('says the free tier is spent when every model says 429', async () => {
+    const env = { GEMINI_KEY: 'k' };
+    const original = globalThis.fetch;
+    globalThis.fetch = async () => new Response('{}', { status: 429 });
+    // five identical numbers is a paragraph nobody can read; this is the
+    // ordinary version of a total failure and gets the plain word for it
+    expect(await writeRecap(env, facts())).toEqual({ error: 'quota' });
+    globalThis.fetch = original;
+  });
+
+  it('names every model and its answer when they all refuse differently', async () => {
+    const env = { GEMINI_KEY: 'k' };
+    const original = globalThis.fetch;
+    let n = 0;
+    globalThis.fetch = async () => {
+      n++;
+      return new Response('{}', { status: n === 1 ? 429 : 503 });
+    };
+    const out = await writeRecap(env, facts());
+    expect(out.error).toContain('gemini-3.6-flash: 429');
+    expect(out.error).toContain('gemini-3-flash: 503');
+    globalThis.fetch = original;
+  });
+
+  it('lets GEMINI_MODEL jump the queue without becoming the whole queue', async () => {
+    // The escape hatch for the day Google renames something. It used to
+    // *replace* the list, which pinned the failure along with the model.
+    const env = { GEMINI_KEY: 'k', GEMINI_MODEL: 'models/gemini-3.5-flash-lite' };
+    const original = globalThis.fetch;
+    const seen = [];
+    globalThis.fetch = refuseFirst(1, 429, seen);
+    const out = await writeRecap(env, facts());
+    // the `models/` prefix Google's own docs use is accepted and stripped
+    expect(seen[0]).toBe('gemini-3.5-flash-lite');
+    // and the rest of the waterfall is still behind it, without a duplicate
+    expect(seen[1]).toBe('gemini-3.6-flash');
+    expect(out.text).toBe('דוח');
+    globalThis.fetch = original;
+  });
+
+  it('stops at a 200, whatever the 200 contained', async () => {
+    // A model that answers with its working out instead of a report is a
+    // content failure, and asking four more models to have a go would spend
+    // five quotas on one bad answer. Content failures have their own fixes.
+    const env = { GEMINI_KEY: 'k' };
+    const original = globalThis.fetch;
+    let calls = 0;
+    globalThis.fetch = async () => {
+      calls++;
+      return new Response(
+        JSON.stringify({ candidates: [{ content: { parts: [{ text: 'let me check my work' }] } }] }),
+      );
+    };
+    const out = await writeRecap(env, facts());
+    expect(calls).toBe(1);
+    expect(out.error).toContain('working out');
+    globalThis.fetch = original;
+  });
+
+  it('does not walk the waterfall for a rejected key', async () => {
+    // 401 is the one refusal every model gives identically. Falling through
+    // would turn one clear answer into five slow copies of it.
     const env = { GEMINI_KEY: 'k' };
     const original = globalThis.fetch;
     let calls = 0;
     globalThis.fetch = async () => {
       calls++;
       return new Response(JSON.stringify({ error: { message: 'API key not valid' } }), {
-        status: 400,
+        status: 401,
       });
     };
     const out = await writeRecap(env, facts());
-    expect(calls).toBe(3);
+    expect(calls).toBe(1);
     expect(out.error).toContain('API key not valid');
     globalThis.fetch = original;
   });
@@ -389,7 +527,7 @@ describe('writeRecap', () => {
           ],
         }),
       );
-    expect(await writeRecap(env, facts())).toEqual({ text: 'ערב פרוע' });
+    expect(await writeRecap(env, facts())).toMatchObject({ text: 'ערב פרוע' });
     globalThis.fetch = original;
   });
 
@@ -414,7 +552,7 @@ describe('writeRecap', () => {
           ],
         }),
       );
-    expect(await writeRecap(env, facts())).toEqual({ text: 'ערב פרוע' });
+    expect(await writeRecap(env, facts())).toMatchObject({ text: 'ערב פרוע' });
     globalThis.fetch = original;
   });
 
@@ -442,7 +580,7 @@ describe('writeRecap', () => {
         }),
         { status: 200 },
       );
-    expect(await writeRecap(env, facts())).toEqual({ text: 'ערב פרוע' });
+    expect(await writeRecap(env, facts())).toMatchObject({ text: 'ערב פרוע' });
     globalThis.fetch = original;
   });
 });
