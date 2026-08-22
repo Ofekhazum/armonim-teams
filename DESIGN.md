@@ -1465,6 +1465,12 @@ nights and still have barely come off a loss. `NOTABLE_GAP` (20 points) is the w
 enough to say what the record did, nowhere near enough to separate a resilient player from a lucky
 one, so the app says *"won 9 of 14 coming back on"* and never *"mentally resilient"*.
 
+**Only the quarters are drawn.** Early-versus-late and the bench return are computed, tested and shown
+nowhere — the card kept the one line that is a *shape* and dropped the two that were sentences of
+arithmetic. They stay in `playerArcs` because the counting is the hard part and it costs one pass over
+history either way: the reporter will want exactly these when it arrives, and deleting them would only
+mean writing them again.
+
 A **diagnostics panel** was built here and taken back out — a mock system scan printing each of these
 counts as a joke error code. It was honest (pull-only, every line a real number) and it was not
 useful: the counts above already say the same things, and saying them twice in a funnier font is

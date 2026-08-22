@@ -19,6 +19,12 @@
 // resilient player from a lucky one. The app never says the second thing in its
 // own voice; a description of the record is as far as it goes.
 //
+// **Two of the three are computed and not currently drawn.** Only the quarters
+// are on the player page; early-versus-late and the bench return are counted
+// here and shown nowhere, kept for the night reporter — the numbers are the
+// hard part and they cost one pass over history either way. Deleting them
+// would only mean writing them again.
+//
 // **Coming off a loss is measured against the club, not against 50%.** After
 // your team loses you sit one match and come back against a team that has just
 // played two in a row. *Everybody's* number is lifted by that, so the rotation

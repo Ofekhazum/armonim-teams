@@ -22,16 +22,7 @@ import {
   toGo,
   winRungs,
 } from '../playerProfile';
-import {
-  MIN_ARC_NIGHTS,
-  MIN_BOUNCE,
-  NOTABLE_GAP,
-  bounceVsClub,
-  clubBounce,
-  lean,
-  playerArcs,
-  rate,
-} from '../playerArcs';
+import { MIN_ARC_NIGHTS, playerArcs, rate } from '../playerArcs';
 import { Name, STYLE_META, TEAM_META } from './ui';
 
 // One player's page (§2.19). Everything on it is counted from history — the
@@ -155,11 +146,10 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
   const counts = useMemo(() => profileCounts(nights), [nights]);
   const shirts = useMemo(() => shirtNights(nights), [nights]);
   const shootouts = useMemo(() => shootoutRecord(history, player.id), [history, player.id]);
-  // When their football happened, which only logged nights can answer (§2.23)
+  // When their football happened, which only logged nights can answer (§2.23).
+  // `arcs` also holds the early/late and off-the-bench tallies; those are
+  // computed and deliberately not drawn — see the note in playerArcs.ts.
   const arcs = useMemo(() => playerArcs(history, player.id), [history, player.id]);
-  const club = useMemo(() => clubBounce(history), [history]);
-  const earlyLate = lean(arcs);
-  const vsClub = bounceVsClub(arcs, club);
   const enoughArcs = arcs.loggedNights >= MIN_ARC_NIGHTS;
   const picks = useMemo(
     () => matchupPicks(matchups(history, player.id), counts.nights),
@@ -607,61 +597,6 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
                           </div>
                         );
                       })}
-                    </div>
-                  </div>
-
-                  <div className="space-y-1 border-t border-amber-900/10 pt-2 text-sm">
-                    <div className="flex flex-wrap items-baseline gap-x-2">
-                      <span className="shrink-0 text-[11px] font-bold uppercase tracking-wide text-amber-900/45">
-                        🌅 Early v late
-                      </span>
-                      {earlyLate === null ? (
-                        <span className="text-xs text-amber-900/50">
-                          not enough of either half yet
-                        </span>
-                      ) : (
-                        <span className="text-xs text-amber-900/60">
-                          <b className="text-amber-900">
-                            {arcs.early.won}/{arcs.early.played}
-                          </b>{' '}
-                          in their first matches,{' '}
-                          <b className="text-amber-900">
-                            {arcs.late.won}/{arcs.late.played}
-                          </b>{' '}
-                          in their last
-                          {earlyLate === 'level'
-                            ? ' — no real difference'
-                            : earlyLate === 'late'
-                              ? ' — the record finishes stronger'
-                              : ' — the record starts stronger'}
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="flex flex-wrap items-baseline gap-x-2">
-                      <span className="shrink-0 text-[11px] font-bold uppercase tracking-wide text-amber-900/45">
-                        🪑 Off the bench
-                      </span>
-                      {vsClub === null ? (
-                        <span className="text-xs text-amber-900/50">
-                          {arcs.bounce.played} matches back on after a loss — {MIN_BOUNCE} needed
-                        </span>
-                      ) : (
-                        <span className="text-xs text-amber-900/60">
-                          won{' '}
-                          <b className="text-amber-900">
-                            {arcs.bounce.won} of {arcs.bounce.played}
-                          </b>{' '}
-                          coming back on after a loss, against{' '}
-                          <b className="text-amber-900">{Math.round((rate(club) ?? 0) * 100)}%</b>{' '}
-                          for the club
-                          {Math.abs(vsClub) < NOTABLE_GAP
-                            ? ' — right about the club rate'
-                            : vsClub > 0
-                              ? ' — above it'
-                              : ' — below it'}
-                        </span>
-                      )}
                     </div>
                   </div>
                 </div>
