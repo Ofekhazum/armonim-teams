@@ -200,11 +200,18 @@ still being typed. `players` is a **snapshot** (`FixturePlayer`: id/name/rating 
 than a pointer into the roster, because guests are one-off and both names and ratings move; history
 has to still read correctly years later.
 
-**Entry**: `ResultsPanel.tsx`, rendered on the fixture page (§2.7) rather than inside `TeamsBoard`
-itself — deliberately, since a live-room guest renders that same `TeamsBoard` and must not be able
-to file a night into the host's history. Re-saving updates the same record
-(`session.savedFixtureId`) instead of appending a duplicate; generating fresh teams clears both,
-since an old tally no longer describes the new sheet.
+**Entry**: the night is filed when it *ends* (§2.7.1), from the panel behind **End fixture**.
+Re-saving updates the same record (`session.savedFixtureId`) instead of appending a duplicate;
+generating fresh teams clears both, since an old tally no longer describes the new sheet. A night
+with nothing written down can still be filed — it keeps who played and which teams they were in, and
+the tally is typed in afterwards on the History tab, which is also where a mistake is corrected.
+
+There used to be a **🏁 Tonight's results** panel on the fixture page: three number inputs and a Save
+button, sitting under the match log that had already counted the same numbers. Once a night is logged
+match by match the tally is *derived*, so the panel was asking the organiser to type in something the
+app knew — and offering, as its own failure mode, a hand-typed tally that disagreed with the matches
+it was made of. It was removed with the change above: filing is part of ending, and typing is for
+correcting.
 
 **Shared, like the roster** (`src/remote.ts`, `GET`/`POST /history` on the same Worker as §6):
 history is **not** local-only — every admin write (save, edit, delete) publishes the *entire*
@@ -317,26 +324,22 @@ impression the floor exists to avoid.
 Once the organizer is happy with tonight's teams, **▶️ Start fixture** on the teams board
 (`TeamsBoard.tsx`) locks them in: `session.fixtureStarted` flips to `true` and `MatchDay.tsx` swaps
 from the editable teams board to `FixturePage.tsx` — teams shown **read-only** (no drag-and-drop, no
-re-roll, no live-room controls) plus **🏁 Tonight's results** (`ResultsPanel.tsx`, moved here from
-directly under the board — see the "Entry" note in §2.6). This is meant to be the page open *during*
-the match, separate from the team-building page before it, and the natural place to add more
-once-the-teams-are-set features later.
+re-roll, no live-room controls). This is the page open *during* the match, separate from the
+team-building page before it: the clock, the match log, what is on the line tonight, and the way out
+of the night (§2.7.1).
 
 **The team display here is deliberately compact** — names as small wrapped chips (one line per team,
 ~78px for all three) rather than the board's one-tall-row-per-player (~270px). On this page the
 teams are a reference you glance at, not something you work on, so they yield vertical space to
-whatever else the page carries; the results panel stays above the fold on a phone, which it did not
-when the full board was reproduced here. Kept in the chip: the 🧤 keeper marker (worth knowing
+whatever else the page carries; the clock and the match log stay above the fold on a phone, which
+they did not when the full board was reproduced here. Kept in the chip: the 🧤 keeper marker (worth knowing
 mid-match) and a small ★ for guests. Dropped: per-player role icons, which are a team-building
 input rather than something you check during the match.
 
-**Unlocking admin here.** Saving a result needs the admin word (§2.6), so the fixture page offers
-**🔒 Unlock admin to save** in place of the results panel's old "unlock on the Roster tab" text —
-same prompt, same server-side check, just without the trip to another tab and back mid-match. The
-logic is shared, not copied: `useAdminUnlock` (`src/useAdminUnlock.ts`) backs both this button and
-the header padlock (§2.13). `ResultsPanel` falls back to the old static text when no
-`onUnlockAdmin` is passed, which is what happens when `REMOTE_URL` is empty and there is no server
-to verify a word against.
+**Unlocking admin** happens at the header padlock, which is on every tab (§2.13). The fixture page
+carried its own unlock button while the results panel lived there — worth it then, since filing a
+night was a thing you did mid-match and the trip to another tab and back was the cost. Filing now
+happens once, at the end, on a panel that says plainly why a locked device cannot do it.
 
 **← Back to teams** undoes a mistaken click without losing anything: it just flips
 `fixtureStarted` back to `false`, landing back on the same teams board (still editable, re-rollable,
@@ -1737,12 +1740,13 @@ the obvious reason — a badge that is secretly a button is not one anybody pres
    - **▶️ Start fixture** → `src/components/FixturePage.tsx`: locks tonight's teams in and shows
      them read-only (§2.7), with **🎯 On the line tonight** and the bounty (§2.19), tonight's
      milestones and duo records (§2.9, §2.10), the 8-minute
-     match clock with **+30s** and **⛶ Pitch mode** (§2.8), the **📋 match log** (§2.17) and
-     **🏁 Tonight's results** (`ResultsPanel.tsx`) to file the night. No MVP picker — that is asked
-     afterwards, on History (§2.12). Starting also publishes the fixture to the
+     match clock with **+30s** and **⛶ Pitch mode** (§2.8) and the **📋 match log** (§2.17). No
+     tally to type in and no MVP picker: the night is filed when it ends (§2.7.1), and the MVP is
+     asked for afterwards, on History (§2.12). Starting also publishes the fixture to the
      whole group (§2.14); ending it takes it back down.
      **← Back to teams** returns to the editable board above without losing anything, in case the
-     teams need another look; **⏹️ End fixture** wipes the night and starts over, the same action
+     teams need another look; **⏹️ End fixture** asks what to do with the result and then wipes the
+     night, the same action
      as the board's 🆕 New Fixture.
 3. **History** (`src/components/History.tsx`) — open to everyone: past nights (expandable to the
    team sheets and each team's wins) and a standings table of nights / wins / fixture wins /

@@ -443,7 +443,6 @@ export default function App() {
       history={readHistory}
       setSession={setSession}
       isAdmin={isAdmin}
-      setAdminWord={setAdminWord}
       onSaveFixture={saveFixture}
       onShareLive={shareLive}
       liveClock={liveFixture?.clock ?? null}

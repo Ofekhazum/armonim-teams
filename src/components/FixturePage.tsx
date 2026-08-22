@@ -14,7 +14,6 @@ import { STYLE_META } from './ui';
 import MatchClock from './MatchClock';
 import TeamCards from './TeamCards';
 import TonightFacts from './TonightFacts';
-import ResultsPanel from './ResultsPanel';
 import MatchLog from './MatchLog';
 import ScoreBar from './ScoreBar';
 
@@ -23,8 +22,9 @@ interface Props {
   players: Player[];
   history: FixtureRecord[];
   gkIds: string[];
+  // Still needed to know whether there is anything to file, even though the
+  // fixture page no longer has anywhere to type one in.
   wins: DraftTeamWins;
-  onChangeWins: (wins: DraftTeamWins) => void;
   // the night as it is played; empty means this one is being tallied the old
   // way at the end (§2.18)
   matchLog: MatchLogEntry[];
@@ -40,9 +40,6 @@ interface Props {
   saved: boolean;
   savedFixtureId: string | null;
   isAdmin: boolean;
-  // unlocks admin without leaving for the Roster tab (see ResultsPanel)
-  onUnlockAdmin?: () => void;
-  unlocking?: boolean;
   // lets the organizer undo a mistaken "Start fixture" and go on editing teams
   onBack: () => void;
   // wipes the night and starts over from availability — the same action as the
@@ -60,7 +57,6 @@ export default function FixturePage({
   history,
   gkIds,
   wins,
-  onChangeWins,
   matchLog,
   onChangeLog,
   clock,
@@ -70,8 +66,6 @@ export default function FixturePage({
   saved,
   savedFixtureId,
   isAdmin,
-  onUnlockAdmin,
-  unlocking,
   onBack,
   onEndFixture,
 }: Props) {
@@ -142,6 +136,7 @@ export default function FixturePage({
           night is still going, and a page you touch every ten minutes with wet
           hands is a bad place to keep a decision you can only make once. It
           lives on the History tab now, on the night it belongs to (§2.13). */}
+
       {/* The end of the night, asked properly. Three answers rather than two:
           the result is filed and the night ends, the night ends and the result
           is thrown away, or neither yet. */}
@@ -152,39 +147,38 @@ export default function FixturePage({
             <p className="mt-2 text-sm text-amber-900/70">
               Ending clears tonight's players, guests and teams, and the live view disappears from
               everyone's phones.{' '}
-              {!anyResult
-                ? 'No result has been recorded, so there is nothing to file.'
-                : saved
-                  ? 'Tonight is already in history — filing again updates that same record with anything recorded since.'
-                  : matchLog.length > 0
-                    ? `The ${matchLog.length} matches written down tonight are not in history yet.`
-                    : "Tonight's tally is not in history yet."}
+              {saved
+                ? 'Tonight is already in history — filing again updates that same record with anything recorded since.'
+                : matchLog.length > 0
+                  ? `The ${matchLog.length} matches written down tonight are not in history yet.`
+                  : anyResult
+                    ? "Tonight's tally is not in history yet."
+                    : 'Nothing was written down tonight. Filing it anyway keeps who played and which teams they were in, and the tally can be typed in afterwards on the History tab.'}
             </p>
             <div className="mt-4 flex flex-col gap-2">
-              {anyResult && isAdmin && (
+              {isAdmin ? (
                 <button
                   onClick={() => finish(true)}
                   className="rounded-xl bg-orange-600 px-4 py-2.5 text-sm font-bold text-amber-50 shadow-sm transition-transform hover:scale-[1.02]"
                 >
                   🗂️ {saved ? 'Update history & end' : 'Save to history & end'}
                 </button>
-              )}
-              {anyResult && !isAdmin && (
+              ) : (
                 <p className="rounded-xl bg-amber-900/[0.06] px-3 py-2 text-xs text-amber-900/60">
                   🔒 Unlock admin to file tonight into history. Ending now keeps the night off the
-                  record.
+                  record entirely.
                 </p>
               )}
               <button
                 onClick={() => finish(false)}
                 className={
-                  anyResult && isAdmin
+                  isAdmin
                     ? 'rounded-xl border border-red-500/50 px-4 py-2 text-sm font-bold text-red-700 hover:bg-red-50'
                     : 'rounded-xl bg-orange-600 px-4 py-2.5 text-sm font-bold text-amber-50 shadow-sm transition-transform hover:scale-[1.02]'
                 }
               >
                 {!anyResult
-                  ? '⏹️ End the night'
+                  ? '⏹️ End without saving'
                   : saved
                     ? '⏹️ End without updating'
                     : '🗑️ End and lose the result'}
@@ -199,17 +193,6 @@ export default function FixturePage({
           </div>
         </div>
       )}
-
-      <ResultsPanel
-        fromLog={matchLog.length > 0}
-        wins={wins}
-        onChange={onChangeWins}
-        onSave={onSaveResults}
-        saved={saved}
-        isAdmin={isAdmin}
-        onUnlockAdmin={onUnlockAdmin}
-        unlocking={unlocking}
-      />
     </div>
   );
 }
