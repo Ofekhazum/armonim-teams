@@ -1817,6 +1817,41 @@ looks like without waiting for the 1st. It asks first, though, and says the thin
 otherwise be discovered a month later — the cron never overwrites, so a team scored halfway through a
 month stays scored halfway through unless it is removed.
 
+### 2.26 Full-screen overlays on a phone (`src/scrollLock.ts`)
+
+The app has no router: a player's page, a night's page, pitch mode and the end-of-night dialog are
+all `fixed inset-0` panels over a document that carries on existing underneath (§5). That is untidy
+on a desktop and broken on a phone, and it was reported as one symptom — *"the scrolling is stuck and
+you can see behind the page, the page is not always opened stable"* — which turned out to be three
+faults sharing a cause.
+
+**Scroll chaining.** A swipe that reaches the end of the overlay's own scroller keeps going and
+starts moving the document instead. The overlay stops responding to the finger, which reads as stuck,
+and the thing actually moving is the page behind it. `overscroll-contain` on the scroller fixes this
+half and only this half.
+
+**Rubber-banding.** iOS lets the *document* bounce past its ends, and while it bounces, `position:
+fixed` elements bounce with it — so the panel slides and the page underneath appears at the edge.
+Nothing on the overlay can prevent this; the document has to stop being scrollable.
+
+**The URL bar.** Scrolling behind collapses and expands Safari's chrome, which resizes the viewport
+`inset-0` is measured against, and the overlay jumps. Same cause again.
+
+So `useScrollLock()` pins the body — `position: fixed` offset by the scroll position it had, restored
+on the way out. **`overflow: hidden` on `body` is not enough**: iOS Safari has ignored it for touch
+scrolling for years, which is why this is more elaborate than it ought to be. The lock counts holders
+at module level, so two overlays open at once do not have the inner one unlock a page the outer one
+is still covering, and the saved offset belongs to the outermost lock — where the reader was before
+any of it started. Restoring forces `scroll-behavior: auto` for the one call, because a closing
+overlay that then animates the page back into place looks like the app losing its footing.
+
+Pitch mode takes the lock even though nothing on it scrolls: it is the rubber-banding fault it is
+guarding against, not the chaining one. The end-of-night dialog takes it conditionally
+(`useScrollLock(ending)`) — a modal is a `fixed inset-0` panel like any other.
+
+**Not covered by a test.** There is no jsdom or component-test setup in this repo (§7), so this is
+verified by reading and by use on a phone; the logic is deliberately small enough to read.
+
 ## 3. Team generation algorithm
 
 Balancing is a small constrained optimization. With ≤15 players, brute force is too big

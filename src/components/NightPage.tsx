@@ -10,6 +10,7 @@ import type { StoredRecap } from '../recap';
 import { clearRecap, draftRecap, fetchRecap, saveRecap } from '../recap';
 import { Name, TEAM_META, fmtWins } from './ui';
 import { MilestoneStrip } from './TonightFacts';
+import { useScrollLock } from '../scrollLock';
 
 // One night, read back (§2.22). Opened from a past night in History, the same
 // way a roster row opens a player page — an overlay rather than a route,
@@ -110,6 +111,10 @@ export default function NightPage({
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose, onGo, older, newer]);
+
+  // The page behind stays put while this is open — see scrollLock.ts for what
+  // happens on a phone when it doesn't.
+  useScrollLock();
 
   // Stepping to another night must start at the top of it. Without this the
   // overlay keeps the scroll position from the night before, so a short night
@@ -227,7 +232,7 @@ export default function NightPage({
   const winners = TEAM_COLORS.filter((c) => (fixture.wins[c] ?? 0) === top && top > 0);
 
   return (
-    <div ref={scroller} className="fixed inset-0 z-40 overflow-y-auto bg-[#fdf6e3]">
+    <div ref={scroller} className="fixed inset-0 z-40 overflow-y-auto overscroll-contain bg-[#fdf6e3]">
       <div className="mx-auto max-w-3xl space-y-3 px-3 pb-16 pt-4 sm:px-6">
         <div className="flex flex-wrap items-center gap-2">
           <button

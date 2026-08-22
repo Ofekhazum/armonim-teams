@@ -16,6 +16,7 @@ import TeamCards from './TeamCards';
 import TonightFacts from './TonightFacts';
 import MatchLog from './MatchLog';
 import ScoreBar from './ScoreBar';
+import { useScrollLock } from '../scrollLock';
 
 interface Props {
   teams: Teams;
@@ -79,6 +80,10 @@ export default function FixturePage({
   // it: the real question is not whether to end but what to do with the result
   // first, and a browser dialog can only offer yes and no.
   const [ending, setEnding] = useState(false);
+  // Only while the dialog is up. A modal is a `fixed inset-0` panel like any
+  // other, and the page behind it scrolling — or rubber-banding out from under
+  // it on iOS — is the same bug (see scrollLock.ts).
+  useScrollLock(ending);
   const anyResult = matchLog.length > 0 || TEAM_COLORS.some((c) => (wins[c] ?? 0) > 0);
   const finish = (fileIt: boolean) => {
     // Filed first, then ended: `onSaveResults` reads the session that

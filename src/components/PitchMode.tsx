@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { useScrollLock } from '../scrollLock';
 
 // The clock as the only thing on screen (§2.8). A phone propped against a bag
 // on the touchline is read from ten metres away by someone who isn't holding
@@ -54,6 +55,11 @@ export default function PitchMode({
   onExit,
 }: Props) {
   const controllable = onStart !== undefined;
+
+  // Nothing on this screen scrolls, but the document under it still does —
+  // which on iOS means the whole black panel rubber-bands away from the edge
+  // and the fixture page shows through underneath. See scrollLock.ts.
+  useScrollLock();
 
   // Escape is free on a laptop and costs nothing on a phone, where the ✕ is
   // the way out. Deliberately not "tap anywhere to close" — this thing lives
