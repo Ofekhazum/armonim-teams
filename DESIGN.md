@@ -244,13 +244,27 @@ of the match-by-match ribbon on every card; it was cut because the full-size one
 the page behind it draws, and printing the same thing twice at two sizes just makes the strip a worse
 copy of a better view. The team sheets are on that page too, next to everything else about the night.
 
-Three details the first draft got wrong. The counts line read **"18 matches · 15 played"**, and the
-second number was taken for matches — which is exactly what it looks like sitting beside the first, so
-it says *players* now. The **MVP** was the one person named on the card and the faintest thing on it,
-same size and grey as the counts; it wears a tinted star chip. And the scrollbar is hidden
-(`.no-scrollbar` in `index.css`, both the Firefox and WebKit spellings, since neither alone is
-enough) — cards cut off mid-shelf at the edge already say the row scrolls, and a track drawn under
-them is a second thing to look at.
+**Who won is a band across the top of the card**, in the winning team's ribbon colour, with the chip
+below it kept as the exact number. At shelf size a chip is something you *read* and a band is
+something you see — and seeing it is the point, because scanning six cards for a run of one colour is
+the thing a row of small pills could not do. A tie splits the band between both winners.
+
+Details the first drafts got wrong. The counts line read **"18 matches · 15 played"**: the second
+number was taken for matches, which is exactly what it looks like beside the first, and it turned out
+to be the same fifteen every week — so it is gone rather than reworded. The **MVP** was the only
+person named on the card and simultaneously the faintest thing on it, same size and grey as the
+counts; it wears a tinted star chip now.
+
+**The scrollbar is hidden and the shelf drags.** `.no-scrollbar` (`index.css`, both the Firefox and
+WebKit spellings, since neither alone is enough) — cards cut off mid-shelf already say the row
+scrolls, and a track drawn under them is a second thing to look at. Taking the bar away leaves a
+mouse with nothing, so `useDragScroll` adds click-and-drag: **mouse only**, because touch already has
+momentum scrolling that taking over would only make worse. Two details make it feel right rather than
+fight the cards — a `DRAG_SLOP` of 6px, so a hand that shifts two pixels while pressing a card still
+opens that night; and a capture-phase click handler that swallows the click at the end of a real
+drag, since a pointer that went down on a card and came up on it is a click by every definition the
+browser has. Scroll snapping was dropped in the same change: it fights a drag that sets `scrollLeft`
+directly.
 
 **The shelf can be hidden**, and the choice is remembered per device (`armonim-nights-shelf`) rather
 than held in component state, because the tabs unmount — without that, hiding it would last until the
@@ -1504,6 +1518,12 @@ phone made an 18-match night about 19px a tile, numbers unreadable and runs redu
 a dozen matches it scrolled regardless, so the choice was never scroll-or-not — it was legible and
 scrolling versus tiny and scrolling. Fixed 44×56px now, bleeding through the card's padding so the
 row scrolls edge to edge.
+
+**One fact per line** in the milestone strip (`MilestoneStrip`, shared with the fixture page).
+Wrapped inline they ran together — two facts could share a line while a third straddled two, so
+"🏆 הלחמי's 50th win" and "💪 פוגל hasn't missed a night in 10 straight" read as one long sentence
+about somebody. They are separate claims about separate people, and a line break is the cheapest
+possible way to say so.
 
 **Nothing is stored.** A night whose result is corrected next week should tell the corrected story,
 and a stored summary would quietly go on telling the old one — the same reasoning as the read-time

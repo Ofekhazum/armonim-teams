@@ -104,7 +104,12 @@ export function MilestoneStrip({
 }) {
   if (milestones.length === 0 && duos.length === 0) return null;
   return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-2xl border border-amber-900/15 bg-[#fffdf4]/70 px-4 py-2.5 text-sm text-amber-900">
+    // One fact per line. Wrapped inline, they ran together — two facts could
+    // share a line and a third could straddle two, so "🏆 הלחמי's 50th win" and
+    // "💪 פוגל hasn't missed a night in 10 straight" read as one long sentence
+    // about somebody. These are separate claims about separate people, and a
+    // line break is the cheapest possible way to say so.
+    <div className="flex flex-col gap-1 rounded-2xl border border-amber-900/15 bg-[#fffdf4]/70 px-4 py-2.5 text-sm text-amber-900">
       {/* Wording stays factual on purpose — "won 3 nights running" is a
           count, "on fire" would be a claim about how they're playing that
           a night's three win totals can't back up (§2.9). */}

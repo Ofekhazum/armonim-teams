@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { DraftTeamWins, FixtureRecord, Player, TeamColor, TeamWins } from '../types';
 import { TEAM_COLORS } from '../balancer';
 import {
@@ -58,6 +58,67 @@ const sortColumns = (isAdmin: boolean): { key: SortKey; label: string }[] => [
   ...(isAdmin ? [{ key: 'vsRating' as SortKey, label: 'vs rating' }] : []),
 ];
 
+// How far the pointer has to travel before it counts as a drag rather than a
+// click. Below this, a hand that moves two pixels while pressing a card still
+// opens that night.
+const DRAG_SLOP = 6;
+
+/**
+ * Drag the shelf with a mouse.
+ *
+ * Only with a *mouse*: touch already has momentum scrolling and a native feel,
+ * and taking that over would make it worse. A mouse is the case with nothing
+ * left — there is no scrollbar under the strip any more, and a trackpad's
+ * sideways gesture is not something every mouse has.
+ */
+function useDragScroll() {
+  const ref = useRef<HTMLDivElement>(null);
+  const drag = useRef({ down: false, moved: false, startX: 0, startLeft: 0 });
+
+  const onPointerDown = (e: React.PointerEvent) => {
+    const el = ref.current;
+    if (!el || e.pointerType !== 'mouse' || e.button !== 0) return;
+    // Capture, so a button released outside the strip still ends the drag.
+    // Without it, letting go off the edge leaves `down` set and the shelf
+    // follows the mouse around the page with nothing held down.
+    el.setPointerCapture(e.pointerId);
+    drag.current = { down: true, moved: false, startX: e.clientX, startLeft: el.scrollLeft };
+  };
+
+  const onPointerMove = (e: React.PointerEvent) => {
+    const el = ref.current;
+    if (!drag.current.down || !el) return;
+    const dx = e.clientX - drag.current.startX;
+    if (!drag.current.moved && Math.abs(dx) < DRAG_SLOP) return;
+    drag.current.moved = true;
+    el.scrollLeft = drag.current.startLeft - dx;
+  };
+
+  const onPointerUp = () => {
+    drag.current.down = false;
+  };
+
+  // A drag that finishes over a card would otherwise open that night: the
+  // pointer went down on it and came up on it, which is a click by every
+  // definition the browser has. Caught on the way down, before the card's own
+  // handler runs. `moved` is cleared by the next pointerdown, so a drag that
+  // ends over empty space cannot swallow the click after it.
+  const onClickCapture = (e: React.MouseEvent) => {
+    if (!drag.current.moved) return;
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  return {
+    ref,
+    onPointerDown,
+    onPointerMove,
+    onPointerUp,
+    onPointerCancel: onPointerUp,
+    onClickCapture,
+  };
+}
+
 // Nights before a player appears in the table at all. Deliberately low —
 // this is about keeping one-night entries out of a career table, not about
 // statistical confidence, which `MIN_NIGHTS` handles separately for the
@@ -89,6 +150,7 @@ export default function History({
   onEditFixture,
 }: Props) {
   const [openId, setOpenId] = useState<string | null>(null);
+  const shelf = useDragScroll();
   // the night being read back in full, over the top of everything — same
   // overlay pattern as a player page (§2.22)
   const [storyId, setStoryId] = useState<string | null>(null);
@@ -396,7 +458,10 @@ export default function History({
 
           {/* Bleeds through the page gutter so the strip scrolls edge to edge
               rather than inside a narrower window. */}
-          <div className="no-scrollbar -mx-3 flex snap-x gap-3 overflow-x-auto px-3 pb-1 sm:-mx-6 sm:px-6">
+          <div
+              {...shelf}
+              className="no-scrollbar -mx-3 flex cursor-grab select-none gap-3 overflow-x-auto px-3 pb-1 active:cursor-grabbing sm:-mx-6 sm:px-6"
+            >
             {nights.map((fx) => {
               // a night written down match by match, rather than tallied from
               // memory at the end — the record is the matches, and the wins are
@@ -412,7 +477,7 @@ export default function History({
               return (
                 <div
                   key={fx.id}
-                  className={`relative h-44 w-40 shrink-0 snap-start rounded-2xl border bg-[#fffdf4]/70 shadow-sm transition-shadow hover:shadow-md ${
+                  className={`relative h-44 w-40 shrink-0 overflow-hidden rounded-2xl border bg-[#fffdf4]/70 shadow-sm transition-shadow hover:shadow-md ${
                     openId === fx.id ? 'border-orange-500/70' : 'border-amber-900/15'
                   }`}
                 >
@@ -421,6 +486,18 @@ export default function History({
                       the shape of it, match by match, is the first thing the
                       page behind this draws, and printing it twice at two sizes
                       made the strip a worse copy of a better view. */}
+                  {/* Who won, as a band across the top. At shelf size a chip
+                      is something you *read* and a band is something you see —
+                      and seeing it is the point, because scanning the shelf for
+                      a run of one colour is a thing the chips could not do. A
+                      tie splits the band between them. */}
+                  {hasResult(fx.wins) && (
+                    <div className="absolute inset-x-0 top-0 flex h-1.5" aria-hidden>
+                      {winners.map((c) => (
+                        <span key={c} className={`flex-1 ${TEAM_META[c].tile}`} />
+                      ))}
+                    </div>
+                  )}
                   <button
                     onClick={() => setStoryId(fx.id)}
                     aria-label={`Read the night of ${fx.date}`}
@@ -428,7 +505,7 @@ export default function History({
                   />
                   {/* scenery: clicks fall through to the button above, so there
                       is no dead patch anywhere on the card */}
-                  <div className="pointer-events-none relative flex h-full flex-col p-3">
+                  <div className="pointer-events-none relative flex h-full flex-col p-3 pt-3.5">
                     <div className="font-mono text-[11px] font-bold text-amber-900/45">{fx.date}</div>
                     {/* the hook, and the reason the strip is worth scrolling:
                         the same headline the night page opens with */}
@@ -437,27 +514,26 @@ export default function History({
                         (hasResult(fx.wins) ? 'A night on the books' : 'No result recorded')}
                     </div>
                     {hasResult(fx.wins) && (
-                      <div className="flex flex-wrap items-center gap-1 text-[10px] font-bold">
-                        👑
+                      <div className="flex flex-wrap items-center gap-1 text-[11px] font-black">
+                        <span className="text-sm leading-none">👑</span>
                         {winners.map((c) => (
                           // the team's own card palette rather than a tinted
                           // text colour: white-on-cream would be unreadable,
                           // and these three are already contrast-checked
                           <span
                             key={c}
-                            className={`rounded-full border px-1.5 py-0.5 ${TEAM_META[c].card}`}
+                            className={`rounded-full border px-2 py-0.5 ${TEAM_META[c].card}`}
                           >
                             {TEAM_META[c].label} {fmtWins(fx.wins[c] ?? 0)}
                           </span>
                         ))}
                       </div>
                     )}
-                    {/* "15 played" was read as fifteen matches, which is exactly
-                        what it looks like sitting beside "18 matches". The word
-                        that disambiguates it is the noun. */}
+                    {/* Just the matches. The head count was the same fifteen
+                        every week, so it never told anybody anything — and read
+                        as more matches besides, sitting beside the real one. */}
                     <div className="mt-1 truncate text-[10px] text-amber-900/45">
-                      {logged ? `${fx.matchLog!.length} matches` : `${totalWins(fx.wins)} wins`} ·{' '}
-                      {fx.players.length} players
+                      {logged ? `${fx.matchLog!.length} matches` : `${totalWins(fx.wins)} wins`}
                     </div>
                     {/* The MVP is the one *person* on this card, and it was the
                         faintest thing on it — the same size and grey as the
