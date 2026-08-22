@@ -373,12 +373,6 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
                   so a zero is legible as none rather than as untracked. */}
               <Stat n={String(mvps)} label={mvps === 1 ? 'MVP night' : 'MVP nights'} quiet={mvps === 0} />
             </div>
-            {counts.perNight === null && (
-              <p className="-mt-1 px-1 text-xs text-amber-900/50">
-                Wins per night appears after {MIN_PROFILE_NIGHTS} nights — fewer than that, the
-                number moves too much to mean anything.
-              </p>
-            )}
 
             <Card
               title="Every night"

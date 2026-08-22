@@ -154,12 +154,18 @@ describe('profileCounts', () => {
     expect(c.wins).toBe(3 + 1 + 3);
   });
 
-  it('withholds the per-night rate until there is enough football', () => {
-    const few = Array.from({ length: MIN_PROFILE_NIGHTS - 1 }, () => won('a'));
-    expect(profileCounts(profileNights(few, 'a')).perNight).toBeNull();
+  it('gives the per-night rate off a single night, and null off none', () => {
+    // No floor on this one, deliberately: it is wins ÷ nights and both of
+    // those are on screen beside it, so a threshold only hid arithmetic the
+    // reader could do themselves. The floors that remain are on the
+    // *inferences* — see the matchup tests below.
+    expect(profileCounts(profileNights([won('a')], 'a')).perNight).toBe(3);
 
-    const enough = Array.from({ length: MIN_PROFILE_NIGHTS }, () => won('a'));
-    expect(profileCounts(profileNights(enough, 'a')).perNight).toBe(3);
+    const four = Array.from({ length: 4 }, () => won('a'));
+    expect(profileCounts(profileNights(four, 'a')).perNight).toBe(3);
+
+    // nothing to divide by is the one case null still means something
+    expect(profileCounts([]).perNight).toBeNull();
   });
 
   it('counts nights turned up for separately from nights with a result', () => {

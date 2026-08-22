@@ -109,7 +109,7 @@ export interface ProfileCounts {
   onSheet: number; // nights turned up for, result or not
   nightsWon: number; // nights their team finished top of
   wins: number; // matches their teams won, a shootout counting half
-  perNight: number | null; // null until MIN_PROFILE_NIGHTS, rather than a lie
+  perNight: number | null; // null only when there is nothing to divide by
   currentRun: number; // nights won in a row, right now
   bestRun: number; // the longest such run ever
 }
@@ -128,7 +128,14 @@ export function profileCounts(nights: ProfileNight[]): ProfileCounts {
     onSheet: nights.length,
     nightsWon: decided.filter((n) => n.won).length,
     wins,
-    perNight: decided.length >= MIN_PROFILE_NIGHTS ? wins / decided.length : null,
+    // No threshold, unlike everything else on that page that carries one.
+    // The rest of them are *inferences* — a bogey man, mates and rivals,
+    // shootout form — and a claim about who somebody struggles against, off
+    // two nights, is noise. This is not an inference: it is `wins / nights`,
+    // and both of those numbers are in the tiles either side of it, so
+    // withholding it only hid arithmetic the reader could do by looking left.
+    // Null is kept for the one case it means something — no nights to divide by.
+    perNight: decided.length > 0 ? wins / decided.length : null,
     currentRun: run, // the loop ends on the most recent night, so this is it
     bestRun: best,
   };
