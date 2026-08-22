@@ -14,6 +14,8 @@
 //   POST /push/subscribe   → opt this device into match-clock notifications
 //   POST /push/unsubscribe → opt it out again
 //   POST /push/test        → buzz now and report what the push service said
+//   GET  /awards       → public read of every registered Team of the Month
+//   POST /awards       → register or correct one; requires the secret word
 //   GET  /recap?id=…   → public read of a night's written recap, if there is one
 //   POST /recap        → write one for a night; requires the secret word
 //   POST /verify       → check the secret word (used to unlock admin mode)
@@ -38,6 +40,7 @@ export { ClockNotifier } from './clock-notifier.js';
 
 import { bytesToB64u, publicKeyBytes } from './push.js';
 import { isValidFacts, recapKey, writeRecap } from './recap.js';
+import { announceMonth, clearMonth, isPeriod, readAwards, registerAwards } from './awards.js';
 
 // One object for the whole club — there is only ever one night on. It holds
 // the live fixture, who wants telling about the clock, and the alarm that does
@@ -350,6 +353,20 @@ async function readBody(request) {
 }
 
 export default {
+  /**
+   * The 1st of the month, 05:00 UTC — 08:00 in Israel through the summer, an
+   * hour earlier in winter, since Cloudflare's crons are UTC only and pinning
+   * an exact local hour year-round would mean two schedules and a DST guess
+   * for a job nobody is watching.
+   *
+   * All it does is register any finished month that has no team yet, which
+   * makes running it twice, or a month late, or for the first time on a
+   * three-year archive, all the same thing.
+   */
+  async scheduled(_event, env, ctx) {
+    ctx.waitUntil(registerAwards(env));
+  },
+
   async fetch(request, env) {
     // browsers send a CORS preflight before the POST
     if (request.method === 'OPTIONS') {
@@ -411,6 +428,13 @@ export default {
       } catch {
         return json({ text: null });
       }
+    }
+
+    // public read of every Team of the Month registered so far (§2.25). One
+    // document rather than one key per month, because a player page wants all
+    // of them at once — where a recap is read one night at a time.
+    if (url.pathname === '/awards' && request.method === 'GET') {
+      return json({ awards: await readAwards(env) });
     }
 
     // public read of the fixture being played right now, if any — this is the
@@ -544,6 +568,7 @@ export default {
       '/history',
       '/live',
       '/recap',
+      '/awards',
       '/verify',
       '/push/test',
     ];
@@ -614,6 +639,27 @@ export default {
           body: JSON.stringify({ fixture }),
         });
         return json(await res.json());
+      }
+
+      // Register a Team of the Month by hand.
+      //
+      //   { period: '2026-08' }        → score it now and store it
+      //   { period: '2026-08', clear } → forget it, so the cron may redo it
+      //   { run: true }                → do the cron's pass right now
+      //
+      // The cron below is the usual registrar; this is the seeding path (the
+      // archive should not have to wait a month for its first entry) and the
+      // correction path. Since the cron never overwrites, a month set here
+      // stays as set.
+      if (url.pathname === '/awards') {
+        if (body.run === true) return json(await registerAwards(env));
+        if (!isPeriod(body.period)) return json({ error: 'bad period' }, 400);
+        if (body.clear === true) {
+          return json({ awards: await clearMonth(env, body.period) });
+        }
+        const registered = await announceMonth(env, body.period);
+        if (!registered) return json({ error: 'nothing played that month' }, 400);
+        return json({ period: body.period, ...registered });
       }
 
       // Write a night's recap.
