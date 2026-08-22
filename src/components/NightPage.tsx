@@ -5,7 +5,7 @@ import { tonightsMilestones } from '../milestones';
 import { duoFacts } from '../duos';
 import { nightStory } from '../nightStory';
 import type { NightFact } from '../nightStory';
-import { Name, TEAM_META } from './ui';
+import { Name, TEAM_META, fmtWins } from './ui';
 import { MilestoneStrip } from './TonightFacts';
 
 // One night, read back (§2.22). Opened from a past night in History, the same
@@ -148,7 +148,7 @@ export default function NightPage({ fixture, history, players, onClose }: Props)
               {TEAM_COLORS.map((c) => (
                 <div key={c} className={`rounded-xl border p-2.5 text-xs ${TEAM_META[c].card}`}>
                   <div className={`font-black ${TEAM_META[c].header}`}>
-                    {TEAM_META[c].emoji} {TEAM_META[c].label} — {fixture.wins[c] ?? 0}
+                    {TEAM_META[c].emoji} {TEAM_META[c].label} — {fmtWins(fixture.wins[c] ?? 0)}
                   </div>
                   <div className={TEAM_META[c].sub}>
                     {fixture.teams[c].map((id) => nameOf(id)).join(', ') || '—'}
@@ -249,13 +249,15 @@ export default function NightPage({ fixture, history, players, onClose }: Props)
                       <h3 className={`text-sm font-black ${TEAM_META[c].header}`}>
                         {TEAM_META[c].emoji} {TEAM_META[c].label}
                       </h3>
-                      {/* Won of played — the pair a tally can never give you: a
-                          team on two from two had a different night from one on
-                          two from six. Written out rather than as `2/6`, which
-                          reads as a score, a date or a fraction depending on
-                          who is looking at it. */}
+                      {/* Points of matches played — the pair a tally can never
+                          give you: a team on two from two had a different night
+                          from one on two from six. Points rather than wins so
+                          this agrees with the result at the top of the page,
+                          where a match taken on penalties is worth half (§2.8).
+                          Written out rather than as `5.5/12`, which reads as a
+                          score or a date depending on who is looking. */}
                       <span className={`text-[11px] font-semibold ${TEAM_META[c].sub}`}>
-                        won {t.won} of {t.played}
+                        {fmtWins(t.points)} pts from {t.played}
                       </span>
                     </div>
                     <ul dir="rtl" className="flex flex-wrap gap-1">

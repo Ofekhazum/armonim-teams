@@ -85,6 +85,11 @@ export const RATING_STEPS = [1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5];
 
 export const fmtRating = (r: number) => (Number.isInteger(r) ? String(r) : r.toFixed(1));
 
+// Wins and points carry halves, because a match taken on penalties is worth
+// half of one (§2.8). Same formatting everywhere they are printed, so 3 never
+// shows up as 3.0 beside a 3.5.
+export const fmtWins = (w: number) => (Number.isInteger(w) ? String(w) : w.toFixed(1));
+
 // Marker colour along the spectrum: blue at fully-defensive, through a warm
 // neutral at an even split, to red at fully-attacking — matching the track
 // gradient beneath it, so the handle reads as "where am I leaning".

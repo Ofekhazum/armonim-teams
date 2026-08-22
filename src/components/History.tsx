@@ -13,7 +13,7 @@ import { buildWrapped, periodLabel, wrappedPeriods } from '../wrapped';
 import { shareWrappedImage } from '../wrappedImage';
 import { mvpCandidates, mvpCounts, winningTeams } from '../mvp';
 import { VETERAN_NIGHTS, playerAchievements, type AchievementKind } from '../achievements';
-import { TEAM_META, Name, fmtRating } from './ui';
+import { Name, TEAM_META, fmtRating, fmtWins } from './ui';
 import MvpPicker from './MvpPicker';
 import NightPage from './NightPage';
 
@@ -52,7 +52,6 @@ const sortColumns = (isAdmin: boolean): { key: SortKey; label: string }[] => [
   ...(isAdmin ? [{ key: 'vsRating' as SortKey, label: 'vs rating' }] : []),
 ];
 
-const fmtWins = (w: number) => (Number.isInteger(w) ? String(w) : w.toFixed(1));
 
 // Nights before a player appears in the standings at all. Deliberately low —
 // this is about keeping one-night entries out of a career table, not about
