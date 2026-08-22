@@ -13,8 +13,9 @@ import { buildWrapped, periodLabel, wrappedPeriods } from '../wrapped';
 import { shareWrappedImage } from '../wrappedImage';
 import { mvpCandidates, mvpCounts, winningTeams } from '../mvp';
 import { VETERAN_NIGHTS, playerAchievements, type AchievementKind } from '../achievements';
-import { TEAM_META, Name, fmtRating } from './ui';
+import { Name, TEAM_META, fmtRating, fmtWins } from './ui';
 import MvpPicker from './MvpPicker';
+import NightPage from './NightPage';
 
 interface Props {
   history: FixtureRecord[];
@@ -51,7 +52,6 @@ const sortColumns = (isAdmin: boolean): { key: SortKey; label: string }[] => [
   ...(isAdmin ? [{ key: 'vsRating' as SortKey, label: 'vs rating' }] : []),
 ];
 
-const fmtWins = (w: number) => (Number.isInteger(w) ? String(w) : w.toFixed(1));
 
 // Nights before a player appears in the standings at all. Deliberately low —
 // this is about keeping one-night entries out of a career table, not about
@@ -83,6 +83,19 @@ export default function History({
   onEditFixture,
 }: Props) {
   const [openId, setOpenId] = useState<string | null>(null);
+  // the night being read back in full, over the top of everything — same
+  // overlay pattern as a player page (§2.22)
+  const [storyId, setStoryId] = useState<string | null>(null);
+  // Newest first by date, not by when a night happened to be saved — one filed
+  // late, or one whose date was corrected, still sorts where it belongs. The
+  // same order the list is drawn in, so stepping through the overlay walks the
+  // rows in the order they are on screen.
+  const nights = useMemo(
+    () => [...history].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0)),
+    [history],
+  );
+  const at = storyId === null ? -1 : nights.findIndex((fx) => fx.id === storyId);
+  const story = at >= 0 ? nights[at] : null;
   const periods = useMemo(() => wrappedPeriods(history), [history]);
   const [wrappedPeriod, setWrappedPeriod] = useState('');
   const [sharingWrapped, setSharingWrapped] = useState(false);
@@ -456,12 +469,8 @@ export default function History({
           <span className="text-sm font-normal text-amber-900/50">({history.length})</span>
           <span className="text-xs text-amber-900/40">{nightsExpanded ? '▲ hide' : '▼ show'}</span>
         </button>
-        {/* newest first by date, not by when it happened to be saved — a night
-            filed late, or one whose date was corrected, still sorts correctly */}
         {nightsExpanded &&
-          [...history]
-            .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0))
-            .map((fx) => {
+          nights.map((fx) => {
           const open = openId === fx.id;
           // a night written down match by match, rather than tallied from
           // memory at the end — the record is the matches, and the wins are
@@ -624,6 +633,14 @@ export default function History({
                           </>
                         )}
                       </p>
+                      {/* Anyone can read a night back; correcting one is an
+                          organiser action, so only the row below is gated. */}
+                      <button
+                        onClick={() => setStoryId(fx.id)}
+                        className="rounded-lg border border-amber-900/25 bg-amber-100/50 px-3 py-1 text-xs font-bold text-amber-900 hover:border-orange-500"
+                      >
+                        📖 Read the night
+                      </button>
                       {/* correcting the record is an organiser action, same as
                           editing ratings — so it sits behind admin mode */}
                       {isAdmin && (
@@ -674,6 +691,19 @@ export default function History({
           );
         })}
       </div>
+
+      {story && (
+        <NightPage
+          fixture={story}
+          history={history}
+          players={players}
+          // newest first, so the next entry along is the older night
+          older={nights[at + 1] ?? null}
+          newer={nights[at - 1] ?? null}
+          onGo={setStoryId}
+          onClose={() => setStoryId(null)}
+        />
+      )}
     </div>
   );
 }
