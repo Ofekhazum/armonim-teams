@@ -108,6 +108,9 @@ describe('buildPrompt', () => {
     const said = buildPrompt(facts({ said: 'the ball went over the fence about 5 times' }));
     expect(said).toContain('YOU SAW IT YOURSELF');
     expect(said).toMatch(/never say where this came from/i);
+    // ...without killing the invented-source joke, which shares its
+    // vocabulary and is one of the best things the reporter does
+    expect(said).toMatch(/is a joke and is still very welcome/i);
     expect(said).toMatch(/if it names nobody, it belongs to nobody/i);
     expect(said).toMatch(/do not guess who did it/i);
     // The sign-off is where this leaks: it demands names, so the model names
@@ -117,6 +120,11 @@ describe('buildPrompt', () => {
     expect(said).toMatch(/no player's name may appear anywhere near it/i);
     expect(said).toMatch(/this holds in EVERY paragraph/i);
     expect(said).toMatch(/if the line names nobody, next week is not about it/i);
+  });
+
+  it('rations the invented-source joke rather than banning or repeating it', () => {
+    expect(p).toContain('Once, maybe twice in the whole report');
+    expect(p).toMatch(/turned its best joke into a verbal tic/i);
   });
 
   it('points the sign-off at results rather than at an unattributed event', () => {

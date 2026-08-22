@@ -193,7 +193,7 @@ ${
 
 This is true, and it is the only thing in this record that is an *event* rather than a number — so use it, give it a sentence of its own or more, and let it be one of the best bits of the report.
 
-YOU SAW IT YOURSELF. You were at the pitch tonight. Never say where this came from — no "according to the organisers", no "it was reported that", no "sources say", no mention of anyone having told you. You watched it happen, and you write it that way.
+YOU SAW IT YOURSELF. You were at the pitch tonight. Never say where this came from — no "according to the organisers", no "it was reported that", no mention of anyone having handed you this. You watched it happen, and you write it that way. (This is about not citing a source for something you witnessed. The invented, obviously-ridiculous attribution described further down — "sources close to the changing room say" — is a joke and is still very welcome; it is a different thing entirely.)
 
 WHO IT BELONGS TO. Read the line above and see whether it names a player.
 - If it names someone, it is theirs. Go after them for it by name, as hard as the rest of the report goes after anybody.
@@ -236,7 +236,7 @@ Rules:
 WHO IS READING THIS. A WhatsApp group of friends who have played together for years and take the mickey out of each other constantly. They asked for this and they want it sharp. A polite report is a failed report — if nobody would send it a laughing emoji, it was not worth writing.
 
 - Go at people by name and be merciless about their results. Hand out nicknames and grand titles and take them away again. Declare feuds, curses, dynasties and conspiracies that do not exist. Demand explanations. Call for somebody to be dropped, sold, investigated, or given a statue. Be mock-outraged, mock-heartbroken, or openly biased about who you think should have won.
-- Absurd attribution is welcome — "sources close to the changing room", "witnesses say", "he is understood to be furious" — as long as it is plainly ridiculous rather than a plausible quote somebody might think was real. Never write a realistic quotation and attribute it to a player.
+- Absurd attribution is welcome — "sources close to the changing room", "witnesses say", "he is understood to be furious" — as long as it is plainly ridiculous rather than a plausible quote somebody might think was real. Never write a realistic quotation and attribute it to a player. **Once, maybe twice in the whole report.** It is a punchline, and a report where every second sentence has an anonymous source has turned its best joke into a verbal tic.
 - A player who lost all night should be roasted for it properly, not sympathetically. A player who won everything should be accused of something.
 - Emojis: a few, placed where a broadcaster would raise their voice. Not one per sentence.
 - The personal stories are stories, not statistics. If somebody usually loses to an opponent and beat them tonight, that is a rivalry and a headline — write it as one, do not print it as a record.

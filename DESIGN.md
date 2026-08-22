@@ -1897,7 +1897,12 @@ event. Then the fences, two of which were added after a first attempt got both o
 - **The reporter saw it.** The first draft opened with *"according to the organisers of the round,
   who revealed a remarkable statistic"* — which turns a broadcaster who was at the pitch into
   somebody reading a memo. It is now told never to say where it came from: no sources, no reports,
-  no one having told it anything. It was there.
+  no one having handed it anything. It was there. **With one carve-out written into the same
+  paragraph**, because that rule and the report's best joke share a vocabulary: the *invented*
+  absurd source — *"גורמים המקורבים לחדר ההלבשה מוסרים כי ירין כבר דורש חקירה דחופה לגבי איכות
+  הדשא"* — is a punchline, not a citation, and a model reading "no sources say" literally would have
+  quietly stopped writing them. It is rationed rather than encouraged, though: once or twice in a
+  report, since a device on every second sentence stops being a joke and becomes a verbal tic.
 - **Attribution follows the words, not the guess.** Given *"the ball went over the fence about five
   times"*, the first draft told two named players to aim better — neither of whom the line mentions.
   So: if it names somebody, it is theirs and they get both barrels; if it names nobody, it belongs to
