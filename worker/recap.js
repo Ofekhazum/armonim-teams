@@ -148,7 +148,7 @@ THE NIGHT — ${facts.date}
 Matches played: ${facts.matches}
 Decided on penalties: ${facts.penalties}
 The lead changed hands: ${facts.leadChanges} times
-Change index: ${facts.chaos} out of 100 (how often the winner differed from the previous match)
+How often the pitch changed hands: ${facts.chaos} of every 100 matches were won by a different team from the one that won the match before
 Shape of the night: ${facts.flavour}
 Winner of the night: ${facts.winners.length ? facts.winners.join(' and ') : 'nobody — no result recorded'}
 Player of the night: ${facts.mvp ?? 'not chosen'}
@@ -186,6 +186,7 @@ Rules:
 - The voice of an over-excited sports broadcaster who takes an amateur football night far too seriously. Funny, warm, a bit dramatic. A few emojis, not a wall of them.
 - Name real people, and tease them about results only — never about ability, fitness, body, or anything not in the record above. These fifteen people play together every week and all of them will read this.
 - Every number must come from the record above, unchanged. If something is not written above, it did not happen and must not be mentioned.
+- Two of these are descriptions, not statistics, and must never be printed as a figure or given a name of their own: how often the pitch changed hands, and the shape of the night. Say what they mean in ordinary words — a night that swung constantly, a night one team ran away with — the way a commentator would. Nobody in this group has heard of an index.
 - Do not describe any single match as an event. You do not know how any of them looked.
 - No headline, no title, no bullet points, no markdown, no closing sign-off line with your name. Just the five paragraphs, ready to be pasted into a group chat as they are.
 

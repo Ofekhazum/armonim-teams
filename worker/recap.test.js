@@ -103,6 +103,14 @@ describe('buildPrompt', () => {
     expect(p).toMatch(/do not check your work inside those tags/i);
   });
 
+  it('hands over the shape of the night as a description, not as a metric', () => {
+    // "Change index: 47 out of 100" came back in a report as מדד השינוי — an
+    // internal name for an internal number, quoted at a group who have never
+    // seen either
+    expect(p).not.toContain('Change index');
+    expect(p).toMatch(/never be printed as a figure or given a name of their own/);
+  });
+
   it('asks for whole sentences and a length worth reading', () => {
     expect(p).toMatch(/280 to 380 words/);
     expect(p).toMatch(/Never stop mid-sentence/);
