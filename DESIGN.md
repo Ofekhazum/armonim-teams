@@ -1531,7 +1531,11 @@ in the loop: the organiser reads a draft nobody else can see, then publishes it.
 is saved — `autoRecap` in `src/recap.ts` is already that call, kept unused on purpose. Nothing about
 the route, the prompt or the storage has to change.
 
-**Two things the first real call taught, both worth keeping written down.** Gemini 2.5 Flash has
+**Three things the first real calls taught, all worth keeping written down.** The model name went
+stale before the feature shipped — `gemini-2.5-flash` answered with *"no longer available to new
+users, use models/gemini-3.6-flash"* — which is why it is a `GEMINI_MODEL` secret with a default
+rather than a constant, and why a model that refuses `thinkingBudget: 0` gets exactly one retry
+without it rather than a support ticket. Gemini 2.5 Flash has
 *thinking on by default and pays for it out of `maxOutputTokens`*, so a budget sized for the answer
 is spent before the answer starts — the reply comes back with `finishReason: MAX_TOKENS`, no content
 at all, and a few hundred thinking tokens billed. `thinkingConfig: { thinkingBudget: 0 }` turns it

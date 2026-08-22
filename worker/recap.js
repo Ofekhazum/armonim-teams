@@ -16,9 +16,16 @@
 // what the data is, what it is not, and that nothing outside it may appear.
 
 const ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models';
-// Free tier, and far more than a weekly recap needs. Overridable without a
-// deploy, since model names move faster than this project does.
-const DEFAULT_MODEL = 'gemini-2.5-flash';
+// Free tier, and far more than a weekly recap needs.
+//
+// Overridable with a `GEMINI_MODEL` secret, and that escape hatch is not
+// theoretical: this was `gemini-2.5-flash` until Google answered a call with
+// "no longer available to new users, use models/gemini-3.6-flash". A model name
+// is the one thing in this file guaranteed to go stale, so it is one secret
+// away from being fixed without a deploy — and the error that says so now
+// arrives verbatim, which is how that took a minute to diagnose instead of an
+// evening.
+const DEFAULT_MODEL = 'gemini-3.6-flash';
 
 // Long enough for three paragraphs of Hebrew, short enough that a runaway
 // generation cannot cost us the day's quota.
@@ -146,9 +153,8 @@ export async function writeRecap(env, facts) {
   if (!key) return { error: 'not-configured' };
   const model = env.GEMINI_MODEL || DEFAULT_MODEL;
 
-  let res;
-  try {
-    res = await fetch(`${ENDPOINT}/${model}:generateContent`, {
+  const ask = (withThinkingOff) =>
+    fetch(`${ENDPOINT}/${model}:generateContent`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
       body: JSON.stringify({
@@ -156,12 +162,25 @@ export async function writeRecap(env, facts) {
         generationConfig: {
           temperature: TEMPERATURE,
           maxOutputTokens: MAX_TOKENS,
-          // see MAX_TOKENS: thinking is on by default on 2.5 Flash and is paid
-          // for out of the same budget as the reply
-          thinkingConfig: { thinkingBudget: 0 },
+          // see MAX_TOKENS: thinking is on by default and is paid for out of
+          // the same budget as the reply
+          ...(withThinkingOff ? { thinkingConfig: { thinkingBudget: 0 } } : {}),
         },
       }),
     });
+
+  let res;
+  try {
+    res = await ask(true);
+    // Not every model lets thinking be switched off — some refuse a budget of
+    // zero outright — and which ones do changes with the model name, which is
+    // a secret rather than a constant here. So a 400 that mentions it is worth
+    // exactly one retry without it rather than a support ticket. Everything
+    // else is passed straight through.
+    if (res.status === 400) {
+      const said = await res.clone().text();
+      if (/think/i.test(said)) res = await ask(false);
+    }
   } catch {
     return { error: 'unreachable' };
   }

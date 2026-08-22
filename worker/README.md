@@ -109,7 +109,9 @@ npx wrangler deploy
 ```
 
 Optionally `npx wrangler secret put GEMINI_MODEL` to pin a different model; it defaults to
-`gemini-2.5-flash`, which is on the free tier and far more than a weekly report needs.
+`gemini-3.6-flash`, which is on the free tier and far more than a weekly report needs. That override
+exists because a model name is the one part of this guaranteed to go stale — Google retires them,
+and the error says which to use instead.
 
 Without `GEMINI_KEY` the feature is absent — no button, nothing sent, and any recap already stored
 still reads normally. The key never reaches a browser: the app posts the night's *counts* to

@@ -150,6 +150,43 @@ describe('writeRecap', () => {
     globalThis.fetch = original;
   });
 
+  it('retries once without the thinking switch when a model refuses it', async () => {
+    // which models allow a thinking budget of zero changes with the model name,
+    // and the model name is a secret here rather than a constant
+    const env = { GEMINI_KEY: 'k' };
+    const original = globalThis.fetch;
+    const bodies = [];
+    globalThis.fetch = async (_url, init) => {
+      bodies.push(JSON.parse(init.body));
+      if (bodies.length === 1) {
+        return new Response(JSON.stringify({ error: { message: 'thinking_budget must be >= 128' } }), {
+          status: 400,
+        });
+      }
+      return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: 'ok' }] } }] }));
+    };
+    expect(await writeRecap(env, facts())).toEqual({ text: 'ok' });
+    expect(bodies[0].generationConfig.thinkingConfig).toBeDefined();
+    expect(bodies[1].generationConfig.thinkingConfig).toBeUndefined();
+    globalThis.fetch = original;
+  });
+
+  it('does not retry a 400 that has nothing to do with thinking', async () => {
+    const env = { GEMINI_KEY: 'k' };
+    const original = globalThis.fetch;
+    let calls = 0;
+    globalThis.fetch = async () => {
+      calls++;
+      return new Response(JSON.stringify({ error: { message: 'API key not valid' } }), {
+        status: 400,
+      });
+    };
+    const out = await writeRecap(env, facts());
+    expect(calls).toBe(1);
+    expect(out.error).toContain('API key not valid');
+    globalThis.fetch = original;
+  });
+
   it('passes on what Google said when it refused', async () => {
     // a wrong model name and a key with the API disabled are both "upstream
     // 404" until the message comes with them
