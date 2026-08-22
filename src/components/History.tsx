@@ -11,7 +11,7 @@ import {
 } from '../calibration';
 import { nightStory } from '../nightStory';
 import { buildWrapped, periodLabel, wrappedPeriods } from '../wrapped';
-import { announceMonth } from '../awards';
+import { announceMonth, clearMonth, fetchAwards, type Awards } from '../awards';
 import { shareWrappedImage } from '../wrappedImage';
 import { mvpCandidates, mvpCounts, winningTeams } from '../mvp';
 import { getNightsShelfOpen, setNightsShelfOpen } from '../storage';
@@ -177,7 +177,27 @@ export default function History({
   const periods = useMemo(() => wrappedPeriods(history), [history]);
   const [wrappedPeriod, setWrappedPeriod] = useState('');
   const [sharingWrapped, setSharingWrapped] = useState(false);
-  const [registering, setRegistering] = useState<'busy' | 'done' | 'failed' | null>(null);
+  // What has been registered, and which month is mid-write. Read once when an
+  // organiser opens the tab — an award is a record rather than a calculation,
+  // so the only way to know is to ask (§2.25).
+  const [awards, setAwards] = useState<Awards>({});
+  const [busyMonth, setBusyMonth] = useState<string | null>(null);
+  useEffect(() => {
+    if (!isAdmin) return;
+    let live = true;
+    fetchAwards().then((a) => live && setAwards(a));
+    return () => {
+      live = false;
+    };
+  }, [isAdmin]);
+
+  // Re-read rather than patch the copy in state. One extra request, and it is
+  // the difference between the panel showing what is stored and the panel
+  // showing what we believe we stored.
+  const afterWrite = async (ok: boolean) => {
+    if (ok) setAwards(await fetchAwards());
+    setBusyMonth(null);
+  };
   // periods only appear once a month's first night is saved — pick the newest
   // as soon as one shows up, rather than leaving the picker on nothing
   useEffect(() => {
@@ -328,10 +348,7 @@ export default function History({
           <span className="text-sm font-bold text-amber-950">📊 Monthly recap</span>
           <select
             value={wrappedPeriod}
-            onChange={(e) => {
-              setWrappedPeriod(e.target.value);
-              setRegistering(null);
-            }}
+            onChange={(e) => setWrappedPeriod(e.target.value)}
             className="rounded-lg border border-amber-900/25 bg-white px-2 py-1.5 text-sm font-semibold text-amber-950 outline-none focus:border-orange-500"
           >
             {periods.map((p) => (
@@ -357,31 +374,105 @@ export default function History({
           >
             {sharingWrapped ? '…' : '🖼️ Share recap'}
           </button>
-          {/* Registering the month by hand (§2.25). The cron on the 1st is the
-              usual registrar and this is not a second way of doing the same
-              job — it is the two cases the cron cannot cover: seeding the
-              archive, which should not have to wait a month for its first
-              entry, and correcting a month the automatic pick got wrong.
-              Since the cron never overwrites, whatever is set here stays. */}
-          <button
-            onClick={async () => {
-              if (!wrappedPeriod || !adminWord) return;
-              setRegistering('busy');
-              const ok = await announceMonth(wrappedPeriod, adminWord);
-              setRegistering(ok ? 'done' : 'failed');
-            }}
-            disabled={registering === 'busy' || !wrappedPeriod || !adminWord}
-            title="Write this month's five down. Normally the 1st of the month does this by itself."
-            className="rounded-lg border border-amber-900/25 px-3 py-1.5 text-xs font-bold text-amber-900 transition-colors enabled:hover:border-orange-500 disabled:opacity-40"
-          >
-            {registering === 'busy' ? '…' : '👕 Register team'}
-          </button>
-          {registering === 'done' && (
-            <span className="text-xs font-bold text-green-700">registered</span>
-          )}
-          {registering === 'failed' && (
-            <span className="text-xs font-bold text-red-700">couldn't register that month</span>
-          )}
+        </div>
+      )}
+
+      {/* Team of the Month (§2.25). The cron on the 1st is the usual registrar
+          and this panel is not a second way of doing its job — it covers the
+          two cases the cron cannot: seeding the archive, which should not have
+          to wait a month for its first entry, and correcting a month the
+          automatic pick got wrong. Since the cron never overwrites, whatever
+          is set here stays set — and removing a month hands it back, so the
+          1st will register it afresh. */}
+      {isAdmin && periods.length > 0 && (
+        <div className="rounded-2xl border border-amber-900/15 bg-[#fffdf4]/70 p-4 shadow-sm">
+          <div className="mb-1 flex flex-wrap items-baseline gap-x-2">
+            <h3 className="font-bold text-amber-950">👕 Team of the Month</h3>
+            <span className="text-xs text-amber-900/45">
+              registers itself on the 1st — this is for seeding and corrections
+            </span>
+          </div>
+          <div className="divide-y divide-amber-900/10">
+            {periods.map((period) => {
+              const award = awards[period];
+              const busy = busyMonth === period;
+              // The month still being played. Registering it is allowed on
+              // purpose — it is the only way to see what the shelf looks like
+              // without waiting for the 1st — but it is worth saying out loud
+              // that the number will move until the month is over.
+              const running = period >= new Date().toISOString().slice(0, 7);
+              return (
+                <div key={period} className="flex flex-wrap items-center gap-x-2 gap-y-1 py-2">
+                  <span className="w-28 shrink-0 text-sm font-bold text-amber-950">
+                    {periodLabel(period)}
+                  </span>
+                  <div className="min-w-[10rem] flex-1 text-xs">
+                    {award ? (
+                      <>
+                        <span className="text-amber-900/70">{award.names.join(', ')}</span>
+                        <span className="text-amber-900/35">
+                          {' '}
+                          · registered {new Date(award.at).toLocaleDateString()}
+                        </span>
+                      </>
+                    ) : (
+                      <span className="text-amber-900/35">
+                        not registered{running ? ' · still being played' : ''}
+                      </span>
+                    )}
+                  </div>
+                  <button
+                    onClick={async () => {
+                      if (!adminWord) return;
+                      // Registering a month still being played is the way to
+                      // try this out without waiting for the 1st — but the
+                      // cron never overwrites, so a half-month team would sit
+                      // there for good. Said once, here, rather than
+                      // discovered in October.
+                      if (
+                        running &&
+                        !confirm(
+                          `${periodLabel(period)} isn't over. You'll get the team as it stands ` +
+                            `today, and the 1st won't replace it — remove it when you're done ` +
+                            `testing and it'll register itself properly. Go ahead?`,
+                        )
+                      ) {
+                        return;
+                      }
+                      setBusyMonth(period);
+                      await afterWrite(await announceMonth(period, adminWord));
+                    }}
+                    disabled={busy}
+                    title={
+                      award
+                        ? 'Score this month again and overwrite what is stored'
+                        : 'Write this month’s five down now'
+                    }
+                    className="rounded-lg border border-amber-900/25 px-2.5 py-1 text-xs font-bold text-amber-900 transition-colors enabled:hover:border-orange-500 disabled:opacity-40"
+                  >
+                    {busy ? '…' : award ? 'Re-register' : 'Register'}
+                  </button>
+                  {award && (
+                    <button
+                      onClick={async () => {
+                        if (!adminWord) return;
+                        if (!confirm(`Remove the Team of the Month for ${periodLabel(period)}?`)) {
+                          return;
+                        }
+                        setBusyMonth(period);
+                        await afterWrite(await clearMonth(period, adminWord));
+                      }}
+                      disabled={busy}
+                      title="Forget it. The 1st will register this month again if it is over."
+                      className="rounded-lg border border-red-500/40 px-2.5 py-1 text-xs font-bold text-red-700 transition-colors enabled:hover:bg-red-50 disabled:opacity-40"
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
 

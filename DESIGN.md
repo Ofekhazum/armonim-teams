@@ -1794,9 +1794,17 @@ it. Absent reads as neutral where "×0" reads as a verdict (§2.9). The chip's t
 thing that otherwise looks like a bug — `totmEligible` wants half the month's nights, so somebody can
 play brilliantly in a month they mostly missed and not be eligible.
 
-**👕 Register team** sits beside 🖼️ Share recap on the History tab. Not a second way of doing the
-cron's job: it is the two cases the cron cannot cover — seeding the archive rather than waiting a
-month for its first entry, and correcting a month the automatic pick got wrong.
+**👕 Team of the Month** is its own admin panel on the History tab, one row per month: who is
+registered and when, or *not registered*, with **Register** / **Re-register** and **Remove**. Not a
+second way of doing the cron's job — it is the three cases the cron cannot cover. Seeding the
+archive, rather than waiting a month for its first entry. Correcting a month the automatic pick got
+wrong. And **removing** one, which hands the month back so the next 1st registers it afresh — that is
+what makes it safe to register a month early, look at the result, and undo it.
+
+A month still being played can be registered on purpose: it is the only way to see what the shelf
+looks like without waiting for the 1st. It asks first, though, and says the thing that would
+otherwise be discovered a month later — the cron never overwrites, so a team scored halfway through a
+month stays scored halfway through unless it is removed.
 
 ## 3. Team generation algorithm
 
