@@ -1902,6 +1902,14 @@ event. Then the fences, two of which were added after a first attempt got both o
   times"*, the first draft told two named players to aim better — neither of whom the line mentions.
   So: if it names somebody, it is theirs and they get both barrels; if it names nobody, it belongs to
   nobody, and inventing a culprit is the same offence as inventing a goal.
+- **And the sign-off is where that rule breaks**, which took a second attempt to see. Paragraph 5
+  *demands* names — it is the paragraph that threatens somebody about next week — so the model names
+  players and hooks them to the most concrete thing in the record, which is the note. The next report
+  closed by telling six players to aim for the pitch rather than over the fence, for a ball nobody
+  had been said to kick. Two rules were fighting and the note lost. Now the ban is stated as holding
+  in *every* paragraph with the sign-off called out by name, and paragraph 5 is pointed at what it
+  should have been aimed at all along: a player's **own results** — who won nothing, who won
+  everything, who is on a run.
 - **Say what it says**, invent no surrounding detail, and do not read it as permission to describe
   goals or saves (the standing rule against inventing football, §2.24). Tone follows the event —
   most are absurd and should be treated as such, but a note that is not funny is reported straight

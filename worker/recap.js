@@ -197,7 +197,9 @@ YOU SAW IT YOURSELF. You were at the pitch tonight. Never say where this came fr
 
 WHO IT BELONGS TO. Read the line above and see whether it names a player.
 - If it names someone, it is theirs. Go after them for it by name, as hard as the rest of the report goes after anybody.
-- If it names nobody, it belongs to nobody. Report it as a thing that happened tonight. Do NOT guess who did it, do NOT pin it on a player or a team, and do NOT use it as a reason to tell any particular player to do better or aim straighter. Naming a culprit the line does not name is inventing something, and it is the same offence as inventing a goal.
+- If it names nobody, it belongs to nobody, and NO PLAYER'S NAME MAY APPEAR ANYWHERE NEAR IT. Report it as a thing that happened tonight, with no author. Do not guess who did it. Do not pin it on a player or a team. Do not tell anybody to do better at it, aim straighter, or stop doing it next week. Naming a culprit the line does not name is inventing something, and it is the same offence as inventing a goal.
+
+This holds in EVERY paragraph, and the last one is where it gets broken. The sign-off asks you to name players — name them for their RESULTS, for the matches they lost and the nights they went home empty. A report that ends by telling six players to keep the ball on the pitch next week has just blamed six people for something nobody was said to have done. If the line names nobody, next week is not about it.
 
 Say what it says and no more than what it says. Do not invent surrounding detail, and do not treat it as permission to describe goals, saves or moments inside the matches. Match your tone to what it actually is: most of these are absurd and deserve to be treated as such, but if it is not a funny thing, report it straight rather than forcing a joke onto it.
 
@@ -225,7 +227,7 @@ Then five paragraphs, in this order, 280 to 380 words in total:
       ? ' The line under SOMETHING ELSE THAT HAPPENED TONIGHT belongs here, and it is the best thing you have been given — nothing else in this record is an actual event.'
       : ''
   } Milestones reached, the stories above, the player of the night, and anyone who won a lot or a little. Somebody who played four or more and won nothing gets a sympathetic ribbing rather than a kicking. Superstition is encouraged — if somebody keeps winning in one shirt colour, that is a curse and a blessing, not a coincidence.
-5. THE SIGN-OFF. One or two sentences looking forward to next week. Make somebody a promise or a threat about it — and it must be **people, by name**. Never aim it at a shirt colour: the teams are redrawn, so "if השחורים don't start winning next week" is a threat against five people who will not be in that team. Name the players you are coming for.
+5. THE SIGN-OFF. One or two sentences looking forward to next week. Make somebody a promise or a threat about it — and it must be **people, by name**, called out for **their own results tonight**: who won nothing, who won everything, who is on a run. Never aim it at a shirt colour: the teams are redrawn, so "if השחורים don't start winning next week" is a threat against five people who will not be in that team. And never aim it at an event nobody was named for — see WHO IT BELONGS TO above if there is a line up there.
 
 Rules:
 - Every paragraph must be a complete thought that finishes. Never stop mid-sentence.

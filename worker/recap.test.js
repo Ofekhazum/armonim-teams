@@ -110,6 +110,18 @@ describe('buildPrompt', () => {
     expect(said).toMatch(/never say where this came from/i);
     expect(said).toMatch(/if it names nobody, it belongs to nobody/i);
     expect(said).toMatch(/do not guess who did it/i);
+    // The sign-off is where this leaks: it demands names, so the model names
+    // players and hooks them to the nearest concrete event. A real report
+    // closed by telling six people to aim for the pitch and not over the
+    // fence, for a ball nobody was said to have kicked.
+    expect(said).toMatch(/no player's name may appear anywhere near it/i);
+    expect(said).toMatch(/this holds in EVERY paragraph/i);
+    expect(said).toMatch(/if the line names nobody, next week is not about it/i);
+  });
+
+  it('points the sign-off at results rather than at an unattributed event', () => {
+    expect(p).toMatch(/called out for \*\*their own results tonight\*\*/i);
+    expect(p).toMatch(/never aim it at an event nobody was named for/i);
   });
 
   it('accepts a note in the facts, and refuses a wall of text', () => {
