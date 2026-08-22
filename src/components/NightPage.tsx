@@ -249,11 +249,13 @@ export default function NightPage({ fixture, history, players, onClose }: Props)
                       <h3 className={`text-sm font-black ${TEAM_META[c].header}`}>
                         {TEAM_META[c].emoji} {TEAM_META[c].label}
                       </h3>
-                      {/* won of played — the pair a tally can never give you: a
+                      {/* Won of played — the pair a tally can never give you: a
                           team on two from two had a different night from one on
-                          two from six */}
+                          two from six. Written out rather than as `2/6`, which
+                          reads as a score, a date or a fraction depending on
+                          who is looking at it. */}
                       <span className={`text-[11px] font-semibold ${TEAM_META[c].sub}`}>
-                        {t.won}/{t.played}
+                        won {t.won} of {t.played}
                       </span>
                     </div>
                     <ul dir="rtl" className="flex flex-wrap gap-1">
