@@ -91,6 +91,20 @@ describe('buildPrompt', () => {
     expect(buildPrompt(facts({ winners: [] }))).toContain('nobody');
   });
 
+  it('asks for sharp rather than polite, and says who is reading', () => {
+    expect(p).toMatch(/A polite report is a failed report/);
+    expect(p).toMatch(/merciless about their results/);
+  });
+
+  it('keeps the one line that matters', () => {
+    // everything mocked is a result; nothing mocked is a person
+    expect(p).toMatch(/Everything you mock is a \*result\*/);
+    for (const forbidden of ['body', 'weight', 'looks', 'health', 'family']) {
+      expect(p).toContain(forbidden);
+    }
+    expect(p).toMatch(/Never write a realistic quotation and attribute it to a player/);
+  });
+
   it('demands all three teams, so the quiet one is not skipped', () => {
     // the first real report covered one team and half of another
     expect(p).toMatch(/Neither team may be skipped/);

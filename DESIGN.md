@@ -1588,6 +1588,19 @@ mentions none of them properly. So each detector is gated to fire on a night whe
 happened, at most two of any one kind travel, and they are ordered rarest first — a squad of fifteen
 produces shirt records every week, where a drought breaking is a season event.
 
+**The tone is set by naming the audience.** The prompt says who reads this — a WhatsApp group of
+friends who have played together for years and take the mickey out of each other constantly — and
+that *a polite report is a failed report*. Nicknames, invented feuds, curses, dynasties, demands that
+somebody be dropped or given a statue, and absurd attribution ("sources close to the changing room")
+are all explicitly invited. Temperature sits at 1: a cautious setting reads as a cautious report.
+
+**The one line is drawn around the subject, not the strength.** Everything mocked is a **result** —
+matches won and lost, shirts, streaks, turning up, who beat whom. Never a body, weight, looks, age,
+health, money, job, family, politics or religion, and never a flat statement that somebody is bad at
+football; the scoreboard is what laughs at them. Realistic quotations attributed to a player are out
+too — an absurd one reads as a joke, a plausible one reads as something they said. The test is that
+the person it is about would be the one forwarding it.
+
 **The notes are written as bare facts on purpose**, and the prompt says so: they are material, not
 lines to print. A fact printed as written is the statistical vibe this feature keeps sliding back
 into — *"מדד השינוי: 47"*, *"came into tonight 2-8 down"* — and the fix each time has been to send

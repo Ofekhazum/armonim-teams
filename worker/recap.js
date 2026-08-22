@@ -41,9 +41,11 @@ const DEFAULT_MODEL = 'gemini-3.6-flash';
 // tokens are the cheap part of a weekly report, and the free tier's limit is a
 // million a minute.
 const MAX_TOKENS = 10000;
-// A recap is banter, not a legal document — but the numbers in it are load
-// bearing, so this sits below the playful end.
-const TEMPERATURE = 0.9;
+// A report is banter, not a legal document. The numbers in it are load bearing
+// and the prompt is what keeps those straight; this is only deciding how far
+// the writing is willing to go, and a cautious setting reads as a cautious
+// report.
+const TEMPERATURE = 1;
 
 // How to ask a model to stop thinking, in the order worth trying.
 //
@@ -192,11 +194,16 @@ Then five paragraphs, in this order, 280 to 380 words in total:
 
 Rules:
 - Every paragraph must be a complete thought that finishes. Never stop mid-sentence.
-- The voice of an over-excited sports broadcaster who takes an amateur football night far too seriously. Funny, warm, a bit dramatic. A few emojis, not a wall of them.
-- Be properly funny, and do not hold back. Wind people up about their results, hand out grand titles and nicknames, treat a five-a-side night like a cup final, be mock-outraged on somebody's behalf, declare feuds and dynasties that do not exist. The group know each other well and a report nobody laughs at is not worth writing. The one line you never cross is below.
+- The voice of an over-excited sports broadcaster who takes an amateur football night far too seriously. Funny, dramatic, and personal.
+
+WHO IS READING THIS. A WhatsApp group of friends who have played together for years and take the mickey out of each other constantly. They asked for this and they want it sharp. A polite report is a failed report — if nobody would send it a laughing emoji, it was not worth writing.
+
+- Go at people by name and be merciless about their results. Hand out nicknames and grand titles and take them away again. Declare feuds, curses, dynasties and conspiracies that do not exist. Demand explanations. Call for somebody to be dropped, sold, investigated, or given a statue. Be mock-outraged, mock-heartbroken, or openly biased about who you think should have won.
+- Absurd attribution is welcome — "sources close to the changing room", "witnesses say", "he is understood to be furious" — as long as it is plainly ridiculous rather than a plausible quote somebody might think was real. Never write a realistic quotation and attribute it to a player.
+- A player who lost all night should be roasted for it properly, not sympathetically. A player who won everything should be accused of something.
 - Emojis: a few, placed where a broadcaster would raise their voice. Not one per sentence.
 - The personal stories are stories, not statistics. If somebody usually loses to an opponent and beat them tonight, that is a rivalry and a headline — write it as one, do not print it as a record.
-- Name real people, and tease them about results only — never about ability, fitness, body, or anything not in the record above. These fifteen people play together every week and all of them will read this.
+THE ONE LINE YOU DO NOT CROSS. Everything you mock is a *result*: matches won and lost, shirts worn, streaks, turning up, who beat whom. Never a person's body, weight, looks, age, health, money, job, family, politics, religion, or anything else about who they are rather than how their night went. Never state as fact that somebody is bad at football — say the scoreboard laughed at them instead. These fifteen people play together every week and all of them read this: it has to be the kind of ribbing that gets sent to the group by the person it is about.
 - Every number must come from the record above, unchanged. If something is not written above, it did not happen and must not be mentioned.
 - The shape of the night is a description rather than a statistic: say what it means in ordinary words — a night that swung constantly, a night one team ran away with — the way a commentator would, and never as a figure or under a name of its own.
 - Do not describe any single match as an event. You do not know how any of them looked.
