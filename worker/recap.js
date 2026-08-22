@@ -172,15 +172,16 @@ export async function writeRecap(env, facts) {
   let res;
   try {
     res = await ask(true);
-    // Not every model lets thinking be switched off — some refuse a budget of
-    // zero outright — and which ones do changes with the model name, which is
-    // a secret rather than a constant here. So a 400 that mentions it is worth
-    // exactly one retry without it rather than a support ticket. Everything
-    // else is passed straight through.
-    if (res.status === 400) {
-      const said = await res.clone().text();
-      if (/think/i.test(said)) res = await ask(false);
-    }
+    // The thinking switch is the only thing the first attempt asks for beyond
+    // the plain request, and models disagree about it: some want a budget of
+    // zero, some refuse zero, and the newer ones want a different field
+    // entirely. So *any* 400 buys one retry with a bare request.
+    //
+    // Matching on the error text was tried first and was worse than useless —
+    // Google answered "Request contains an invalid argument", which names no
+    // field, so a rule looking for the word "thinking" never fired on the one
+    // failure it existed for.
+    if (res.status === 400) res = await ask(false);
   } catch {
     return { error: 'unreachable' };
   }
@@ -193,7 +194,16 @@ export async function writeRecap(env, facts) {
     let why = '';
     try {
       const body = await res.json();
-      why = body?.error?.message ? `: ${String(body.error.message).slice(0, 200)}` : '';
+      const parts = [];
+      if (body?.error?.message) parts.push(String(body.error.message));
+      // "Request contains an invalid argument" says nothing on its own; which
+      // argument is in the details, and that is the whole diagnosis.
+      for (const d of body?.error?.details ?? []) {
+        for (const v of d?.fieldViolations ?? []) {
+          parts.push(`${v.field ?? '?'}: ${v.description ?? ''}`.trim());
+        }
+      }
+      why = parts.length ? `: ${parts.join(' | ').slice(0, 400)}` : '';
     } catch {
       why = '';
     }

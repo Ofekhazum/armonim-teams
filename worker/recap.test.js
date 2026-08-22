@@ -150,18 +150,21 @@ describe('writeRecap', () => {
     globalThis.fetch = original;
   });
 
-  it('retries once without the thinking switch when a model refuses it', async () => {
-    // which models allow a thinking budget of zero changes with the model name,
-    // and the model name is a secret here rather than a constant
+  it('retries a 400 with a bare request, whatever the message says', async () => {
+    // Models disagree about the thinking switch — some want a budget of zero,
+    // some refuse zero, newer ones want a different field entirely — and the
+    // refusal can be as unhelpful as "Request contains an invalid argument".
+    // Matching on the message was tried and never fired on the real failure.
     const env = { GEMINI_KEY: 'k' };
     const original = globalThis.fetch;
     const bodies = [];
     globalThis.fetch = async (_url, init) => {
       bodies.push(JSON.parse(init.body));
       if (bodies.length === 1) {
-        return new Response(JSON.stringify({ error: { message: 'thinking_budget must be >= 128' } }), {
-          status: 400,
-        });
+        return new Response(
+          JSON.stringify({ error: { message: 'Request contains an invalid argument.' } }),
+          { status: 400 },
+        );
       }
       return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: 'ok' }] } }] }));
     };
@@ -171,7 +174,7 @@ describe('writeRecap', () => {
     globalThis.fetch = original;
   });
 
-  it('does not retry a 400 that has nothing to do with thinking', async () => {
+  it('gives up after the bare request, rather than hammering', async () => {
     const env = { GEMINI_KEY: 'k' };
     const original = globalThis.fetch;
     let calls = 0;
@@ -182,8 +185,33 @@ describe('writeRecap', () => {
       });
     };
     const out = await writeRecap(env, facts());
-    expect(calls).toBe(1);
+    expect(calls).toBe(2);
     expect(out.error).toContain('API key not valid');
+    globalThis.fetch = original;
+  });
+
+  it('names the field when Google will only say "invalid argument"', async () => {
+    const env = { GEMINI_KEY: 'k' };
+    const original = globalThis.fetch;
+    globalThis.fetch = async () =>
+      new Response(
+        JSON.stringify({
+          error: {
+            message: 'Request contains an invalid argument.',
+            details: [
+              {
+                fieldViolations: [
+                  { field: 'generation_config.thinking_config', description: 'not supported' },
+                ],
+              },
+            ],
+          },
+        }),
+        { status: 400 },
+      );
+    const out = await writeRecap(env, facts());
+    expect(out.error).toContain('thinking_config');
+    expect(out.error).toContain('not supported');
     globalThis.fetch = original;
   });
 
