@@ -15,6 +15,7 @@ import { mvpCandidates, mvpCounts, winningTeams } from '../mvp';
 import { VETERAN_NIGHTS, playerAchievements, type AchievementKind } from '../achievements';
 import { TEAM_META, Name, fmtRating } from './ui';
 import MvpPicker from './MvpPicker';
+import NightPage from './NightPage';
 
 interface Props {
   history: FixtureRecord[];
@@ -83,6 +84,10 @@ export default function History({
   onEditFixture,
 }: Props) {
   const [openId, setOpenId] = useState<string | null>(null);
+  // the night being read back in full, over the top of everything — same
+  // overlay pattern as a player page (§2.22)
+  const [storyId, setStoryId] = useState<string | null>(null);
+  const story = history.find((fx) => fx.id === storyId) ?? null;
   const periods = useMemo(() => wrappedPeriods(history), [history]);
   const [wrappedPeriod, setWrappedPeriod] = useState('');
   const [sharingWrapped, setSharingWrapped] = useState(false);
@@ -624,6 +629,14 @@ export default function History({
                           </>
                         )}
                       </p>
+                      {/* Anyone can read a night back; correcting one is an
+                          organiser action, so only the row below is gated. */}
+                      <button
+                        onClick={() => setStoryId(fx.id)}
+                        className="rounded-lg border border-amber-900/25 bg-amber-100/50 px-3 py-1 text-xs font-bold text-amber-900 hover:border-orange-500"
+                      >
+                        📖 Read the night
+                      </button>
                       {/* correcting the record is an organiser action, same as
                           editing ratings — so it sits behind admin mode */}
                       {isAdmin && (
@@ -674,6 +687,15 @@ export default function History({
           );
         })}
       </div>
+
+      {story && (
+        <NightPage
+          fixture={story}
+          history={history}
+          players={players}
+          onClose={() => setStoryId(null)}
+        />
+      )}
     </div>
   );
 }

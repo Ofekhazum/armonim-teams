@@ -1389,6 +1389,57 @@ an id, a name and `isGuest` and nothing else, so typing them to that rather than
 viewer's ratings-free `LivePlayer` run the identical arithmetic. The private half of a `Player` was
 never needed to say whose 50th win is on the line — it just happened to be in scope.
 
+### 2.22 Reading a night back (`src/nightStory.ts`, `NightPage.tsx`)
+
+A tallied night is three numbers. A logged night is **the order things happened in**, and that is
+where everything interesting lives: a team that won five on the trot and a team that won five spread
+across the evening file the identical result and were not remotely the same night. `nightStory` reads
+one `FixtureRecord` back off its own `matchLog` and returns what the order says — per-team played and
+won, the longest run, how often the lead changed hands, an alternation index, a flavour, and a list
+of detected facts.
+
+**Everything here describes the sequence, never a player**, and that is exactly what makes it safe to
+be loud about. One night's log is not a sample of anything — it is the whole population of that
+night — so *"the lead changed nine times"* is a description rather than an estimate. Claims about
+people need many nights and stay behind the floors in `playerProfile.ts`. It is the same line §2.9
+draws, arriving at the opposite answer because the unit changed.
+
+**The detectors emit structured facts, not sentences.** `{ kind: 'streak-broken', by, over, length,
+at }`, not *"Blue finally ended Black's reign!"*. Hand-written strings are the thing that goes stale:
+six patterns and a dozen matches a night is the same three lines every week by about week five,
+which is how a feature like this dies. A fact with its numbers attached can be written up differently
+every time by whatever does the writing — which is also what lets a reporter (§2.23, still to be
+built) consume the same output without a second detection pass.
+
+Seven detectors, each with a threshold that exists to keep it **rare**: `streak-broken` (a run of
+`DOMINANT_RUN` = 4 or more, and only once somebody *ends* it — a run still going at the final whistle
+was never broken by anybody), `break-and-run`, `perfect`, `blanked`, `heist` (nothing early,
+everything late, compared across halves of *that team's* matches rather than of the clock),
+`yo-yo` and `shootouts`. If the page starts feeling routine, those constants are the dial — that is
+the failure mode to watch for, not a missing detector.
+
+**The flavour has a bank of headlines, picked by the fixture's own id.** Stable for a given night,
+different from the night before it. A cheap defence against a page that reads identically every week;
+the real defence is that the numbers underneath differ.
+
+**The timeline is three lanes, one column per match.** A team's own matches are filled when they won
+and outlined when they lost, and the matches they sat out are left as a gap — which is what makes the
+rotation legible: you can watch a team hold the pitch for five columns and see who was standing
+about. A won cell wears the team's own card palette rather than a colour invented for the chart, so
+it matches every other place the three shirts appear.
+
+**Nothing is stored.** A night whose result is corrected next week should tell the corrected story,
+and a stored summary would quietly go on telling the old one — the same reasoning as the read-time
+guest merge (§2.6). Two consequences worth naming: milestones are counted **as of that night**
+(`history.filter(fx => fx.date <= fixture.date)`, because a page about April that counts May reports
+a tenth night that was already a fifteenth), and guest-ness is **inferred** from the roster, since a
+`FixturePlayer` carries a name and a rating but never a guest flag — without that, a returning guest
+would be making their debut on every night page in the archive.
+
+**A tallied night gets the page and says why it is thin**, rather than rendering empty boxes: there
+is no sequence in three totals, and inventing one would be making it up. Same honesty as the
+head-to-head card (§2.18).
+
 ## 3. Team generation algorithm
 
 Balancing is a small constrained optimization. With ≤15 players, brute force is too big
