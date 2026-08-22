@@ -1220,11 +1220,20 @@ zero reads as *none* rather than as *not tracked*. It comes off `playerAchieveme
 already counting picks in order to decide who tops that column; counting them a second time here is
 how two numbers on one page end up disagreeing.
 
-**One threshold, `MIN_PROFILE_NIGHTS = 4`** — the same bar `MIN_NIGHTS` uses for rating calibration,
-and deliberately not a different number per statistic. A page showing "67%" under one heading and
-"not enough nights yet" under the next, off the same four nights, is one nobody can calibrate their
-trust against. Below the bar the per-night rate is `null` rather than a small-sample number, and the
-page says why. The shootout section is gated on *logged* nights specifically, because only a night
+**One threshold, `MIN_PROFILE_NIGHTS = 4`, and it guards inferences only** — the same bar
+`MIN_NIGHTS` uses for rating calibration, and deliberately not a different number per statistic, so
+the page can be calibrated against as a whole rather than heading by heading. What it gates: the
+matchup card (bogey man, mates and rivals), the shootout section, and the shirt-luck arcs. Those are
+all *claims* about a player, and a claim about who somebody struggles against, off two nights, is
+noise.
+
+**Wins per night is not one of them, and used to be.** It was withheld below four nights on the
+uniformity argument above, which was the wrong call for this one statistic: it is `wins / nights`,
+and both of those numbers sit in the tiles either side of it — so the threshold hid arithmetic the
+reader could do by looking left, while the two counts it came from were shown without comment. It
+also came to disagree with the career table, which has no floor at all (§2.6): the same player read
+`5.00` there and `–` on their own page. It is now always shown, `null` only when there are no nights
+to divide by. The shootout section stays gated on *logged* nights specifically, because only a night
 written down match by match can answer it (§2.17), and it prints how many those were: two counts over
 different windows are fine, two that look like they cover the same window are not.
 
