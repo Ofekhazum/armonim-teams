@@ -97,6 +97,12 @@ describe('buildPrompt', () => {
     expect(p).toMatch(/THE OTHER TWO TEAMS/);
   });
 
+  it('tells the model where to put the report, and that the rest is thrown away', () => {
+    expect(p).toContain('<report>');
+    expect(p).toMatch(/Anything outside the tags is discarded/);
+    expect(p).toMatch(/do not check your work inside those tags/i);
+  });
+
   it('asks for whole sentences and a length worth reading', () => {
     expect(p).toMatch(/280 to 380 words/);
     expect(p).toMatch(/Never stop mid-sentence/);
@@ -156,20 +162,22 @@ describe('writeRecap', () => {
     globalThis.fetch = original;
   });
 
-  it('turns thinking off, so the budget pays for the answer', async () => {
+  it('asks for thinking off, so the budget pays for the answer', async () => {
     const env = { GEMINI_KEY: 'k' };
     const original = globalThis.fetch;
     let sent;
     globalThis.fetch = async (_url, init) => {
       sent = JSON.parse(init.body);
-      return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: 'ok' }] } }] }));
+      return new Response(
+        JSON.stringify({ candidates: [{ content: { parts: [{ text: '<report>ok</report>' }] } }] }),
+      );
     };
     await writeRecap(env, facts());
-    expect(sent.generationConfig.thinkingConfig).toEqual({ thinkingBudget: 0 });
+    expect(sent.generationConfig.thinkingConfig).toBeDefined();
     globalThis.fetch = original;
   });
 
-  it('retries a 400 with a bare request, whatever the message says', async () => {
+  it('works down the ways of asking for thinking off, whatever the message says', async () => {
     // Models disagree about the thinking switch — some want a budget of zero,
     // some refuse zero, newer ones want a different field entirely — and the
     // refusal can be as unhelpful as "Request contains an invalid argument".
@@ -185,15 +193,19 @@ describe('writeRecap', () => {
           { status: 400 },
         );
       }
-      return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: 'ok' }] } }] }));
+      return new Response(
+        JSON.stringify({ candidates: [{ content: { parts: [{ text: '<report>ok</report>' }] } }] }),
+      );
     };
     expect(await writeRecap(env, facts())).toEqual({ text: 'ok' });
-    expect(bodies[0].generationConfig.thinkingConfig).toBeDefined();
-    expect(bodies[1].generationConfig.thinkingConfig).toBeUndefined();
+    // a different way of asking the second time, not the same request again
+    expect(bodies[0].generationConfig.thinkingConfig).not.toEqual(
+      bodies[1].generationConfig.thinkingConfig,
+    );
     globalThis.fetch = original;
   });
 
-  it('gives up after the bare request, rather than hammering', async () => {
+  it('gives up once it has run out of ways to ask, rather than hammering', async () => {
     const env = { GEMINI_KEY: 'k' };
     const original = globalThis.fetch;
     let calls = 0;
@@ -204,7 +216,7 @@ describe('writeRecap', () => {
       });
     };
     const out = await writeRecap(env, facts());
-    expect(calls).toBe(2);
+    expect(calls).toBe(3);
     expect(out.error).toContain('API key not valid');
     globalThis.fetch = original;
   });
@@ -262,7 +274,7 @@ describe('writeRecap', () => {
               content: {
                 parts: [
                   { thought: true, text: 'First I should work out who won...' },
-                  { text: 'ערב פרוע' },
+                  { text: '<report>ערב פרוע</report>' },
                 ],
               },
             },
@@ -273,12 +285,53 @@ describe('writeRecap', () => {
     globalThis.fetch = original;
   });
 
+  it('keeps only what is inside the tags', async () => {
+    // the failure this exists for: the model checking its own work out loud,
+    // as ordinary unflagged text, in the middle of the Hebrew
+    const env = { GEMINI_KEY: 'k' };
+    const original = globalThis.fetch;
+    globalThis.fetch = async () =>
+      new Response(
+        JSON.stringify({
+          candidates: [
+            {
+              content: {
+                parts: [
+                  {
+                    text: "Let's check every rule again: 1. Paragraphs: yes, 5.\n<report>ערב פרוע</report>\nThat covers everything.",
+                  },
+                ],
+              },
+            },
+          ],
+        }),
+      );
+    expect(await writeRecap(env, facts())).toEqual({ text: 'ערב פרוע' });
+    globalThis.fetch = original;
+  });
+
+  it('refuses an answer with no report in it, rather than passing the working on', async () => {
+    const env = { GEMINI_KEY: 'k' };
+    const original = globalThis.fetch;
+    globalThis.fetch = async () =>
+      new Response(
+        JSON.stringify({
+          candidates: [{ content: { parts: [{ text: "Let's check every rule again..." }] } }],
+        }),
+      );
+    const out = await writeRecap(env, facts());
+    expect(out.error).toContain('working out');
+    globalThis.fetch = original;
+  });
+
   it('joins the parts of a good answer back together', async () => {
     const env = { GEMINI_KEY: 'k' };
     const original = globalThis.fetch;
     globalThis.fetch = async () =>
       new Response(
-        JSON.stringify({ candidates: [{ content: { parts: [{ text: 'ערב ' }, { text: 'פרוע' }] } }] }),
+        JSON.stringify({
+          candidates: [{ content: { parts: [{ text: '<report>ערב ' }, { text: 'פרוע</report>' }] } }],
+        }),
         { status: 200 },
       );
     expect(await writeRecap(env, facts())).toEqual({ text: 'ערב פרוע' });

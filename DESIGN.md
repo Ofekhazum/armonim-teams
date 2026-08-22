@@ -1554,6 +1554,20 @@ them, which a model answers by writing about whatever it noticed first. It now n
 in order and says explicitly that **no team may be skipped**, including the one that had a quiet
 night.
 
+**The report comes back inside `<report>` tags, and only what is between them is kept.** Asking a
+model for five paragraphs and a list of rules invites it to check its work in the open: one attempt
+came back with *"Let's check every single rule again: 1. Paragraphs: Yes, exactly 5"* sitting in the
+middle of the Hebrew, as ordinary unflagged text that no `thought` filter could catch. A delimiter
+costs nothing and turns "trust the model to have kept quiet" into a substring. An answer with no tags
+at all is refused rather than shown, because a report whose boundaries nobody can trust is worse than
+no report.
+
+**Turning thinking off is a ladder, not a setting.** 3.x wants `thinkingLevel`, 2.5 wants
+`thinkingBudget`, some models refuse to have it off at all, and a model that dislikes the field
+answers `400 Request contains an invalid argument` without naming it — so matching on the message
+was useless. Each form is tried in turn and a 400 moves to the next: three calls worst case, only
+ever after a failure.
+
 **`notes` is the part worth having.** `nightNotes` walks each player's career head-to-head as it
 stood *strictly before* this night and looks for their **bogey** — the opponent whose team keeps
 beating theirs — turning up on the other side and losing. Nothing else in the app can say that:

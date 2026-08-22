@@ -45,6 +45,32 @@ const MAX_TOKENS = 8000;
 // bearing, so this sits below the playful end.
 const TEMPERATURE = 0.9;
 
+// How to ask a model to stop thinking, in the order worth trying.
+//
+// There is no single answer: 3.x wants a `thinkingLevel`, 2.5 wants a
+// `thinkingBudget`, some models refuse to have it turned off at all, and a
+// model that dislikes the field answers `400 Request contains an invalid
+// argument` without naming it. So each is tried in turn and a 400 moves to the
+// next — worst case three calls, and only ever when the one before failed.
+const THINKING = [{ thinkingLevel: 'low' }, { thinkingBudget: 0 }, null];
+
+// The report comes back wrapped in this, and only what is inside it is kept.
+// Asking a model for "five paragraphs and here are the rules" invites it to
+// check its work in the open — the first real attempt came back with
+// "Let's check every single rule again: 1. Paragraphs: Yes, exactly 5" in the
+// middle of the Hebrew, which is exactly what would have gone to WhatsApp.
+// A delimiter costs nothing and makes the answer machine-findable rather than
+// a matter of trusting the model to have kept quiet.
+const OPEN = '<report>';
+const CLOSE = '</report>';
+
+const between = (text) => {
+  const from = text.indexOf(OPEN);
+  const to = text.lastIndexOf(CLOSE);
+  if (from === -1) return null;
+  return text.slice(from + OPEN.length, to === -1 ? undefined : to).trim() || null;
+};
+
 // What a stored recap looks like in KV under `recap:<fixtureId>`.
 export const recapKey = (fixtureId) => `recap:${fixtureId}`;
 
@@ -161,7 +187,13 @@ Rules:
 - Name real people, and tease them about results only — never about ability, fitness, body, or anything not in the record above. These fifteen people play together every week and all of them will read this.
 - Every number must come from the record above, unchanged. If something is not written above, it did not happen and must not be mentioned.
 - Do not describe any single match as an event. You do not know how any of them looked.
-- No headline, no title, no bullet points, no markdown, no closing sign-off line with your name. Just the five paragraphs, ready to be pasted into a group chat as they are.`;
+- No headline, no title, no bullet points, no markdown, no closing sign-off line with your name. Just the five paragraphs, ready to be pasted into a group chat as they are.
+
+OUTPUT FORMAT. Put the finished report, and nothing else, between ${OPEN} and ${CLOSE}. Do not check your work inside those tags, do not restate these rules inside them, do not explain your choices inside them. Anything outside the tags is discarded, so the tags must contain the whole report and none of your working.
+
+${OPEN}
+(the five paragraphs, in Hebrew)
+${CLOSE}`;
 }
 
 /**
@@ -173,7 +205,7 @@ export async function writeRecap(env, facts) {
   if (!key) return { error: 'not-configured' };
   const model = env.GEMINI_MODEL || DEFAULT_MODEL;
 
-  const ask = (withThinkingOff) =>
+  const ask = (thinking) =>
     fetch(`${ENDPOINT}/${model}:generateContent`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
@@ -182,26 +214,19 @@ export async function writeRecap(env, facts) {
         generationConfig: {
           temperature: TEMPERATURE,
           maxOutputTokens: MAX_TOKENS,
-          // see MAX_TOKENS: thinking is on by default and is paid for out of
-          // the same budget as the reply
-          ...(withThinkingOff ? { thinkingConfig: { thinkingBudget: 0 } } : {}),
+          // see THINKING: on by default, and paid for out of the same budget
+          // as the reply
+          ...(thinking ? { thinkingConfig: thinking } : {}),
         },
       }),
     });
 
   let res;
   try {
-    res = await ask(true);
-    // The thinking switch is the only thing the first attempt asks for beyond
-    // the plain request, and models disagree about it: some want a budget of
-    // zero, some refuse zero, and the newer ones want a different field
-    // entirely. So *any* 400 buys one retry with a bare request.
-    //
-    // Matching on the error text was tried first and was worse than useless —
-    // Google answered "Request contains an invalid argument", which names no
-    // field, so a rule looking for the word "thinking" never fired on the one
-    // failure it existed for.
-    if (res.status === 400) res = await ask(false);
+    res = await ask(THINKING[0]);
+    for (let i = 1; i < THINKING.length && res.status === 400; i++) {
+      res = await ask(THINKING[i]);
+    }
   } catch {
     return { error: 'unreachable' };
   }
@@ -246,13 +271,21 @@ export async function writeRecap(env, facts) {
   // A part marked `thought` is the model reasoning out loud, not the report.
   // Never asked for, but a part that arrives is a part that would otherwise be
   // pasted into WhatsApp as though somebody had written it.
-  const text = (candidate?.content?.parts ?? [])
+  const raw = (candidate?.content?.parts ?? [])
     .filter((p) => !p?.thought)
     .map((p) => p?.text ?? '')
     .join('')
     .trim();
   // An empty answer always has a reason attached, and the reason is the whole
   // difference between "it refused" and "it never got started".
-  if (!text) return { error: `empty (${candidate?.finishReason ?? 'no candidate'})` };
+  if (!raw) return { error: `empty (${candidate?.finishReason ?? 'no candidate'})` };
+
+  // Only what is inside the tags. Deliberation that arrives as ordinary text —
+  // unflagged, indistinguishable from the report by any other means — falls
+  // outside them and is dropped. No tags at all means the model did not follow
+  // the one instruction that makes its answer usable, and a report nobody can
+  // trust the boundaries of is worse than none.
+  const text = between(raw);
+  if (!text) return { error: 'the model wrote its working out instead of a report' };
   return { text };
 }
