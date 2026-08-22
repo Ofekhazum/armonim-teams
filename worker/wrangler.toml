@@ -38,3 +38,10 @@ class_name = "ClockNotifier"
 [[migrations]]
 tag = "v3-clock-notifier"
 new_sqlite_classes = ["ClockNotifier"]
+
+# Team of the Month (§2.25). 05:00 UTC on the 1st — 08:00 Israel time in
+# summer, 07:00 in winter; crons are UTC only. Registers any finished month
+# that has no team yet, so a missed run costs nothing and the first run after
+# deploying backfills the whole archive.
+[triggers]
+crons = ["0 5 1 * *"]

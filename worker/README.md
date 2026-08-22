@@ -206,3 +206,16 @@ you publish over them, but deploying the worker first avoids the question.
 - Free tier allows 100,000 requests/day — vastly more than a friends' team needs.
 - If `REMOTE_URL` is left empty, the app just works offline from its built-in
   roster, exactly like before.
+
+## Team of the Month (automatic)
+
+Nothing to configure. `wrangler.toml` carries a cron trigger — `0 5 1 * *`, 05:00 UTC on the 1st —
+and the Worker scores every finished month that has no team yet, storing it under the `totm` key in
+KV. Crons are UTC only, so that is 08:00 Israel time in summer and 07:00 in winter.
+
+The first deploy after this lands backfills the whole archive on the next 1st. To fill it in sooner,
+press **👕 Register team** on the History tab for each month, or `POST /awards` with
+`{ secret, run: true }` to do the same pass by hand.
+
+A month is never re-registered once it has a team, so a correction made with **👕 Register team**
+survives every later cron run.

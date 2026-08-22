@@ -18,6 +18,7 @@ import {
 } from '../calibration';
 import { nightStory } from '../nightStory';
 import { buildWrapped, periodLabel, wrappedPeriods } from '../wrapped';
+import { announceMonth } from '../awards';
 import { shareWrappedImage } from '../wrappedImage';
 import { mvpCandidates, mvpCounts, winningTeams } from '../mvp';
 import { VETERAN_NIGHTS, playerAchievements, type AchievementKind } from '../achievements';
@@ -153,6 +154,7 @@ export default function History({
   const periods = useMemo(() => wrappedPeriods(history), [history]);
   const [wrappedPeriod, setWrappedPeriod] = useState('');
   const [sharingWrapped, setSharingWrapped] = useState(false);
+  const [registering, setRegistering] = useState<'busy' | 'done' | 'failed' | null>(null);
   // periods only appear once a month's first night is saved — pick the newest
   // as soon as one shows up, rather than leaving the picker on nothing
   useEffect(() => {
@@ -295,7 +297,10 @@ export default function History({
           <span className="text-sm font-bold text-amber-950">📊 Monthly recap</span>
           <select
             value={wrappedPeriod}
-            onChange={(e) => setWrappedPeriod(e.target.value)}
+            onChange={(e) => {
+              setWrappedPeriod(e.target.value);
+              setRegistering(null);
+            }}
             className="rounded-lg border border-amber-900/25 bg-white px-2 py-1.5 text-sm font-semibold text-amber-950 outline-none focus:border-orange-500"
           >
             {periods.map((p) => (
@@ -321,6 +326,31 @@ export default function History({
           >
             {sharingWrapped ? '…' : '🖼️ Share recap'}
           </button>
+          {/* Registering the month by hand (§2.25). The cron on the 1st is the
+              usual registrar and this is not a second way of doing the same
+              job — it is the two cases the cron cannot cover: seeding the
+              archive, which should not have to wait a month for its first
+              entry, and correcting a month the automatic pick got wrong.
+              Since the cron never overwrites, whatever is set here stays. */}
+          <button
+            onClick={async () => {
+              if (!wrappedPeriod || !adminWord) return;
+              setRegistering('busy');
+              const ok = await announceMonth(wrappedPeriod, adminWord);
+              setRegistering(ok ? 'done' : 'failed');
+            }}
+            disabled={registering === 'busy' || !wrappedPeriod || !adminWord}
+            title="Write this month's five down. Normally the 1st of the month does this by itself."
+            className="rounded-lg border border-amber-900/25 px-3 py-1.5 text-xs font-bold text-amber-900 transition-colors enabled:hover:border-orange-500 disabled:opacity-40"
+          >
+            {registering === 'busy' ? '…' : '👕 Register team'}
+          </button>
+          {registering === 'done' && (
+            <span className="text-xs font-bold text-green-700">registered</span>
+          )}
+          {registering === 'failed' && (
+            <span className="text-xs font-bold text-red-700">couldn't register that month</span>
+          )}
         </div>
       )}
 

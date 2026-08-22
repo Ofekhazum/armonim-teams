@@ -1705,6 +1705,59 @@ refusal, no network — comes back as a message under the page, and the page ren
 today. A tallied night has no recap button at all, because there is no sequence to write about and a
 model asked to describe one anyway would invent it.
 
+### 2.25 Team of the Month, registered (`src/totm.ts`, `worker/awards.js`)
+
+**Counts are derived; awards are registered.** Everything else in this app is worked out at read time
+— a night page recomputes, the career table recomputes — and that is right, because a corrected
+result *should* change what a count says. Team of the Month is not a count. It is an announcement:
+five names, picked for a month, made into a shirt image and posted to the group. Derived, a
+correction to some night in June could quietly change who was in June's team, and a player's page
+would end up disagreeing with the card everybody actually saw. So it is written down once and kept.
+
+**The registrar is a cron.** `[triggers] crons = ["0 5 1 * *"]` — 05:00 UTC on the 1st, which is
+08:00 in Israel through the summer and an hour earlier in winter, since Cloudflare's crons are UTC
+only and pinning an exact local hour year-round would cost two schedules and a DST guess for a job
+nobody is watching. The Worker reads `history` straight out of KV, so nobody's phone has to be open.
+
+`registerAwards` writes **every finished month that has no team yet**, which gives three properties
+out of two lines: the first run after deploying **backfills the whole archive** rather than starting
+from that month; a run missed to a deploy **self-heals** next time; and it **never overwrites**, so a
+month set by hand stays as set. The current calendar month is skipped because it is still being
+played — the one place a clock enters the design, and every other "is this month finished?" question
+reduces to it.
+
+An earlier draft had the cron re-register its own entries whenever a month's night count changed, to
+cover a night played on the 29th and filed on the 2nd. That is a flow that was bypassed rather than a
+case worth machinery: filing is part of ending the night (§2.7.1). The fingerprint went, and the
+record is `{ ids, names, at }`.
+
+**`src/totm.ts` exists so the rule cannot drift.** Two things ask who was in a month's team — the
+shirt image the organiser posts, and the cron. If they ever disagreed the feature would be worse than
+not having it. So `totmEligible`, `totmScore`, `TOTM_SIZE` and `teamOfMonth` live in one file that
+`wrapped.ts` imports and the Worker bundles directly; esbuild follows the import and tree-shakes the
+rest of `milestones`/`calibration` away (verified: the scoring is in the Worker bundle,
+`buildWrapped` and the ridge solver are not). A copy in the Worker would agree on the day it was
+written and stop agreeing the day one of them was tuned.
+
+**Storage** is one KV document, `totm`, keyed by `YYYY-MM` — one document rather than a key per month
+because a player page wants all of them at once, where a recap is read one night at a time. **The
+names travel with the ids**, which is the difference between an award that still renders in two years
+and five blanks the week somebody leaves the roster. `GET /awards` is public; `POST /awards` costs the
+admin word and takes `{ period }` to register one, `{ period, clear }` to forget one, and
+`{ run: true }` to do the cron's pass now.
+
+**On the player page**, a shelf of month chips under the hero — the one honour there that is a
+*selection* rather than arithmetic about them, and a record of an announcement rather than something
+recomputed, so it can say *when*. **Absent at zero, deliberately**: most players will never make a
+five-man team, and a permanent empty trophy cabinet is a page telling them so every time they open
+it. Absent reads as neutral where "×0" reads as a verdict (§2.9). The chip's tooltip carries the one
+thing that otherwise looks like a bug — `totmEligible` wants half the month's nights, so somebody can
+play brilliantly in a month they mostly missed and not be eligible.
+
+**👕 Register team** sits beside 🖼️ Share recap on the History tab. Not a second way of doing the
+cron's job: it is the two cases the cron cannot cover — seeding the archive rather than waiting a
+month for its first entry, and correcting a month the automatic pick got wrong.
+
 ## 3. Team generation algorithm
 
 Balancing is a small constrained optimization. With ≤15 players, brute force is too big

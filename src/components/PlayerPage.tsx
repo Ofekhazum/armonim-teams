@@ -24,6 +24,8 @@ import {
 } from '../playerProfile';
 import { MIN_ARC_NIGHTS, playerArcs, rate } from '../playerArcs';
 import { Name, STYLE_META, TEAM_META } from './ui';
+import { fetchAwards, monthsWon } from '../awards';
+import { periodLabel } from '../wrapped';
 
 // One player's page (§2.19). Everything on it is counted from history — the
 // same nights the standings table and the badges are built from — so nothing
@@ -141,6 +143,21 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
+
+  // Awards are asked for, not worked out: they are a record of what was
+  // announced, and this page is one of the two places that reads it back. Any
+  // failure — offline, no worker, nothing registered yet — is an empty shelf
+  // rather than an error, which is the right weight for a decoration.
+  const [totm, setTotm] = useState<string[]>([]);
+  useEffect(() => {
+    let live = true;
+    fetchAwards().then((awards) => {
+      if (live) setTotm(monthsWon(awards, player.id));
+    });
+    return () => {
+      live = false;
+    };
+  }, [player.id]);
 
   const nights = useMemo(() => profileNights(history, player.id), [history, player.id]);
   const counts = useMemo(() => profileCounts(nights), [nights]);
@@ -265,6 +282,42 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
             </p>
           )}
         </header>
+
+        {/* The one honour on this page that is a *selection* rather than a
+            count. Everything else here is arithmetic about them; this is the
+            thing they were picked for, and it is a record of an announcement
+            rather than something recomputed on the spot (§2.25) — so it can
+            say when, which a derived membership never could.
+
+            Absent at zero, deliberately. Most players will never make a
+            five-man team, and a permanent empty trophy cabinet is a page
+            telling them so every time they open it: absent reads as neutral
+            where "×0" reads as a verdict, which is the §2.9 line. */}
+        {totm.length > 0 && (
+          <div className="rounded-2xl border border-amber-500/30 bg-gradient-to-br from-amber-300/25 to-[#fffdf4] px-4 py-3 shadow-sm">
+            <div className="mb-1.5 flex items-baseline gap-2">
+              <h3 className="text-[13px] font-black uppercase tracking-wide text-amber-900/70">
+                👕 Team of the Month
+              </h3>
+              <span className="text-[11px] font-bold text-amber-900/40">×{totm.length}</span>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {totm.map((period) => (
+                <span
+                  key={period}
+                  // `totmEligible` wants half the month's nights, so somebody
+                  // can play brilliantly in a month they mostly missed and not
+                  // be eligible. Correct for "of the month", and it looks like
+                  // a bug to the player it happens to without this sentence.
+                  title="Picked in the five for this month. Needs at least half the month's nights to be eligible."
+                  className="rounded-full border border-amber-600/30 bg-white/70 px-2.5 py-1 text-xs font-bold text-amber-900 shadow-sm"
+                >
+                  {periodLabel(period)}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
 
         {(badges.length > 0 || earned.length > 0) && (
           <div>
