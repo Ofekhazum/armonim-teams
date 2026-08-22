@@ -679,11 +679,13 @@ repairing a database.
 Matching is exact after trimming and case-folding — no fuzzy matching, because quietly merging two
 genuinely different people is a far worse failure than leaving a duplicate row on screen.
 
-**The standings table starts at two nights** (`MIN_STANDINGS_NIGHTS`). One night gives a per-night
-number derived from a single result, which sorts to the top of the table and means nothing. Two is not
-a sample either, but it is the point at which a row is about a person rather than about an evening —
-a different question from `MIN_NIGHTS`, which governs whether the *"vs rating"* column will speak at
-all.
+**The career-numbers table has no floor** (`MIN_STANDINGS_NIGHTS = 1`): everybody who has played a
+night with a result is in it. It started at two, on the reasoning that a per-night number derived
+from a single result sorts to the top and means nothing. That is true and it was still the wrong
+trade — the table is a record of who has played, and a guest who came once and never came back is
+part of that record. Excluding them meant the tab quietly disagreed with the night pages they appear
+on. The per-night oddity is the price, and it is at least visible. A different question from
+`MIN_NIGHTS`, which still governs whether the *"vs rating"* column will speak at all.
 
 ### 2.12 MVP picks
 

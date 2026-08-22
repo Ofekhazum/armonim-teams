@@ -129,11 +129,19 @@ function useDragScroll() {
   };
 }
 
-// Nights before a player appears in the table at all. Deliberately low —
-// this is about keeping one-night entries out of a career table, not about
-// statistical confidence, which `MIN_NIGHTS` handles separately for the
-// "vs rating" column.
-const MIN_STANDINGS_NIGHTS = 2;
+// Nights before a player appears in the table at all.
+//
+// One, which is to say no floor: everybody who has played is in. This was two,
+// on the reasoning that a per-night number from a single result sorts to the
+// top of the table and means nothing — true, but the wrong trade. The table is
+// a record of who has played, and a guest who came once and never came back is
+// part of that record; leaving them out means the tab quietly disagrees with
+// the night pages they appear on. The per-night oddity is the price, and it is
+// visible rather than hidden.
+//
+// Kept as a constant rather than deleted so the floor is one edit away, and so
+// this reasoning has somewhere to live.
+const MIN_STANDINGS_NIGHTS = 1;
 
 // The key under the table. Deliberately worded as what was counted rather
 // than what it proves — "most wins in the club" and not "best player" — which
@@ -256,10 +264,8 @@ export default function History({
     });
   };
 
-  // A one-off — a guest who came once, a player's first night — has a per-night
-  // number computed from a single result, which sits at the top of the table
-  // saying nothing. Two nights is not a sample either, but it is the point at
-  // which a row is about a person rather than about an evening.
+  // Everybody who has played a night with a result recorded — see
+  // MIN_STANDINGS_NIGHTS for why there is no floor on this any more.
   const standings = useMemo(
     () => playerStandings(history).filter((p) => p.nights >= MIN_STANDINGS_NIGHTS),
     [history],
