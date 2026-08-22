@@ -361,6 +361,24 @@ and the results panel. Everything here is either read-only or costs a single tap
 constraint, since anything needing steady input during a match (live scores, goal scorers) gets
 abandoned after a few weeks and leaves half-complete data behind, which is worse than none.
 
+### 2.7.1 Ending a night
+
+**"End fixture" asks what to do with the result, not whether you are sure.** It used to be a
+`confirm()` — *"Tonight's result hasn't been saved and will be lost. End anyway?"* — which is the
+wrong shape for the question. A browser dialog can only offer yes and no, and the real question has
+three answers: file it and end, end and throw it away, or neither yet.
+
+So the button opens a small panel headed **"That's the night?"** with **🗂️ Save to history & end** as
+the obvious move, **🗑️ End and lose the result** underneath it, and **← Not yet** to go back. The
+copy changes with the state rather than the buttons moving: a night already filed offers *Update
+history & end* (a re-save updates the same record, so matches logged after the first save are picked
+up), and a night with nothing recorded says so and drops the save option entirely, which promotes
+ending to the primary action.
+
+Filing happens **before** ending, because `onSaveResults` reads the session that `onEndFixture` is
+about to clear. A non-admin sees why they cannot file rather than a missing button — the same rule
+the rest of the app follows about locks being visible.
+
 ### 2.8 The match clock (and the rules of a match)
 
 **+30s** hands back half a minute for a stoppage the clock knew nothing about — a ball over the
