@@ -13,6 +13,7 @@ import { nightStory } from '../nightStory';
 import { buildWrapped, periodLabel, wrappedPeriods } from '../wrapped';
 import { shareWrappedImage } from '../wrappedImage';
 import { mvpCandidates, mvpCounts, winningTeams } from '../mvp';
+import { getNightsShelfOpen, setNightsShelfOpen } from '../storage';
 import { VETERAN_NIGHTS, playerAchievements, type AchievementKind } from '../achievements';
 import { Name, TEAM_META, fmtRating, fmtWins } from './ui';
 import MvpPicker from './MvpPicker';
@@ -109,6 +110,10 @@ export default function History({
   useEffect(() => {
     if (!wrappedPeriod && periods.length > 0) setWrappedPeriod(periods[0]);
   }, [periods, wrappedPeriod]);
+  // Open by default and remembered per device — the shelf is what the tab is
+  // for, but forty cards is still forty cards on the way to the numbers, and
+  // somebody who only wants the table should be able to say so once.
+  const [shelfOpen, setShelfOpen] = useState(getNightsShelfOpen);
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
   // the night currently being corrected, and the values as typed so far
   const [editId, setEditId] = useState<string | null>(null);
@@ -363,229 +368,259 @@ export default function History({
           page's own ribbon, which is where the scrolling strip started. */}
       <div className="space-y-2">
         <div className="flex flex-wrap items-baseline gap-x-2">
-          <h3 className="font-bold text-amber-950">📅 Past nights</h3>
-          <span className="text-sm text-amber-900/50">({history.length})</span>
-          <span className="text-xs text-amber-900/35">tap one to read it back</span>
+          <button
+            onClick={() => {
+              const next = !shelfOpen;
+              setShelfOpen(next);
+              setNightsShelfOpen(next);
+              // a drawer belonging to a card nobody can see any more
+              if (!next) {
+                setOpenId(null);
+                cancelEdit();
+              }
+            }}
+            aria-expanded={shelfOpen}
+            className="flex items-baseline gap-2 font-bold text-amber-950"
+          >
+            📅 Past nights
+            <span className="text-sm font-normal text-amber-900/50">({history.length})</span>
+            <span className="text-xs font-normal text-amber-900/40">
+              {shelfOpen ? '▲ hide' : '▼ show'}
+            </span>
+          </button>
+          {shelfOpen && <span className="text-xs text-amber-900/35">tap one to read it back</span>}
         </div>
 
-        {/* Bleeds through the page gutter so the strip scrolls edge to edge
-            rather than inside a narrower window. */}
-        <div className="-mx-3 flex snap-x gap-3 overflow-x-auto px-3 pb-2 sm:-mx-6 sm:px-6">
-          {nights.map((fx) => {
-            // a night written down match by match, rather than tallied from
-            // memory at the end — the record is the matches, and the wins are
-            // just their sum (§2.18)
-            const logged = (fx.matchLog?.length ?? 0) > 0;
-            const summary = logged ? nightStory(fx) : null;
-            const nameOf = (id: string) => fx.players.find((p) => p.id === id)?.name ?? '?';
-            // a night can genuinely end level, so take everyone on the top
-            // score rather than whoever a sort happened to put first
-            const top = Math.max(...TEAM_COLORS.map((c) => fx.wins[c] ?? 0));
-            const winners = TEAM_COLORS.filter((c) => (fx.wins[c] ?? 0) === top);
-            const mvpName = fx.mvpId ? nameOf(fx.mvpId) : null;
-            return (
-              <div
-                key={fx.id}
-                className={`relative h-44 w-40 shrink-0 snap-start rounded-2xl border bg-[#fffdf4]/70 shadow-sm transition-shadow hover:shadow-md ${
-                  openId === fx.id ? 'border-orange-500/70' : 'border-amber-900/15'
-                }`}
-              >
-                {/* The whole card is the way through to the night. What is on
-                    it is a *summary* and deliberately not the evening itself:
-                    the shape of it, match by match, is the first thing the
-                    page behind this draws, and printing it twice at two sizes
-                    made the strip a worse copy of a better view. */}
-                <button
-                  onClick={() => setStoryId(fx.id)}
-                  aria-label={`Read the night of ${fx.date}`}
-                  className="absolute inset-0 rounded-2xl focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-orange-500"
-                />
-                {/* scenery: clicks fall through to the button above, so there
-                    is no dead patch anywhere on the card */}
-                <div className="pointer-events-none relative flex h-full flex-col p-3">
-                  <div className="font-mono text-[11px] font-bold text-amber-900/45">{fx.date}</div>
-                  {/* the hook, and the reason the strip is worth scrolling:
-                      the same headline the night page opens with */}
-                  <div className="mt-0.5 line-clamp-3 flex-1 text-[15px] font-black leading-tight text-amber-950">
-                    {summary?.headline ??
-                      (hasResult(fx.wins) ? 'A night on the books' : 'No result recorded')}
-                  </div>
-                  {hasResult(fx.wins) && (
-                    <div className="flex flex-wrap items-center gap-1 text-[10px] font-bold">
-                      👑
-                      {winners.map((c) => (
-                        // the team's own card palette rather than a tinted
-                        // text colour: white-on-cream would be unreadable,
-                        // and these three are already contrast-checked
-                        <span
-                          key={c}
-                          className={`rounded-full border px-1.5 py-0.5 ${TEAM_META[c].card}`}
-                        >
-                          {TEAM_META[c].label} {fmtWins(fx.wins[c] ?? 0)}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                  <div className="mt-1 truncate text-[10px] text-amber-900/45">
-                    {logged ? `${fx.matchLog!.length} matches` : `${totalWins(fx.wins)} wins`} ·{' '}
-                    {fx.players.length} played
-                  </div>
-                  {mvpName && mvpName !== '?' && (
-                    <div className="truncate text-[10px] text-amber-900/45">
-                      🌟 <Name className="font-semibold text-amber-900/60">{mvpName}</Name>
-                    </div>
-                  )}
-                </div>
+        {shelfOpen && (
+          <>
 
-                {isAdmin && (
-                  <button
-                    onClick={() => {
-                      setOpenId(openId === fx.id ? null : fx.id);
-                      cancelEdit();
-                    }}
-                    aria-expanded={openId === fx.id}
-                    aria-label={`Organiser actions for the night of ${fx.date}`}
-                    className={`absolute right-1 top-1 grid h-7 w-7 place-items-center rounded-full text-base leading-none hover:bg-amber-900/10 hover:text-amber-900 ${
-                      openId === fx.id ? 'bg-amber-900/10 text-amber-900' : 'text-amber-900/30'
-                    }`}
-                  >
-                    ⋯
-                  </button>
-                )}
-              </div>
-            );
-          })}
-        </div>
-
-        {/* One drawer under the strip rather than one inside every card: a
-            card in a sideways strip has nowhere to open downwards without
-            shoving the row about, and correcting a night is rare enough that
-            it does not need to be reachable without a second tap. */}
-        {isAdmin && editing && (
-          <div className="space-y-3 rounded-2xl border border-orange-500/40 bg-amber-100/40 p-4 shadow-sm">
-            <div className="flex flex-wrap items-baseline gap-x-2">
-              <span className="font-mono text-sm font-bold text-amber-950">{editing.date}</span>
-              <span className="text-xs text-amber-900/45">organiser actions</span>
-              <div className="flex-1" />
-              <button
-                onClick={() => {
-                  setOpenId(null);
-                  cancelEdit();
-                }}
-                className="text-xs font-bold text-amber-900/50 hover:text-amber-900"
-              >
-                × close
-              </button>
-            </div>
-            {editId === editing.id && draft ? (
-              <>
-                <div className="grid gap-2 sm:grid-cols-3">
-                  {TEAM_COLORS.map((c) => (
-                    <label
-                      key={c}
-                      className="flex items-center gap-2 rounded-xl border border-amber-900/10 bg-white/70 px-3 py-2"
-                    >
-                      <span className="flex-1 text-sm font-bold text-amber-950">
-                        {TEAM_META[c].emoji} {TEAM_META[c].label}
-                      </span>
-                      {/* A logged night counts itself, so its tally is
-                          read-only here. Typing over it would leave the record
-                          saying one thing and the matches it is made of saying
-                          another — and the matches are what head-to-head and
-                          everything else per-match gets counted from. */}
-                      <input
-                        type="number"
-                        inputMode="decimal"
-                        min={0}
-                        max={99}
-                        step={0.5}
-                        value={draft.wins[c] ?? ''}
-                        onChange={(e) => setDraftWin(c, e.target.value)}
-                        readOnly={editingLogged}
-                        placeholder="–"
-                        aria-label={`Matches won by ${TEAM_META[c].label}`}
-                        className={`w-20 rounded-lg border border-amber-900/25 px-2 py-1 text-center font-bold text-amber-950 ${
-                          editingLogged ? 'bg-amber-900/[0.06]' : 'bg-white'
-                        }`}
-                      />
-                    </label>
-                  ))}
-                </div>
-                <label className="flex items-center gap-2 text-xs text-amber-900/70">
-                  Date
-                  <input
-                    type="date"
-                    value={draft.date}
-                    onChange={(e) => setDraft((d) => (d ? { ...d, date: e.target.value } : d))}
-                    className="rounded-lg border border-amber-900/25 bg-white px-2 py-1 font-semibold text-amber-950"
-                  />
-                </label>
-                {/* the only place the MVP is picked — the fixture page asks
-                    nothing about it, because the night isn't over while you're
-                    on that page. The list is the winning side only. */}
-                <MvpPicker
-                  players={mvpCandidates(editing, draft.wins)}
-                  winners={winningTeams(draft.wins)}
-                  mvpId={draft.mvpId}
-                  onChange={(mvpId) => setDraft((d) => (d ? { ...d, mvpId } : d))}
-                />
-                <p className="text-xs text-amber-900/50">
-                  {editingLogged
-                    ? 'This night was logged match by match, so its wins are counted from the matches and can’t be typed over. '
-                    : 'Half a win means it was taken on penalties. '}
-                  The team sheet can't be changed — delete the night and save it again if the teams
-                  were wrong.
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    onClick={() => commitEdit(editing.id)}
-                    className="rounded-lg bg-orange-600 px-3 py-1 text-xs font-bold text-amber-50 hover:scale-105"
-                  >
-                    Save changes
-                  </button>
-                  <button
-                    onClick={cancelEdit}
-                    className="rounded-lg border border-amber-900/25 px-3 py-1 text-xs font-bold text-amber-900 hover:border-orange-500"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </>
-            ) : (
-              <div className="flex flex-wrap gap-2">
-                {/* Same drawer as Edit result, named after the thing that's
-                    missing. Since the fixture page stopped asking, nothing
-                    else would ever mention that this night has no MVP — and a
-                    prompt nobody sees is a feature that quietly stops
-                    happening. */}
-                {!editing.mvpId && (
-                  <button
-                    onClick={() => startEdit(editing)}
-                    className="rounded-lg border border-amber-500/60 bg-amber-100/60 px-3 py-1 text-xs font-bold text-amber-900 hover:border-orange-500"
-                  >
-                    🌟 Pick MVP
-                  </button>
-                )}
-                <button
-                  onClick={() => startEdit(editing)}
-                  className="rounded-lg border border-amber-900/25 px-3 py-1 text-xs font-bold text-amber-900 hover:border-orange-500"
+          {/* Bleeds through the page gutter so the strip scrolls edge to edge
+              rather than inside a narrower window. */}
+          <div className="no-scrollbar -mx-3 flex snap-x gap-3 overflow-x-auto px-3 pb-1 sm:-mx-6 sm:px-6">
+            {nights.map((fx) => {
+              // a night written down match by match, rather than tallied from
+              // memory at the end — the record is the matches, and the wins are
+              // just their sum (§2.18)
+              const logged = (fx.matchLog?.length ?? 0) > 0;
+              const summary = logged ? nightStory(fx) : null;
+              const nameOf = (id: string) => fx.players.find((p) => p.id === id)?.name ?? '?';
+              // a night can genuinely end level, so take everyone on the top
+              // score rather than whoever a sort happened to put first
+              const top = Math.max(...TEAM_COLORS.map((c) => fx.wins[c] ?? 0));
+              const winners = TEAM_COLORS.filter((c) => (fx.wins[c] ?? 0) === top);
+              const mvpName = fx.mvpId ? nameOf(fx.mvpId) : null;
+              return (
+                <div
+                  key={fx.id}
+                  className={`relative h-44 w-40 shrink-0 snap-start rounded-2xl border bg-[#fffdf4]/70 shadow-sm transition-shadow hover:shadow-md ${
+                    openId === fx.id ? 'border-orange-500/70' : 'border-amber-900/15'
+                  }`}
                 >
-                  ✏️ Edit result
-                </button>
+                  {/* The whole card is the way through to the night. What is on
+                      it is a *summary* and deliberately not the evening itself:
+                      the shape of it, match by match, is the first thing the
+                      page behind this draws, and printing it twice at two sizes
+                      made the strip a worse copy of a better view. */}
+                  <button
+                    onClick={() => setStoryId(fx.id)}
+                    aria-label={`Read the night of ${fx.date}`}
+                    className="absolute inset-0 rounded-2xl focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-orange-500"
+                  />
+                  {/* scenery: clicks fall through to the button above, so there
+                      is no dead patch anywhere on the card */}
+                  <div className="pointer-events-none relative flex h-full flex-col p-3">
+                    <div className="font-mono text-[11px] font-bold text-amber-900/45">{fx.date}</div>
+                    {/* the hook, and the reason the strip is worth scrolling:
+                        the same headline the night page opens with */}
+                    <div className="mt-0.5 line-clamp-3 flex-1 text-[15px] font-black leading-tight text-amber-950">
+                      {summary?.headline ??
+                        (hasResult(fx.wins) ? 'A night on the books' : 'No result recorded')}
+                    </div>
+                    {hasResult(fx.wins) && (
+                      <div className="flex flex-wrap items-center gap-1 text-[10px] font-bold">
+                        👑
+                        {winners.map((c) => (
+                          // the team's own card palette rather than a tinted
+                          // text colour: white-on-cream would be unreadable,
+                          // and these three are already contrast-checked
+                          <span
+                            key={c}
+                            className={`rounded-full border px-1.5 py-0.5 ${TEAM_META[c].card}`}
+                          >
+                            {TEAM_META[c].label} {fmtWins(fx.wins[c] ?? 0)}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    {/* "15 played" was read as fifteen matches, which is exactly
+                        what it looks like sitting beside "18 matches". The word
+                        that disambiguates it is the noun. */}
+                    <div className="mt-1 truncate text-[10px] text-amber-900/45">
+                      {logged ? `${fx.matchLog!.length} matches` : `${totalWins(fx.wins)} wins`} ·{' '}
+                      {fx.players.length} players
+                    </div>
+                    {/* The MVP is the one *person* on this card, and it was the
+                        faintest thing on it — the same size and grey as the
+                        counts above. A star on its own tint carries the name. */}
+                    {mvpName && mvpName !== '?' && (
+                      <div className="mt-1 flex max-w-full items-center gap-1 self-start rounded-full bg-amber-400/25 px-1.5 py-0.5 text-[11px] ring-1 ring-inset ring-amber-500/30">
+                        <span className="leading-none">⭐</span>
+                        <Name className="truncate font-black text-amber-900">{mvpName}</Name>
+                      </div>
+                    )}
+                  </div>
+
+                  {isAdmin && (
+                    <button
+                      onClick={() => {
+                        setOpenId(openId === fx.id ? null : fx.id);
+                        cancelEdit();
+                      }}
+                      aria-expanded={openId === fx.id}
+                      aria-label={`Organiser actions for the night of ${fx.date}`}
+                      className={`absolute right-1 top-1 grid h-7 w-7 place-items-center rounded-full text-base leading-none hover:bg-amber-900/10 hover:text-amber-900 ${
+                        openId === fx.id ? 'bg-amber-900/10 text-amber-900' : 'text-amber-900/30'
+                      }`}
+                    >
+                      ⋯
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* One drawer under the strip rather than one inside every card: a
+              card in a sideways strip has nowhere to open downwards without
+              shoving the row about, and correcting a night is rare enough that
+              it does not need to be reachable without a second tap. */}
+          {isAdmin && editing && (
+            <div className="space-y-3 rounded-2xl border border-orange-500/40 bg-amber-100/40 p-4 shadow-sm">
+              <div className="flex flex-wrap items-baseline gap-x-2">
+                <span className="font-mono text-sm font-bold text-amber-950">{editing.date}</span>
+                <span className="text-xs text-amber-900/45">organiser actions</span>
+                <div className="flex-1" />
                 <button
                   onClick={() => {
-                    if (confirm(`Delete the night of ${editing.date} from history?`)) {
-                      onDeleteFixture(editing.id);
-                      setOpenId(null);
-                    }
+                    setOpenId(null);
+                    cancelEdit();
                   }}
-                  className="rounded-lg border border-red-500/50 px-3 py-1 text-xs font-bold text-red-700 hover:bg-red-50"
+                  className="text-xs font-bold text-amber-900/50 hover:text-amber-900"
                 >
-                  🗑️ Delete this night
+                  × close
                 </button>
               </div>
-            )}
-          </div>
+              {editId === editing.id && draft ? (
+                <>
+                  <div className="grid gap-2 sm:grid-cols-3">
+                    {TEAM_COLORS.map((c) => (
+                      <label
+                        key={c}
+                        className="flex items-center gap-2 rounded-xl border border-amber-900/10 bg-white/70 px-3 py-2"
+                      >
+                        <span className="flex-1 text-sm font-bold text-amber-950">
+                          {TEAM_META[c].emoji} {TEAM_META[c].label}
+                        </span>
+                        {/* A logged night counts itself, so its tally is
+                            read-only here. Typing over it would leave the record
+                            saying one thing and the matches it is made of saying
+                            another — and the matches are what head-to-head and
+                            everything else per-match gets counted from. */}
+                        <input
+                          type="number"
+                          inputMode="decimal"
+                          min={0}
+                          max={99}
+                          step={0.5}
+                          value={draft.wins[c] ?? ''}
+                          onChange={(e) => setDraftWin(c, e.target.value)}
+                          readOnly={editingLogged}
+                          placeholder="–"
+                          aria-label={`Matches won by ${TEAM_META[c].label}`}
+                          className={`w-20 rounded-lg border border-amber-900/25 px-2 py-1 text-center font-bold text-amber-950 ${
+                            editingLogged ? 'bg-amber-900/[0.06]' : 'bg-white'
+                          }`}
+                        />
+                      </label>
+                    ))}
+                  </div>
+                  <label className="flex items-center gap-2 text-xs text-amber-900/70">
+                    Date
+                    <input
+                      type="date"
+                      value={draft.date}
+                      onChange={(e) => setDraft((d) => (d ? { ...d, date: e.target.value } : d))}
+                      className="rounded-lg border border-amber-900/25 bg-white px-2 py-1 font-semibold text-amber-950"
+                    />
+                  </label>
+                  {/* the only place the MVP is picked — the fixture page asks
+                      nothing about it, because the night isn't over while you're
+                      on that page. The list is the winning side only. */}
+                  <MvpPicker
+                    players={mvpCandidates(editing, draft.wins)}
+                    winners={winningTeams(draft.wins)}
+                    mvpId={draft.mvpId}
+                    onChange={(mvpId) => setDraft((d) => (d ? { ...d, mvpId } : d))}
+                  />
+                  <p className="text-xs text-amber-900/50">
+                    {editingLogged
+                      ? 'This night was logged match by match, so its wins are counted from the matches and can’t be typed over. '
+                      : 'Half a win means it was taken on penalties. '}
+                    The team sheet can't be changed — delete the night and save it again if the teams
+                    were wrong.
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      onClick={() => commitEdit(editing.id)}
+                      className="rounded-lg bg-orange-600 px-3 py-1 text-xs font-bold text-amber-50 hover:scale-105"
+                    >
+                      Save changes
+                    </button>
+                    <button
+                      onClick={cancelEdit}
+                      className="rounded-lg border border-amber-900/25 px-3 py-1 text-xs font-bold text-amber-900 hover:border-orange-500"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {/* Same drawer as Edit result, named after the thing that's
+                      missing. Since the fixture page stopped asking, nothing
+                      else would ever mention that this night has no MVP — and a
+                      prompt nobody sees is a feature that quietly stops
+                      happening. */}
+                  {!editing.mvpId && (
+                    <button
+                      onClick={() => startEdit(editing)}
+                      className="rounded-lg border border-amber-500/60 bg-amber-100/60 px-3 py-1 text-xs font-bold text-amber-900 hover:border-orange-500"
+                    >
+                      🌟 Pick MVP
+                    </button>
+                  )}
+                  <button
+                    onClick={() => startEdit(editing)}
+                    className="rounded-lg border border-amber-900/25 px-3 py-1 text-xs font-bold text-amber-900 hover:border-orange-500"
+                  >
+                    ✏️ Edit result
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (confirm(`Delete the night of ${editing.date} from history?`)) {
+                        onDeleteFixture(editing.id);
+                        setOpenId(null);
+                      }
+                    }}
+                    className="rounded-lg border border-red-500/50 px-3 py-1 text-xs font-bold text-red-700 hover:bg-red-50"
+                  >
+                    🗑️ Delete this night
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+          </>
         )}
       </div>
 

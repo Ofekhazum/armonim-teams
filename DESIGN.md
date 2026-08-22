@@ -244,6 +244,20 @@ of the match-by-match ribbon on every card; it was cut because the full-size one
 the page behind it draws, and printing the same thing twice at two sizes just makes the strip a worse
 copy of a better view. The team sheets are on that page too, next to everything else about the night.
 
+Three details the first draft got wrong. The counts line read **"18 matches · 15 played"**, and the
+second number was taken for matches — which is exactly what it looks like sitting beside the first, so
+it says *players* now. The **MVP** was the one person named on the card and the faintest thing on it,
+same size and grey as the counts; it wears a tinted star chip. And the scrollbar is hidden
+(`.no-scrollbar` in `index.css`, both the Firefox and WebKit spellings, since neither alone is
+enough) — cards cut off mid-shelf at the edge already say the row scrolls, and a track drawn under
+them is a second thing to look at.
+
+**The shelf can be hidden**, and the choice is remembered per device (`armonim-nights-shelf`) rather
+than held in component state, because the tabs unmount — without that, hiding it would last until the
+next time anyone looked at anything else, which is not what hiding something means. It defaults to
+open: the shelf is what the tab is for, but forty cards is still forty cards on the way to the
+numbers, and somebody who only wants the table should be able to say so once.
+
 **Correcting a night afterwards** (admin only, History tab): a card's **⋯** corner opens one drawer
 **under the strip** with *✏️ Edit result* — the three win counts and the date — *🌟 Pick MVP* where
 there isn't one, and *🗑️ Delete this night*. Under the strip rather than inside the card, because a
