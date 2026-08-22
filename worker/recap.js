@@ -155,6 +155,8 @@ Blue = הכחולים
 
 HOW THE NIGHT WORKS. Three teams of five share one pitch. Two play, one rests. The winner stays on and the resting team comes on, so a team on a winning run never leaves the pitch and a team that loses sits out exactly one match. A match is 8 minutes or ends early at a two-goal lead; level at the end means two minutes of golden goal, and still level means penalties, which count as half a win.
 
+THE SHIRTS ARE DRAWN FRESH EVERY WEEK. A colour is a team for one evening and nothing else. The people in tonight's השחורים will be spread across all three teams next week, so השחורים of next week are different people wearing the same shirts. Write about the colours as much as you like *within tonight* — they won it, they held the pitch, they collapsed — but never as something that continues. A colour has no future, no history of its own, and nothing to prove next week. Only the players do.
+
 WHAT YOU KNOW AND WHAT YOU DO NOT. Everything below is the complete record of the night. There are NO goal counts, NO scorers, NO assists, NO saves, NO substitutions and NO minute-by-minute events, because nobody records them. You must not invent any of them. Do not describe a goal, name a scorer, credit an assist, praise a save, or say what any single moment looked like. Write only about what is here: who beat whom, in what order, and what it added up to. Every number you use must appear below, unchanged.
 
 THE NIGHT — ${facts.date}
@@ -198,7 +200,7 @@ Then five paragraphs, in this order, 280 to 380 words in total:
 2. THE WINNERS. The team that took the night: their points, how many matches they played, their longest run, and the players in that team by name.
 3. THE OTHER TWO TEAMS. One or two sentences each, both of them, by name — points, matches played, longest run, and at least one player named from each. Neither team may be skipped, even if their night was quiet. A team that won nothing gets a line about that.
 4. THE PEOPLE. This is the heart of the report and it should be the longest paragraph. Milestones reached, the stories above, the player of the night, and anyone who won a lot or a little. Somebody who played four or more and won nothing gets a sympathetic ribbing rather than a kicking. Superstition is encouraged — if somebody keeps winning in one shirt colour, that is a curse and a blessing, not a coincidence.
-5. THE SIGN-OFF. One or two sentences looking forward to next week. Make somebody a promise or a threat about it.
+5. THE SIGN-OFF. One or two sentences looking forward to next week. Make somebody a promise or a threat about it — and it must be **people, by name**. Never aim it at a shirt colour: the teams are redrawn, so "if השחורים don't start winning next week" is a threat against five people who will not be in that team. Name the players you are coming for.
 
 Rules:
 - Every paragraph must be a complete thought that finishes. Never stop mid-sentence.
@@ -213,6 +215,8 @@ WHO IS READING THIS. A WhatsApp group of friends who have played together for ye
 - The personal stories are stories, not statistics. If somebody usually loses to an opponent and beat them tonight, that is a rivalry and a headline — write it as one, do not print it as a record.
 THE ONE LINE YOU DO NOT CROSS. Everything you mock is a *result*: matches won and lost, shirts worn, streaks, turning up, who beat whom. Never a person's body, weight, looks, age, health, money, job, family, politics, religion, or anything else about who they are rather than how their night went. Never state as fact that somebody is bad at football — say the scoreboard laughed at them instead. These fifteen people play together every week and all of them read this: it has to be the kind of ribbing that gets sent to the group by the person it is about.
 - Every number must come from the record above, unchanged. If something is not written above, it did not happen and must not be mentioned.
+- Nothing about a shirt colour may point outside tonight. No colour is owed revenge, due a comeback, on a decline, or expected to do anything next week — next week's teams do not exist yet.
+- A player's own record in a colour is fair game, because that is about the player: somebody who keeps winning whenever they happen to wear white is cursed or blessed, and that follows them into whatever shirt they get handed next.
 - The shape of the night is a description rather than a statistic: say what it means in ordinary words — a night that swung constantly, a night one team ran away with — the way a commentator would, and never as a figure or under a name of its own.
 - Do not describe any single match as an event. You do not know how any of them looked.
 - No headline, no title, no bullet points, no markdown, no closing sign-off line with your name. Just the five paragraphs, ready to be pasted into a group chat as they are.
