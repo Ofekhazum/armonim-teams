@@ -91,6 +91,16 @@ describe('buildPrompt', () => {
     expect(buildPrompt(facts({ winners: [] }))).toContain('nobody');
   });
 
+  it('says the shirts are redrawn, and keeps next week off the colours', () => {
+    // The one thing about this club a model cannot infer from a night's
+    // results: the colours are reassigned every week, so a sign-off promising
+    // to come back for השחורים is aimed at five people who will not be in that
+    // team. Reported from a real report that ended exactly that way.
+    expect(p).toContain('THE SHIRTS ARE DRAWN FRESH EVERY WEEK');
+    expect(p).toMatch(/never aim it at a shirt colour/i);
+    expect(p).toMatch(/next week's teams do not exist yet/i);
+  });
+
   it('asks for sharp rather than polite, and says who is reading', () => {
     expect(p).toMatch(/A polite report is a failed report/);
     expect(p).toMatch(/merciless about their results/);

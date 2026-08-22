@@ -1627,6 +1627,15 @@ rather than a gap: the same word already stores 8000 arbitrary characters via `{
 being defended is the key, not the text — it must not become a general text generator for whoever
 holds the word.
 
+**A colour is a team for one evening.** The shirts are redrawn every week, so tonight's השחורים and
+next week's השחורים are different people — something no model can infer from a night's results, and
+the prompt did not say it. A report duly signed off with *"if השחורים don't start winning next week
+we'll bring them deckchairs"*, which is a threat against five people who will not be in that team.
+The prompt now states the reshuffle outright and confines the sign-off to **people, by name**. The
+distinction that keeps shirt luck alive: a *player's* record in a colour is about the player, so
+somebody who keeps winning whenever they happen to wear white is still cursed, and the curse follows
+them into whatever shirt they are handed next.
+
 **Facts, never the log.** `recapFacts` flattens what `nightStory`, `milestones` and `duos` already
 computed into a few hundred bytes of finished numbers. A model handed eighteen raw results will do
 the arithmetic itself and get it wrong, and a report that says Blue won seven when they won five is
