@@ -24,6 +24,7 @@ import {
 } from '../playerProfile';
 import { MIN_ARC_NIGHTS, playerArcs, rate } from '../playerArcs';
 import { Name, STYLE_META, TEAM_META } from './ui';
+import { useScrollLock } from '../scrollLock';
 import { fetchAwards, monthsWon } from '../awards';
 import { periodLabel } from '../wrapped';
 
@@ -134,6 +135,10 @@ const Stat = ({ n, label, quiet }: { n: string; label: string; quiet?: boolean }
 );
 
 export default function PlayerPage({ player, history, players, isAdmin, onEdit, onClose }: Props) {
+  // The page behind stays put while this is open — see scrollLock.ts for
+  // what happens on a phone when it doesn't.
+  useScrollLock();
+
   // same escape hatch as pitch mode — a full-screen panel that can only be
   // left by finding one small button is a panel people feel stuck in
   useEffect(() => {
@@ -221,7 +226,7 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
   const role = STYLE_META[roleBadge(player)];
 
   return (
-    <div className="fixed inset-0 z-40 overflow-y-auto bg-[#fdf6e3]">
+    <div className="fixed inset-0 z-40 overflow-y-auto overscroll-contain bg-[#fdf6e3]">
       <div className="mx-auto max-w-3xl space-y-3 px-3 pb-16 pt-4 sm:px-6">
         <div className="flex items-center gap-3">
           <button
