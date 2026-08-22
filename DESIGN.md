@@ -200,11 +200,18 @@ still being typed. `players` is a **snapshot** (`FixturePlayer`: id/name/rating 
 than a pointer into the roster, because guests are one-off and both names and ratings move; history
 has to still read correctly years later.
 
-**Entry**: `ResultsPanel.tsx`, rendered on the fixture page (§2.7) rather than inside `TeamsBoard`
-itself — deliberately, since a live-room guest renders that same `TeamsBoard` and must not be able
-to file a night into the host's history. Re-saving updates the same record
-(`session.savedFixtureId`) instead of appending a duplicate; generating fresh teams clears both,
-since an old tally no longer describes the new sheet.
+**Entry**: the night is filed when it *ends* (§2.7.1), from the panel behind **End fixture**.
+Re-saving updates the same record (`session.savedFixtureId`) instead of appending a duplicate;
+generating fresh teams clears both, since an old tally no longer describes the new sheet. A night
+with nothing written down can still be filed — it keeps who played and which teams they were in, and
+the tally is typed in afterwards on the History tab, which is also where a mistake is corrected.
+
+There used to be a **🏁 Tonight's results** panel on the fixture page: three number inputs and a Save
+button, sitting under the match log that had already counted the same numbers. Once a night is logged
+match by match the tally is *derived*, so the panel was asking the organiser to type in something the
+app knew — and offering, as its own failure mode, a hand-typed tally that disagreed with the matches
+it was made of. It was removed with the change above: filing is part of ending, and typing is for
+correcting.
 
 **Shared, like the roster** (`src/remote.ts`, `GET`/`POST /history` on the same Worker as §6):
 history is **not** local-only — every admin write (save, edit, delete) publishes the *entire*
@@ -317,26 +324,22 @@ impression the floor exists to avoid.
 Once the organizer is happy with tonight's teams, **▶️ Start fixture** on the teams board
 (`TeamsBoard.tsx`) locks them in: `session.fixtureStarted` flips to `true` and `MatchDay.tsx` swaps
 from the editable teams board to `FixturePage.tsx` — teams shown **read-only** (no drag-and-drop, no
-re-roll, no live-room controls) plus **🏁 Tonight's results** (`ResultsPanel.tsx`, moved here from
-directly under the board — see the "Entry" note in §2.6). This is meant to be the page open *during*
-the match, separate from the team-building page before it, and the natural place to add more
-once-the-teams-are-set features later.
+re-roll, no live-room controls). This is the page open *during* the match, separate from the
+team-building page before it: the clock, the match log, what is on the line tonight, and the way out
+of the night (§2.7.1).
 
 **The team display here is deliberately compact** — names as small wrapped chips (one line per team,
 ~78px for all three) rather than the board's one-tall-row-per-player (~270px). On this page the
 teams are a reference you glance at, not something you work on, so they yield vertical space to
-whatever else the page carries; the results panel stays above the fold on a phone, which it did not
-when the full board was reproduced here. Kept in the chip: the 🧤 keeper marker (worth knowing
+whatever else the page carries; the clock and the match log stay above the fold on a phone, which
+they did not when the full board was reproduced here. Kept in the chip: the 🧤 keeper marker (worth knowing
 mid-match) and a small ★ for guests. Dropped: per-player role icons, which are a team-building
 input rather than something you check during the match.
 
-**Unlocking admin here.** Saving a result needs the admin word (§2.6), so the fixture page offers
-**🔒 Unlock admin to save** in place of the results panel's old "unlock on the Roster tab" text —
-same prompt, same server-side check, just without the trip to another tab and back mid-match. The
-logic is shared, not copied: `useAdminUnlock` (`src/useAdminUnlock.ts`) backs both this button and
-the header padlock (§2.13). `ResultsPanel` falls back to the old static text when no
-`onUnlockAdmin` is passed, which is what happens when `REMOTE_URL` is empty and there is no server
-to verify a word against.
+**Unlocking admin** happens at the header padlock, which is on every tab (§2.13). The fixture page
+carried its own unlock button while the results panel lived there — worth it then, since filing a
+night was a thing you did mid-match and the trip to another tab and back was the cost. Filing now
+happens once, at the end, on a panel that says plainly why a locked device cannot do it.
 
 **← Back to teams** undoes a mistaken click without losing anything: it just flips
 `fixtureStarted` back to `false`, landing back on the same teams board (still editable, re-rollable,
@@ -360,6 +363,24 @@ session, never the saved nights (§2.6).
 and the results panel. Everything here is either read-only or costs a single tap — a deliberate
 constraint, since anything needing steady input during a match (live scores, goal scorers) gets
 abandoned after a few weeks and leaves half-complete data behind, which is worse than none.
+
+### 2.7.1 Ending a night
+
+**"End fixture" asks what to do with the result, not whether you are sure.** It used to be a
+`confirm()` — *"Tonight's result hasn't been saved and will be lost. End anyway?"* — which is the
+wrong shape for the question. A browser dialog can only offer yes and no, and the real question has
+three answers: file it and end, end and throw it away, or neither yet.
+
+So the button opens a small panel headed **"That's the night?"** with **🗂️ Save to history & end** as
+the obvious move, **🗑️ End and lose the result** underneath it, and **← Not yet** to go back. The
+copy changes with the state rather than the buttons moving: a night already filed offers *Update
+history & end* (a re-save updates the same record, so matches logged after the first save are picked
+up), and a night with nothing recorded says so and drops the save option entirely, which promotes
+ending to the primary action.
+
+Filing happens **before** ending, because `onSaveResults` reads the session that `onEndFixture` is
+about to clear. A non-admin sees why they cannot file rather than a missing button — the same rule
+the rest of the app follows about locks being visible.
 
 ### 2.8 The match clock (and the rules of a match)
 
@@ -1483,6 +1504,166 @@ counts as a joke error code. It was honest (pull-only, every line a real number)
 useful: the counts above already say the same things, and saying them twice in a funnier font is
 weight on the page rather than information on it.
 
+### 2.24 The night reporter (`src/recapFacts.ts`, `worker/recap.js`)
+
+A Hebrew match report for a logged night, written by Gemini and read **on the night's own page**. Not
+a share sheet and not a clipboard trick: the night page is where a night is read, and a recap that
+only ever exists in WhatsApp is gone by Thursday. Sharing is a button on it, not the point of it.
+
+**The key cannot be in the client.** Vite compiles env values into the bundle, so a key in the app is
+a key in everybody's DevTools. `GEMINI_KEY` is a wrangler secret and the browser never talks to
+Google — it posts counts to `POST /recap`, behind the admin word and the same per-IP limiter that
+guards every other write.
+
+**Generating has a second limiter, and that one never refunds.** Every guarded write costs a KV put,
+which is ours and cheap, so the publish limiter hands a *correct* word its attempt back (§7) — right
+for a roster, wrong for this. A draft is up to three calls on the club's Gemini key against a free
+tier with a daily cap, so an admin word that leaked would otherwise be an unlimited supply of
+somebody else's tokens, discovered only when the reporter went dead for everyone. `RECAP_LIMIT` is
+twelve an hour per IP, counted only on the generate path and only after `isValidFacts` passes — a
+malformed flood spends nothing upstream and so must not spend the budget either. **Saving an approved
+draft and deleting one stay free**: they cost a KV write, and being told to wait before you can save
+the report already on your screen would be a penalty for the wrong act. The two 429s are told apart
+by name in the body, because "wait ten minutes" and "you have had enough" are different sentences.
+
+**The Worker builds the prompt; the client sends only facts.** The client could send finished prompt
+text and save the Worker a job — and then anyone holding the admin word could make our key write
+anything at all. `isValidFacts` pins the *shape*, so the rules, the format and the line nobody
+crosses live in the Worker and cannot be sent from outside — but names and story lines are free text
+in the prompt, so the word still steers what comes back. That is the right amount of protection
+rather than a gap: the same word already stores 8000 arbitrary characters via `{ text }`, so what is
+being defended is the key, not the text — it must not become a general text generator for whoever
+holds the word.
+
+**Facts, never the log.** `recapFacts` flattens what `nightStory`, `milestones` and `duos` already
+computed into a few hundred bytes of finished numbers. A model handed eighteen raw results will do
+the arithmetic itself and get it wrong, and a report that says Blue won seven when they won five is
+worse than no report. It carries no ratings, no attack values, no keep-apart lists and no ids: what
+leaves the app is roughly what is already on the night page (§2.9).
+
+**The guard rail is against confident invention.** This data has no goals, no scorers, no assists and
+no saves — a sports-writer prompt with nothing said about that will supply all four from imagination.
+So the prompt states what the data is, what it is not, and that nothing outside it may appear, and
+the tests assert those clauses are present. It also explains the rotation, without which none of the
+numbers make sense, and it forbids touching a player's name — Hebrew names must survive verbatim.
+
+**Written for the audience, not for the app.** Output is Hebrew, because it is read in a Hebrew
+WhatsApp group by people whose names are Hebrew; the app's own chrome being English is a fact about
+the app, not about who reads it. The block renders `dir="rtl"` with `whitespace-pre-wrap`, since the
+model's paragraphing is part of what it wrote. Team colours travel as English identifiers and the
+prompt maps them to השחורים / הלבנים / הכחולים, so changing the output language stays a prompt edit
+rather than a change to what gets counted.
+
+**Stored in its own KV key**, `recap:<fixtureId>`, never on the fixture record. No schema change, no
+migration, nothing that can damage a night — and it is the honest split: the record is what happened,
+a recap is generated prose that can be thrown away and written again. It is also stored rather than
+generated per reader, or fifteen phones would each write a different report of the same night and
+spend the quota doing it.
+
+**Built for the automatic version it is not yet.** `POST /recap` takes `{ facts }` (write it, store
+nothing), `{ facts, save: true }` (write and store in one call), `{ text }` (store what the organiser
+approved) or `{ text: null }` (forget it). Today the app uses the first and third, which is the human
+in the loop: the organiser reads a draft nobody else can see, then publishes it. Turning that into
+"a report appears the moment a night is filed" is the second variant called from wherever a fixture
+is saved — `autoRecap` in `src/recap.ts` is already that call, kept unused on purpose. Nothing about
+the route, the prompt or the storage has to change.
+
+**Three things the first real calls taught, all worth keeping written down.** The model name went
+stale before the feature shipped — `gemini-2.5-flash` answered with *"no longer available to new
+users, use models/gemini-3.6-flash"* — which is why it is a `GEMINI_MODEL` secret with a default
+rather than a constant, and why a model that refuses `thinkingBudget: 0` gets exactly one retry
+without it rather than a support ticket. Gemini 2.5 Flash has
+*thinking on by default and pays for it out of `maxOutputTokens`*, so a budget sized for the answer
+is spent before the answer starts — the reply comes back with `finishReason: MAX_TOKENS`, no content
+at all, and a few hundred thinking tokens billed. `thinkingConfig: { thinkingBudget: 0 }` turns it
+off, because writing a report from finished counts is not a reasoning problem. And the failure
+*message* mattered as much as the failure: a missing key, a wrong model name and an empty generation
+all arrived as the same 502 and the same sentence — "Gemini turned it down" — which named none of
+them. The worker knew which; it just wasn't saying. It says now, verbatim, including whatever Google
+put in the error body.
+
+**The first report that came back was short, cut off mid-word, and covered one team.** Three separate
+faults, worth separating: the token budget was being eaten by thinking and left only a fragment (it
+is 8000 now — output tokens are the cheap part of a weekly report); a `thought` part can arrive
+alongside the answer and would otherwise be pasted into WhatsApp as though a person wrote it, so
+those are filtered out; and the prompt asked for "three short paragraphs" without saying what went in
+them, which a model answers by writing about whatever it noticed first. It now names five paragraphs
+in order and says explicitly that **no team may be skipped**, including the one that had a quiet
+night.
+
+**The report comes back inside `<report>` tags, and only what is between them is kept.** Asking a
+model for five paragraphs and a list of rules invites it to check its work in the open: one attempt
+came back with *"Let's check every single rule again: 1. Paragraphs: Yes, exactly 5"* sitting in the
+middle of the Hebrew, as ordinary unflagged text that no `thought` filter could catch. A delimiter
+costs nothing and turns "trust the model to have kept quiet" into a substring. An answer with no tags
+at all is refused rather than shown, because a report whose boundaries nobody can trust is worse than
+no report.
+
+**Turning thinking off is a ladder, not a setting.** 3.x wants `thinkingLevel`, 2.5 wants
+`thinkingBudget`, some models refuse to have it off at all, and a model that dislikes the field
+answers `400 Request contains an invalid argument` without naming it — so matching on the message
+was useless. Each form is tried in turn and a 400 moves to the next: three calls worst case, only
+ever after a failure.
+
+**The change index is not sent at all.** It came back in a report as *מדד השינוי: 47*, an internal
+name for an internal number quoted at a group who have seen neither. Instructing the model to phrase
+it in words was tried first; not sending it is the version that cannot fail. The night's *shape*
+still travels, because it is a word rather than a figure.
+
+**A club table was sent for one version and taken back out.** Ranked on wins, it put somebody who had
+turned up once above regulars who had played all season, and the report duly repeated that as though
+it meant something. A standing needs a minimum-nights rule before it is worth quoting — §2.6 has one
+for exactly this reason — and the report is about a night rather than a season.
+
+**Eight detectors feed `notes`, and the cap is the point rather than a safety valve.** 👕 shirt luck
+(the colour they win in against the one they do not), 🔁 revenge inside the night (beaten twice by the
+same team early, beating them twice later), 🪑 bench time, 🕰️ first night back after missing three or
+more, 💤 a drought of four losing nights ending, ⭐ a guest finishing on the winning team, 🎯 how few
+wins short of a career milestone they now are, and ⏳ which half of a night they are actually good in.
+A report is about 350 words: hand it twelve equally-weighted facts and it picks three at random and
+mentions none of them properly. So each detector is gated to fire on a night when the thing actually
+happened, at most two of any one kind travel, and they are ordered rarest first — a squad of fifteen
+produces shirt records every week, where a drought breaking is a season event.
+
+**The tone is set by naming the audience.** The prompt says who reads this — a WhatsApp group of
+friends who have played together for years and take the mickey out of each other constantly — and
+that *a polite report is a failed report*. Nicknames, invented feuds, curses, dynasties, demands that
+somebody be dropped or given a statue, and absurd attribution ("sources close to the changing room")
+are all explicitly invited. Temperature sits at 1: a cautious setting reads as a cautious report.
+
+**The one line is drawn around the subject, not the strength.** Everything mocked is a **result** —
+matches won and lost, shirts, streaks, turning up, who beat whom. Never a body, weight, looks, age,
+health, money, job, family, politics or religion, and never a flat statement that somebody is bad at
+football; the scoreboard is what laughs at them. Realistic quotations attributed to a player are out
+too — an absurd one reads as a joke, a plausible one reads as something they said. The test is that
+the person it is about would be the one forwarding it.
+
+**The notes are written as bare facts on purpose**, and the prompt says so: they are material, not
+lines to print. A fact printed as written is the statistical vibe this feature keeps sliding back
+into — *"מדד השינוי: 47"*, *"came into tonight 2-8 down"* — and the fix each time has been to send
+less number and more situation.
+
+**Personal history is told as a story, not as a record.** The bogey line first read *"came into
+tonight 2-8 down against ירין across their careers, and tonight ניב's team beat ירין's 3-1"* — four
+numbers stacked around one joke, which is three too many. It is one sentence now, and the prompt says
+in as many words that a rivalry is a headline rather than a record.
+
+**The byline is invented on the spot.** Each report opens `📻 <reporter> מדווח מהמגרש` with a
+different absurd name every week — never a real journalist, never anybody playing. It costs nothing,
+it varies for free, and it is what makes the thing read as a broadcast rather than as a summary.
+
+**`notes` is the part worth having.** `nightNotes` walks each player's career head-to-head as it
+stood *strictly before* this night and looks for their **bogey** — the opponent whose team keeps
+beating theirs — turning up on the other side and losing. Nothing else in the app can say that:
+every other view is about one player or about one night, and this is the two together. The record
+quoted is the one they walked in with, because quoting a total that already includes tonight would
+have the report announce the overturning of a record that had already been overturned.
+
+**A recap is decoration and never load-bearing.** Every failure — no key, quota exhausted, a safety
+refusal, no network — comes back as a message under the page, and the page renders exactly as it does
+today. A tallied night has no recap button at all, because there is no sequence to write about and a
+model asked to describe one anyway would invent it.
+
 ## 3. Team generation algorithm
 
 Balancing is a small constrained optimization. With ≤15 players, brute force is too big
@@ -1575,12 +1756,13 @@ the obvious reason — a badge that is secretly a button is not one anybody pres
    - **▶️ Start fixture** → `src/components/FixturePage.tsx`: locks tonight's teams in and shows
      them read-only (§2.7), with **🎯 On the line tonight** and the bounty (§2.19), tonight's
      milestones and duo records (§2.9, §2.10), the 8-minute
-     match clock with **+30s** and **⛶ Pitch mode** (§2.8), the **📋 match log** (§2.17) and
-     **🏁 Tonight's results** (`ResultsPanel.tsx`) to file the night. No MVP picker — that is asked
-     afterwards, on History (§2.12). Starting also publishes the fixture to the
+     match clock with **+30s** and **⛶ Pitch mode** (§2.8) and the **📋 match log** (§2.17). No
+     tally to type in and no MVP picker: the night is filed when it ends (§2.7.1), and the MVP is
+     asked for afterwards, on History (§2.12). Starting also publishes the fixture to the
      whole group (§2.14); ending it takes it back down.
      **← Back to teams** returns to the editable board above without losing anything, in case the
-     teams need another look; **⏹️ End fixture** wipes the night and starts over, the same action
+     teams need another look; **⏹️ End fixture** asks what to do with the result and then wipes the
+     night, the same action
      as the board's 🆕 New Fixture.
 3. **History** (`src/components/History.tsx`) — open to everyone: past nights (expandable to the
    team sheets and each team's wins) and a standings table of nights / wins / fixture wins /

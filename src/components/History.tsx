@@ -21,6 +21,10 @@ interface Props {
   history: FixtureRecord[];
   players: Player[];
   isAdmin: boolean;
+  // Present only for an organiser. Handed through to the night page, which
+  // needs the word rather than the flag: the recap it writes is a guarded
+  // write on the worker, not a locally hidden button.
+  adminWord?: string | null;
   onApplyRating: (playerId: string, rating: number) => void;
   onDeleteFixture: (fixtureId: string) => void;
   onEditFixture: (
@@ -78,6 +82,7 @@ export default function History({
   history,
   players,
   isAdmin,
+  adminWord = null,
   onApplyRating,
   onDeleteFixture,
   onEditFixture,
@@ -697,6 +702,7 @@ export default function History({
           fixture={story}
           history={history}
           players={players}
+          adminWord={adminWord}
           // newest first, so the next entry along is the older night
           older={nights[at + 1] ?? null}
           newer={nights[at - 1] ?? null}

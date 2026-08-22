@@ -8,7 +8,7 @@ import type {
   Session,
   Teams,
 } from '../types';
-import { ATTACK_DEFAULT, initialClock, liveFixtureId, roleBadge } from '../types';
+import { ATTACK_DEFAULT, emptyWins, initialClock, liveFixtureId, roleBadge } from '../types';
 import {
   emptySession,
   getHostRoom,
@@ -22,14 +22,11 @@ import { generateTeams, targetSizes } from '../balancer';
 import { sameLog, winsFromLog } from '../matchLog';
 import { parseImportList, resolveImportedNames } from '../importRoster';
 import { ROOMS_ENABLED, hostRoom, roomShareUrl } from '../liveRoom';
-import { REMOTE_URL } from '../remote';
-import { useAdminUnlock } from '../useAdminUnlock';
 import type { ActivityEvent, PresenceMember, RoomConnection } from '../liveRoom';
 import { createUserColorTracker } from '../userColor';
 import LiveRoomBar from './LiveRoomBar';
 import TeamsBoard from './TeamsBoard';
 import FixturePage from './FixturePage';
-import { emptyWins } from './ResultsPanel';
 import { fmtRating, Name, RATING_STEPS, STYLE_META } from './ui';
 
 const ACTIVITY_MS = 750;
@@ -40,7 +37,6 @@ interface Props {
   history: FixtureRecord[]; // past nights — the fixture page counts milestones off these
   setSession: (s: Session) => void;
   isAdmin: boolean; // gates the private "keep apart" notes on the teams board
-  setAdminWord: (word: string | null) => void; // lets the fixture page unlock admin in place
   onSaveFixture: (fixture: FixtureRecord) => void;
   // Publishes tonight's fixture to the rest of the group, or clears it with
   // null when the night ends (§2.14). Match day is admin-only, so this is the
@@ -72,7 +68,6 @@ export default function MatchDay({
   history,
   setSession,
   isAdmin,
-  setAdminWord,
   onSaveFixture,
   onShareLive,
   liveClock,
@@ -80,7 +75,6 @@ export default function MatchDay({
   liveLog,
   onShareLog,
 }: Props) {
-  const { unlockAdmin, unlocking } = useAdminUnlock(setAdminWord);
   const [step, setStep] = useState<'players' | 'gk'>('players');
 
   // While a fixture is live the shared log is the record — someone else may
@@ -469,7 +463,6 @@ export default function MatchDay({
         history={history}
         gkIds={effectiveGkIds}
         wins={matchLog.length ? winsFromLog(matchLog) : session.wins}
-        onChangeWins={(wins) => setSession({ ...session, wins })}
         matchLog={matchLog}
         onChangeLog={(next) => {
           // Writing down a result means that match is over, and the very next
@@ -499,9 +492,6 @@ export default function MatchDay({
         saved={session.savedFixtureId !== null}
         savedFixtureId={session.savedFixtureId}
         isAdmin={isAdmin}
-        // nothing to unlock against when the shared Worker isn't configured
-        onUnlockAdmin={REMOTE_URL ? unlockAdmin : undefined}
-        unlocking={unlocking}
         onBack={backToTeams}
         onEndFixture={newFixture}
       />

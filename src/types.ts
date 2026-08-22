@@ -131,6 +131,11 @@ export interface MatchLogEntry {
 // The same thing while it's still being typed in, before the night is filed.
 export type DraftTeamWins = Record<TeamColor, number | null>;
 
+// Nothing entered yet. Lived in ResultsPanel until that panel was removed from
+// the fixture page — a session still starts with an empty tally, whether or not
+// there is anywhere on screen to type one in.
+export const emptyWins = (): DraftTeamWins => ({ black: null, white: null, blue: null });
+
 // Who played, captured at the time. Guests are one-off and renames happen, so
 // a fixture keeps its own copy of names/ratings rather than pointing at the
 // live roster and going stale.

@@ -14,6 +14,8 @@
 //   POST /push/subscribe   → opt this device into match-clock notifications
 //   POST /push/unsubscribe → opt it out again
 //   POST /push/test        → buzz now and report what the push service said
+//   GET  /recap?id=…   → public read of a night's written recap, if there is one
+//   POST /recap        → write one for a night; requires the secret word
 //   POST /verify       → check the secret word (used to unlock admin mode)
 //   GET  /room/:id     → WebSocket upgrade into a live team-picking room
 //
@@ -35,6 +37,7 @@ export { RateLimiter } from './rate-limit.js';
 export { ClockNotifier } from './clock-notifier.js';
 
 import { bytesToB64u, publicKeyBytes } from './push.js';
+import { isValidFacts, recapKey, writeRecap } from './recap.js';
 
 // One object for the whole club — there is only ever one night on. It holds
 // the live fixture, who wants telling about the clock, and the alarm that does
@@ -88,6 +91,23 @@ const MAX_BODY_BYTES = 512 * 1024;
 // publishing all evening never approaches it.
 const PUBLISH_LIMIT = 10;
 const PUBLISH_WINDOW_MS = 10 * 60 * 1000;
+
+// Drafts per IP, and the one budget in this file that a *correct* word cannot
+// get back.
+//
+// Every other guarded write costs us a KV put, which is ours, cheap, and
+// idempotent — so refunding a right answer is exactly right there. Writing a
+// report is not that: it is up to three calls on the club's Gemini key against
+// a free tier with a daily cap, so a word that leaked would be an unlimited
+// supply of somebody else's tokens, and the first anyone would know of it is
+// the reporter being dead for everyone.
+//
+// A dozen an hour is set by what the act actually looks like: one report a
+// week, rerolled two or three times when the first one comes back flat. Nobody
+// writing a report for a real night gets near this, which is the whole test of
+// a limit — it has to be invisible to the person it is not aimed at.
+const RECAP_LIMIT = 12;
+const RECAP_WINDOW_MS = 60 * 60 * 1000;
 
 // Room upgrades are unauthenticated by design — the share link is the
 // invitation — so the only thing standing between a script and an unbounded
@@ -379,6 +399,20 @@ export default {
       return json(current ? current.value : { version: 0, fixtures: null });
     }
 
+    // public read of a night's recap. Anybody may read one; only the organiser
+    // may write one, which is what /recap below is for.
+    if (url.pathname === '/recap' && request.method === 'GET') {
+      const id = url.searchParams.get('id');
+      if (!isStr(id, 200)) return json({ error: 'bad id' }, 400);
+      const raw = await env.ROSTER_KV.get(recapKey(id));
+      if (!raw) return json({ text: null });
+      try {
+        return json(JSON.parse(raw));
+      } catch {
+        return json({ text: null });
+      }
+    }
+
     // public read of the fixture being played right now, if any — this is the
     // one everyone in the group polls on a match night
     // Straight through to the Durable Object rather than KV: this is polled
@@ -504,7 +538,15 @@ export default {
     }
 
     // everything below is a POST guarded by the secret word
-    const guarded = ['/roster', '/roster/full', '/history', '/live', '/verify', '/push/test'];
+    const guarded = [
+      '/roster',
+      '/roster/full',
+      '/history',
+      '/live',
+      '/recap',
+      '/verify',
+      '/push/test',
+    ];
     if (guarded.includes(url.pathname) && request.method === 'POST') {
       // checked before we do any other work, so a flood costs us as little as
       // possible. Counts the attempt in the same call that decides on it —
@@ -572,6 +614,66 @@ export default {
           body: JSON.stringify({ fixture }),
         });
         return json(await res.json());
+      }
+
+      // Write a night's recap.
+      //
+      // Three things in one route, because they are one act with a human
+      // optionally standing in the middle of it:
+      //
+      //   { facts }             → generate and hand it back, store nothing
+      //   { facts, save: true } → generate and store it in the same call
+      //   { text }              → store this text, generated or edited
+      //   { text: null }        → forget the recap for this night
+      //
+      // The first two are the whole difference between today's flow — the
+      // organiser reads it before anyone else does — and the automatic one
+      // this is built for: the same call with `save`, made the moment a night
+      // is filed, with nobody in the loop. Nothing else has to change.
+      if (url.pathname === '/recap') {
+        if (!isStr(body.fixtureId, 200)) return json({ error: 'bad id' }, 400);
+        const key = recapKey(body.fixtureId);
+
+        if (body.text === null) {
+          await env.ROSTER_KV.delete(key);
+          return json({ ok: true, text: null });
+        }
+
+        if (isStr(body.text, 8000)) {
+          const stored = { text: body.text, at: Date.now() };
+          await env.ROSTER_KV.put(key, JSON.stringify(stored));
+          return json({ ok: true, ...stored });
+        }
+
+        if (!isValidFacts(body.facts)) return json({ error: 'bad facts' }, 400);
+
+        // Only generation is rated, and only once the payload is known to be
+        // worth a call — a malformed flood costs nothing upstream, so it must
+        // not eat the budget of somebody with a real night to write about.
+        //
+        // Storing an approved draft and deleting a recap stay free on purpose.
+        // They spend nothing but a KV write, and being made to wait before you
+        // can save the report already on your screen would be a penalty for
+        // the wrong act entirely.
+        const gen = await countAttempt(
+          limiterFor(env, `recap:${ip}`),
+          RECAP_LIMIT,
+          RECAP_WINDOW_MS,
+        );
+        if (gen.blocked) {
+          return json({ error: 'too many recaps' }, 429, {
+            'Retry-After': String(gen.retryAfter),
+          });
+        }
+
+        const written = await writeRecap(env, body.facts);
+        if (written.error) return json({ error: written.error }, 502);
+        if (body.save === true) {
+          const stored = { text: written.text, at: Date.now() };
+          await env.ROSTER_KV.put(key, JSON.stringify(stored));
+          return json({ ok: true, ...stored });
+        }
+        return json({ ok: true, text: written.text });
       }
 
       if (url.pathname === '/history') {

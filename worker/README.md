@@ -97,6 +97,33 @@ alerts on.
 from there). Apple only allows web notifications for installed web apps — until they do, the app
 shows them that instruction instead of a toggle. Android and desktop need no install step.
 
+## The night reporter (optional)
+
+Writes a Hebrew match report for a logged night, on the night's page in History. One secret turns
+it on:
+
+```sh
+cd worker
+npx wrangler secret put GEMINI_KEY     # from aistudio.google.com
+npx wrangler deploy
+```
+
+Optionally `npx wrangler secret put GEMINI_MODEL` to pin a different model; it defaults to
+`gemini-3.6-flash`, which is on the free tier and far more than a weekly report needs. That override
+exists because a model name is the one part of this guaranteed to go stale — Google retires them,
+and the error says which to use instead.
+
+Without `GEMINI_KEY` the feature is absent — no button, nothing sent, and any recap already stored
+still reads normally. The key never reaches a browser: the app posts the night's *counts* to
+`POST /recap` behind the admin word, and the Worker builds the prompt and makes the call. That split
+is deliberate — if the client sent prompt text, anyone with the admin word could make the key write
+anything at all.
+
+Note the free tier's terms: Google may use free-tier inputs and outputs to improve their models.
+What is sent is player names and match counts, nothing else — no ratings and none of the organiser's
+private notes. Enabling billing on the key removes the data sharing and costs essentially nothing at
+one report a week.
+
 ## Working on it locally
 
 **Never point a dev run or a test at the deployed worker.** That URL is the
