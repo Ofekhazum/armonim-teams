@@ -27,17 +27,20 @@ const ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models';
 // evening.
 const DEFAULT_MODEL = 'gemini-3.6-flash';
 
-// Long enough for three paragraphs of Hebrew, short enough that a runaway
-// generation cannot cost us the day's quota.
+// Deliberately far more than the report needs.
 //
-// Raised from 900 after the first real call came back empty. On 2.5 Flash
-// *thinking is on by default and its tokens are spent out of this same budget*,
-// so a cap sized for the answer gets eaten before the answer starts: the reply
-// arrives with `finishReason: MAX_TOKENS`, zero content and a few hundred
-// thinking tokens. `thinkingBudget: 0` below turns it off — a match report from
-// finished counts is not a reasoning problem — and the headroom here is belt
-// and braces.
-const MAX_TOKENS = 1600;
+// This number has been wrong twice, in both directions of the same trap:
+// thinking is on by default and is *paid for out of this budget*, so a cap
+// sized for the answer is spent before the answer starts. At 900 the reply came
+// back empty (`finishReason: MAX_TOKENS`, no content). At 1600 — with the
+// thinking switch dropped by the 400 retry — it came back as half a sentence
+// ending mid-word, which is worse, because a truncated report looks like a
+// broken feature rather than a failed call.
+//
+// So: budget for the thinking *and* the writing, with room to spare. Output
+// tokens are the cheap part of a weekly report, and the free tier's limit is a
+// million a minute.
+const MAX_TOKENS = 8000;
 // A recap is banter, not a legal document — but the numbers in it are load
 // bearing, so this sits below the playful end.
 const TEMPERATURE = 0.9;
@@ -75,7 +78,11 @@ export function isValidFacts(facts) {
     if (![p.played, p.won].every(isNum)) return false;
   }
   return (
-    isStrList(facts.moments, 12) && isStrList(facts.milestones, 20) && isStrList(facts.duos, 6)
+    isStrList(facts.moments, 12) &&
+    isStrList(facts.milestones, 20) &&
+    isStrList(facts.duos, 6) &&
+    // absent on a client that predates personal notes; an empty list, not a fault
+    (facts.notes === undefined || isStrList(facts.notes, 8))
   );
 }
 
@@ -135,13 +142,26 @@ ${list(facts.milestones, '- nothing was reached')}
 PAIRS WORTH MENTIONING
 ${list(facts.duos, '- none')}
 
+PERSONAL STORIES IN THIS NIGHT
+${list(facts.notes ?? [], '- none')}
+
 HOW TO WRITE IT.
-- Three short paragraphs, 120 to 180 words in total.
-- The voice of an over-excited sports broadcaster who takes an amateur football night far too seriously. Funny, warm, a bit dramatic. Emojis are welcome, a few, not a wall of them.
-- Name real people. Tease them about results, never about their ability, their body or anything that is not in the record above. Nobody should read this and feel got at — these fifteen people play together every week.
-- Lead with whatever is genuinely the most interesting thing above, not with the date.
-- If a player reached a milestone, that is worth a line.
-- No headline, no title, no bullet points, no markdown. Just the paragraphs, ready to be read as-is.`;
+
+Structure — five paragraphs, in this order, 280 to 380 words in total:
+
+1. THE OPENING. What kind of night it was and who won it. Use the shape, the number of matches, the lead changes and the change index. Do not open with the date.
+2. THE WINNERS. The team that took the night: their points, how many matches they played, their longest run, and the players in that team by name.
+3. THE OTHER TWO TEAMS. One or two sentences each, both of them, by name — points, matches played, longest run, and at least one player named from each. Neither team may be skipped, even if their night was quiet. A team that won nothing gets a line about that.
+4. THE PEOPLE. Milestones reached, the personal stories above, the player of the night, and anyone who won a lot or a little. If somebody beat an opponent who usually beats them, that is the best line in the report — say the old record and the new one.
+5. THE SIGN-OFF. One or two sentences. Look forward to next week.
+
+Rules:
+- Every paragraph must be a complete thought that finishes. Never stop mid-sentence.
+- The voice of an over-excited sports broadcaster who takes an amateur football night far too seriously. Funny, warm, a bit dramatic. A few emojis, not a wall of them.
+- Name real people, and tease them about results only — never about ability, fitness, body, or anything not in the record above. These fifteen people play together every week and all of them will read this.
+- Every number must come from the record above, unchanged. If something is not written above, it did not happen and must not be mentioned.
+- Do not describe any single match as an event. You do not know how any of them looked.
+- No headline, no title, no bullet points, no markdown, no closing sign-off line with your name. Just the five paragraphs, ready to be pasted into a group chat as they are.`;
 }
 
 /**
@@ -223,7 +243,11 @@ export async function writeRecap(env, facts) {
   if (blocked) return { error: `blocked: ${blocked}` };
 
   const candidate = data?.candidates?.[0];
+  // A part marked `thought` is the model reasoning out loud, not the report.
+  // Never asked for, but a part that arrives is a part that would otherwise be
+  // pasted into WhatsApp as though somebody had written it.
   const text = (candidate?.content?.parts ?? [])
+    .filter((p) => !p?.thought)
     .map((p) => p?.text ?? '')
     .join('')
     .trim();

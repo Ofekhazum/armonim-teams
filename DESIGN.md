@@ -1545,6 +1545,22 @@ all arrived as the same 502 and the same sentence — "Gemini turned it down" �
 them. The worker knew which; it just wasn't saying. It says now, verbatim, including whatever Google
 put in the error body.
 
+**The first report that came back was short, cut off mid-word, and covered one team.** Three separate
+faults, worth separating: the token budget was being eaten by thinking and left only a fragment (it
+is 8000 now — output tokens are the cheap part of a weekly report); a `thought` part can arrive
+alongside the answer and would otherwise be pasted into WhatsApp as though a person wrote it, so
+those are filtered out; and the prompt asked for "three short paragraphs" without saying what went in
+them, which a model answers by writing about whatever it noticed first. It now names five paragraphs
+in order and says explicitly that **no team may be skipped**, including the one that had a quiet
+night.
+
+**`notes` is the part worth having.** `nightNotes` walks each player's career head-to-head as it
+stood *strictly before* this night and looks for their **bogey** — the opponent whose team keeps
+beating theirs — turning up on the other side and losing. Nothing else in the app can say that:
+every other view is about one player or about one night, and this is the two together. The record
+quoted is the one they walked in with, because quoting a total that already includes tonight would
+have the report announce the overturning of a record that had already been overturned.
+
 **A recap is decoration and never load-bearing.** Every failure — no key, quota exhausted, a safety
 refusal, no network — comes back as a message under the page, and the page renders exactly as it does
 today. A tallied night has no recap button at all, because there is no sequence to write about and a

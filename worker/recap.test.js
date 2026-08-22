@@ -90,6 +90,25 @@ describe('buildPrompt', () => {
   it('handles a night nobody won without claiming somebody did', () => {
     expect(buildPrompt(facts({ winners: [] }))).toContain('nobody');
   });
+
+  it('demands all three teams, so the quiet one is not skipped', () => {
+    // the first real report covered one team and half of another
+    expect(p).toMatch(/Neither team may be skipped/);
+    expect(p).toMatch(/THE OTHER TWO TEAMS/);
+  });
+
+  it('asks for whole sentences and a length worth reading', () => {
+    expect(p).toMatch(/280 to 380 words/);
+    expect(p).toMatch(/Never stop mid-sentence/);
+  });
+
+  it('carries the personal stories, and says plainly when there are none', () => {
+    const withNote = buildPrompt(
+      facts({ notes: ['ניב came into tonight 2-8 down against ירין'] }),
+    );
+    expect(withNote).toContain('2-8 down against ירין');
+    expect(buildPrompt(facts({ notes: [] }))).toContain('PERSONAL STORIES');
+  });
 });
 
 describe('writeRecap', () => {
@@ -227,6 +246,30 @@ describe('writeRecap', () => {
     const out = await writeRecap(env, facts());
     expect(out.error).toContain('404');
     expect(out.error).toContain('gemini-9 is not found');
+    globalThis.fetch = original;
+  });
+
+  it('leaves the model’s thinking out of the report', async () => {
+    // a thought part is the model reasoning out loud; pasted into WhatsApp it
+    // reads as something a person wrote
+    const env = { GEMINI_KEY: 'k' };
+    const original = globalThis.fetch;
+    globalThis.fetch = async () =>
+      new Response(
+        JSON.stringify({
+          candidates: [
+            {
+              content: {
+                parts: [
+                  { thought: true, text: 'First I should work out who won...' },
+                  { text: 'ערב פרוע' },
+                ],
+              },
+            },
+          ],
+        }),
+      );
+    expect(await writeRecap(env, facts())).toEqual({ text: 'ערב פרוע' });
     globalThis.fetch = original;
   });
 

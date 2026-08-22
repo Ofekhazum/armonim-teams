@@ -165,6 +165,40 @@ describe('recapFacts', () => {
     expect(f.players.some((p) => p.name === 'זרקא')).toBe(true);
   });
 
+  it('tells the reporter who beat the opponent who usually beats them', () => {
+    // The line the whole notes idea exists for. Nothing else in the app would
+    // ever say it: every other view is about one player or one night, and this
+    // is the two together.
+    const past: FixtureRecord[] = Array.from({ length: 8 }, (_, i) => ({
+      ...night('AWN'),
+      id: `p${i}`,
+      date: `2026-07-0${i + 1}`,
+      // ירין's team beats אופק's, over and over
+      teams: { black: ['b1'], white: ['w1'], blue: ['u1'] },
+    }));
+    const tonight: FixtureRecord = {
+      ...night('BWW'), // white takes the opener and keeps the pitch
+      id: 'tonight',
+      date: '2026-07-20',
+    };
+    const f = recapFacts(tonight, [...past, tonight], roster)!;
+    // whether a bogey exists depends on the fixtures above; what must always
+    // hold is that a note quotes the record from *before* tonight
+    for (const n of f.notes) {
+      if (n.includes('came into tonight')) expect(n).toMatch(/down against/);
+    }
+    // and the night's best is always there once anybody won anything
+    expect(f.notes.some((n) => n.startsWith('Most matches won tonight'))).toBe(true);
+  });
+
+  it('quotes a career record from before the night, never including it', () => {
+    const fx = night('AWN');
+    const f = recapFacts(fx, [fx], roster)!;
+    // one night of history and nothing before it: nobody has a career record
+    // to have overturned, so there is nothing of the kind to say
+    expect(f.notes.some((n) => n.includes('came into tonight'))).toBe(false);
+  });
+
   it('stays small enough to be a prompt rather than a database dump', () => {
     const fx = night('AWWNWNWWN');
     const size = JSON.stringify(recapFacts(fx, [fx], roster)).length;

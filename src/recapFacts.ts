@@ -25,6 +25,7 @@ import { TEAM_COLORS } from './balancer';
 import { duoFacts } from './duos';
 import { tonightsMilestones } from './milestones';
 import { nightStory, playerNight } from './nightStory';
+import { MIN_FACED, matchups } from './playerProfile';
 
 export interface RecapTeam {
   team: string; // 'Black' | 'White' | 'Blue' — named, not coded, so the model reads it
@@ -59,7 +60,18 @@ export interface RecapFacts {
   // what the night meant for the people in it, as of that night
   milestones: string[];
   duos: string[];
+  // Individual stories the night produced, which nothing else on the page
+  // says: who had the best of it, and — the one worth having — who ran into
+  // the opponent who usually beats them and came out ahead.
+  notes: string[];
 }
+
+// How far behind somebody has to be, over how many matches, before the player
+// who keeps beating them counts as a bogey team rather than an opponent.
+const BOGEY_BEHIND = 4;
+// At most this many personal notes: the report is about a night, and fifteen
+// individual sub-plots is a list rather than a story.
+const MAX_NOTES = 5;
 
 // English team keys even though the recap is written in Hebrew: these are
 // identifiers the prompt maps to Hebrew names, not copy. Keeping the facts in
@@ -136,6 +148,8 @@ export function recapFacts(
     (d) => `${d.aName} and ${d.bName} have won ${d.won} of their ${d.together} nights together`,
   );
 
+  const notes = nightNotes(fixture, history);
+
   const players: RecapPlayerLine[] = [];
   for (const p of fixture.players) {
     const n = playerNight(fixture, p.id);
@@ -162,5 +176,77 @@ export function recapFacts(
     moments,
     milestones,
     duos,
+    notes,
   };
+}
+
+/**
+ * The personal stories in a night, counted from what came before it.
+ *
+ * The one this exists for: a player's **bogey** — the opponent whose team keeps
+ * beating theirs — turning up on the other side and losing. That is a real
+ * event with a real number behind it, and nothing else in the app would ever
+ * mention it, because every other view is about one player or one night rather
+ * than the two together.
+ *
+ * Strictly `date < fixture.date`, so the record quoted is the one they walked
+ * in with. Quoting a career total that already includes tonight would have the
+ * report say somebody overturned a record that had been overturned.
+ */
+function nightNotes(fixture: FixtureRecord, history: FixtureRecord[]): string[] {
+  const log = fixture.matchLog ?? [];
+  if (log.length === 0) return [];
+  const before = history.filter((fx) => fx.date < fixture.date);
+  const teamOf = (id: string) => TEAM_COLORS.find((c) => fixture.teams[c].includes(id)) ?? null;
+
+  // tonight's head-to-head between each pair of teams
+  const pair = new Map<string, { won: number; lost: number }>();
+  const key = (a: TeamColor, b: TeamColor) => `${a}|${b}`;
+  for (const m of log) {
+    const loser = m.winner === m.a ? m.b : m.a;
+    const w = pair.get(key(m.winner, loser)) ?? { won: 0, lost: 0 };
+    w.won++;
+    pair.set(key(m.winner, loser), w);
+    const l = pair.get(key(loser, m.winner)) ?? { won: 0, lost: 0 };
+    l.lost++;
+    pair.set(key(loser, m.winner), l);
+  }
+
+  const notes: string[] = [];
+
+  for (const p of fixture.players) {
+    if (notes.length >= MAX_NOTES) break;
+    const mine = teamOf(p.id);
+    if (!mine) continue;
+
+    // who, coming into tonight, had the clearest hold over them
+    const bogey = matchups(before, p.id)
+      .filter((m) => m.faced >= MIN_FACED && m.beatenBy - m.beat >= BOGEY_BEHIND)
+      .sort((a, b) => b.beatenBy - b.beat - (a.beatenBy - a.beat))[0];
+    if (!bogey) continue;
+
+    const theirs = teamOf(bogey.id);
+    if (!theirs || theirs === mine) continue;
+    const tonight = pair.get(key(mine, theirs));
+    if (!tonight || tonight.won <= tonight.lost) continue;
+
+    notes.push(
+      `${p.name} came into tonight ${bogey.beat}-${bogey.beatenBy} down against ${bogey.name} across their careers, and tonight ${p.name}'s team beat ${bogey.name}'s ${tonight.won}-${tonight.lost}`,
+    );
+  }
+
+  // who had the most of the night, which the per-player list contains but
+  // buries — the model should not have to sort fifteen rows to find it
+  let best: { names: string[]; won: number } = { names: [], won: 0 };
+  for (const p of fixture.players) {
+    const n = playerNight(fixture, p.id);
+    if (!n) continue;
+    if (n.won > best.won) best = { names: [p.name], won: n.won };
+    else if (n.won === best.won && best.won > 0) best.names.push(p.name);
+  }
+  if (best.won > 0 && best.names.length <= 5) {
+    notes.push(`Most matches won tonight: ${best.names.join(', ')} with ${best.won}`);
+  }
+
+  return notes;
 }
