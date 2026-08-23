@@ -1911,8 +1911,10 @@ Pitch mode takes the lock even though nothing on it scrolls: it is the rubber-ba
 guarding against, not the chaining one. The end-of-night dialog takes it conditionally
 (`useScrollLock(ending)`) — a modal is a `fixed inset-0` panel like any other.
 
-**Not covered by a test.** There is no jsdom or component-test setup in this repo (§7), so this is
-verified by reading and by use on a phone; the logic is deliberately small enough to read.
+**Covered by `src/scrollLock.dom.test.tsx`**, which was written after the fact — this shipped on
+reasoning alone, and the component-test project (§7) exists largely because of it. The tests are
+about the *document* rather than about a panel, which is the whole point: nothing an overlay does to
+itself can stop iOS rubber-banding the page behind it.
 
 ### 2.27 The organiser's note (`FixtureRecord.note`)
 
@@ -1975,6 +1977,49 @@ event. Then the fences, two of which were added after a first attempt got both o
 
 The heading and the sentence in paragraph 4 pointing at it are both conditional, so a night without a
 note carries no empty section for the model to fill in.
+
+### 2.28 Ratings never leave the organiser's device
+
+§2.9's rule — a rating is the organiser's private opinion and never leaves the app — was true of every
+screen and false of the wire. `TeamsBoard` hides team averages from a non-admin, `LivePlayer` was
+typed down to a name and a shirt so ratings could not travel to the group, and `recapFacts` carries a
+test asserting no rating reaches Gemini. Meanwhile **`GET /roster` served every player's 1–5 and
+attack value to anyone**, unauthenticated, from a URL that ships in the public bundle. One `curl`.
+
+`PRIVATE_PLAYER_FIELDS` now holds five: `avoid`, `chemistry`, `aliases`, **`rating`, `attack`**.
+
+**The archive was the same leak, staler.** A `FixturePlayer` is a snapshot — id, name and the rating
+that player had that evening — so `GET /history` handed out a number against the name of everybody
+who has ever played. `publicFixture` strips it on the read.
+
+**Stripping a read that gets written back is how you delete data**, and that is the part worth
+reading twice. An admin device adopts the shared history on load and republishes the *entire list*
+every time a night is filed. A device holding the stripped copy would hand it straight back, and the
+ratings would be gone from the store for good — the exact failure this project has already had once.
+So the strip could not ship alone:
+
+- **`POST /history/full`** returns the archive as stored, ratings included, behind the admin word —
+  the counterpart of the `/roster/full` that already existed for the same reason.
+- **`App` pulls the full copy whenever `adminWord` is set**, and re-runs when it arrives, so
+  unlocking mid-session upgrades what the device is holding rather than leaving it on a stripped
+  copy it will later publish.
+- The version guard is `<` rather than `<=` once unlocked, because the same version legitimately
+  arrives twice — stripped, then whole — and the second one is worth taking.
+- **`isValidFixtures` treats `rating` as optional**, since a device that has only ever seen the
+  stripped copy still has to be able to publish.
+
+**What a viewer's device does without ratings.** Nothing it could not do before: `mergePublicRoster`
+keeps whatever rating that device already held and falls back to `RATING_UNSEEN = 3` for a player it
+is meeting for the first time — the middle of the scale, because a device that is not allowed to know
+should not be guessing high or low about anyone. It never uses the number: team generation is
+admin-only, and everything a viewer can reach is counted from results. `mergePrivateFields` is now
+the *only* way a device ever learns what the organiser thinks of anybody, which is the correct shape
+— unlocking admin is what turns a device that can read the club's results into one that can see its
+opinions.
+
+One regression caught by an existing test while writing this: defaulting `attack` in
+`mergePublicRoster` before `migratePlayer` runs makes the migration keep the default and silently
+lose a legacy `playstyle`. It is left `undefined` and passed through instead.
 
 ## 3. Team generation algorithm
 
@@ -2266,7 +2311,23 @@ Both files are gitignored. Delete `.env.local` to go back to the deployed Worker
 exists specifically so this is a switch rather than an edit-and-remember-to-revert (see `REMOTE_URL`
 in `remote.ts`), and `worker/README.md` has the same instructions from the Worker side.
 
-**There is no linter, and the tests cover the pure logic, not the components.** CI
+**Two test projects: `logic` and `dom`** (`vitest.workspace.ts`). The great majority are pure
+functions over plain data and run in `node` with no DOM, because giving them one costs a jsdom per
+file for nothing. The component half is **opted into by filename** — `*.dom.test.tsx` — which is
+deliberately visible in a directory listing, since a component test is slower and more fragile than a
+unit test and you should know which you are looking at before opening it.
+
+That half exists because three bugs got past everything else by being *gestures*: a scroll lock that
+could only be reasoned about, a drag that must not become a click, and the end-of-night dialog that
+decides whether an evening's football is filed or thrown away. All three shipped on a promise, and
+one of them — cards that stopped opening at all after pointer capture was added — was found by the
+organiser on a phone rather than by anything here. `src/test-setup.ts` gives the DOM project three
+things and nothing else: the extra matchers, a fake `localStorage` (this jsdom is built without the
+storage feature, and the app reads it during render), and a **`fetch` that always rejects**, so no
+component test can reach the live Worker — `REMOTE_URL` defaults to production, and a night page asks
+for its recap on mount.
+
+**There is no linter, and the tests still lean heavily on the pure logic.** CI
 (`.github/workflows/deploy.yml`) runs `npm test` then `npm run build` before deploying, so a broken
 rating-suggestion property fails the build now — but `src/balancer.ts` (the team-generation
 heuristic) and every component are still only checked by `tsc --noEmit` and manual verification.

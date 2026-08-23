@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   isValidClock,
-  isValidSubscription,
   isValidFixtures,
   isValidLive,
   isValidPlayers,
+  isValidSubscription,
+  publicFixture,
   publicPlayer,
   safeEqual,
   staleVersion,
@@ -28,22 +29,27 @@ const fixture = (over = {}) => ({
 const match = (over = {}) => ({ a: 'black', b: 'white', winner: 'black', viaPenalties: false, ...over });
 
 describe('publicPlayer', () => {
-  it('strips the fields that are statements about people, keeps the football ones', () => {
+  it('strips the organiser’s opinions and keeps the facts', () => {
     const clean = publicPlayer(
       player({ avoid: ['p2'], chemistry: ['p3'], aliases: ['חזום'], isGk: true, number: 55 }),
     );
-    expect(clean).toEqual({
-      id: 'p1',
-      name: 'אופק',
-      rating: 4,
-      attack: 50,
-      isGk: true,
-      number: 55,
-    });
+    // a name, a shirt number and whether they go in goal. Not what somebody
+    // thinks of them out of five (§2.9) — GET /roster is unauthenticated and
+    // its address ships in the public bundle.
+    expect(clean).toEqual({ id: 'p1', name: 'אופק', isGk: true, number: 55 });
   });
 
-  it('leaves a player who has no private fields untouched', () => {
-    expect(publicPlayer(player())).toEqual(player());
+  it('takes the rating off even a player with nothing else private', () => {
+    expect(publicPlayer(player())).toEqual({ id: 'p1', name: 'אופק' });
+  });
+
+  it('leaves no trace of a rating anywhere in what it returns', () => {
+    // the belt-and-braces version: whatever shape a stored player has grown,
+    // nothing that serialises out of here may mention a rating
+    const json = JSON.stringify(publicPlayer(player({ avoid: ['p2'], number: 7 })));
+    expect(json).not.toContain('rating');
+    expect(json).not.toContain('attack');
+    expect(json).not.toContain('4');
   });
 
   it('does not mutate the stored player it was handed', () => {
@@ -96,6 +102,38 @@ describe('isValidPlayers', () => {
 
   it('accepts an empty roster — that is a clear, not a corruption', () => {
     expect(isValidPlayers([])).toBe(true);
+  });
+});
+
+describe('publicFixture', () => {
+  it('takes the night’s rating snapshot off every player', () => {
+    // The archive was a second copy of exactly what publicPlayer had just
+    // stopped handing out — every night anybody ever played, with a number
+    // against their name, on an endpoint with no password (§2.28).
+    const clean = publicFixture(fixture());
+    expect(clean.players.every((p) => p.rating === undefined)).toBe(true);
+    expect(JSON.stringify(clean)).not.toContain('rating');
+  });
+
+  it('leaves everything else about the night alone', () => {
+    const fx = fixture({ mvpId: 'p1', note: 'over the fence' });
+    const clean = publicFixture(fx);
+    expect(clean.wins).toEqual(fx.wins);
+    expect(clean.teams).toEqual(fx.teams);
+    expect(clean.mvpId).toBe('p1');
+    expect(clean.players.map((p) => p.name)).toEqual(fx.players.map((p) => p.name));
+  });
+
+  it('does not mutate the stored night', () => {
+    const stored = fixture();
+    publicFixture(stored);
+    expect(stored.players[0].rating).toBeDefined();
+  });
+
+  it('produces something the validator will still accept', () => {
+    // the whole point of making `rating` optional: a device that only ever saw
+    // the stripped copy has to be able to publish
+    expect(isValidFixtures([publicFixture(fixture())])).toBe(true);
   });
 });
 
