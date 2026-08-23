@@ -616,7 +616,7 @@ export default function History({
               return (
                 <div
                   key={fx.id}
-                  className={`relative h-44 w-40 shrink-0 overflow-hidden rounded-2xl border bg-[#fffdf4]/70 shadow-sm transition-shadow hover:shadow-md ${
+                  className={`relative h-48 w-44 shrink-0 overflow-hidden rounded-2xl border bg-[#fffdf4]/70 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md ${
                     openId === fx.id ? 'border-orange-500/70' : 'border-amber-900/15'
                   }`}
                 >
@@ -625,18 +625,6 @@ export default function History({
                       the shape of it, match by match, is the first thing the
                       page behind this draws, and printing it twice at two sizes
                       made the strip a worse copy of a better view. */}
-                  {/* Who won, as a band across the top. At shelf size a chip
-                      is something you *read* and a band is something you see —
-                      and seeing it is the point, because scanning the shelf for
-                      a run of one colour is a thing the chips could not do. A
-                      tie splits the band between them. */}
-                  {hasResult(fx.wins) && (
-                    <div className="absolute inset-x-0 top-0 flex h-1.5" aria-hidden>
-                      {winners.map((c) => (
-                        <span key={c} className={`flex-1 ${TEAM_META[c].tile}`} />
-                      ))}
-                    </div>
-                  )}
                   <button
                     onClick={() => setStoryId(fx.id)}
                     aria-label={`Read the night of ${fx.date}`}
@@ -644,45 +632,59 @@ export default function History({
                   />
                   {/* scenery: clicks fall through to the button above, so there
                       is no dead patch anywhere on the card */}
-                  <div className="pointer-events-none relative flex h-full flex-col p-3 pt-3.5">
-                    <div className="font-mono text-[11px] font-bold text-amber-900/45">{fx.date}</div>
-                    {/* the hook, and the reason the strip is worth scrolling:
-                        the same headline the night page opens with */}
-                    <div className="mt-0.5 line-clamp-3 flex-1 text-[15px] font-black leading-tight text-amber-950">
-                      {summary?.headline ??
-                        (hasResult(fx.wins) ? 'A night on the books' : 'No result recorded')}
+                  <div className="pointer-events-none relative flex h-full flex-col">
+                    <div className="flex flex-1 flex-col p-3">
+                      <div className="font-mono text-[10px] font-bold uppercase tracking-widest text-amber-900/40">
+                        {fx.date}
+                      </div>
+                      {/* The hook, and the reason the strip is worth scrolling:
+                          the same headline the night page opens with. It gets
+                          the whole middle of the card — the empty band under it
+                          in the first cut was the card admitting it had nothing
+                          else to say, when the headline could simply be bigger. */}
+                      <div className="mt-1.5 line-clamp-4 flex-1 text-base font-black leading-[1.15] text-amber-950">
+                        {summary?.headline ??
+                          (hasResult(fx.wins) ? 'A night on the books' : 'No result recorded')}
+                      </div>
+                      {/* The one *person* on the card. A star on its own tint,
+                          sat directly above the winners' band so the two things
+                          worth knowing about a night are next to each other. */}
+                      {mvpName && mvpName !== '?' && (
+                        <div className="mt-2 flex max-w-full items-center gap-1 self-start rounded-full bg-amber-400/25 px-1.5 py-0.5 text-[11px] ring-1 ring-inset ring-amber-500/30">
+                          <span className="leading-none">⭐</span>
+                          <Name className="truncate font-black text-amber-900">{mvpName}</Name>
+                        </div>
+                      )}
                     </div>
-                    {hasResult(fx.wins) && (
-                      <div className="flex flex-wrap items-center gap-1 text-[11px] font-black">
-                        <span className="text-sm leading-none">👑</span>
+
+                    {/* Who won, as the foot of the card in their own colour.
+                        This was a 6px band across the top, which was the right
+                        idea and the wrong size — a white team's band was white
+                        on cream and effectively invisible, which is a poor
+                        result for the one element whose entire job is being
+                        seen from a shelf away. Full width and full height of a
+                        footer, carrying the crown, the name and the points, it
+                        is unmistakable in all three colours. A tie splits it. */}
+                    {hasResult(fx.wins) ? (
+                      <div className="flex">
                         {winners.map((c) => (
-                          // the team's own card palette rather than a tinted
-                          // text colour: white-on-cream would be unreadable,
-                          // and these three are already contrast-checked
-                          <span
+                          <div
                             key={c}
-                            className={`rounded-full border px-2 py-0.5 ${TEAM_META[c].card}`}
+                            className={`flex flex-1 items-center gap-1 px-2.5 py-2 text-[11px] font-black ${TEAM_META[c].tile}`}
                           >
-                            {TEAM_META[c].label} {fmtWins(fx.wins[c] ?? 0)}
-                          </span>
+                            <span className="leading-none">👑</span>
+                            <span className="truncate">{TEAM_META[c].label}</span>
+                            <span className="ml-auto tabular-nums">
+                              {fmtWins(fx.wins[c] ?? 0)}
+                            </span>
+                          </div>
                         ))}
                       </div>
-                    )}
-                    {/* No counts. This line went from "18 matches · 15 played"
-                        to "18 matches" to nothing, which is the right end of
-                        that road: a card in a shelf is scanned, not read, and
-                        the four things worth scanning are the date, what kind
-                        of night it was, who won it and who was the best of
-                        them. How many matches it took is on the page one tap
-                        away, where the ribbon shows every one of them. */}
-                    {/* The MVP is the one *person* on this card, and it was the
-                        faintest thing on it — the same size and grey as the
-                        counts that used to sit above. A star on its own tint
-                        carries the name. */}
-                    {mvpName && mvpName !== '?' && (
-                      <div className="mt-1 flex max-w-full items-center gap-1 self-start rounded-full bg-amber-400/25 px-1.5 py-0.5 text-[11px] ring-1 ring-inset ring-amber-500/30">
-                        <span className="leading-none">⭐</span>
-                        <Name className="truncate font-black text-amber-900">{mvpName}</Name>
+                    ) : (
+                      // the same shape, so a night nobody tallied does not
+                      // stand a different height to the ones either side of it
+                      <div className="px-2.5 py-2 text-[11px] font-bold text-amber-900/30">
+                        no result
                       </div>
                     )}
                   </div>
