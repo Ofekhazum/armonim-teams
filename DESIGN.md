@@ -244,10 +244,18 @@ of the match-by-match ribbon on every card; it was cut because the full-size one
 the page behind it draws, and printing the same thing twice at two sizes just makes the strip a worse
 copy of a better view. The team sheets are on that page too, next to everything else about the night.
 
-**Who won is a band across the top of the card**, in the winning team's ribbon colour, with the chip
-below it kept as the exact number. At shelf size a chip is something you *read* and a band is
+**Who won is the foot of the card**, a full-width block in the winning team's ribbon colour carrying
+the crown, the name and the points. At shelf size a chip is something you *read* and a block is
 something you see — and seeing it is the point, because scanning six cards for a run of one colour is
-the thing a row of small pills could not do. A tie splits the band between both winners.
+the thing a row of small pills could not do. A tie splits it between both winners.
+
+It started as a 6px band across the *top*, which was the right idea at the wrong size: white's ribbon
+colour on a cream card is very nearly nothing, so the one element whose entire job was being seen
+from a shelf away was invisible for a third of the nights. At footer height it is unmistakable in all
+three colours, and it fills the dead band the first layout left under the headline — which was the
+card admitting it had nothing else to say, when the answer was to let the headline be bigger. A night
+with no result recorded gets a muted footer of the same height rather than none, so it does not stand
+a different shape to the cards either side of it.
 
 **The counts line went in three steps, and the third was the right one.** It read
 *"18 matches · 15 played"*, where the second number was taken for matches — which is exactly what it
