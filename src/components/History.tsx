@@ -8,7 +8,6 @@ import {
   playerForm,
   playerStandings,
   suggestRatings,
-  totalWins,
 } from '../calibration';
 import { nightStory } from '../nightStory';
 import { buildWrapped, periodLabel, wrappedPeriods } from '../wrapped';
@@ -669,15 +668,17 @@ export default function History({
                         ))}
                       </div>
                     )}
-                    {/* Just the matches. The head count was the same fifteen
-                        every week, so it never told anybody anything — and read
-                        as more matches besides, sitting beside the real one. */}
-                    <div className="mt-1 truncate text-[10px] text-amber-900/45">
-                      {logged ? `${fx.matchLog!.length} matches` : `${totalWins(fx.wins)} wins`}
-                    </div>
+                    {/* No counts. This line went from "18 matches · 15 played"
+                        to "18 matches" to nothing, which is the right end of
+                        that road: a card in a shelf is scanned, not read, and
+                        the four things worth scanning are the date, what kind
+                        of night it was, who won it and who was the best of
+                        them. How many matches it took is on the page one tap
+                        away, where the ribbon shows every one of them. */}
                     {/* The MVP is the one *person* on this card, and it was the
                         faintest thing on it — the same size and grey as the
-                        counts above. A star on its own tint carries the name. */}
+                        counts that used to sit above. A star on its own tint
+                        carries the name. */}
                     {mvpName && mvpName !== '?' && (
                       <div className="mt-1 flex max-w-full items-center gap-1 self-start rounded-full bg-amber-400/25 px-1.5 py-0.5 text-[11px] ring-1 ring-inset ring-amber-500/30">
                         <span className="leading-none">⭐</span>
