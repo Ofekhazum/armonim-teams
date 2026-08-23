@@ -257,6 +257,12 @@ card admitting it had nothing else to say, when the answer was to let the headli
 with no result recorded gets a muted footer of the same height rather than none, so it does not stand
 a different shape to the cards either side of it.
 
+**The MVP is a second bar under it**, same shape and deliberately shorter. It was a floating pill,
+which left the foot of the card as one solid block with a stray rounded thing hovering over it. Two
+stacked bars read as a single footer with a hierarchy inside it: who won the night, then who was the
+best of them. Amber rather than a team colour, because the pick belongs to the person and not to
+whichever shirt they happened to be handed.
+
 **The counts line went in three steps, and the third was the right one.** It read
 *"18 matches · 15 played"*, where the second number was taken for matches — which is exactly what it
 looks like beside the first — and turned out to be the same fifteen every week, so it went. Then

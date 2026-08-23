@@ -646,15 +646,6 @@ export default function History({
                         {summary?.headline ??
                           (hasResult(fx.wins) ? 'A night on the books' : 'No result recorded')}
                       </div>
-                      {/* The one *person* on the card. A star on its own tint,
-                          sat directly above the winners' band so the two things
-                          worth knowing about a night are next to each other. */}
-                      {mvpName && mvpName !== '?' && (
-                        <div className="mt-2 flex max-w-full items-center gap-1 self-start rounded-full bg-amber-400/25 px-1.5 py-0.5 text-[11px] ring-1 ring-inset ring-amber-500/30">
-                          <span className="leading-none">⭐</span>
-                          <Name className="truncate font-black text-amber-900">{mvpName}</Name>
-                        </div>
-                      )}
                     </div>
 
                     {/* Who won, as the foot of the card in their own colour.
@@ -685,6 +676,20 @@ export default function History({
                       // stand a different height to the ones either side of it
                       <div className="px-2.5 py-2 text-[11px] font-bold text-amber-900/30">
                         no result
+                      </div>
+                    )}
+
+                    {/* The MVP, in the same shape and deliberately the shorter
+                        of the two. It was a floating pill, which made the foot
+                        of the card one solid block and one shape hovering above
+                        it. Two stacked bars read as one footer with a hierarchy
+                        in it: who won the night, then who was the best of them.
+                        Amber rather than a team colour — the pick belongs to
+                        the person, not to whichever shirt they had on. */}
+                    {mvpName && mvpName !== '?' && (
+                      <div className="flex items-center gap-1 border-t border-amber-900/10 bg-amber-400/20 px-2.5 py-1 text-[11px]">
+                        <span className="leading-none">⭐</span>
+                        <Name className="truncate font-black text-amber-900">{mvpName}</Name>
                       </div>
                     )}
                   </div>
