@@ -634,7 +634,7 @@ export default function History({
                       is no dead patch anywhere on the card */}
                   <div className="pointer-events-none relative flex h-full flex-col">
                     <div className="flex flex-1 flex-col p-3">
-                      <div className="font-mono text-[10px] font-bold uppercase tracking-widest text-amber-900/40">
+                      <div className="text-center font-mono text-[10px] font-bold uppercase tracking-widest text-amber-900/40">
                         {fx.date}
                       </div>
                       {/* The hook, and the reason the strip is worth scrolling:
@@ -642,7 +642,7 @@ export default function History({
                           the whole middle of the card — the empty band under it
                           in the first cut was the card admitting it had nothing
                           else to say, when the headline could simply be bigger. */}
-                      <div className="mt-1.5 line-clamp-4 flex-1 text-base font-black leading-[1.15] text-amber-950">
+                      <div className="mt-1.5 line-clamp-4 flex-1 text-center text-base font-black leading-[1.15] text-amber-950">
                         {summary?.headline ??
                           (hasResult(fx.wins) ? 'A night on the books' : 'No result recorded')}
                       </div>
@@ -661,20 +661,18 @@ export default function History({
                         {winners.map((c) => (
                           <div
                             key={c}
-                            className={`flex flex-1 items-center gap-1 px-2.5 py-2 text-[11px] font-black ${TEAM_META[c].tile}`}
+                            className={`flex flex-1 items-center justify-center gap-1.5 px-2 py-2 text-[11px] font-black ${TEAM_META[c].tile}`}
                           >
                             <span className="leading-none">👑</span>
                             <span className="truncate">{TEAM_META[c].label}</span>
-                            <span className="ml-auto tabular-nums">
-                              {fmtWins(fx.wins[c] ?? 0)}
-                            </span>
+                            <span className="tabular-nums">{fmtWins(fx.wins[c] ?? 0)}</span>
                           </div>
                         ))}
                       </div>
                     ) : (
                       // the same shape, so a night nobody tallied does not
                       // stand a different height to the ones either side of it
-                      <div className="px-2.5 py-2 text-[11px] font-bold text-amber-900/30">
+                      <div className="px-2.5 py-2 text-center text-[11px] font-bold text-amber-900/30">
                         no result
                       </div>
                     )}
@@ -687,7 +685,7 @@ export default function History({
                         Amber rather than a team colour — the pick belongs to
                         the person, not to whichever shirt they had on. */}
                     {mvpName && mvpName !== '?' && (
-                      <div className="flex items-center gap-1 border-t border-amber-900/10 bg-amber-400/20 px-2.5 py-1 text-[11px]">
+                      <div className="flex items-center justify-center gap-1 border-t border-amber-900/10 bg-amber-400/20 px-2.5 py-1 text-[11px]">
                         <span className="leading-none">⭐</span>
                         <Name className="truncate font-black text-amber-900">{mvpName}</Name>
                       </div>

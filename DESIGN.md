@@ -263,6 +263,11 @@ stacked bars read as a single footer with a hierarchy inside it: who won the nig
 best of them. Amber rather than a team colour, because the pick belongs to the person and not to
 whichever shirt they happened to be handed.
 
+**Everything on the card is centred**, including the points, which stopped being pushed to the right
+edge by an `ml-auto`. A card this narrow has no columns to align to, so left-aligned text just leaves
+a ragged right edge next to a hard one — and the crown, the shirt and the number read as one phrase
+when they sit together rather than as a label with a figure filed away opposite it.
+
 **The counts line went in three steps, and the third was the right one.** It read
 *"18 matches · 15 played"*, where the second number was taken for matches — which is exactly what it
 looks like beside the first — and turned out to be the same fifteen every week, so it went. Then
