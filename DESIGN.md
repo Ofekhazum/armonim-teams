@@ -1911,8 +1911,10 @@ Pitch mode takes the lock even though nothing on it scrolls: it is the rubber-ba
 guarding against, not the chaining one. The end-of-night dialog takes it conditionally
 (`useScrollLock(ending)`) — a modal is a `fixed inset-0` panel like any other.
 
-**Not covered by a test.** There is no jsdom or component-test setup in this repo (§7), so this is
-verified by reading and by use on a phone; the logic is deliberately small enough to read.
+**Covered by `src/scrollLock.dom.test.tsx`**, which was written after the fact — this shipped on
+reasoning alone, and the component-test project (§7) exists largely because of it. The tests are
+about the *document* rather than about a panel, which is the whole point: nothing an overlay does to
+itself can stop iOS rubber-banding the page behind it.
 
 ### 2.27 The organiser's note (`FixtureRecord.note`)
 
@@ -2309,7 +2311,23 @@ Both files are gitignored. Delete `.env.local` to go back to the deployed Worker
 exists specifically so this is a switch rather than an edit-and-remember-to-revert (see `REMOTE_URL`
 in `remote.ts`), and `worker/README.md` has the same instructions from the Worker side.
 
-**There is no linter, and the tests cover the pure logic, not the components.** CI
+**Two test projects: `logic` and `dom`** (`vitest.workspace.ts`). The great majority are pure
+functions over plain data and run in `node` with no DOM, because giving them one costs a jsdom per
+file for nothing. The component half is **opted into by filename** — `*.dom.test.tsx` — which is
+deliberately visible in a directory listing, since a component test is slower and more fragile than a
+unit test and you should know which you are looking at before opening it.
+
+That half exists because three bugs got past everything else by being *gestures*: a scroll lock that
+could only be reasoned about, a drag that must not become a click, and the end-of-night dialog that
+decides whether an evening's football is filed or thrown away. All three shipped on a promise, and
+one of them — cards that stopped opening at all after pointer capture was added — was found by the
+organiser on a phone rather than by anything here. `src/test-setup.ts` gives the DOM project three
+things and nothing else: the extra matchers, a fake `localStorage` (this jsdom is built without the
+storage feature, and the app reads it during render), and a **`fetch` that always rejects**, so no
+component test can reach the live Worker — `REMOTE_URL` defaults to production, and a night page asks
+for its recap on mount.
+
+**There is no linter, and the tests still lean heavily on the pure logic.** CI
 (`.github/workflows/deploy.yml`) runs `npm test` then `npm run build` before deploying, so a broken
 rating-suggestion property fails the build now — but `src/balancer.ts` (the team-generation
 heuristic) and every component are still only checked by `tsc --noEmit` and manual verification.
