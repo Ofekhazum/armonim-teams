@@ -59,15 +59,21 @@ for (const legacy of ['armonim-roster-version', 'armonim-history-version']) {
   }
 }
 
-// What the *public* roster read carries. The worker strips the three fields
-// that are statements about people rather than about football — `avoid` (who
-// won't play with whom), `chemistry`, and `aliases` — because GET /roster is
-// unauthenticated and the worker URL ships in the public bundle, so anything
-// it returns is readable by anyone, not just the club. The app already treated
-// `avoid` as admin-only in every place it rendered it; this makes the wire
-// agree with the UI. Devices keep their own copy of these locally, and an
-// organiser setting up a new device pulls them back with fetchFullRoster().
-export type PublicPlayer = Omit<Player, 'chemistry' | 'avoid' | 'aliases'>;
+// What the *public* roster read carries. The worker strips the five fields that
+// are the organiser's opinion of somebody rather than a fact about football —
+// `avoid` (who won't play with whom), `chemistry`, `aliases`, and the two that
+// matter most, `rating` and `attack`. GET /roster is unauthenticated and the
+// worker URL ships in the public bundle, so anything it returns is readable by
+// anyone with the address, not just by the club.
+//
+// The app already treated all five as admin-only everywhere it rendered them
+// (§2.9); this makes the wire agree with the UI. Devices keep their own copy
+// locally, and an organiser setting up a new device pulls them back with
+// fetchFullRoster().
+export type PublicPlayer = Omit<
+  Player,
+  'chemistry' | 'avoid' | 'aliases' | 'rating' | 'attack'
+> & { rating?: number; attack?: number };
 
 export interface RemoteRoster {
   version: number;
@@ -201,10 +207,43 @@ export const localHistoryVersion = (): number =>
 export const setLocalHistoryVersion = (v: number): void =>
   localStorage.setItem(HISTORY_VERSION_KEY, String(v));
 
+/**
+ * The shared archive as anyone may read it — **without** what each player was
+ * rated on the night. A `FixturePlayer` carried a rating snapshot, which made
+ * the archive a second copy of the thing the roster read had just stopped
+ * handing out (see PublicPlayer above).
+ */
 export async function fetchRemoteHistory(): Promise<RemoteHistory | null> {
   if (!REMOTE_URL) return null;
   try {
     const res = await fetch(`${REMOTE_URL}/history`, { cache: 'no-store' });
+    if (!res.ok) return null;
+    const data = (await res.json()) as RemoteHistory;
+    if (!Array.isArray(data.fixtures)) return null;
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The organiser's read of the archive, ratings included.
+ *
+ * Not a nicety — it is what stops the strip above destroying data. An admin
+ * device adopts the shared history and then republishes the whole list every
+ * time a night is filed, so a device holding the stripped copy would hand it
+ * straight back and the ratings would be gone from the store for good. An
+ * admin pulls this instead, and a worker too old to serve it returns null,
+ * which the caller treats as "keep what you have" rather than as an answer.
+ */
+export async function fetchFullHistory(secret: string): Promise<RemoteHistory | null> {
+  if (!REMOTE_URL) return null;
+  try {
+    const res = await fetch(`${REMOTE_URL}/history/full`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ secret }),
+    });
     if (!res.ok) return null;
     const data = (await res.json()) as RemoteHistory;
     if (!Array.isArray(data.fixtures)) return null;

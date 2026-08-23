@@ -1976,6 +1976,49 @@ event. Then the fences, two of which were added after a first attempt got both o
 The heading and the sentence in paragraph 4 pointing at it are both conditional, so a night without a
 note carries no empty section for the model to fill in.
 
+### 2.28 Ratings never leave the organiser's device
+
+§2.9's rule — a rating is the organiser's private opinion and never leaves the app — was true of every
+screen and false of the wire. `TeamsBoard` hides team averages from a non-admin, `LivePlayer` was
+typed down to a name and a shirt so ratings could not travel to the group, and `recapFacts` carries a
+test asserting no rating reaches Gemini. Meanwhile **`GET /roster` served every player's 1–5 and
+attack value to anyone**, unauthenticated, from a URL that ships in the public bundle. One `curl`.
+
+`PRIVATE_PLAYER_FIELDS` now holds five: `avoid`, `chemistry`, `aliases`, **`rating`, `attack`**.
+
+**The archive was the same leak, staler.** A `FixturePlayer` is a snapshot — id, name and the rating
+that player had that evening — so `GET /history` handed out a number against the name of everybody
+who has ever played. `publicFixture` strips it on the read.
+
+**Stripping a read that gets written back is how you delete data**, and that is the part worth
+reading twice. An admin device adopts the shared history on load and republishes the *entire list*
+every time a night is filed. A device holding the stripped copy would hand it straight back, and the
+ratings would be gone from the store for good — the exact failure this project has already had once.
+So the strip could not ship alone:
+
+- **`POST /history/full`** returns the archive as stored, ratings included, behind the admin word —
+  the counterpart of the `/roster/full` that already existed for the same reason.
+- **`App` pulls the full copy whenever `adminWord` is set**, and re-runs when it arrives, so
+  unlocking mid-session upgrades what the device is holding rather than leaving it on a stripped
+  copy it will later publish.
+- The version guard is `<` rather than `<=` once unlocked, because the same version legitimately
+  arrives twice — stripped, then whole — and the second one is worth taking.
+- **`isValidFixtures` treats `rating` as optional**, since a device that has only ever seen the
+  stripped copy still has to be able to publish.
+
+**What a viewer's device does without ratings.** Nothing it could not do before: `mergePublicRoster`
+keeps whatever rating that device already held and falls back to `RATING_UNSEEN = 3` for a player it
+is meeting for the first time — the middle of the scale, because a device that is not allowed to know
+should not be guessing high or low about anyone. It never uses the number: team generation is
+admin-only, and everything a viewer can reach is counted from results. `mergePrivateFields` is now
+the *only* way a device ever learns what the organiser thinks of anybody, which is the correct shape
+— unlocking admin is what turns a device that can read the club's results into one that can see its
+opinions.
+
+One regression caught by an existing test while writing this: defaulting `attack` in
+`mergePublicRoster` before `migratePlayer` runs makes the migration keep the default and silently
+lose a legacy `playstyle`. It is left `undefined` and passed through instead.
+
 ## 3. Team generation algorithm
 
 Balancing is a small constrained optimization. With ≤15 players, brute force is too big

@@ -17,6 +17,7 @@ import { publishLive, useLiveFixture } from './live';
 import LiveFixtureView from './components/LiveFixtureView';
 import {
   fetchFullRoster,
+  fetchFullHistory,
   fetchRemoteHistory,
   fetchRemoteRoster,
   localHistoryVersion,
@@ -246,17 +247,30 @@ export default function App() {
   // Same pull-on-load as the roster above, for the shared results history.
   // Only pulled once at mount — an admin actively recording results mid-session
   // won't have their own in-progress edits overwritten by a stale fetch.
+  //
+  // An organiser pulls the *full* copy, ratings included, and that is a
+  // correctness requirement rather than a convenience: the public read no
+  // longer carries what a player was rated on the night (§2.28), and this
+  // device republishes the entire list every time a night is filed. Adopting
+  // the stripped copy here would hand it back on the next save with the
+  // ratings gone from the shared store for good. Re-run when the admin word
+  // arrives, so unlocking mid-session upgrades what this device is holding.
   useEffect(() => {
     let cancelled = false;
-    fetchRemoteHistory().then((remote) => {
-      if (cancelled || !remote || remote.version <= localHistoryVersion()) return;
+    const pull = adminWord == null ? fetchRemoteHistory() : fetchFullHistory(adminWord);
+    pull.then((remote) => {
+      if (cancelled || !remote) return;
+      // `<` rather than `<=` once unlocked: the same version can arrive twice,
+      // first stripped and then whole, and the second one is worth taking.
+      const seen = localHistoryVersion();
+      if (adminWord == null ? remote.version <= seen : remote.version < seen) return;
       setState((s) => ({ ...s, history: remote.fixtures }));
       setLocalHistoryVersion(remote.version);
     });
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [adminWord]);
 
   // Roster edits can invalidate parts of the session (deleted players, broken
   // chemistry links, stale generated teams) — clean those up here. Takes an

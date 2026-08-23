@@ -14,6 +14,7 @@
 //   POST /push/subscribe   → opt this device into match-clock notifications
 //   POST /push/unsubscribe → opt it out again
 //   POST /push/test        → buzz now and report what the push service said
+//   POST /history/full → the organiser's read, ratings included; needs the word
 //   GET  /awards       → public read of every registered Team of the Month
 //   POST /awards       → register or correct one; requires the secret word
 //   GET  /recap?id=…   → public read of a night's written recap, if there is one
@@ -136,7 +137,7 @@ const SNAPSHOT_TTL_S = 90 * 24 * 60 * 60;
 const ROOM_PATH = /^\/room\/([A-Za-z0-9_-]{1,64})$/;
 
 // --- The privacy line ------------------------------------------------------
-// These three never leave the organiser's device through the *public* read.
+// These five never leave the organiser's device through the *public* read.
 // `avoid` is the keep-apart list — who won't play with whom — which the app
 // already treats as admin-only everywhere it is rendered (Roster's per-player
 // note, TeamsBoard's `showPrivateNotes`) and which match-room.js goes out of
@@ -145,15 +146,52 @@ const ROOM_PATH = /^\/room\/([A-Za-z0-9_-]{1,64})$/;
 // statement about people, and `aliases` are nicknames that only ever fed the
 // admin-side import matcher.
 //
+// `rating` and `attack` were the two that stayed behind, and they should not
+// have. The whole design rule (§2.9) is that a rating is the organiser's
+// private opinion of somebody and never leaves the app — the fixture page
+// hides team averages from a non-admin, `LivePlayer` was typed down to a name
+// and a shirt precisely so ratings never travelled to the group, and
+// `recapFacts` has a test asserting no rating reaches Gemini. All of that was
+// true of every screen, and none of it was true of `GET /roster`, which is
+// unauthenticated and whose URL ships in the public bundle. One `curl` read
+// every player's 1–5 out of a feature everyone was careful about everywhere
+// else.
+//
 // They are still *stored*, so an organiser setting up a new device gets them
 // back — via POST /roster/full, which costs the secret word.
-const PRIVATE_PLAYER_FIELDS = ['avoid', 'chemistry', 'aliases'];
+const PRIVATE_PLAYER_FIELDS = ['avoid', 'chemistry', 'aliases', 'rating', 'attack'];
 
 export function publicPlayer(p) {
   const clean = { ...p };
   for (const field of PRIVATE_PLAYER_FIELDS) delete clean[field];
   return clean;
 }
+
+/**
+ * The same line, drawn across a filed night.
+ *
+ * A `FixturePlayer` is a snapshot — id, name and *the rating they had that
+ * evening* — which made the whole archive a second, staler copy of exactly the
+ * thing the roster read had just stopped handing out. Every night anybody has
+ * ever played, with a number against their name, on an endpoint with no
+ * password.
+ *
+ * Only the *read* is stripped. The ratings stay in KV, because they are a
+ * record of what the teams were built from and an organiser rebuilding a
+ * device needs them back — which is what POST /history/full is for, and why
+ * that endpoint had to exist before this one could be safe. A device that
+ * adopted the stripped copy and then filed a night would publish the whole
+ * list back with the ratings gone for good.
+ */
+export const publicFixture = (fx) => ({
+  ...fx,
+  players: fx.players.map(({ rating, ...rest }) => rest),
+});
+
+export const publicHistory = (value) =>
+  value && Array.isArray(value.fixtures)
+    ? { ...value, fixtures: value.fixtures.map(publicFixture) }
+    : value;
 
 // --- Validation ------------------------------------------------------------
 // Everything below is republished verbatim to every device in the club, which
@@ -274,7 +312,9 @@ export function isValidFixtures(fixtures) {
           typeof p === 'object' &&
           isStr(p.id, MAX_ID_CHARS) &&
           isStr(p.name, MAX_NAME_CHARS) &&
-          Number.isFinite(p.rating),
+          // optional since the public read stops carrying it — a device that
+          // only ever saw the stripped copy must still be able to publish
+          (p.rating === undefined || Number.isFinite(p.rating)),
       )
     ) {
       return false;
@@ -418,11 +458,12 @@ export default {
       });
     }
 
-    // public read of recorded fixtures
+    // public read of recorded fixtures, minus what each player was rated at
+    // the time — see publicFixture
     if (url.pathname === '/history' && request.method === 'GET') {
       const current = await readRecord(env, 'history');
       // nothing published yet → the app keeps whatever it has saved locally
-      return json(current ? current.value : { version: 0, fixtures: null });
+      return json(current ? publicHistory(current.value) : { version: 0, fixtures: null });
     }
 
     // public read of a night's recap. Anybody may read one; only the organiser
@@ -574,6 +615,7 @@ export default {
     const guarded = [
       '/roster',
       '/roster/full',
+      '/history/full',
       '/history',
       '/live',
       '/recap',
@@ -630,6 +672,16 @@ export default {
       if (url.pathname === '/roster/full') {
         const current = await readRecord(env, 'roster');
         return json(current ? current.value : { version: 0, players: null });
+      }
+
+      // The organiser's own read of the archive: every night as stored,
+      // ratings and all. The counterpart of /roster/full, and the reason the
+      // public read can afford to strip anything — without it, an admin device
+      // would adopt the stripped copy and hand it straight back on the next
+      // save, quietly erasing the ratings for everyone.
+      if (url.pathname === '/history/full') {
+        const current = await readRecord(env, 'history');
+        return json(current ? current.value : { version: 0, fixtures: null });
       }
 
       // start / update / end the fixture everyone is watching. Last write

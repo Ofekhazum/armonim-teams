@@ -207,6 +207,17 @@ you publish over them, but deploying the worker first avoids the question.
 - If `REMOTE_URL` is left empty, the app just works offline from its built-in
   roster, exactly like before.
 
+## What the public reads never carry
+
+`GET /roster` and `GET /history` are unauthenticated, so neither one carries the organiser's opinion
+of anybody: no `rating`, no `attack`, no `chemistry`, no `avoid`, no `aliases`, and no rating
+snapshot on a filed night.
+
+Those are still stored. An organiser's device pulls them back with `POST /roster/full` and
+`POST /history/full`, both of which cost the admin word. **Deploy both together with the app** — a
+device that adopts a stripped history and later files a night republishes the whole list, so an app
+new enough to strip but a worker too old to serve `/history/full` would erase the stored ratings.
+
 ## Team of the Month (automatic)
 
 Nothing to configure. `wrangler.toml` carries a cron trigger — `0 5 1 * *`, 05:00 UTC on the 1st —

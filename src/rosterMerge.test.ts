@@ -58,17 +58,27 @@ describe('mergePublicRoster', () => {
 describe('mergePrivateFields', () => {
   it('fills in what the admin-only read knows and leaves the rest alone', () => {
     // a freshly set-up admin device: it pulled the public roster, so it has
-    // names and ratings, but no keep-apart lists until it unlocks
-    const prev = [local({ name: 'אופק', rating: 4 })];
+    // names — but no ratings and no keep-apart lists until it unlocks
+    const prev = [local({ name: 'אופק', rating: 3 })];
     const merged = mergePrivateFields(prev, [
       local({ name: 'stale name', rating: 1, avoid: ['p2'], aliases: ['חזום'] }),
     ]);
 
     expect(merged[0].avoid).toEqual(['p2']);
     expect(merged[0].aliases).toEqual(['חזום']);
-    // the full read is authoritative about private fields only — the public
-    // pull already settled the rest, and re-adopting it here would undo edits
-    expect(merged[0]).toMatchObject({ name: 'אופק', rating: 4 });
+    // The rating comes from here now, and only from here: it is off the public
+    // read entirely, so this function is the one way a device ever learns what
+    // the organiser thinks of anybody.
+    expect(merged[0].rating).toBe(1);
+    // names still come from the public pull, which already settled them —
+    // re-adopting a stale one here would undo a rename
+    expect(merged[0].name).toBe('אופק');
+  });
+
+  it('does not blank a rating when the admin read has none for that player', () => {
+    const prev = [local({ rating: 4 })];
+    const merged = mergePrivateFields(prev, [{ ...local({ rating: undefined as never }) }]);
+    expect(merged[0].rating).toBe(4);
   });
 
   it('leaves a locally-added player the shared roster has never heard of', () => {
