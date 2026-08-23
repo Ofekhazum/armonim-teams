@@ -238,8 +238,8 @@ So the nights moved **above the table** (the table is reference; a night is a st
 that **scrolls sideways**, the same gesture as the ribbon on the night page itself. Sideways matters:
 a season is forty nights, and forty full-width cards is a wall to scroll past on the way to anything
 else, where forty squares is a shelf you skim. Each card is a **summary and deliberately not the
-evening** — date, the night's own headline, the winning shirt with 👑 and its points, and a line of
-counts — and it opens the night page when tapped anywhere on it. An earlier version drew a miniature
+evening** — date, the night's own headline, the winning shirt with 👑 and its points, and the MVP —
+and it opens the night page when tapped anywhere on it. An earlier version drew a miniature
 of the match-by-match ribbon on every card; it was cut because the full-size one is the first thing
 the page behind it draws, and printing the same thing twice at two sizes just makes the strip a worse
 copy of a better view. The team sheets are on that page too, next to everything else about the night.
@@ -249,11 +249,14 @@ below it kept as the exact number. At shelf size a chip is something you *read* 
 something you see — and seeing it is the point, because scanning six cards for a run of one colour is
 the thing a row of small pills could not do. A tie splits the band between both winners.
 
-Details the first drafts got wrong. The counts line read **"18 matches · 15 played"**: the second
-number was taken for matches, which is exactly what it looks like beside the first, and it turned out
-to be the same fifteen every week — so it is gone rather than reworded. The **MVP** was the only
+**The counts line went in three steps, and the third was the right one.** It read
+*"18 matches · 15 played"*, where the second number was taken for matches — which is exactly what it
+looks like beside the first — and turned out to be the same fifteen every week, so it went. Then
+*"18 matches"* went too. A card in a shelf is **scanned, not read**, and the four things worth
+scanning are the date, what kind of night it was, who won, and who was the best of them. How long the
+night took is on the page one tap away, where the ribbon draws every match. The **MVP** was the only
 person named on the card and simultaneously the faintest thing on it, same size and grey as the
-counts; it wears a tinted star chip now.
+counts that used to sit above; it wears a tinted star chip now.
 
 **The scrollbar is hidden and the shelf drags.** `.no-scrollbar` (`index.css`, both the Firefox and
 WebKit spellings, since neither alone is enough) — cards cut off mid-shelf already say the row
