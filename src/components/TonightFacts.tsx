@@ -1,10 +1,12 @@
 import { useMemo } from 'react';
-import type { FixtureRecord, TonightPlayer } from '../types';
+import type { FixtureRecord, Teams, TonightPlayer } from '../types';
 import type { Milestone } from '../milestones';
 import type { DuoFact } from '../duos';
 import { tonightsMilestones } from '../milestones';
 import { bountyTonight, pendingTonight } from '../radar';
 import { duoFacts } from '../duos';
+import { derbyTonight } from '../derby';
+import DerbyBanner from './DerbyBanner';
 import { Name } from './ui';
 
 // The two strips that say what tonight means: what is on the line, and what has
@@ -18,13 +20,22 @@ import { Name } from './ui';
 interface Props {
   players: TonightPlayer[];
   history: FixtureRecord[];
+  // Tonight's shirts. Optional because a derby is the one fact here that needs
+  // to know who is *opposite* whom rather than just who turned up — a caller
+  // without teams drawn yet gets everything else and no banner.
+  teams?: Teams | null;
   // Tonight's own record, once it has been saved, so the arithmetic doesn't
   // count tonight as a past night. See LiveFixtureView for the viewer's version
   // of the same exclusion, which has a date rather than an id to work with.
   tonightId?: string | null;
 }
 
-export default function TonightFacts({ players, history, tonightId = null }: Props) {
+export default function TonightFacts({
+  players,
+  history,
+  teams = null,
+  tonightId = null,
+}: Props) {
   // What tonight could turn into, as against what it already is (§2.19). Same
   // ledger, read one night short of the line.
   const pending = useMemo(
@@ -40,6 +51,12 @@ export default function TonightFacts({ players, history, tonightId = null }: Pro
     [players, history, tonightId],
   );
   const duos = useMemo(() => duoFacts(players, history, tonightId), [players, history, tonightId]);
+  // The one fact on this strip about two players *opposing* each other, which
+  // is why it needs the shirts and everything else here does not (§2.33).
+  const derby = useMemo(
+    () => (teams ? derbyTonight(teams, players, history, tonightId) : null),
+    [teams, players, history, tonightId],
+  );
 
   return (
     <>
@@ -86,6 +103,11 @@ export default function TonightFacts({ players, history, tonightId = null }: Pro
           )}
         </div>
       )}
+
+      {/* Above the milestones: a derby is about what is *about to* happen,
+          like "on the line tonight" above it, where the strip below is about
+          what already has. */}
+      <DerbyBanner derby={derby} />
 
       <MilestoneStrip milestones={milestones} duos={duos} />
     </>

@@ -135,7 +135,12 @@ export default function FixturePage({
         aside={isAdmin ? (c) => ` · avg ${stats[c].avg.toFixed(1)}` : undefined}
       />
 
-      <TonightFacts players={players} history={history} tonightId={savedFixtureId} />
+      <TonightFacts
+        players={players}
+        history={history}
+        teams={teams}
+        tonightId={savedFixtureId}
+      />
 
       <MatchClock state={clock} onChange={onChangeClock} fixtureId={liveFixtureId} />
 
