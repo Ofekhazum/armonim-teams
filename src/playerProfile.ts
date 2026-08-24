@@ -183,61 +183,77 @@ export interface LadderBadge {
   // how it was earned, in a sentence — shown on hover, and on tap, because a
   // phone has no hover and a badge nobody can decode is decoration
   detail: string;
+  // How many rungs of *this* ladder have been passed — 1 the first time it is
+  // worn, climbing by one every time a further rung is crossed. Not capped
+  // here: nightRungs alone has rungs every 50 nights past the first two, so a
+  // long career passes far more than three of them, and a scheme that stopped
+  // counting at "gold" would make the badge stop meaning anything for exactly
+  // the players who have earned the most of it. Where a tier count this high
+  // still fits on screen is a rendering decision, made in PlayerPage.
+  tier: number;
 }
 
-// The top rung reached on each ladder, worn as a badge.
+// The top rung reached on each ladder, worn as a badge — together with how
+// many rungs of that ladder have been passed, which is the tier.
 //
-// The highest one only, not every rung crossed: a player four ladders deep
+// The highest rung only, not every one crossed: a player four ladders deep
 // would otherwise carry a dozen chips, and "10 nights" stops being worth saying
 // the moment "25 nights" is true. The ladder card underneath still shows the
-// whole climb, so nothing is hidden — this is the headline of it.
+// whole climb, so nothing is hidden — this is the headline of it, and the tier
+// is how far up that hidden climb the headline actually sits.
 export function ladderBadges(
   counts: Pick<ProfileCounts, 'nights' | 'nightsWon' | 'wins'>,
   mvps: number,
 ): LadderBadge[] {
-  const top = (rungs: Rung[]): number | null => {
+  const top = (rungs: Rung[]): { target: number; tier: number } | null => {
     const reached = rungs.filter((r) => r.reached);
-    return reached.length ? reached[reached.length - 1].target : null;
+    return reached.length
+      ? { target: reached[reached.length - 1].target, tier: reached.length }
+      : null;
   };
 
   const out: LadderBadge[] = [];
   const nights = top(nightRungs(counts.nights));
   if (nights) {
     out.push({
-      key: `nights-${nights}`,
+      key: `nights-${nights.target}`,
       icon: '🎽',
-      label: `${nights} nights`,
-      detail: `Played ${nights} recorded nights.`,
+      label: `${nights.target} nights`,
+      detail: `Played ${nights.target} recorded nights.`,
+      tier: nights.tier,
     });
   }
   const wins = top(winRungs(counts.wins));
   if (wins) {
     out.push({
-      key: `wins-${wins}`,
+      key: `wins-${wins.target}`,
       icon: '🏆',
-      label: `${wins} wins`,
-      detail: `Their teams have won ${wins} matches with them on the pitch.`,
+      label: `${wins.target} wins`,
+      detail: `Their teams have won ${wins.target} matches with them on the pitch.`,
+      tier: wins.tier,
     });
   }
   const fixtures = top(fixtureRungs(counts.nightsWon));
   if (fixtures) {
     out.push({
-      key: `fixtures-${fixtures}`,
+      key: `fixtures-${fixtures.target}`,
       icon: '🥇',
-      label: `${fixtures} nights won`,
-      detail: `Finished top of the night ${fixtures} times.`,
+      label: `${fixtures.target} nights won`,
+      detail: `Finished top of the night ${fixtures.target} times.`,
+      tier: fixtures.tier,
     });
   }
   const picks = top(mvpRungs(mvps));
   if (picks) {
     out.push({
-      key: `mvp-${picks}`,
+      key: `mvp-${picks.target}`,
       icon: '🌟',
-      label: picks === 1 ? 'First MVP' : `${picks} MVPs`,
+      label: picks.target === 1 ? 'First MVP' : `${picks.target} MVPs`,
       detail:
-        picks === 1
+        picks.target === 1
           ? 'Picked MVP for the first time.'
-          : `Picked MVP on ${picks} different nights.`,
+          : `Picked MVP on ${picks.target} different nights.`,
+      tier: picks.tier,
     });
   }
   return out;

@@ -23,9 +23,12 @@ describe('the price tag', () => {
 
   it('says what the number is made of, so it cannot read as a rating', () => {
     // The app does not have opinions about people (§2.9), and a euro figure
-    // beside a name is read as one unless it says otherwise.
+    // beside a name is read as one unless it says otherwise. This has to be
+    // visible on a first glance rather than behind a tap — a shrink of the
+    // component must not shrink this to nothing.
     render(<PriceTag price={{ value: 8.75, previous: 8.5 }} />);
-    expect(screen.getByText(/Results, appearances and honours/)).toBeInTheDocument();
+    expect(screen.getByText(/Priced from results, appearances and honours/)).toBeInTheDocument();
+    expect(screen.getByText(/not a rating/)).toBeInTheDocument();
   });
 
   it('marks a rise with a sign and a glyph, not with a colour alone', () => {

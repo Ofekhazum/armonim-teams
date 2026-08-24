@@ -458,3 +458,35 @@ describe('the four-night gate on with-and-against', () => {
     expect(matchupPicks(list, MIN_PROFILE_NIGHTS).bogey?.id).toBe('b');
   });
 });
+
+describe('ladderBadges tiers', () => {
+  it('wears a tier of one on the first rung of a ladder', () => {
+    // 10 is the first nightRungs rung, so clearing it is a first badge on that
+    // ladder — tier 1, not the raw rung count or the target itself.
+    const badges = ladderBadges({ nights: 10, nightsWon: 0, wins: 0 }, 0);
+    expect(badges.find((b) => b.key === 'nights-10')?.tier).toBe(1);
+  });
+
+  it('climbs a tier for every further rung crossed, uncapped', () => {
+    // isMilestoneNight: 10, 25, 50, 100, 150, 200 — six rungs by 200 nights.
+    // Nothing here should stop counting at three just because "gold" ran out.
+    const badges = ladderBadges({ nights: 200, nightsWon: 0, wins: 0 }, 0);
+    expect(badges.find((b) => b.key === 'nights-200')?.tier).toBe(6);
+  });
+
+  it('ticks over the moment a further rung is reached', () => {
+    const before = ladderBadges({ nights: 99, nightsWon: 0, wins: 0 }, 0);
+    const after = ladderBadges({ nights: 100, nightsWon: 0, wins: 0 }, 0);
+    expect(before.find((b) => b.key.startsWith('nights'))?.tier).toBe(3); // 10, 25, 50
+    expect(after.find((b) => b.key === 'nights-100')?.tier).toBe(4);
+  });
+
+  it('tiers each ladder independently', () => {
+    // A player deep into one ladder and shallow into another must not have
+    // one badge's tier bleed into the other's.
+    const badges = ladderBadges({ nights: 200, nightsWon: 5, wins: 0 }, 1);
+    expect(badges.find((b) => b.key.startsWith('nights'))?.tier).toBe(6);
+    expect(badges.find((b) => b.key === 'fixtures-5')?.tier).toBe(1);
+    expect(badges.find((b) => b.key.startsWith('mvp'))?.tier).toBe(1);
+  });
+});
