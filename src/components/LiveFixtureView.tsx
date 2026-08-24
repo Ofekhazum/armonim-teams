@@ -116,7 +116,7 @@ export default function LiveFixtureView({
           half of a Player that never travels here. */}
       <TeamCards teams={fixture.teams} byId={byId} gkSet={gkSet} />
 
-      <TonightFacts players={fixture.players} history={past} />
+      <TonightFacts players={fixture.players} history={past} teams={fixture.teams} />
 
       <MatchClock state={fixture.clock} onChange={onChangeClock} fixtureId={fixture.id} />
 

@@ -2370,6 +2370,53 @@ derived award can never be reached from live code. The newest month is left out:
 ended has not been announced, and including it would make the sandbox disagree with the one behaviour
 anyone testing the feature is trying to see.
 
+### 2.33 Tonight's derby (`src/derby.ts`, `DerbyBanner.tsx`)
+
+The two players on opposing shirts with the most football between them that has actually gone **both
+ways**. Rendered above the milestone strip in `TonightFacts`, so the organiser's fixture page and the
+group's live view get the identical card (§2.21).
+
+**A derby is not a bogey man, and the difference is the whole design.** `matchupPicks` already finds
+the player whose team has beaten yours most, and that is the right fact for a profile page you opened
+about yourself. It is the wrong fact for a banner the entire group reads before kick-off — *"ניב has
+beaten אופק 12 times to 2"* puts one named friend on a screen as the loser, every week, decided by an
+app. The symmetric version costs nothing and reads better anyway: a rivalry that is *level* is the one
+worth announcing, which is what the word has always meant.
+
+**The score is `contested = 2 × min(beat, beatenBy)`.** Read it as "how many of their matches have
+genuinely gone each way": a 7–7 record contests all fourteen, a 9–5 contests ten, a 12–2 contests
+four. It rewards volume and balance in one number **with no tuning constant**, and it falls out of the
+obvious identity — `faced − |beat − beatenBy|` is the same thing — so there is no weighting anybody
+has to be talked into.
+
+It also sidesteps the trap in the other direction. Shrinking a win *share* toward even, the way
+`duos.ts` shrinks toward the base rate, would rank a 1–1 record above a 9–7 one: shrinkage pulls a
+thin record to exactly even, and "exactly even" is what this metric is hunting. Counting contested
+matches has the opposite bias, which is the correct one here.
+
+**Counted in matches, not nights**, so only nights logged match by match can answer it (§2.17) — the
+same constraint `Matchup.faced` carries. A night is a blunt unit for a rivalry: two players can be
+opponents for two hours and the night records one winner between three teams.
+
+**`MIN_CONTESTED = 8`**, measured rather than picked. One logged night gives a pair at most six
+contested matches, so eight is precisely "more than a single evening" — and with roughly seventy-five
+cross-team pairs on any sheet, *something* always looks level by accident, which is what the floor is
+really guarding. Against the invented club (§2.32) it stays silent for three nights, then names a 4–4
+over eight matches, and by mid-season is naming records like 35–29 over sixty-four.
+
+Guests are excluded by name rather than left to the floor: a guest carries a fresh id every visit, so
+a pair involving one can never accumulate a record — the same reasoning as milestones and duos.
+`tonightId` is excluded too, since tonight's own result is not part of the record the two of them are
+bringing *into* tonight.
+
+**Both names are the same size, and there is a test for it.** Every other pick in this app has a
+subject — a milestone belongs to one player, a bounty is on one player — and this one is symmetric by
+construction, so the layout has to be symmetric too or the reader will decide the one on the left is
+the favourite. The shirts do the colouring, because this pairing is only a derby *because of how the
+teams came out*; next week they will probably be on the same side. And the card says **"14 matches on
+opposite sides"** underneath, because `7–7` beside two names is exactly what a goal tally looks like,
+and this app has never counted a goal in its life (§2.9).
+
 ## 3. Team generation algorithm
 
 Balancing is a small constrained optimization. With ≤15 players, brute force is too big
