@@ -1618,6 +1618,34 @@ counts as a joke error code. It was honest (pull-only, every line a real number)
 useful: the counts above already say the same things, and saying them twice in a funnier font is
 weight on the page rather than information on it.
 
+#### Drawing it (`Quarters.tsx`)
+
+The first version was four bars labelled `32/49`, `23/44`, `19/43`, `29/42` under the heading "where
+their wins land". Every number on it was true and it was unreadable, for three reasons worth writing
+down because they are easy to repeat:
+
+1. **Two encodings of two different things.** The bar's height was the win *rate*; the label under it
+   was the raw *fraction*. Nothing said so, so the tallest bar was not the one with the biggest
+   number under it.
+2. **No reference point.** A bar at 65% means nothing alone. Three teams share one pitch on a
+   winner-stays-on rotation, so a team plays about two matches in three and wins about half of those
+   — "good" is near 50%, not near 100%, and nothing on the card said so either.
+3. **Four similar bars read as noise**, which is honest and useless. What the card is *for* is the
+   shape: does this player start well and fade, or arrive late.
+
+So the rate is stated as a percentage, the raw count stays underneath as the evidence for it (a
+percentage off three matches and one off forty look identical without it), and a dashed line marks
+**their own average across the whole night**. That last one is what turns four numbers into a shape:
+every bar is read against the same line, and "is 65% good" becomes "is this quarter better than their
+other three" — a question the data can actually answer.
+
+The bars and the line share one coordinate space, which is asserted rather than eyeballed: the track
+has no padding, so `bottom: X%` and `height: X%` land on the same line. Bars are drawn against a
+full-height track rather than scaled to the player's best quarter, since per-profile axes would turn
+four flat bars into a dramatic staircase. And a quarter nobody played gets **no bar at all** rather
+than a zero-height one, which would read as "played and lost them all" — the same distinction the
+medal ribbon draws between a night with no result and a night finished third.
+
 ### 2.24 The night reporter (`src/recapFacts.ts`, `worker/recap.js`)
 
 A Hebrew match report for a logged night, written by Gemini and read **on the night's own page**. Not
@@ -2064,8 +2092,14 @@ disagreeing is worse than either answer.
 
 **The rail is the component.** Cards in a list are a list of facts; the same cards threaded on a line
 are a career, and the *gaps* in the line are as legible as the events on it — six months of nothing
-reads as six months of nothing, which no ribbon can show. Folds past `PAGE = 8` so a two-season
-regular does not push the rest of the page below the fold.
+reads as six months of nothing, which no ribbon can show.
+
+**Folds past `PAGE = 3`, and folds back up.** This is the one card on the profile with no natural
+length — a two-season regular has dozens of events — and at eight the timeline alone was taller than
+everything below it put together, so the shirts, the mates and rivals and the rest of the page were
+all under the fold on a phone. Three is a glance at what happened lately. The expand is *two-way*:
+a one-way one is a card that can only ever get bigger, so a long career opens once and is then
+scrolled past for the rest of the visit.
 
 §2.9 holds throughout, and the easiest place to break it is the card about something going wrong: a
 broken run is **"a run of five ended"**, never "the wheels came off". There is a test for that

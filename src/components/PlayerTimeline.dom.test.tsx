@@ -56,24 +56,35 @@ describe('the career feed', () => {
     expect(screen.queryByText(/99/)).not.toBeInTheDocument();
   });
 
-  it('folds a long career and opens it on request', () => {
+  it('shows the three most recent and folds the rest away', () => {
+    // A career feed is the one card here with no natural length. At eight it
+    // was taller than the whole rest of the profile put together, so
+    // everything under it was below the fold on a phone.
     render(<PlayerTimeline events={many(14)} />);
-    expect(screen.getAllByRole('listitem')).toHaveLength(8);
+    expect(screen.getAllByRole('listitem')).toHaveLength(3);
+    expect(screen.getByRole('button', { name: /11 earlier moments/ })).toBeInTheDocument();
+  });
 
-    const more = screen.getByRole('button', { name: /6 earlier moments/ });
-    fireEvent.click(more);
+  it('opens the rest, and closes them again', () => {
+    // The half that was missing: a one-way expand is a card that can only get
+    // bigger, so a long career opens once and is then scrolled past all visit.
+    render(<PlayerTimeline events={many(14)} />);
+    fireEvent.click(screen.getByRole('button', { name: /11 earlier moments/ }));
     expect(screen.getAllByRole('listitem')).toHaveLength(14);
-    expect(screen.queryByRole('button', { name: /earlier/ })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /Show less/ }));
+    expect(screen.getAllByRole('listitem')).toHaveLength(3);
+    expect(screen.getByRole('button', { name: /11 earlier moments/ })).toBeInTheDocument();
   });
 
   it('shows a short career whole, with no button at all', () => {
-    render(<PlayerTimeline events={many(8)} />);
-    expect(screen.getAllByRole('listitem')).toHaveLength(8);
-    expect(screen.queryByRole('button', { name: /earlier/ })).not.toBeInTheDocument();
+    render(<PlayerTimeline events={many(3)} />);
+    expect(screen.getAllByRole('listitem')).toHaveLength(3);
+    expect(screen.queryByRole('button', { name: /earlier|Show less/ })).not.toBeInTheDocument();
   });
 
   it('counts one hidden moment in the singular', () => {
-    render(<PlayerTimeline events={many(9)} />);
+    render(<PlayerTimeline events={many(4)} />);
     expect(screen.getByRole('button', { name: /1 earlier moment$/ })).toBeInTheDocument();
   });
 });

@@ -22,7 +22,8 @@ import {
   toGo,
   winRungs,
 } from '../playerProfile';
-import { MIN_ARC_NIGHTS, playerArcs, rate } from '../playerArcs';
+import { MIN_ARC_NIGHTS, playerArcs } from '../playerArcs';
+import Quarters from './Quarters';
 import { playerTimeline } from '../playerTimeline';
 import PlayerTimeline from './PlayerTimeline';
 import { Name, STYLE_META, TEAM_META } from './ui';
@@ -652,7 +653,7 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
                 somebody's character. */}
             <Card
               title="Across the night"
-              hint={enoughArcs ? `${arcs.matches} matches` : undefined}
+              hint={enoughArcs ? `${arcs.matches} matches logged` : undefined}
             >
               {!enoughArcs ? (
                 <p className="text-sm text-amber-900/55">
@@ -660,39 +661,7 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
                   {MIN_ARC_NIGHTS} needed. A tallied night says how much they won, never when.
                 </p>
               ) : (
-                <div className="space-y-3">
-                  <div>
-                    <div className="mb-1 flex items-baseline justify-between">
-                      <span className="text-[11px] font-bold uppercase tracking-wide text-amber-900/45">
-                        Where their wins land
-                      </span>
-                      <span className="text-[10px] text-amber-900/40">
-                        first quarter → last
-                      </span>
-                    </div>
-                    <div className="flex gap-1">
-                      {arcs.quarters.map((q, i) => {
-                        const r = rate(q);
-                        return (
-                          <div key={i} className="flex-1">
-                            <div
-                              className="flex h-12 items-end overflow-hidden rounded-lg bg-amber-900/[0.06]"
-                              title={`${q.won} of ${q.played} matches won in this quarter of the night`}
-                            >
-                              <div
-                                className="w-full rounded-lg bg-gradient-to-t from-orange-500 to-amber-400"
-                                style={{ height: `${(r ?? 0) * 100}%` }}
-                              />
-                            </div>
-                            <div className="mt-1 text-center font-mono text-[10px] font-bold text-amber-900/50">
-                              {q.played ? `${q.won}/${q.played}` : '—'}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
+                <Quarters arcs={arcs} />
               )}
             </Card>
           </>
