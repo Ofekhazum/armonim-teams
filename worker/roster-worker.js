@@ -17,6 +17,7 @@
 //   POST /history/full → the organiser's read, ratings included; needs the word
 //   GET  /awards       → public read of every registered Team of the Month
 //   POST /awards       → register or correct one; requires the secret word
+//   GET  /values       → public read of every player's market value (price only)
 //   GET  /recap?id=…   → public read of a night's written recap, if there is one
 //   POST /recap        → write one for a night; requires the secret word
 //   POST /verify       → check the secret word (used to unlock admin mode)
@@ -42,6 +43,10 @@ export { ClockNotifier } from './clock-notifier.js';
 import { bytesToB64u, publicKeyBytes } from './push.js';
 import { isValidFacts, recapKey, writeRecap } from './recap.js';
 import { announceMonth, clearMonth, isPeriod, readAwards, registerAwards } from './awards.js';
+// Bundled from src/ the same way src/totm.ts is, and for the same reason: the
+// formula has to exist in exactly one place, and this is the only place that
+// can run it — a public device has no ratings to run it on (§2.31).
+import { marketValues } from '../src/marketValue.ts';
 
 // One object for the whole club — there is only ever one night on. It holds
 // the live fixture, who wants telling about the clock, and the alarm that does
@@ -485,6 +490,44 @@ export default {
     // of them at once — where a recap is read one night at a time.
     if (url.pathname === '/awards' && request.method === 'GET') {
       return json({ awards: await readAwards(env) });
+    }
+
+    // Public read of every player's market value (§2.31).
+    //
+    // **This is the one endpoint that reads ratings and answers anyway**, and
+    // it is deliberately its own route rather than a field on `/roster`. Two
+    // reasons. It needs the archive as well as the roster, and `/roster` is on
+    // the path every device takes on every open — a second KV read there would
+    // be paid by everybody, forever, for a decoration. And keeping it separate
+    // means `publicPlayer` keeps its shape, so the thing standing between a
+    // rating and the wire is still one list of five field names with a test
+    // around it, not a list of five names plus a formula.
+    //
+    // Nothing but the price leaves. `marketValues` returns `{id, value,
+    // previous}` and no term of the blend — five multipliers are five
+    // equations, and five equations are the rating back again.
+    if (url.pathname === '/values' && request.method === 'GET') {
+      const [roster, history, awards] = await Promise.all([
+        readRecord(env, 'roster'),
+        readRecord(env, 'history'),
+        readAwards(env),
+      ]);
+      const players = roster?.value?.players;
+      const fixtures = history?.value?.fixtures;
+      if (!Array.isArray(players) || !Array.isArray(fixtures)) return json({ values: {} });
+
+      // Months in the registered five, counted per player from the awards
+      // document — the same read the player page already makes for its shirts.
+      const months = new Map();
+      for (const period of Object.keys(awards)) {
+        for (const id of awards[period]?.ids ?? []) months.set(id, (months.get(id) ?? 0) + 1);
+      }
+
+      const values = {};
+      for (const v of marketValues(fixtures, players, (id) => months.get(id) ?? 0).values()) {
+        values[v.id] = { value: v.value, previous: v.previous };
+      }
+      return json({ values });
     }
 
     // public read of the fixture being played right now, if any — this is the

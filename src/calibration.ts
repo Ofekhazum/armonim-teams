@@ -358,6 +358,45 @@ export function playerStandings(history: FixtureRecord[]): PlayerStanding[] {
 // bar for a suggestion. Worth showing on its own: it takes a lot of football
 // before a suggestion fires, and meanwhile "who keeps beating what the ratings
 // expect" is the interesting part.
+/**
+ * The same solver with the organiser's opinion taken out of it (§2.30).
+ *
+ * `ratingErrors` measures *surprise*: how far a player's results sit from what
+ * their rating said to expect. That makes it a statement about a rating, which
+ * makes it private, which is why the "vs rating" column is admin-only.
+ *
+ * Hand it a constant instead and the question changes. Every team's average is
+ * then identical, so `expected` collapses to 0.5 for every pairing and the
+ * ridge is left attributing the whole deviation from an even split — *who keeps
+ * turning up on the winning side, controlling for who they lined up with*. No
+ * rating enters the arithmetic anywhere, so nothing about the result can leak
+ * one, and it is safe to publish to every phone in the club.
+ *
+ * Which constant is irrelevant: only the difference between two team averages
+ * reaches the model, and every difference here is zero.
+ *
+ * **Units.** `delta` comes out of the same `SENSITIVITY` divide as the rating
+ * version, so it is still "rating points of advantage this player's presence is
+ * worth" — but read against an average player rather than against their own
+ * rating. It is *not* a rating and must never be rendered as stars.
+ *
+ * **Small records need no special case.** The ridge penalty pulls an estimate
+ * with little evidence behind it toward zero on its own, so a newcomer lands
+ * near "ordinary" rather than at an extreme. That is the whole reason for
+ * regularising rather than solving exactly.
+ *
+ * **Not yet simulated.** The hit-rate table under `MIN_IMPLIED_DELTA` was
+ * measured with a real rating prior; a flat prior is a different estimator and
+ * is owed its own pass before anything gates a decision on the number. Nothing
+ * currently does — it feeds a price tag (§2.31), where being roughly right is
+ * the requirement.
+ */
+const FLAT_PRIOR = 3;
+
+export function resultStrength(history: FixtureRecord[]): Map<string, PlayerEstimate> {
+  return ratingErrors(history, () => FLAT_PRIOR);
+}
+
 export interface PlayerForm {
   id: string;
   name: string;

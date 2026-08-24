@@ -2071,6 +2071,108 @@ regular does not push the rest of the page below the fold.
 broken run is **"a run of five ended"**, never "the wheels came off". There is a test for that
 sentence.
 
+### 2.30 Strength from results alone (`resultStrength`)
+
+`ratingErrors` measures **surprise** — how far a player's results sit from what their rating said to
+expect. That makes every number it produces a statement *about a rating*, which is why the "vs
+rating" column is admin-only and why §2.28 exists at all.
+
+Hand the same solver a constant instead and the question changes entirely:
+
+```ts
+export function resultStrength(history) { return ratingErrors(history, () => FLAT_PRIOR); }
+```
+
+Every team's average is now identical, `expected` collapses to 0.5 for every pairing, and the ridge
+is left attributing the whole deviation from an even split — **who keeps turning up on the winning
+side, controlling for who they lined up with**. No rating enters the arithmetic anywhere, so nothing
+in the output can leak one. It is safe to publish to every phone in the club. Which constant is used
+is irrelevant: only the *difference* between two team averages reaches the model, and every
+difference here is zero.
+
+This is the estimator "The Anchor" would have been, minus the organiser's opinion.
+
+**Units.** `delta` still divides by `SENSITIVITY`, so it is still "rating points of advantage this
+player's presence is worth" — but read against an average player rather than against their own
+rating. **It is not a rating and must never be rendered as stars.**
+
+**Small records need no special case.** The ridge penalty pulls a thin estimate toward zero by
+itself, so a newcomer lands near "ordinary". That is the entire reason for regularising rather than
+solving exactly.
+
+**Not yet simulated.** The hit-rate table under `MIN_IMPLIED_DELTA` was measured with a real rating
+prior; a flat prior is a different estimator and is owed its own pass before anything *gates* on it.
+Nothing does — it feeds a price tag, where being roughly right is the requirement.
+
+### 2.31 Market value (`src/marketValue.ts`, `GET /values`)
+
+A Transfermarkt-style price tag: one number in euros that says roughly what a player is worth to the
+club and moves a little every week.
+
+**The problem it has to solve first.** A price tag is the easiest imaginable way to undo §2.28.
+Publish a number that is a monotone function of a rating and you have published the rating, the whole
+ordering of the club, and a euro figure against each friend's name. Everything below is shaped by
+that.
+
+**Five terms, multiplied.** Additive terms let one big number swamp the rest; proportional ones keep
+every term honest and the range sane, which is also how a real valuation behaves.
+
+```
+value = BASE × (tier × impact) × form × momentum × presence × honours
+```
+
+| Term | From | Band |
+|---|---|---|
+| `BASE` | — | €6.0M |
+| `tier` | the rating, **bucketed three ways** | 0.85 / 1.00 / 1.18 |
+| `impact` | `resultStrength` delta (§2.30) | 0.90 – 1.15 |
+| `form` | nights won, shrunk toward the club rate | 0.75 – 1.35 |
+| `momentum` | last 5 nights vs their *own* shrunk rate | 0.88 – 1.15 |
+| `presence` | nights played of the last 10 held | 0.85 – 1.10 |
+| `honours` | badges + months in the registered five | 1.00 – 1.30 |
+
+**The rating is the narrowest band in the formula, and it is a tier, not a number.** A continuous map
+inverts: knowing four public terms, you solve for the fifth. Bucketed at ±18%, the same arithmetic
+recovers only which third of the club somebody is in. Measured on a simulated 16-night season the
+tier moved a price by €0.5–2.0M against a spread of €3.25M–€12.5M — **the price is mostly results,
+and the tier is a nudge on top of them**. A test bounds the whole effect at 1.18/0.85.
+
+**Two privacy gates, and they are gates rather than polish:**
+
+- **`MIN_HISTORY_FOR_VALUES = 5`.** With little history every term but the tier is neutral *by
+  construction*, so the price is exactly `BASE × tier` — three distinct numbers across the club, and
+  the rating is simply published. Nothing is served until results, attendance and honours have had
+  time to pull players apart.
+- **Nobody who has never been on a sheet gets a price**, for the same reason at the individual scale.
+  Transfermarkt does the same with a new signing.
+
+**`presence` does most of the hiding.** It is a pure public count, and it moves the price enough that
+no clean read-back of the tier survives it.
+
+**`impact` is clamped tight** because it is correlated with `form` — both are the same football, once
+controlled for teammates and once not. A wide band there would be counting it twice.
+
+**Two rules that make it feel real.** `quantise` steps in quarter-millions under €10M and
+half-millions over, so prices look like prices and the arithmetic stops being invertible exactly.
+`MAX_SWING = 0.15` caps the week-on-week move: a price that lurches €4M on one bad night is noise,
+one that climbs for six weeks is a story, and the story is the whole feature.
+
+**Last week is recomputed, not stored.** `previous` is the same formula over the history with the
+most recent *date* dropped — a date rather than a record, so two fixtures filed under one evening
+leave together. Nothing to keep in sync, nothing to migrate, and a corrected result recomputes both
+sides at once. It is also what makes the swing cap safe: it clamps against a number from the same
+code, not against whatever happened to be written down last time.
+
+**`GET /values` is its own route, not a field on `/roster`.** Two reasons. It needs the archive as
+well as the roster, and `/roster` is on the path every device takes on every open — a second KV read
+there would be paid by everybody, forever, for a decoration. And keeping it separate means
+`publicPlayer` keeps its shape, so what stands between a rating and the wire is still one list of
+five field names with a test around it, rather than five names *plus a formula*.
+
+**Only `{value, previous}` ships.** No term of the blend ever leaves the Worker — five multipliers on
+the wire are five equations, and five equations are the rating back again. Both the module test and
+the endpoint test assert the published shape.
+
 ## 3. Team generation algorithm
 
 Balancing is a small constrained optimization. With ≤15 players, brute force is too big
