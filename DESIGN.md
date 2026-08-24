@@ -1259,6 +1259,23 @@ zero reads as *none* rather than as *not tracked*. It comes off `playerAchieveme
 already counting picks in order to decide who tops that column; counting them a second time here is
 how two numbers on one page end up disagreeing.
 
+**The bogey man is a *share*, and one constant keeps it apart from the worthy opponent.** These two
+picks used to come out as the same person, which is how the bug was noticed. The bogey was a raw
+count of matches lost, so whoever you had faced most usually topped it — and the player you have
+faced most is very often also the one with the closest record, because a long record has had time to
+even out. A 10–12 head-to-head is simultaneously "the most matches he has beaten you in" and "the
+most level record you have", and the page said both about one man on the same card.
+
+A rate is the right question anyway: being beaten twelve times by the man you have played ninety
+matches against is not a bogey man, it is a lot of football. So `bogey` and `victim` are now picked
+by **share** over `MIN_FACED = 8` matches, and `BOGEY_RATE = 0.6` does double duty — it is the bar a
+bogey man clears *and* the ceiling a rivalry must stay under to count as `worthy`. That makes the two
+**mutually exclusive by construction** rather than by a tie-break, and there is a test asserting it.
+Across the invented club (§2.32) it produces bogey men at 8–23 and 17–34 beside worthy opponents at
+27–27 and 12–12 — 20 players, zero collisions. The tails print the denominator (`has beaten you 23 of
+31`) because the pick is made on the share and the bare count would leave a reader unable to see why
+that name and not a longer record with more losses in it.
+
 **One threshold, `MIN_PROFILE_NIGHTS = 4`, and it guards inferences only** — the same bar
 `MIN_NIGHTS` uses for rating calibration, and deliberately not a different number per statistic, so
 the page can be calibrated against as a whole rather than heading by heading. What it gates: the

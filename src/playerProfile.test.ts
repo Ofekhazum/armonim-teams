@@ -385,22 +385,67 @@ describe('matchupPicks', () => {
   });
 
   it('finds the bogey man and the favourite victim from the matches', () => {
-    const history = [...logged(2, ['a'], ['bogey'], 'white'), ...logged(1, ['a'], ['victim'], 'black')];
+    // Three nights each way, so both clear MIN_FACED with a 100% share.
+    const history = [...logged(3, ['a'], ['bogey'], 'white'), ...logged(3, ['a'], ['victim'], 'black')];
     const picks = matchupPicks(matchups(history, 'a'), 99);
     expect(picks.bogey?.id).toBe('bogey');
-    expect(picks.bogey?.beatenBy).toBe(6);
+    expect(picks.bogey?.beatenBy).toBe(9);
     expect(picks.victim?.id).toBe('victim');
-    expect(picks.victim?.beat).toBe(3);
+    expect(picks.victim?.beat).toBe(9);
+  });
+
+  it('picks the bogey man by share, not by how much football there is', () => {
+    // The bug this replaced: `often` has beaten 'a' more *times* than `nemesis`
+    // has, purely by playing them more — 9 losses from 24 is not a bogey man,
+    // 8 from 10 is.
+    const history = [
+      // 'nemesis' takes 8 of 10
+      night(['a'], ['nemesis'], [], { black: 2, white: 8, blue: 0 }, [
+        bw('white'), bw('white'), bw('white'), bw('white'), bw('white'),
+        bw('white'), bw('white'), bw('white'), bw('black'), bw('black'),
+      ]),
+      // 'often' takes 9 of 24, over three long nights
+      ...Array.from({ length: 3 }, () =>
+        night(['a'], ['often'], [], { black: 5, white: 3, blue: 0 }, [
+          bw('white'), bw('white'), bw('white'),
+          bw('black'), bw('black'), bw('black'), bw('black'), bw('black'),
+        ]),
+      ),
+    ];
+    const picks = matchupPicks(matchups(history, 'a'), 99);
+    expect(picks.bogey?.id).toBe('nemesis');
+    // and the one with more raw losses is the *victim*, since 'a' takes 15 of 24
+    expect(picks.victim?.id).toBe('often');
+  });
+
+  it('never names one person as both the bogey man and the worthy opponent', () => {
+    // The reported bug. A long, nearly level record used to top the bogey
+    // column on raw count while also being the closest record on the page.
+    const history = [
+      // 10-12 over 22 matches: the most losses, and very nearly level
+      ...Array.from({ length: 2 }, () =>
+        night(['a'], ['long'], [], { black: 5, white: 6, blue: 0 }, [
+          bw('white'), bw('white'), bw('white'), bw('white'), bw('white'), bw('white'),
+          bw('black'), bw('black'), bw('black'), bw('black'), bw('black'),
+        ]),
+      ),
+    ];
+    const picks = matchupPicks(matchups(history, 'a'), 99);
+    expect(picks.worthy?.id).toBe('long');
+    expect(picks.bogey).toBeNull();
+    // and in general the two can never be the same person
+    if (picks.bogey && picks.worthy) expect(picks.bogey.id).not.toBe(picks.worthy.id);
   });
 
   it('picks the closest record as the worthy opponent', () => {
     const history = [
-      // even: three each
-      night(['a'], ['even'], [], { black: 3, white: 3, blue: 0 }, [
-        bw('black'), bw('white'), bw('black'), bw('white'), bw('black'), bw('white'),
+      // even: four each
+      night(['a'], ['even'], [], { black: 4, white: 4, blue: 0 }, [
+        bw('black'), bw('white'), bw('black'), bw('white'),
+        bw('black'), bw('white'), bw('black'), bw('white'),
       ]),
       // lopsided, and more football behind it
-      ...logged(3, ['a'], ['onesided'], 'black'),
+      ...logged(4, ['a'], ['onesided'], 'black'),
     ];
     expect(matchupPicks(matchups(history, 'a'), 99).worthy?.id).toBe('even');
   });
@@ -409,9 +454,10 @@ describe('matchupPicks', () => {
     const history = [
       // 1–1 after two matches
       night(['a'], ['thin'], [], { black: 1, white: 1, blue: 0 }, [bw('black'), bw('white')]),
-      // 4–3 after seven — a gap of one, but a real rivalry
-      night(['a'], ['deep'], [], { black: 4, white: 3, blue: 0 }, [
-        bw('black'), bw('white'), bw('black'), bw('white'), bw('black'), bw('white'), bw('black'),
+      // 5–4 after nine — a gap of one, but a real rivalry
+      night(['a'], ['deep'], [], { black: 5, white: 4, blue: 0 }, [
+        bw('black'), bw('white'), bw('black'), bw('white'), bw('black'),
+        bw('white'), bw('black'), bw('white'), bw('black'),
       ]),
     ];
     // 'thin' is level but under MIN_FACED, so it is not even in the running
@@ -440,7 +486,7 @@ describe('the four-night gate on with-and-against', () => {
   it('says nothing at all about a player who has barely been here', () => {
     // two nights in, somebody has a bogey man and a favourite victim purely by
     // arithmetic, and naming either is a joke at the expense of a missing fact
-    const history = Array.from({ length: 6 }, () =>
+    const history = Array.from({ length: 8 }, () =>
       night(['a'], ['b'], [], { black: 1, white: 4, blue: 0 }, [
         { a: 'black', b: 'white', winner: 'white', viaPenalties: false },
       ]),

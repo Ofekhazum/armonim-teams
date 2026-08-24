@@ -607,13 +607,17 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
                         icon="😤"
                         label="Bogey man"
                         m={picks.bogey}
-                        tail={(m) => `has beaten you ${m.beatenBy} times`}
+                        // The denominator is the point: the pick is made on
+                        // the *share*, so "23 times" alone would leave a
+                        // reader unable to see why this name and not a longer
+                        // record with more losses in it.
+                        tail={(m) => `has beaten you ${m.beatenBy} of ${m.faced}`}
                       />
                       <Line
                         icon="😎"
                         label="Favourite victim"
                         m={picks.victim}
-                        tail={(m) => `beaten by you ${m.beat} times`}
+                        tail={(m) => `beaten by you ${m.beat} of ${m.faced}`}
                       />
                       <Line
                         icon="🤜"
