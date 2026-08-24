@@ -1,5 +1,6 @@
 import type { FixtureRecord, TeamColor, Teams, TonightPlayer } from './types';
 import { TEAM_COLORS } from './balancer';
+import { BOGEY_RATE } from './playerProfile';
 
 // Tonight's derby: the two players on opposing shirts with the most football
 // between them that has actually gone both ways (§2.33).
@@ -13,18 +14,27 @@ import { TEAM_COLORS } from './balancer';
 // costs nothing and reads better anyway — a rivalry that is *level* is the one
 // worth announcing, which is also what the word derby has always meant.
 //
-// **The score is `contested = 2 × min(beat, beatenBy)`.** Read it as "how many
-// of their matches have genuinely gone each way": a 7–7 record contests all
-// fourteen, a 9–5 contests ten, a 12–2 contests four. It rewards volume and
-// balance in one number without a tuning constant, and it falls out of the
-// obvious identity — `faced − |beat − beatenBy|` is the same thing — so there
-// is no weighting anybody has to be talked into.
+// **The pick is the closest record, over at least `MIN_MATCHES` matches** —
+// smallest `gap = |beat − beatenBy|`, and the longer rivalry wins a tie. The
+// same shape as the worthy opponent on a player's page (§2.18), which is the
+// right family for this: a derby is two people who cannot put each other away.
 //
-// It also sidesteps the trap the other direction. Shrinking a win *share*
-// toward even, the way `duos.ts` shrinks toward the base rate, would rank a
-// 1–1 record above a 9–7 one: shrinkage pulls a thin record to exactly even,
-// and "exactly even" is what this metric is hunting. Counting contested
-// matches has the opposite bias, which is the correct one here.
+// This replaced a first attempt that scored `contested = 2 × min(beat,
+// beatenBy)` — "how many of their matches have gone each way" — and the reason
+// is worth keeping. That metric is dominated by *volume*: measured against the
+// invented club it crowned a 40–32 record over 72 matches, a 56% split that is
+// not level at all, while a dead-level 27–27 over 54 came third. Worse, the
+// two players it named are the two keenest attenders in the club, so the same
+// pair would headline a large share of every night — and a banner that says
+// the same thing every week stops being read. Ranking on the gap picks the
+// rivalry rather than the fixture list.
+//
+// **The floor is on matches faced, not on the gap**, and it has to be. A gap
+// of zero is trivially available: play someone once, lose, play again, win.
+// Requiring ten matches first is what separates "cannot be separated" from
+// "has barely been tried". It also rules out the shrinkage approach `duos.ts`
+// uses — pulling a thin record toward even is the exact wrong correction when
+// even is what you are looking for, and would rank 1–1 above 9–7.
 //
 // **Counted in matches, not nights.** A night is a blunt unit for a rivalry —
 // two players can be opponents for two hours and the night records one winner
@@ -43,25 +53,43 @@ export interface Derby {
   bShirt: TeamColor;
   bWon: number;
   faced: number; // matches with the two of them on opposite sides
-  contested: number; // 2 × min(aWon, bWon) — the score, see above
+  gap: number; // |aWon − bWon| — the score, lower is a better derby
 }
 
 /**
- * Contested matches before a pairing is worth announcing.
+ * Matches the two of them must have played before a pairing can be announced.
  *
- * Eight means at least four each way, which is two or three logged nights of
- * genuinely two-sided football. Below that the banner is describing an
- * evening rather than a rivalry, and with roughly seventy-five cross-team
- * pairs on any given sheet, *something* will always look level by accident —
- * the floor is what stops the most ordinary pair in the club being crowned
- * every week.
+ * **Ten**, which is roughly one and a half logged nights of being opposite
+ * each other. The floor is doing the whole job here: with about seventy-five
+ * cross-team pairs on any given sheet, several will be dead level at 1–1 or
+ * 3–3 purely by accident, and without a floor the banner would crown one of
+ * those every week over the pair who have genuinely been at it all season.
  *
- * Measured against the invented club (§2.32): at 6 this fires for a pair with
- * three wins each, which reads as thin next to the ones at 14 and 16. At 8 the
- * banner still appears on most sheets and every pair it names has a record
- * worth the word.
+ * A little higher than the worthy opponent's `MIN_FACED = 8` (§2.18) on
+ * purpose. That card is one line on a page about you, among many, and can
+ * afford a thinner record; this is the only thing on the screen and it is
+ * addressed to everyone.
  */
-export const MIN_CONTESTED = 8;
+export const MIN_MATCHES = 10;
+
+/**
+ * A ceiling as well as a floor, and the floor alone is not enough.
+ *
+ * Ranking on the smallest gap picks the *least* lopsided pair on the sheet,
+ * which is not the same as picking a level one. On a night where nobody has a
+ * close record, the closest available might still be 14–6 — and a banner
+ * announcing that to the group is the bogey man this whole file was written to
+ * avoid, arrived at by a different road. So a pair who cannot clear
+ * `BOGEY_RATE` in either direction gets no banner at all.
+ *
+ * Deliberately the same constant the worthy opponent uses (§2.18), imported
+ * rather than re-declared, which buys a property worth stating plainly: **a
+ * derby is a pairing in which neither player is the other's bogey man.** Two
+ * numbers 0.6 apart in two files would drift, and the sentence would quietly
+ * stop being true.
+ */
+const levelEnough = (win: number, lose: number): boolean =>
+  Math.max(win, lose) / (win + lose) < BOGEY_RATE;
 
 const key = (a: string, b: string) => (a < b ? `${a}|${b}` : `${b}|${a}`);
 
@@ -143,8 +171,9 @@ export function derbyTonight(
 
   let best: Derby | null = null;
   for (const [k, r] of rec) {
-    const contested = 2 * Math.min(r.first, r.second);
-    if (contested < MIN_CONTESTED) continue;
+    if (r.faced < MIN_MATCHES) continue;
+    if (!levelEnough(r.first, r.second)) continue;
+    const gap = Math.abs(r.first - r.second);
 
     const pair = wanted.get(k)!;
     const [firstId] = k.split('|');
@@ -162,15 +191,17 @@ export function derbyTonight(
       bShirt: pair.yShirt,
       bWon: yWon,
       faced: r.faced,
-      contested,
+      gap,
     };
 
-    // Most contested wins. A tie goes to the longer rivalry, then to the
-    // name — never to whichever way the map happened to iterate.
+    // Closest record wins. A tie goes to the longer rivalry — dead level over
+    // fifty matches is a better derby than dead level over ten, and this is
+    // the only place volume gets a say — then to the name, so the answer never
+    // depends on which way the map happened to iterate.
     if (
       !best ||
-      derby.contested > best.contested ||
-      (derby.contested === best.contested &&
+      derby.gap < best.gap ||
+      (derby.gap === best.gap &&
         (derby.faced > best.faced ||
           (derby.faced === best.faced && derby.aName.localeCompare(best.aName, 'he') < 0)))
     ) {

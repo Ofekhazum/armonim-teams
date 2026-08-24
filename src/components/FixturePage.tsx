@@ -135,16 +135,23 @@ export default function FixturePage({
         aside={isAdmin ? (c) => ` · avg ${stats[c].avg.toFixed(1)}` : undefined}
       />
 
+      {/* The clock and the log come before the facts, because this page is
+          used standing up. The facts are read once, before kick-off; the clock
+          and the log are touched every few minutes for two hours, with wet
+          hands, by somebody who is not looking for long. Ordering by how
+          interesting a panel is put three panels of reading between the
+          organiser and the two controls they actually came for. */}
+      <MatchClock state={clock} onChange={onChangeClock} fixtureId={liveFixtureId} />
+
+      <MatchLog log={matchLog} onChange={onChangeLog} />
+
       <TonightFacts
         players={players}
         history={history}
         teams={teams}
         tonightId={savedFixtureId}
+        fixtureId={liveFixtureId ?? savedFixtureId}
       />
-
-      <MatchClock state={clock} onChange={onChangeClock} fixtureId={liveFixtureId} />
-
-      <MatchLog log={matchLog} onChange={onChangeLog} />
 
       {/* The MVP is not picked here. It's the one subjective call the app
           collects, and asking for it mid-fixture asks the wrong question at

@@ -18,7 +18,7 @@ const derby = (over: Partial<Derby> = {}): Derby => ({
   bShirt: 'white',
   bWon: 7,
   faced: 14,
-  contested: 14,
+  gap: 0,
   ...over,
 });
 

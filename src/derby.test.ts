@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import type { FixtureRecord, MatchLogEntry, TeamColor, Teams, TonightPlayer } from './types';
 import { winsFromLog } from './matchLog';
-import { MIN_CONTESTED, derbyTonight } from './derby';
+import { MIN_MATCHES, derbyTonight } from './derby';
 
-// Tonight's derby (§2.33). The metric is `2 × min(beat, beatenBy)` — how many
-// of a pair's matches have genuinely gone each way — so most of what is worth
-// asserting is about what it *declines* to name: a whitewash, a teammate, a
-// single evening, a guest.
+// Tonight's derby (§2.33). The pick is the closest record over at least
+// MIN_MATCHES matches, with neither side past BOGEY_RATE — so most of what is
+// worth asserting is about what it *declines* to name: a whitewash, the least
+// lopsided pair on a lopsided sheet, a teammate, a single evening, a guest.
 
 // `TonightPlayer` is deliberately tiny — a name and a shirt is all the group's
 // view of a night ever carries (§2.28), and a derby needs nothing more.
@@ -54,11 +54,10 @@ describe('derbyTonight', () => {
   });
 
   it('names a level rivalry once there is enough of it', () => {
-    // 5 each way = 10 contested, over the floor.
     const derby = derbyTonight(TEAMS, todays(), [blackBeatsWhite(5), whiteBeatsBlack(5)])!;
     expect(derby).not.toBeNull();
     expect(derby.faced).toBe(10);
-    expect(derby.contested).toBe(10);
+    expect(derby.gap).toBe(0);
     expect(derby.aWon).toBe(5);
     expect(derby.bWon).toBe(5);
   });
@@ -74,15 +73,25 @@ describe('derbyTonight', () => {
   });
 
   it('refuses a whitewash however much of it there is', () => {
-    // 20-0 is the most football any pair here has, and contests none of it.
+    // 20-0 clears the match floor twice over, and is the opposite of a derby.
     // This is the line between a derby and a bogey man (`matchupPicks`).
-    const derby = derbyTonight(TEAMS, todays(), [blackBeatsWhite(20)]);
-    expect(derby).toBeNull();
+    expect(derbyTonight(TEAMS, todays(), [blackBeatsWhite(20)])).toBeNull();
+  });
+
+  it('would rather say nothing than crown the least lopsided of a lopsided lot', () => {
+    // The ceiling's job, and the failure that ranking on the gap alone walks
+    // straight into: 13-7 is the *closest* record on this sheet, and naming it
+    // is announcing a bogey man by a different route.
+    const history = [
+      night(Array.from({ length: 13 }, () => m('black', 'white', 'black'))),
+      night(Array.from({ length: 7 }, () => m('black', 'white', 'white'))),
+    ];
+    expect(derbyTonight(TEAMS, todays(), history)).toBeNull();
   });
 
   it('prefers the level record to the lopsided one', () => {
-    // black v white finish 12-2 (contested 4); black v blue finish 5-5
-    // (contested 10). More football in the first, more rivalry in the second.
+    // black v white finish 12-2; black v blue finish 5-5. Far more football in
+    // the first, and the second is the rivalry.
     const history = [
       night(Array.from({ length: 12 }, () => m('black', 'white', 'black'))),
       night(Array.from({ length: 2 }, () => m('black', 'white', 'white'))),
@@ -90,21 +99,38 @@ describe('derbyTonight', () => {
       night(Array.from({ length: 5 }, () => m('black', 'blue', 'blue'))),
     ];
     const derby = derbyTonight(TEAMS, todays(), history)!;
-    expect(derby.contested).toBe(10);
+    expect(derby.gap).toBe(0);
     expect([derby.aShirt, derby.bShirt]).toEqual(['black', 'blue']);
   });
 
-  it('takes the longer rivalry when two are equally contested', () => {
-    // 6-6 and 6-9 both contest twelve; the second has more behind it.
+  it('prefers the closer record even when the other has more football behind it', () => {
+    // black v white are 11-9 over twenty; black v blue are 6-6 over twelve.
+    // Volume does not buy its way past a closer record — that reordering is
+    // the entire reason this metric replaced the contested-matches one.
+    const history = [
+      night(Array.from({ length: 11 }, () => m('black', 'white', 'black'))),
+      night(Array.from({ length: 9 }, () => m('black', 'white', 'white'))),
+      night(Array.from({ length: 6 }, () => m('black', 'blue', 'black'))),
+      night(Array.from({ length: 6 }, () => m('black', 'blue', 'blue'))),
+    ];
+    const derby = derbyTonight(TEAMS, todays(), history)!;
+    expect(derby.gap).toBe(0);
+    expect(derby.faced).toBe(12);
+    expect([derby.aShirt, derby.bShirt]).toEqual(['black', 'blue']);
+  });
+
+  it('takes the longer rivalry when two are equally close', () => {
+    // 6-6 and 8-8 are both dead level; the second has more behind it. This is
+    // the one place volume gets a say, and only as a tie-break.
     const history = [
       night(Array.from({ length: 6 }, () => m('black', 'white', 'black'))),
       night(Array.from({ length: 6 }, () => m('black', 'white', 'white'))),
-      night(Array.from({ length: 6 }, () => m('black', 'blue', 'black'))),
-      night(Array.from({ length: 9 }, () => m('black', 'blue', 'blue'))),
+      night(Array.from({ length: 8 }, () => m('black', 'blue', 'black'))),
+      night(Array.from({ length: 8 }, () => m('black', 'blue', 'blue'))),
     ];
     const derby = derbyTonight(TEAMS, todays(), history)!;
-    expect(derby.contested).toBe(12);
-    expect(derby.faced).toBe(15);
+    expect(derby.gap).toBe(0);
+    expect(derby.faced).toBe(16);
     expect([derby.aShirt, derby.bShirt]).toEqual(['black', 'blue']);
   });
 
@@ -148,7 +174,7 @@ describe('derbyTonight', () => {
       ]),
     ])!;
     expect(derby.faced).toBe(10);
-    expect(derby.contested).toBe(10);
+    expect(derby.gap).toBe(0);
   });
 
   it('ignores a night that was only tallied', () => {
@@ -183,7 +209,7 @@ describe('derbyTonight', () => {
     }));
     const derby = derbyTonight(TEAMS, todays(), [night(shootouts)])!;
     expect(derby.faced).toBe(10);
-    expect(derby.contested).toBe(10);
+    expect(derby.gap).toBe(0);
   });
 
   // --- presentation ----------------------------------------------------------
@@ -212,9 +238,11 @@ describe('derbyTonight', () => {
     expect(once).toEqual(twice);
   });
 
-  it('needs MIN_CONTESTED, not MIN_CONTESTED minus one', () => {
-    const half = MIN_CONTESTED / 2;
-    expect(derbyTonight(TEAMS, todays(), [blackBeatsWhite(half - 1), whiteBeatsBlack(half - 1)])).toBeNull();
-    expect(derbyTonight(TEAMS, todays(), [blackBeatsWhite(half), whiteBeatsBlack(half)])).not.toBeNull();
+  it('needs MIN_MATCHES, not MIN_MATCHES minus one', () => {
+    // One short of the floor, as level as it is possible to be: still nothing.
+    const short = [blackBeatsWhite(5), whiteBeatsBlack(MIN_MATCHES - 5 - 1)];
+    expect(derbyTonight(TEAMS, todays(), short)).toBeNull();
+    const exact = [blackBeatsWhite(5), whiteBeatsBlack(MIN_MATCHES - 5)];
+    expect(derbyTonight(TEAMS, todays(), exact)!.faced).toBe(MIN_MATCHES);
   });
 });
