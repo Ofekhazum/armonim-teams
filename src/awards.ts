@@ -7,6 +7,7 @@
 // shows about a player, all of which is worked out on the spot from history.
 
 import { REMOTE_URL } from './remote';
+import { isTestMode } from './testMode';
 
 export interface MonthAward {
   ids: string[];
@@ -19,6 +20,16 @@ export type Awards = Record<string, MonthAward>;
 
 /** Everything registered so far. `{}` on any failure — an award is decoration. */
 export async function fetchAwards(): Promise<Awards> {
+  // In the sandbox there is no Worker to have registered anything, so the
+  // months are worked out from the invented history instead (§2.32). This is
+  // the one place the app derives an award rather than reading one — which is
+  // exactly what §2.25 says never to do, and is only acceptable because none
+  // of it is real. It is also why this branch is here rather than in the
+  // caller: a derived award must not be reachable from live code.
+  if (isTestMode()) {
+    const { testAwards } = await import('./testAwards');
+    return testAwards();
+  }
   if (!REMOTE_URL) return {};
   try {
     const res = await fetch(`${REMOTE_URL}/awards`, { cache: 'no-store' });

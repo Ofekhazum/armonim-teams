@@ -11,7 +11,9 @@
 // tuning constants to every phone in order to render a string. Everything here
 // is about the string.
 
+import type { FixtureRecord, Player } from './types';
 import { REMOTE_URL } from './remote';
+import { isTestMode } from './testMode';
 
 export interface PlayerValue {
   /** In millions of euros. */
@@ -30,7 +32,33 @@ export type Values = Record<string, PlayerValue>;
  * deployed yet, or a club four nights old should all show a page without one
  * rather than an error about one.
  */
-export async function fetchValues(): Promise<Values> {
+export async function fetchValues(
+  // Used only in the sandbox, where there is no Worker to ask and the ratings
+  // are invented, so this device is allowed to do the arithmetic itself. In
+  // live mode these are ignored — a phone has no ratings and could not compute
+  // a price if it wanted to.
+  players: Player[] = [],
+  history: FixtureRecord[] = [],
+): Promise<Values> {
+  if (isTestMode()) {
+    // Dynamically imported so the formula, the ridge solver and six tuning
+    // constants stay out of the main bundle for everybody who is not in the
+    // sandbox — which is the same reason this module does not import it at
+    // the top.
+    const { marketValues } = await import('./marketValue');
+    const { testAwards } = await import('./testAwards');
+    const awards = testAwards();
+    const months = new Map<string, number>();
+    for (const period of Object.keys(awards)) {
+      for (const id of awards[period].ids) months.set(id, (months.get(id) ?? 0) + 1);
+    }
+    const out: Values = {};
+    for (const v of marketValues(history, players, (id) => months.get(id) ?? 0).values()) {
+      out[v.id] = { value: v.value, previous: v.previous };
+    }
+    return out;
+  }
+
   if (!REMOTE_URL) return {};
   try {
     const res = await fetch(`${REMOTE_URL}/values`, { cache: 'no-store' });

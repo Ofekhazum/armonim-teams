@@ -28,17 +28,25 @@ beforeEach(() => {
   // simply absent — and the app reads it during render (the shelf remembers
   // whether it is open). A real one per test also buys isolation: a preference
   // written by one test is not a preference the next one inherits.
-  const store = new Map<string, string>();
-  vi.stubGlobal('localStorage', {
-    getItem: (k: string) => store.get(k) ?? null,
-    setItem: (k: string, v: string) => void store.set(k, String(v)),
-    removeItem: (k: string) => void store.delete(k),
-    clear: () => store.clear(),
-    key: (i: number) => [...store.keys()][i] ?? null,
-    get length() {
-      return store.size;
-    },
-  });
+  // `sessionStorage` alongside it, for the same reason and one more: it is
+  // where the test-mode flag lives (§2.32), so the isolation tests need a real
+  // one that starts empty — a leaked flag would run a test against the
+  // sandbox's club without saying so.
+  const fakeStorage = () => {
+    const store = new Map<string, string>();
+    return {
+      getItem: (k: string) => store.get(k) ?? null,
+      setItem: (k: string, v: string) => void store.set(k, String(v)),
+      removeItem: (k: string) => void store.delete(k),
+      clear: () => store.clear(),
+      key: (i: number) => [...store.keys()][i] ?? null,
+      get length() {
+        return store.size;
+      },
+    };
+  };
+  vi.stubGlobal('localStorage', fakeStorage());
+  vi.stubGlobal('sessionStorage', fakeStorage());
 });
 
 afterEach(() => {

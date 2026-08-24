@@ -1,4 +1,8 @@
 import type { FixtureRecord, Player } from './types';
+// Imports nothing itself, deliberately — see the note in testMode.ts. A cycle
+// through the module that decides whether this app has a network would be the
+// worst possible place for one.
+import { isTestMode } from './testMode';
 
 // URL of the Cloudflare Worker that stores the shared roster (see worker/).
 // Paste your deployed worker URL here, e.g.
@@ -17,7 +21,16 @@ const DEPLOYED_URL = 'https://armonim-roster.ofekh.workers.dev';
 //   echo 'VITE_REMOTE_URL=http://localhost:8787' > .env.local && npm run dev
 //
 // Set it to an empty string to run fully offline against the bundled roster.
-export const REMOTE_URL: string = import.meta.env?.VITE_REMOTE_URL ?? DEPLOYED_URL;
+//
+// **Test mode forces it empty, and that is the whole isolation story** (§2.32).
+// Every network function in this app — here, in live.ts, push.ts, liveRoom.ts,
+// recap.ts, awards.ts and values.ts — opens with `if (!REMOTE_URL) return …`,
+// so an empty URL is not a request that gets refused somewhere, it is code
+// that returns before a request exists. Nothing in the sandbox can be
+// published, pulled, gone live with, or notified about, and no reviewer has to
+// take that on trust: it is one grep.
+export const REMOTE_URL: string =
+  isTestMode() ? '' : (import.meta.env?.VITE_REMOTE_URL ?? DEPLOYED_URL);
 
 // Which shared copy a stored version number refers to. The version *is* a
 // Date.now() taken by whichever server wrote it, so two servers' versions are

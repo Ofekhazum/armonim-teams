@@ -2201,6 +2201,90 @@ the 1–5 value or the order inside a bucket. Quantising blurs it further but is
 safe; coarseness is. If that ever needs to be stronger, a salted per-player jitter of a few percent
 (the salt a wrangler secret) breaks the division without changing anything a reader sees.
 
+### 2.32 Test mode (`src/testMode.ts`, `testData.ts`)
+
+Almost everything built this year needs a season behind it before it shows anything — the career
+table, the timeline, market value, duos, arcs, the reporter. With sixteen real nights most of it was
+either blank or on the wrong side of a threshold, which made it impossible to review and very easy to
+sign off something broken. Test mode is a whole invented club to look at it all against: **twenty
+players, forty Thursdays**, unlocked by typing `test_mode` at the padlock.
+
+**The entire design problem is not destroying the real club.** The live app keeps its state in one
+localStorage key and republishes the *whole* roster and the *whole* archive whenever an admin device
+saves anything. A sandbox sharing either would eventually hand twenty invented players to fifteen
+real phones. So the isolation is not a check somewhere — it is three structural facts:
+
+1. **A different storage key.** `armonim-teams-test-v1`. `KEY` is a module-level constant resolved
+   before the first render, so there is no moment at which the app could be reading one club and
+   writing to the other.
+2. **No network at all.** `REMOTE_URL` is forced to `''`, and every remote function in this app —
+   `remote.ts`, `live.ts`, `push.ts`, `liveRoom.ts`, `recap.ts`, `awards.ts`, `values.ts` — opens
+   with `if (!REMOTE_URL) return …`. An empty URL is not a refused request; it is code that returns
+   before a request exists. That is one grep, not a promise.
+3. **Entering and leaving reload the page.** Nothing carries over in memory and every module constant
+   is recomputed. A sandbox that started by inheriting live React state would be one bug away from
+   writing it back.
+
+**`sessionStorage`, not `localStorage`.** Test mode dies with the tab. Forgetting to leave is the
+obvious human error, and this makes the consequence "closed the tab" rather than "the phone has been
+showing fake data for a week". A non-dismissible banner sits above every tab for the same reason: the
+isolation holds on its own, but nothing stops a person forgetting which club they are looking at and
+reporting a bug against football that never happened.
+
+**The sandbox is admin from the moment it opens**, because most of what it exists to exercise is
+behind admin and there is nothing here to protect. `test_mode` is checked in the client and **never
+sent anywhere** — the Worker has never heard of it and must not.
+
+**The version watermark is safe for free**, and it is the subtlest hazard here. The stored version is
+a timestamp taken by whichever server wrote it; had the sandbox stamped the live key, the device
+would return from test mode believing it already held something newer than the club's roster and
+would refuse to adopt the real one, silently and forever. `versionKey` is scoped by `REMOTE_URL`'s
+host and test mode has no host — the fix from an earlier bug covers this one. There is an assertion
+rather than a hope.
+
+#### The invented season
+
+Data that is merely *present* tests nothing. Almost every feature here is gated on a **pattern**
+rather than a count — a run of three, a duo past its shrinkage, a plus-minus with signal in it — and
+a season of coin flips satisfies every structural check while leaving every page as blank as it was
+with real data. So results are simulated *from* team strength with noise on top: good players really
+are better, which gives the ridge solver something true to find, and the noise is heavy enough that
+upsets, droughts and runs happen on their own rather than being sprinkled in.
+
+Nights are valid ones the app could have produced: three fives from a fifteen-strong sheet, `wins`
+equal to `winsFromLog` wherever a log exists, and a log that respects winner-stays-on. Roughly three
+in four are logged match by match and the rest are tallies, because both are real and both have to
+keep being read. There are MVP picks, a few organiser's notes, and everything is prefixed `test-` so
+a stray record is obvious on sight.
+
+**Forty nights, and the number was measured rather than picked.** Twenty was the obvious choice and
+it is not enough. Teams are redrawn weekly, so a pair only line up together about a third of the
+nights they both attend; at twenty nights the closest pair had eleven together, and `duos.ts` shrinks
+a record that short back to the base rate on purpose. Measured on this seed:
+
+| nights | players with a duo record |
+|---|---|
+| 20 | 0 / 20 |
+| 30 | 0 / 20 |
+| 40 | 6 / 20 |
+| 52 | 6 / 20 |
+
+Forty is also what takes the keenest players past `VETERAN_NIGHTS = 25`, so the long-service badge
+can appear at all. Fifty-two buys nothing further.
+
+**Deterministic**, from one seed. A sandbox that reshuffled on reload would make "did that change?"
+unanswerable, which is the one question a fixture exists to answer. The *dates* are anchored to the
+real calendar so "this month" and Team of the Month have something to be about, which is the right
+way round: the football is what you are reviewing.
+
+Team of the Month is the one place the sandbox inverts a rule the real feature is built on. An award
+is a **record**, read back from KV, never derived (§2.25) — but there is no Worker here, so
+`testAwards.ts` derives the months from the invented history using the same `teamOfMonth` the
+registrar calls. It lives in its own file, reachable only from the test branch of `fetchAwards`, so a
+derived award can never be reached from live code. The newest month is left out: a month that has not
+ended has not been announced, and including it would make the sandbox disagree with the one behaviour
+anyone testing the feature is trying to see.
+
 ## 3. Team generation algorithm
 
 Balancing is a small constrained optimization. With ≤15 players, brute force is too big

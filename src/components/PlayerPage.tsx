@@ -176,13 +176,13 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
   const [price, setPrice] = useState<PlayerValue | undefined>();
   useEffect(() => {
     let live = true;
-    fetchValues().then((values) => {
+    fetchValues(players, history).then((values) => {
       if (live) setPrice(values[player.id]);
     });
     return () => {
       live = false;
     };
-  }, [player.id]);
+  }, [player.id, players, history]);
 
   // The same nights the ribbon is drawn from, read as a sequence of moments
   // rather than as a shape (§2.29). `totm` arrives from the network a beat
