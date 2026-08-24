@@ -6,7 +6,6 @@ import {
   BASE,
   MAX_SWING,
   MIN_HISTORY_FOR_VALUES,
-  formatValue,
   marketValues,
   quantise,
   valuationParts,
@@ -64,15 +63,6 @@ describe('quantise', () => {
     for (const v of [3.37, 7.62, 9.99, 10.01, 18.26]) {
       expect(Number.isInteger(quantise(v) * 100)).toBe(true);
     }
-  });
-});
-
-describe('formatValue', () => {
-  it('writes a price the way a price is written', () => {
-    expect(formatValue(14.5)).toBe('€14.5M');
-    expect(formatValue(6)).toBe('€6M');
-    expect(formatValue(6.25)).toBe('€6.25M');
-    expect(formatValue(10)).toBe('€10M');
   });
 });
 

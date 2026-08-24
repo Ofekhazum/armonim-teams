@@ -28,6 +28,9 @@ import PlayerTimeline from './PlayerTimeline';
 import { Name, STYLE_META, TEAM_META } from './ui';
 import { useScrollLock } from '../scrollLock';
 import { fetchAwards, monthsWon } from '../awards';
+import type { PlayerValue } from '../values';
+import { fetchValues } from '../values';
+import PriceTag from './PriceTag';
 import { periodLabel } from '../wrapped';
 
 // One player's page (§2.19). Everything on it is counted from history — the
@@ -166,6 +169,21 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
     };
   }, [player.id]);
 
+  // The price, which this device cannot work out for itself: the formula needs
+  // ratings and ratings do not leave the Worker (§2.28, §2.31). Undefined until
+  // it arrives, and undefined forever if the club is too new or the phone is
+  // offline — `PriceTag` renders nothing rather than an absence.
+  const [price, setPrice] = useState<PlayerValue | undefined>();
+  useEffect(() => {
+    let live = true;
+    fetchValues().then((values) => {
+      if (live) setPrice(values[player.id]);
+    });
+    return () => {
+      live = false;
+    };
+  }, [player.id]);
+
   // The same nights the ribbon is drawn from, read as a sequence of moments
   // rather than as a shape (§2.29). `totm` arrives from the network a beat
   // later, which simply adds shirts to a feed that was already correct.
@@ -296,6 +314,12 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
               aka {player.aliases!.join(', ')}
             </p>
           )}
+          {/* Inside the header rather than in a card of its own, because a
+              price is an attribute of the player the way the name and the
+              title are — the cards below are all *counts about* them. It is
+              also where Transfermarkt puts it, which is the reference anyone
+              reading it already has. */}
+          <PriceTag price={price} />
         </header>
 
         {/* The one honour on this page that is a *selection* rather than a

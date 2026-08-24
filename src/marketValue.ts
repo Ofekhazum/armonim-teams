@@ -276,6 +276,6 @@ export function marketValues(
   return out;
 }
 
-/** `€14.5M`, the way a price is written — trailing zeros trimmed. */
-export const formatValue = (millions: number): string =>
-  `€${millions.toFixed(2).replace(/0+$/, '').replace(/\.$/, '')}M`;
+// Rendering a price lives in `src/values.ts`, with the fetch that gets one —
+// so a phone never imports this file, and the ridge solver and six tuning
+// constants stay out of the client bundle.

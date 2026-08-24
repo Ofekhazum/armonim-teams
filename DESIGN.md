@@ -2173,6 +2173,34 @@ five field names with a test around it, rather than five names *plus a formula*.
 the wire are five equations, and five equations are the rating back again. Both the module test and
 the endpoint test assert the published shape.
 
+**On screen** (`src/values.ts`, `PriceTag.tsx`). The price sits inside the profile header rather than
+in a card of its own, because it is an attribute of the player the way the name and the title are —
+every card below it is a *count about* them. `values.ts` deliberately does not import
+`marketValue.ts`: the formula belongs to the Worker, and pulling it in would ship a ridge solver and
+six tuning constants to every phone in order to render a string. A grep of the built bundle asserts
+none of it is there.
+
+The hard part of the component is the caption, not the number. A euro figure beside somebody's name
+reads as *the app's opinion of them* unless it says otherwise, which is the one thing §2.9 forbids
+and the exact thing the private rating was protecting — so the line underneath names its ingredients,
+all of which are things that happened: **"Results, appearances and honours, priced."**
+
+The weekly move carries a sign and a glyph as well as a colour (`▲ +€0.5M`), so it survives a bad
+screen and colour blindness. A first valuation says **"first valuation"** rather than drawing a zero
+move: a price with nothing behind it has not been observed to be stable.
+
+And it renders **nothing at all** rather than an absence. Offline, an undeployed Worker, a club under
+five nights, and a player who has never played are four different reasons that all mean "not yet",
+and none of them is worth a sentence on somebody's profile.
+
+**What an insider can still work out.** The repository is public, so the formula is public, and the
+four non-rating terms are computable from the published history by anyone who wants to. Divide a
+price by them and the tier falls out. That is not a hole in the blend — it is the blend's actual
+guarantee, stated exactly: what is recoverable is **which of three buckets** a player is in, never
+the 1–5 value or the order inside a bucket. Quantising blurs it further but is not what makes it
+safe; coarseness is. If that ever needs to be stronger, a salted per-player jitter of a few percent
+(the salt a wrangler secret) breaks the division without changing anything a reader sees.
+
 ## 3. Team generation algorithm
 
 Balancing is a small constrained optimization. With ≤15 players, brute force is too big
