@@ -3,12 +3,20 @@ import { formatValue, moveOf } from '../values';
 
 // The price tag on a player's page (§2.31).
 //
-// The hard part of this component is the caption, not the number. A euro figure
-// beside somebody's name is read as *the app's opinion of them* unless it says
-// otherwise, and the app does not have opinions — that is the whole of §2.9,
-// and it is exactly what the rating being private is protecting. So the line
-// underneath names its ingredients, all of which are things that happened
-// rather than things anybody thinks: results, appearances, honours.
+// One line: the price, the weekly move beside it, and a short caption under
+// both. Not a card of its own — an eyebrow label, a 3xl price, a border-top
+// divider and a full sentence made it read as a second panel bolted onto the
+// header rather than a fact about the person it is next to.
+//
+// **The caption stays, and stays visible — that part is not negotiable.** A
+// euro figure beside somebody's name is read as *the app's opinion of them*
+// unless it says otherwise, and the app does not have opinions (§2.9); that is
+// exactly what the rating being private is protecting. Hiding the caption
+// behind a tap would mean a first glance shows a bare price with no defence
+// against being misread as one — so what shrank is the sentence, not whether
+// it is shown. "Priced from results, appearances and honours — not a rating"
+// says the same thing the original two clauses did in fewer words, and says
+// the important half of it in words rather than leaving it implied.
 //
 // It also never renders at all rather than rendering an absence. No price is
 // the correct state for an offline phone, a Worker not yet deployed, a club
@@ -28,21 +36,16 @@ export default function PriceTag({ price }: { price?: PlayerValue }) {
   const move = moveOf(price);
 
   return (
-    <div className="relative mt-3 flex flex-wrap items-end gap-x-3 gap-y-1 border-t border-amber-900/10 pt-3">
-      <div>
-        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-900/45">
-          Market value
-        </p>
-        <p className="font-mono text-2xl font-black leading-none tracking-tight text-amber-950 sm:text-3xl">
-          {formatValue(price.value)}
-        </p>
-      </div>
+    <div className="relative mt-2 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+      <span className="font-mono text-lg font-black tracking-tight text-amber-950">
+        {formatValue(price.value)}
+      </span>
 
       {/* The arrow carries a sign and a glyph as well as a colour, so it still
           reads on a bad screen and to anyone who cannot separate the two
           tones. */}
       <span
-        className={`rounded-full border px-2 py-0.5 text-[11px] font-black tabular-nums ${MOVE_TONE[move.dir]}`}
+        className={`rounded-full border px-1.5 py-0.5 text-[10px] font-black tabular-nums ${MOVE_TONE[move.dir]}`}
       >
         {move.dir === 'new'
           ? 'first valuation'
@@ -51,9 +54,9 @@ export default function PriceTag({ price }: { price?: PlayerValue }) {
             : `${move.dir === 'up' ? '▲ +' : '▼ −'}${formatValue(move.by)}`}
       </span>
 
-      <p className="w-full text-[11px] leading-4 text-amber-900/45">
-        Results, appearances and honours, priced. Moves after every night.
-      </p>
+      <span className="w-full text-[10px] leading-tight text-amber-900/45">
+        Priced from results, appearances and honours — not a rating.
+      </span>
     </div>
   );
 }

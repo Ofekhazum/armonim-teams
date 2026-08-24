@@ -2215,9 +2215,18 @@ six tuning constants to every phone in order to render a string. A grep of the b
 none of it is there.
 
 The hard part of the component is the caption, not the number. A euro figure beside somebody's name
-reads as *the app's opinion of them* unless it says otherwise, which is the one thing §2.9 forbids
-and the exact thing the private rating was protecting — so the line underneath names its ingredients,
-all of which are things that happened: **"Results, appearances and honours, priced."**
+reads as *the app's opinion of them* unless it says otherwise, which is the one thing §2.9 forbids and
+the exact thing the private rating was protecting — so the line underneath names its ingredients,
+**and says the word directly rather than leaving it implied: "Priced from results, appearances and
+honours — not a rating."**
+
+**First version was too heavy, and the fix was to shrink the layout rather than the caption.** An
+eyebrow label, a 3xl price, a `border-top` divider and the two-sentence original made this read as a
+second panel bolted onto the header instead of a fact about the person beside it. It is now one line
+— price, move, done — with the caption folded to a single short sentence underneath. What did *not*
+shrink is whether the caption shows: hiding it behind a tap would mean a first glance shows a bare
+price with nothing standing between it and being read as a rating, which is the one outcome this
+component exists to prevent. So the sentence got shorter and sharper; it did not get optional.
 
 The weekly move carries a sign and a glyph as well as a colour (`▲ +€0.5M`), so it survives a bad
 screen and colour blindness. A first valuation says **"first valuation"** rather than drawing a zero
