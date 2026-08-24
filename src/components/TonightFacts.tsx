@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import type { FixtureRecord, Teams, TonightPlayer } from '../types';
 import type { Milestone } from '../milestones';
 import type { DuoFact } from '../duos';
@@ -7,7 +7,7 @@ import { bountyTonight, pendingTonight } from '../radar';
 import { duoFacts } from '../duos';
 import { derbyTonight } from '../derby';
 import DerbyBanner from './DerbyBanner';
-import { Name } from './ui';
+import { FoldHeader, Name } from './ui';
 
 // The two strips that say what tonight means: what is on the line, and what has
 // already been reached. Lifted out of the organiser's fixture page so the
@@ -16,6 +16,56 @@ import { Name } from './ui';
 // These are counts of who has turned up, which is the group's own record; the
 // organiser's page carries private things (ratings, averages, keep-apart) and
 // those stay there. See §2.21.
+
+/**
+ * Which panels have been folded away, for as long as the tab is open (§2.34).
+ *
+ * **`sessionStorage`, and the choice is the same one test mode makes.** The
+ * three panels are the reason this strip exists, so a phone opening the room
+ * link for the first time has to see them — a fold that persisted in
+ * `localStorage` would mean somebody who tidied the page away one Thursday
+ * silently gets a barer app every Thursday after, and would never connect the
+ * two. Surviving a reload is the part that actually matters: the live view is
+ * reloaded constantly at a pitch, and having to re-fold three panels every
+ * time is exactly the annoyance the fold was added to remove.
+ */
+const FOLD_KEY = 'armonim:folded';
+
+type PanelId = 'line' | 'derby' | 'facts';
+
+const readFolded = (): string[] => {
+  try {
+    const raw = sessionStorage.getItem(FOLD_KEY);
+    return raw ? (JSON.parse(raw) as string[]) : [];
+  } catch {
+    // Private browsing, a full quota, a hostile embed. A fold that fails to
+    // persist is not worth breaking a match night over — open is the default
+    // and open is the safe answer.
+    return [];
+  }
+};
+
+const writeFolded = (ids: string[]) => {
+  try {
+    sessionStorage.setItem(FOLD_KEY, JSON.stringify(ids));
+  } catch {
+    /* see readFolded */
+  }
+};
+
+function useFold(id: PanelId): [boolean, () => void] {
+  const [open, setOpen] = useState(() => !readFolded().includes(id));
+  const toggle = useCallback(() => {
+    const next = !open;
+    setOpen(next);
+    // Re-read rather than hold a copy: the fixture page and a background tab
+    // on the live view can both be showing this strip, and the last one to be
+    // touched should not blank out the other's choices.
+    const rest = readFolded().filter((x) => x !== id);
+    writeFolded(next ? rest : [...rest, id]);
+  }, [id, open]);
+  return [open, toggle];
+}
 
 interface Props {
   players: TonightPlayer[];
@@ -58,6 +108,10 @@ export default function TonightFacts({
     [teams, players, history, tonightId],
   );
 
+  const [lineOpen, toggleLine] = useFold('line');
+  const [derbyOpen, toggleDerby] = useFold('derby');
+  const [factsOpen, toggleFacts] = useFold('facts');
+
   return (
     <>
       {/* Forward-looking, so it sits above the facts about what has already
@@ -65,10 +119,14 @@ export default function TonightFacts({
           kick-off is being told what is at stake, not what is true. */}
       {(pending.length > 0 || bounty) && (
         <div className="rounded-2xl border border-orange-500/25 bg-orange-50/60 px-4 py-2.5">
-          <h3 className="mb-1 text-[11px] font-black uppercase tracking-wide text-orange-800/70">
-            🎯 On the line tonight
-          </h3>
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-amber-900">
+          <FoldHeader
+            title="🎯 On the line tonight"
+            open={lineOpen}
+            onToggle={toggleLine}
+            className="text-orange-800/70"
+          />
+          {lineOpen && (
+          <div className="mt-1 flex flex-col gap-1 text-sm text-amber-900">
             {pending.map((f) => {
               switch (f.kind) {
                 case 'nth-win':
@@ -95,7 +153,8 @@ export default function TonightFacts({
               }
             })}
           </div>
-          {bounty && (
+          )}
+          {lineOpen && bounty && (
             <p className="mt-1.5 border-t border-orange-500/15 pt-1.5 text-sm font-semibold text-orange-900">
               🎖️ Bounty — <Name className="font-black">{bounty.name}</Name> is on {bounty.nights}{' '}
               winning nights. Somebody end it.
@@ -107,9 +166,19 @@ export default function TonightFacts({
       {/* Above the milestones: a derby is about what is *about to* happen,
           like "on the line tonight" above it, where the strip below is about
           what already has. */}
-      <DerbyBanner derby={derby} />
+      <DerbyBanner derby={derby} open={derbyOpen} onToggle={toggleDerby} />
 
-      <MilestoneStrip milestones={milestones} duos={duos} />
+      {/* The only one of the three with no heading of its own, so folding it
+          had to give it one. "Coming in tonight" is the counterpart to "on the
+          line tonight" directly above: what everybody is bringing to the pitch,
+          as against what they could leave with. */}
+      <MilestoneStrip
+        milestones={milestones}
+        duos={duos}
+        title="📋 Coming in tonight"
+        open={factsOpen}
+        onToggle={toggleFacts}
+      />
     </>
   );
 }
@@ -120,9 +189,19 @@ export default function TonightFacts({
 export function MilestoneStrip({
   milestones,
   duos,
+  title,
+  open = true,
+  onToggle,
 }: {
   milestones: Milestone[];
   duos: DuoFact[];
+  // A heading, and with it the fold. Optional because the night page shows
+  // this strip as the record of a night that is already over — one panel on a
+  // page of panels, where nothing needs folding away to reach a clock. Left
+  // off, this renders exactly what it always did.
+  title?: string;
+  open?: boolean;
+  onToggle?: () => void;
 }) {
   if (milestones.length === 0 && duos.length === 0) return null;
   return (
@@ -130,8 +209,14 @@ export function MilestoneStrip({
     // share a line and a third could straddle two, so "🏆 הלחמי's 50th win" and
     // "💪 פוגל hasn't missed a night in 10 straight" read as one long sentence
     // about somebody. These are separate claims about separate people, and a
-    // line break is the cheapest possible way to say so.
+    // line break is the cheapest possible way to say so. The same argument
+    // moved "on the line tonight" onto one fact per line as well.
     <div className="flex flex-col gap-1 rounded-2xl border border-amber-900/15 bg-[#fffdf4]/70 px-4 py-2.5 text-sm text-amber-900">
+      {title && onToggle && (
+        <FoldHeader title={title} open={open} onToggle={onToggle} className="text-amber-900/60" />
+      )}
+      {!open ? null : (
+        <>
       {/* Wording stays factual on purpose — "won 3 nights running" is a
           count, "on fire" would be a claim about how they're playing that
           a night's three win totals can't back up (§2.9). */}
@@ -189,6 +274,8 @@ export function MilestoneStrip({
           nights together
         </span>
       ))}
+        </>
+      )}
     </div>
   );
 }

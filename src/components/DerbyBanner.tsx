@@ -1,5 +1,5 @@
 import type { Derby } from '../derby';
-import { Name, TEAM_META } from './ui';
+import { FoldHeader, Name, TEAM_META } from './ui';
 
 // Tonight's derby (§2.33) — the one card on a match night that is about a
 // rivalry rather than a record.
@@ -16,7 +16,19 @@ import { Name, TEAM_META } from './ui';
 // the two of them: this pairing is only a derby *because of how the teams came
 // out*, and next week they will probably be on the same side.
 
-export default function DerbyBanner({ derby }: { derby: Derby | null }) {
+export default function DerbyBanner({
+  derby,
+  open = true,
+  onToggle,
+}: {
+  derby: Derby | null;
+  // Folding is the caller's business, not the banner's (§2.34) — the fixture
+  // page owns which of its three panels are away, and this one only has to
+  // agree to be one of them. Left off, the banner is always open, which is
+  // what its own tests want and what any future caller gets by default.
+  open?: boolean;
+  onToggle?: () => void;
+}) {
   if (!derby) return null;
 
   const a = TEAM_META[derby.aShirt];
@@ -26,10 +38,21 @@ export default function DerbyBanner({ derby }: { derby: Derby | null }) {
 
   return (
     <div className="rounded-2xl border border-violet-500/25 bg-gradient-to-r from-violet-100/70 via-[#fffdf4] to-violet-100/70 px-4 py-2.5">
-      <h3 className="mb-1.5 text-[11px] font-black uppercase tracking-wide text-violet-900/70">
-        ⚔️ Tonight's derby
-      </h3>
+      {onToggle ? (
+        <FoldHeader
+          title="⚔️ Tonight's derby"
+          open={open}
+          onToggle={onToggle}
+          className="mb-1.5 text-violet-900/70"
+        />
+      ) : (
+        <h3 className="mb-1.5 text-[11px] font-black uppercase tracking-wide text-violet-900/70">
+          ⚔️ Tonight's derby
+        </h3>
+      )}
 
+      {!open ? null : (
+        <>
       <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-center">
         <span className="text-base font-black text-amber-950">
           {a.emoji} <Name>{derby.aName}</Name>
@@ -55,6 +78,8 @@ export default function DerbyBanner({ derby }: { derby: Derby | null }) {
         {derby.faced} matches on opposite sides
         {level ? ', and dead level' : ''}
       </p>
+        </>
+      )}
     </div>
   );
 }

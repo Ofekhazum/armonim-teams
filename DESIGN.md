@@ -2434,6 +2434,41 @@ teams came out*; next week they will probably be on the same side. And the card 
 opposite sides"** underneath, because `7–7` beside two names is exactly what a goal tally looks like,
 and this app has never counted a goal in its life (§2.9).
 
+### 2.34 Folding the match-night panels (`TonightFacts.tsx`, `ui.tsx`)
+
+A match night carries three panels of facts — **🎯 On the line tonight**, **⚔️ Tonight's derby**, and
+**📋 Coming in tonight** — and then the clock and the match log underneath them. On a phone that is
+most of a screen of reading standing between the organiser and the button they came to press. Each
+panel folds, via a shared `FoldHeader` in `ui.tsx`.
+
+**The heading is the control.** No separate chevron button: the eyebrow label was already there and
+already the width of the card, so making it the target costs no pixels and gives a thumb something
+to hit. `▲ hide` / `▼ show` in words as well as a glyph, matching the past-nights shelf in History
+(§2.14) — a bare chevron is the kind of control people do not find on a phone.
+
+**The chrome is not shared, only the affordance.** The three cards look deliberately different —
+orange for what is at stake, violet for the derby, cream for what is already true — so `FoldHeader`
+takes a `className` and each card keeps its own palette. A fold control that varied between them
+would read as three unrelated widgets rather than one habit.
+
+**`sessionStorage`, and it is the same trade test mode makes (§2.32).** Surviving a reload is the
+point: the live view is reloaded constantly at a pitch, and re-folding three panels every time is
+the annoyance the fold exists to remove. Surviving a *week* is not — the three panels are the reason
+this strip exists, so somebody who tidied the page away one Thursday should not silently get a barer
+app every Thursday after, with no memory of having asked for it. Open is the default and open is
+what a failed read returns.
+
+**`MilestoneStrip` gained the heading it never had.** It is the one panel that was a bare card, and
+a fold needs a label to hang on. `title`, `open` and `onToggle` are all optional, so the night page
+(§2.22) — where this strip is the record of a night already over, on a page with no clock to reach —
+renders exactly what it always did. **"Coming in tonight"** is the counterpart to "on the line
+tonight" above it: what everyone brings to the pitch, as against what they could leave with.
+
+**One fact per line, now in both panels.** "On the line tonight" wrapped inline, so two facts could
+share a line and a third straddle two — "איתי is 3 from 100 career wins  אורי is 2 from 100 career
+wins" reads as one sentence about a pair of people. These are separate claims about separate people;
+`MilestoneStrip` had already been fixed this way and the argument was the same one.
+
 ## 3. Team generation algorithm
 
 Balancing is a small constrained optimization. With ≤15 players, brute force is too big

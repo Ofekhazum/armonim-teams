@@ -67,6 +67,45 @@ export function Name({ children, className = '' }: { children: string; className
   );
 }
 
+/**
+ * The eyebrow heading on a fact panel, doubling as its fold control (§2.34).
+ *
+ * Shared rather than written three times because the three panels on a match
+ * night look deliberately different — orange for what is at stake, violet for
+ * the derby, cream for what is already true — and a fold control that also
+ * varied between them would read as three unrelated widgets rather than one
+ * habit. The card keeps its own colours; only the affordance is common.
+ *
+ * `▲ hide` / `▼ show` in words as well as a glyph, matching the past-nights
+ * shelf in History: a bare chevron is the kind of control people do not find
+ * on a phone, and this one is the difference between reaching the clock and
+ * scrolling past six facts to get to it.
+ */
+export function FoldHeader({
+  title,
+  open,
+  onToggle,
+  className = '',
+}: {
+  title: string;
+  open: boolean;
+  onToggle: () => void;
+  className?: string;
+}) {
+  return (
+    <button
+      onClick={onToggle}
+      aria-expanded={open}
+      className={`flex w-full items-baseline gap-2 text-[11px] font-black uppercase tracking-wide ${className}`}
+    >
+      {title}
+      <span className="ms-auto text-[10px] font-bold normal-case opacity-70">
+        {open ? '▲ hide' : '▼ show'}
+      </span>
+    </button>
+  );
+}
+
 // Fractional star display — supports half ratings (3.5, 4.5, …) by clipping
 // the filled layer to the right width. Base layer inherits the surrounding
 // text color so it stays visible on dark and light team cards alike.
