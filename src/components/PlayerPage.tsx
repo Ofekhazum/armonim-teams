@@ -23,6 +23,8 @@ import {
   winRungs,
 } from '../playerProfile';
 import { MIN_ARC_NIGHTS, playerArcs, rate } from '../playerArcs';
+import { playerTimeline } from '../playerTimeline';
+import PlayerTimeline from './PlayerTimeline';
 import { Name, STYLE_META, TEAM_META } from './ui';
 import { useScrollLock } from '../scrollLock';
 import { fetchAwards, monthsWon } from '../awards';
@@ -163,6 +165,14 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
       live = false;
     };
   }, [player.id]);
+
+  // The same nights the ribbon is drawn from, read as a sequence of moments
+  // rather than as a shape (§2.29). `totm` arrives from the network a beat
+  // later, which simply adds shirts to a feed that was already correct.
+  const timeline = useMemo(
+    () => playerTimeline(history, player.id, totm),
+    [history, player.id, totm],
+  );
 
   const nights = useMemo(() => profileNights(history, player.id), [history, player.id]);
   const counts = useMemo(() => profileCounts(nights), [nights]);
@@ -428,6 +438,13 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
                 </p>
               )}
               {caption('nights')}
+            </Card>
+
+            {/* Directly under the ribbon, because they are the same nights
+                asked two different questions. The ribbon answers "how has it
+                gone"; this answers "what happened, and when". */}
+            <Card title="The story so far" hint="newest first">
+              <PlayerTimeline events={timeline} />
             </Card>
 
             <div className="grid gap-3 sm:grid-cols-2">

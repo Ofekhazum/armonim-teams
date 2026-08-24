@@ -2021,6 +2021,56 @@ One regression caught by an existing test while writing this: defaulting `attack
 `mergePublicRoster` before `migratePlayer` runs makes the migration keep the default and silently
 lose a legacy `playstyle`. It is left `undefined` and passed through instead.
 
+### 2.29 The career as a feed (`src/playerTimeline.ts`, `PlayerTimeline.tsx`)
+
+The player page already drew the same history twice. The **ribbon** — one medal per night, oldest
+first — and the **milestone bars** are both *shapes*: you read them at a glance and learn how much
+football someone has and roughly how it went. Neither can tell you the night something happened on.
+A ribbon cannot say "this is where the run of five ended"; a progress bar cannot say "the 100th win
+was in March".
+
+So: the same nights, as a dated feed, newest first. **No new evidence anywhere in it.** Every event
+is either a counter crossing a rung that `milestones.ts` already defines, or a run ending on the
+night it ended, which is arithmetic over `profileNights`.
+
+**Ten kinds.** `debut` · `nth-night` · `nth-win` · `nth-night-won` · `nth-mvp` · `streak-ended` ·
+`streak-live` · `drought-ended` · `best-night` · `totm`.
+
+**The shape is flat, not a discriminated union**, which is the opposite of `Milestone` and
+`NightFact`. Those are consumed by exhaustive switches building a different sentence each; this is
+consumed by one card component drawing icon + headline + number, so a union would buy nothing and
+cost a cast at every field access. And like `ProfileNight`, the module holds **no words** — it
+decides what happened and when, and the page decides how to say it.
+
+**Four decisions worth keeping:**
+
+- **A milestone can be stepped over.** Match wins arrive four or five a night and a shootout is worth
+  half, so a total can pass 50 without ever equalling it. `crossed(before, after, isRung)` checks the
+  whole interval; asking whether the new total *is* a rung would silently drop most of that ladder.
+- **An untallied night breaks nothing.** No result is not a loss — the rule `appearances()` already
+  follows. A blank night passes a run straight through. It still counts as a debut, because turning
+  up is the event, and it still counts an MVP, because the pick is made afterwards and does not
+  depend on whether anyone typed in the score.
+- **A record needs something to beat.** Below `MIN_NIGHTS_FOR_RECORD = 4` nothing is carded, or the
+  feed opens with three "best night yet" cards that are artefacts of having no history. `best` is
+  still tracked from night one, so the first record card beats a real number rather than zero.
+- **Team of the Month sorts on `${period}-99`** — a day no date can equal, which puts the award above
+  every night of the month it was won for, where a reader looks for a month's conclusion. That key is
+  never rendered; a component test asserts the 99th of July never reaches a profile.
+
+**Nights are counted the way the rest of the page counts them** — only nights with a result — so the
+feed and the Milestones card agree about which night was somebody's 25th. Two places on one screen
+disagreeing is worse than either answer.
+
+**The rail is the component.** Cards in a list are a list of facts; the same cards threaded on a line
+are a career, and the *gaps* in the line are as legible as the events on it — six months of nothing
+reads as six months of nothing, which no ribbon can show. Folds past `PAGE = 8` so a two-season
+regular does not push the rest of the page below the fold.
+
+§2.9 holds throughout, and the easiest place to break it is the card about something going wrong: a
+broken run is **"a run of five ended"**, never "the wheels came off". There is a test for that
+sentence.
+
 ## 3. Team generation algorithm
 
 Balancing is a small constrained optimization. With ≤15 players, brute force is too big
