@@ -1229,6 +1229,23 @@ ladder card underneath still shows the whole climb, so this is its headline rath
 it. The first MVP is a rung of its own, because being picked at all is the event and a ladder starting
 at three would say nothing to almost anybody for a season.
 
+**The headline is now worn as a medallion coloured by tier, not by bronze/silver/gold.** Each badge
+carries `tier`: how many rungs of *that* ladder have been passed — `reached.length` off the same
+`Rung[]` the card underneath draws, so the two can never disagree. A three-way cap was the first
+version and it was wrong for the same reason a three-quarter chart was wrong: the night ladder alone
+has rungs every 50 past the first two, so a real career clears far more than three of them, and a
+scheme that stops distinguishing at "gold" goes quiet for exactly the players who have climbed the
+furthest — the opposite of what a tier is for.
+
+`TIER_STYLE` (`PlayerPage.tsx`) is seven steps — Bronze, Silver, Gold, Emerald, Sapphire, Amethyst,
+Diamond — the order competitive games settle on for this exact problem, legible without a legend to
+someone who has never opened the app. Past the seventh rung the colour stops changing and the
+medallion pulses instead: a ramp that kept inventing hues would eventually repeat one by coincidence
+and read as a demotion, where capping-and-pulsing says "as far as this scale goes" honestly. Ladder
+badges got their own row, separate from the achievement pills below — a circle-and-label stack and a
+one-line pill do not share a baseline gracefully in the same flex row, and achievement badges
+(§2.15) are superlatives, held or not, with no ladder to be a tier of.
+
 **Every badge and every medal explains itself on tap, not just on hover.** A `title` attribute is
 invisible on a phone, which is where this app is used, so a chip nobody can decode is decoration. The
 answer is a **caption**: tapping a badge or a night writes one sentence under that row, and tapping
@@ -1588,7 +1605,7 @@ Everything else about a player counts nights — turned up, won, took the night.
 which only exists on nights logged match by match and only became askable when the log did. One walk
 over a player's own match sequence answers three questions: how the match *after a loss* went (winner
 stays on, so losing puts you on the bench for exactly one match), their first matches of a night
-against their last, and which quarter of the evening their wins land in.
+against their last, and whether their wins land in the beginning, middle or end of the evening.
 
 **Coming off a loss is measured against the club, not against 50%** — and that is the difference
 between a metric and a mirage. After your team loses you sit one out and come back against a team
@@ -1607,7 +1624,7 @@ nights and still have barely come off a loss. `NOTABLE_GAP` (20 points) is the w
 enough to say what the record did, nowhere near enough to separate a resilient player from a lucky
 one, so the app says *"won 9 of 14 coming back on"* and never *"mentally resilient"*.
 
-**Only the quarters are drawn.** Early-versus-late and the bench return are computed, tested and shown
+**Only "across the night" is drawn.** Early-versus-late and the bench return are computed, tested and shown
 nowhere — the card kept the one line that is a *shape* and dropped the two that were sentences of
 arithmetic. They stay in `playerArcs` because the counting is the hard part and it costs one pass over
 history either way: the reporter will want exactly these when it arrives, and deleting them would only
@@ -1618,7 +1635,7 @@ counts as a joke error code. It was honest (pull-only, every line a real number)
 useful: the counts above already say the same things, and saying them twice in a funnier font is
 weight on the page rather than information on it.
 
-#### Drawing it (`Quarters.tsx`)
+#### Drawing it (`NightParts.tsx`)
 
 The first version was four bars labelled `32/49`, `23/44`, `19/43`, `29/42` under the heading "where
 their wins land". Every number on it was true and it was unreadable, for three reasons worth writing
@@ -1633,16 +1650,24 @@ down because they are easy to repeat:
 3. **Four similar bars read as noise**, which is honest and useless. What the card is *for* is the
    shape: does this player start well and fade, or arrive late.
 
-So the rate is stated as a percentage, the raw count stays underneath as the evidence for it (a
+**Then four bars became three: beginning, middle, end.** `1st quarter, 2nd quarter, 3rd quarter, 4th
+quarter` read as a spreadsheet column rather than three chapters of an evening, and the sample size
+argued the same way — a typical logged night is nine to thirteen matches, so a quarter is routinely
+three of them: the thinnest bar on the card, saying the least while taking a quarter of the room. A
+third keeps every bucket around four matches, still thin but consistently so. The field on `Arcs` is
+`parts`, not `quarters`, so a stale reference to the old shape fails to compile rather than silently
+reading the wrong array.
+
+The rate is stated as a percentage, the raw count stays underneath as the evidence for it (a
 percentage off three matches and one off forty look identical without it), and a dashed line marks
-**their own average across the whole night**. That last one is what turns four numbers into a shape:
-every bar is read against the same line, and "is 65% good" becomes "is this quarter better than their
-other three" — a question the data can actually answer.
+**their own average across the whole night**. That last one is what turns three numbers into a shape:
+every bar is read against the same line, and "is 65% good" becomes "is this part better than their
+other two" — a question the data can actually answer.
 
 The bars and the line share one coordinate space, which is asserted rather than eyeballed: the track
 has no padding, so `bottom: X%` and `height: X%` land on the same line. Bars are drawn against a
-full-height track rather than scaled to the player's best quarter, since per-profile axes would turn
-four flat bars into a dramatic staircase. And a quarter nobody played gets **no bar at all** rather
+full-height track rather than scaled to the player's best part, since per-profile axes would turn
+three flat bars into a dramatic staircase. And a part nobody played gets **no bar at all** rather
 than a zero-height one, which would read as "played and lost them all" — the same distinction the
 medal ribbon draws between a night with no result and a night finished third.
 
@@ -2264,6 +2289,16 @@ obvious human error, and this makes the consequence "closed the tab" rather than
 showing fake data for a week". A non-dismissible banner sits above every tab for the same reason: the
 isolation holds on its own, but nothing stops a person forgetting which club they are looking at and
 reporting a bug against football that never happened.
+
+**The banner is deliberately `position: static`, not `sticky` or `fixed`.** It was the latter once,
+with a z-index above everything else in the app so it would read as "loud" — which instead painted it
+over the top few centimetres of every `fixed inset-0` overlay (player page, night page, pitch mode,
+the fixture page's own modals; see `scrollLock.ts`), exactly where their Back/Close/Edit buttons live.
+A `sticky` element is a positioned element with its own stacking context, so z-index alone decided who
+won regardless of which one opened later or which was "supposed" to be on top. Ordinary document flow
+has no stacking context at all, so a static block can never out-rank a `fixed` panel no matter what
+z-index either is given — the property this needed, not a taller number. The trade: the banner no
+longer stays visible while scrolling a long tab, the way the header above it never has either.
 
 **The sandbox is admin from the moment it opens**, because most of what it exists to exercise is
 behind admin and there is nothing here to protect. `test_mode` is checked in the client and **never

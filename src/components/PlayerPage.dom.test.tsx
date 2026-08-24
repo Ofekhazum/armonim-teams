@@ -1,0 +1,93 @@
+import { describe, expect, it } from 'vitest';
+import { fireEvent, render, screen } from '@testing-library/react';
+import { buildTestClub } from '../testData';
+import { playerStandings } from '../calibration';
+import { ladderBadges, profileCounts, profileNights } from '../playerProfile';
+import { playerAchievements } from '../achievements';
+import PlayerPage from './PlayerPage';
+
+// The ladder badges' medallions (§2.19), after they stopped being capped at
+// bronze/silver/gold. The tier arithmetic has its own tests in
+// `playerProfile.test.ts`; what matters here is that the page actually renders
+// a different colour per tier rather than collapsing back to three, which is
+// exactly the kind of thing a unit test on the pure function cannot see.
+//
+// Uses the invented club (§2.32) because it is the one history in this repo
+// deep enough to have a player who has cleared more than three rungs of a
+// ladder — the real club, three nights in, never could.
+
+describe('ladder badge medallions', () => {
+  it('renders a round medallion, not the old pill, for a ladder badge', () => {
+    const { players, history } = buildTestClub();
+    const busiest = playerStandings(history)[0];
+    const player = players.find((p) => p.id === busiest.id)!;
+
+    render(
+      <PlayerPage
+        player={player}
+        history={history}
+        players={players}
+        isAdmin={false}
+        onEdit={() => {}}
+        onClose={() => {}}
+      />,
+    );
+
+    const medallions = document.querySelectorAll('span.rounded-full.h-11.w-11');
+    expect(medallions.length).toBeGreaterThan(0);
+  });
+
+  it('gives badges at different tiers different colours, proving it is not capped at three', () => {
+    const { players, history } = buildTestClub();
+    const busiest = playerStandings(history)[0];
+    const player = players.find((p) => p.id === busiest.id)!;
+
+    const counts = profileCounts(profileNights(history, player.id));
+    const mvps = playerAchievements(history).get(player.id)?.mvps ?? 0;
+    const badges = ladderBadges(counts, mvps);
+    const tiers = new Set(badges.map((b) => b.tier));
+    // The whole point of the invented season: a busy player's ladders should
+    // not all happen to sit on the same rung.
+    expect(tiers.size).toBeGreaterThan(1);
+
+    render(
+      <PlayerPage
+        player={player}
+        history={history}
+        players={players}
+        isAdmin={false}
+        onEdit={() => {}}
+        onClose={() => {}}
+      />,
+    );
+
+    const medallions = [...document.querySelectorAll('span.rounded-full.h-11.w-11')];
+    const looks = new Set(medallions.map((m) => m.className));
+    expect(looks.size).toBeGreaterThan(1);
+  });
+
+  it('says the tier by name in the badge detail, on tap', () => {
+    const { players, history } = buildTestClub();
+    const busiest = playerStandings(history)[0];
+    const player = players.find((p) => p.id === busiest.id)!;
+
+    render(
+      <PlayerPage
+        player={player}
+        history={history}
+        players={players}
+        isAdmin={false}
+        onEdit={() => {}}
+        onClose={() => {}}
+      />,
+    );
+
+    const medallions = document.querySelectorAll('button > span.rounded-full.h-11.w-11');
+    const button = medallions[0].closest('button')!;
+    fireEvent.click(button);
+    // one of Bronze…Diamond, dashed onto the front of the detail sentence
+    expect(
+      screen.getByText(/^(Bronze|Silver|Gold|Emerald|Sapphire|Amethyst|Diamond) — /),
+    ).toBeInTheDocument();
+  });
+});

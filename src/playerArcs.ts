@@ -8,7 +8,8 @@
 //   · **Coming off a loss.** Winner stays on, so losing puts you on the bench
 //     for exactly one match. How did the match after that go?
 //   · **Early and late.** Their first matches of a night against their last.
-//   · **Across the night.** Which quarter of the evening their wins land in.
+//   · **Across the night.** Beginning, middle or end of the evening their wins
+//     land in.
 //
 // Two rules keep this honest, and they are the whole reason the file reads the
 // way it does.
@@ -57,9 +58,14 @@ export interface Arcs {
   loggedNights: number;
   matches: number;
   won: number;
-  // four quarters of the night, by when the match was played rather than by
-  // how many the player had had
-  quarters: Tally[];
+  // Beginning, middle and end of the night — by when the match was played,
+  // not by how many the player had had. Three rather than four: a quarter
+  // needs roughly a dozen matches behind it before its rate means anything,
+  // and most nights only run nine to thirteen — a fourth bucket was routinely
+  // the thinnest slice on the card, saying the least while taking up a quarter
+  // of the space. Three keeps every bucket close to a third of a typical
+  // night's matches instead.
+  parts: Tally[];
   early: Tally;
   late: Tally;
   bounce: Tally;
@@ -104,11 +110,11 @@ function walk(fx: FixtureRecord, team: TeamColor, arcs: Arcs) {
     arcs.matches++;
     if (m.won) arcs.won++;
 
-    // Quarter of the *night*, not of their own matches: "when their wins
+    // Third of the *night*, not of their own matches: "when their wins
     // happen" is a question about the evening, and a team that sat out the
-    // middle hour did not thereby play a long first quarter.
-    const q = total > 1 ? Math.min(3, Math.floor((m.at / total) * 4)) : 0;
-    add(arcs.quarters[q], m.won);
+    // middle hour did not thereby play a long first third.
+    const part = total > 1 ? Math.min(2, Math.floor((m.at / total) * 3)) : 0;
+    add(arcs.parts[part], m.won);
 
     // Their own first matches against their own last, with the middle one
     // dropped on an odd count so the two sides are the same size.
@@ -127,7 +133,7 @@ export function playerArcs(history: FixtureRecord[], id: string): Arcs {
     loggedNights: 0,
     matches: 0,
     won: 0,
-    quarters: [empty(), empty(), empty(), empty()],
+    parts: [empty(), empty(), empty()],
     early: empty(),
     late: empty(),
     bounce: empty(),

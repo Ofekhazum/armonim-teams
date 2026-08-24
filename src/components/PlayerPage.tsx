@@ -23,7 +23,7 @@ import {
   winRungs,
 } from '../playerProfile';
 import { MIN_ARC_NIGHTS, playerArcs } from '../playerArcs';
-import Quarters from './Quarters';
+import NightParts from './NightParts';
 import { playerTimeline } from '../playerTimeline';
 import PlayerTimeline from './PlayerTimeline';
 import { Name, STYLE_META, TEAM_META } from './ui';
@@ -72,6 +72,32 @@ const BADGE_TONE: Record<AchievementKind, string> = {
   'ever-present': 'border-violet-500/35 bg-violet-400/15 text-violet-900',
   veteran: 'border-stone-500/35 bg-stone-400/15 text-stone-800',
 };
+
+// The ladder badges' tier ramp — a medallion whose colour is the tier, so a
+// climb of arbitrarily many rungs stays legible without a label.
+//
+// Not bronze/silver/gold with everything past third place staying gold: the
+// night ladder alone has rungs every 50 past the first two, so a long career
+// clears far more than three of them, and a scheme that stopped distinguishing
+// at "gold" would go quiet for exactly the players who have climbed the
+// furthest — the opposite of what a tier is for. So this is seven steps, one
+// hue each in the order competitive games settle on for exactly this problem
+// (bronze → … → diamond), which makes it legible without a legend to people
+// who have never opened this app before.
+//
+// Beyond the seventh rung the colour stops changing and starts pulsing. A
+// ramp that kept inventing new hues forever would eventually repeat one by
+// coincidence and imply a demotion; capping and adding motion instead says
+// "as far as this scale goes" without lying about the direction.
+const TIER_STYLE: { name: string; ring: string; fill: string }[] = [
+  { name: 'Bronze', ring: 'ring-amber-800/50', fill: 'bg-gradient-to-br from-amber-500 to-amber-800 text-amber-50' },
+  { name: 'Silver', ring: 'ring-slate-400/60', fill: 'bg-gradient-to-br from-slate-200 to-slate-400 text-slate-900' },
+  { name: 'Gold', ring: 'ring-amber-500/60', fill: 'bg-gradient-to-br from-yellow-300 to-amber-500 text-amber-950' },
+  { name: 'Emerald', ring: 'ring-emerald-500/50', fill: 'bg-gradient-to-br from-emerald-300 to-emerald-600 text-emerald-50' },
+  { name: 'Sapphire', ring: 'ring-blue-500/50', fill: 'bg-gradient-to-br from-blue-300 to-blue-600 text-blue-50' },
+  { name: 'Amethyst', ring: 'ring-violet-500/50', fill: 'bg-gradient-to-br from-violet-300 to-violet-600 text-violet-50' },
+  { name: 'Diamond', ring: 'ring-cyan-300/70', fill: 'bg-gradient-to-br from-cyan-100 via-white to-cyan-200 text-cyan-900' },
+];
 
 // Where the team finished that night: gold, silver, bronze. Three teams means
 // every night has all three, so a ribbon of medals is a complete picture of
@@ -360,32 +386,56 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
         )}
 
         {(badges.length > 0 || earned.length > 0) && (
-          <div>
-            <div className="flex flex-wrap gap-1.5">
-              {/* Ladder badges first — they are the things this player has
-                  finished, where the achievement badges are things they
-                  currently top. Both explain themselves on hover or a tap. */}
-              {earned.map((b) => (
-                <button
-                  key={b.key}
-                  title={b.detail}
-                  onClick={say('badges', b.detail)}
-                  className="rounded-full border border-amber-900/20 bg-white/80 px-2.5 py-1 text-xs font-bold text-amber-900 shadow-sm transition-transform hover:scale-105"
-                >
-                  {b.icon} {b.label}
-                </button>
-              ))}
-              {badges.map((b) => (
-                <button
-                  key={b.kind}
-                  title={b.label}
-                  onClick={say('badges', b.label)}
-                  className={`rounded-full border px-2.5 py-1 text-xs font-bold shadow-sm transition-transform hover:scale-105 ${BADGE_TONE[b.kind]}`}
-                >
-                  {b.icon} {b.label}
-                </button>
-              ))}
-            </div>
+          <div className="space-y-2.5">
+            {/* Ladder badges: the things this player has finished, as
+                medallions whose colour is the tier — see TIER_STYLE. Their own
+                row, because a circle-and-label stack and a one-line pill do not
+                share a baseline gracefully in the same flex row. */}
+            {earned.length > 0 && (
+              <div className="flex flex-wrap gap-x-3 gap-y-2">
+                {earned.map((b) => {
+                  const style = TIER_STYLE[Math.min(b.tier, TIER_STYLE.length) - 1];
+                  const maxed = b.tier >= TIER_STYLE.length;
+                  const said = `${style.name} — ${b.detail}`;
+                  return (
+                    <button
+                      key={b.key}
+                      title={said}
+                      onClick={say('badges', said)}
+                      className="flex w-14 flex-col items-center gap-1 transition-transform hover:scale-105"
+                    >
+                      <span
+                        className={`grid h-11 w-11 place-items-center rounded-full text-lg shadow-sm ring-2 ${style.ring} ${style.fill} ${
+                          maxed ? 'animate-pulse' : ''
+                        }`}
+                      >
+                        {b.icon}
+                      </span>
+                      <span className="w-full truncate text-center text-[10px] font-bold leading-tight text-amber-900/70">
+                        {b.label}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            {/* Achievement badges: things they currently top, unaffected by
+                this — a superlative is held or not, and has no ladder to be a
+                tier of. */}
+            {badges.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {badges.map((b) => (
+                  <button
+                    key={b.kind}
+                    title={b.label}
+                    onClick={say('badges', b.label)}
+                    className={`rounded-full border px-2.5 py-1 text-xs font-bold shadow-sm transition-transform hover:scale-105 ${BADGE_TONE[b.kind]}`}
+                  >
+                    {b.icon} {b.label}
+                  </button>
+                ))}
+              </div>
+            )}
             {caption('badges')}
           </div>
         )}
@@ -661,7 +711,7 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
                   {MIN_ARC_NIGHTS} needed. A tallied night says how much they won, never when.
                 </p>
               ) : (
-                <Quarters arcs={arcs} />
+                <NightParts arcs={arcs} />
               )}
             </Card>
           </>

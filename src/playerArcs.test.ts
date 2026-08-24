@@ -126,15 +126,24 @@ describe('playerArcs', () => {
     it('files a match by when it was played, not by how many they had had', () => {
       // eight matches: black is in the first two and the last two
       const arcs = playerArcs([night('ANWNWNWN')], 'b1');
-      const played = arcs.quarters.map((q) => q.played);
+      const played = arcs.parts.map((p) => p.played);
       expect(played.reduce((a, b) => a + b, 0)).toBe(arcs.matches);
       expect(played[0]).toBeGreaterThan(0);
     });
 
-    it('never files a match past the fourth quarter', () => {
+    it('is beginning, middle and end — three parts, not four', () => {
       const arcs = playerArcs([night('AWWWWWWWW')], 'b1');
-      expect(arcs.quarters).toHaveLength(4);
-      expect(arcs.quarters[3].played).toBeGreaterThan(0);
+      expect(arcs.parts).toHaveLength(3);
+      expect(arcs.parts[2].played).toBeGreaterThan(0);
+    });
+
+    it('never files a match past the last part', () => {
+      // nine matches split three ways is the boundary case: the ninth match
+      // (index 8, total 9) is `Math.floor((8/9)*3) === 2`, the last part
+      // rather than a fourth one that does not exist.
+      const arcs = playerArcs([night('AWWWWWWWA')], 'b1');
+      const total = arcs.parts.reduce((n, p) => n + p.played, 0);
+      expect(total).toBe(arcs.matches);
     });
   });
 });
