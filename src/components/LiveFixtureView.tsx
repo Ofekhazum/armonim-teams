@@ -116,11 +116,19 @@ export default function LiveFixtureView({
           half of a Player that never travels here. */}
       <TeamCards teams={fixture.teams} byId={byId} gkSet={gkSet} />
 
-      <TonightFacts players={fixture.players} history={past} />
-
+      {/* Clock and log first, facts after — the same order the organiser's page
+          uses, and for the same reason (§2.21). Anyone at the pitch with this
+          open is here to see the time and write down who won. */}
       <MatchClock state={fixture.clock} onChange={onChangeClock} fixtureId={fixture.id} />
 
       <MatchLog log={matchLog} onChange={onChangeLog} />
+
+      <TonightFacts
+        players={fixture.players}
+        history={past}
+        teams={fixture.teams}
+        fixtureId={fixture.id}
+      />
     </div>
   );
 }

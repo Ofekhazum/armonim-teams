@@ -1259,6 +1259,23 @@ zero reads as *none* rather than as *not tracked*. It comes off `playerAchieveme
 already counting picks in order to decide who tops that column; counting them a second time here is
 how two numbers on one page end up disagreeing.
 
+**The bogey man is a *share*, and one constant keeps it apart from the worthy opponent.** These two
+picks used to come out as the same person, which is how the bug was noticed. The bogey was a raw
+count of matches lost, so whoever you had faced most usually topped it — and the player you have
+faced most is very often also the one with the closest record, because a long record has had time to
+even out. A 10–12 head-to-head is simultaneously "the most matches he has beaten you in" and "the
+most level record you have", and the page said both about one man on the same card.
+
+A rate is the right question anyway: being beaten twelve times by the man you have played ninety
+matches against is not a bogey man, it is a lot of football. So `bogey` and `victim` are now picked
+by **share** over `MIN_FACED = 8` matches, and `BOGEY_RATE = 0.6` does double duty — it is the bar a
+bogey man clears *and* the ceiling a rivalry must stay under to count as `worthy`. That makes the two
+**mutually exclusive by construction** rather than by a tie-break, and there is a test asserting it.
+Across the invented club (§2.32) it produces bogey men at 8–23 and 17–34 beside worthy opponents at
+27–27 and 12–12 — 20 players, zero collisions. The tails print the denominator (`has beaten you 23 of
+31`) because the pick is made on the share and the bare count would leave a reader unable to see why
+that name and not a longer record with more losses in it.
+
 **One threshold, `MIN_PROFILE_NIGHTS = 4`, and it guards inferences only** — the same bar
 `MIN_NIGHTS` uses for rating calibration, and deliberately not a different number per statistic, so
 the page can be calibrated against as a whole rather than heading by heading. What it gates: the
@@ -2369,6 +2386,131 @@ registrar calls. It lives in its own file, reachable only from the test branch o
 derived award can never be reached from live code. The newest month is left out: a month that has not
 ended has not been announced, and including it would make the sandbox disagree with the one behaviour
 anyone testing the feature is trying to see.
+
+### 2.33 Tonight's derby (`src/derby.ts`, `DerbyBanner.tsx`)
+
+The two players on opposing shirts who **cannot put each other away** — the closest head-to-head
+record on tonight's sheet, over enough matches to mean it. Rendered above the milestone strip in
+`TonightFacts`, so the organiser's fixture page and the group's live view get the identical card
+(§2.21).
+
+**A derby is not a bogey man, and the difference is the whole design.** `matchupPicks` already finds
+the player whose team has beaten yours most, and that is the right fact for a profile page you opened
+about yourself. It is the wrong fact for a banner the entire group reads before kick-off — *"ניב has
+beaten אופק 12 times to 2"* puts one named friend on a screen as the loser, every week, decided by an
+app. The symmetric version costs nothing and reads better anyway: a rivalry that is *level* is the one
+worth announcing, which is what the word has always meant.
+
+**The pick is the smallest `gap = |beat − beatenBy|`, and the longer rivalry wins a tie.** Same shape
+as the worthy opponent on a player's page (§2.18), which is the right family: both are looking for two
+people who cannot separate themselves.
+
+**This replaced a first attempt, and the reason is worth keeping.** That version scored
+`contested = 2 × min(beat, beatenBy)` — "how many of their matches have gone each way" — which reads
+elegant and is dominated by **volume**. Measured against the invented club (§2.32) it crowned a 40–32
+record over 72 matches, a 56% split that is not level at all, while a dead-level 27–27 over 54 came
+third. Worse, the pair it named were the two keenest attenders in the club, so the same two names
+would have headlined a large share of every night — and a banner that says the same thing every week
+stops being read. Ranking on the gap picks the rivalry rather than the fixture list.
+
+**A floor on matches and a ceiling on lopsidedness, and both are load-bearing.**
+
+- **`MIN_MATCHES = 10`.** A gap of zero is trivially available — play someone once, lose, play again,
+  win — so the floor is what separates "cannot be separated" from "has barely been tried". With
+  roughly seventy-five cross-team pairs on any sheet, several are dead level at 1–1 by accident. A
+  little above the worthy opponent's `MIN_FACED = 8` on purpose: that card is one line on a page about
+  you, this is the only thing on the screen and it is addressed to everyone.
+- **`BOGEY_RATE`, imported from `playerProfile.ts` rather than re-declared.** Ranking on the gap picks
+  the *least* lopsided pair, which is not the same as picking a level one — on a night where nobody is
+  close, the closest available might be 14–6, and announcing that to the group is the bogey man this
+  file exists to avoid, arrived at by a different road. So a pair who clear 0.6 in either direction get
+  no banner at all. Sharing the constant buys a property worth stating plainly: **a derby is a pairing
+  in which neither player is the other's bogey man.** Two 0.6s in two files would drift and the
+  sentence would quietly stop being true.
+
+This also rules out the shrinkage `duos.ts` uses: pulling a thin record toward even is the exact wrong
+correction when *even* is what you are hunting, and would rank 1–1 above 9–7. The floor does that job
+by refusing thin records outright rather than by adjusting them.
+
+**Counted in matches, not nights**, so only nights logged match by match can answer it (§2.17) — the
+same constraint `Matchup.faced` carries. A night is a blunt unit for a rivalry: two players can be
+opponents for two hours and the night records one winner between three teams.
+
+Measured across the invented season: **silent on 6 of 40 nights** (the early ones, before anybody has
+ten matches against anybody), and **25 different pairs named across the other 34** — the most-named
+appears four times in a season. Late on it is finding 27–27 over 54 and 24–24 over 48. Both numbers
+matter: the first says the floor is not strangling it, the second says the repetition problem the
+contested-matches version had is gone.
+
+Guests are excluded by name rather than left to the floor: a guest carries a fresh id every visit, so
+a pair involving one can never accumulate a record — the same reasoning as milestones and duos.
+`tonightId` is excluded too, since tonight's own result is not part of the record the two of them are
+bringing *into* tonight.
+
+**Both names are the same size, and there is a test for it.** Every other pick in this app has a
+subject — a milestone belongs to one player, a bounty is on one player — and this one is symmetric by
+construction, so the layout has to be symmetric too or the reader will decide the one on the left is
+the favourite. The shirts do the colouring, because this pairing is only a derby *because of how the
+teams came out*; next week they will probably be on the same side. And the card says **"14 matches on
+opposite sides"** underneath, because `7–7` beside two names is exactly what a goal tally looks like,
+and this app has never counted a goal in its life (§2.9).
+
+### 2.34 Folding the match-night panels (`TonightFacts.tsx`, `ui.tsx`)
+
+A match night carries three panels of facts — **🎯 On the line tonight**, **⚔️ Tonight's derby**, and
+**📋 Coming in tonight** — alongside the clock and the match log. Two changes, both about a page that
+is used standing up.
+
+**The clock and the log come first, the facts after.** They were the other way round, ordered by how
+interesting each panel is, which put most of a screen of reading between the organiser and the two
+controls they actually came for. The facts are read once, before kick-off; the clock and the log are
+touched every few minutes for two hours, with wet hands, by somebody not looking for long. Both
+`FixturePage` and `LiveFixtureView` were reordered, for the same reason (§2.21).
+
+**And each panel folds**, via a shared `FoldHeader` in `ui.tsx`.
+
+**The heading is the control.** No separate chevron button: the eyebrow label was already there and
+already the width of the card, so making it the target costs no pixels and gives a thumb something
+to hit. `▲ hide` / `▼ show` in words as well as a glyph, matching the past-nights shelf in History
+(§2.14) — a bare chevron is the kind of control people do not find on a phone.
+
+**The chrome is not shared, only the affordance.** The three cards look deliberately different —
+orange for what is at stake, violet for the derby, cream for what is already true — so `FoldHeader`
+takes a `className` and each card keeps its own palette. A fold control that varied between them
+would read as three unrelated widgets rather than one habit.
+
+**A fold lasts exactly one fixture.** Two requirements pulling opposite ways, resolved by what the
+key is made of — `armonim:folded:<fixtureId>` in `sessionStorage`:
+
+- **It must survive a reload**, which is why this is storage rather than component state. The live
+  view is reloaded constantly at a pitch — a phone locks, a signal drops, somebody re-opens the link
+  — and re-folding three panels each time is precisely the annoyance folding was added to remove.
+- **It must die with the fixture**, which is what the id in the key buys. A fold is a decision about
+  *tonight's* facts: this derby, this set of near-milestones. Carrying it into next Thursday would
+  mean somebody who tidied the page away once silently gets a barer app every week after, with no
+  memory of having asked for it. Keying on the fixture makes "it ends when the fixture ends" true
+  **without anything having to notice that it ended** — no cleanup on the end-fixture path, nothing
+  to forget to call. A write sweeps every other fixture's entry on the way past, so at most one is
+  ever kept.
+
+`sessionStorage` rather than `localStorage` as the backstop, the same trade test mode makes (§2.32):
+closing the tab is a second thing that ends a night, and neither should outlive it. Open is the
+default, and open is what a failed read returns.
+
+The id arrives *late* — a fixture has no published id until the organiser publishes it — so one night
+can be shown under two keys in a sitting. `useFold` re-derives on the key rather than only on mount,
+or a fold from a moment ago would be read back off the wrong entry.
+
+**`MilestoneStrip` gained the heading it never had.** It is the one panel that was a bare card, and
+a fold needs a label to hang on. `title`, `open` and `onToggle` are all optional, so the night page
+(§2.22) — where this strip is the record of a night already over, on a page with no clock to reach —
+renders exactly what it always did. **"Coming in tonight"** is the counterpart to "on the line
+tonight" above it: what everyone brings to the pitch, as against what they could leave with.
+
+**One fact per line, now in both panels.** "On the line tonight" wrapped inline, so two facts could
+share a line and a third straddle two — "איתי is 3 from 100 career wins  אורי is 2 from 100 career
+wins" reads as one sentence about a pair of people. These are separate claims about separate people;
+`MilestoneStrip` had already been fixed this way and the argument was the same one.
 
 ## 3. Team generation algorithm
 

@@ -372,25 +372,74 @@ export const MIN_MATCHUP = 2;
 // opponents against each other several times over, so this is a couple of
 // nights' worth rather than a couple of matches — enough that a record is
 // about how they play each other rather than about one evening.
-export const MIN_FACED = 6;
+export const MIN_FACED = 8;
+
+/**
+ * How often somebody has to beat you before they are a bogey man — and, read
+ * the other way, how level a record has to stay to be a *rivalry*.
+ *
+ * One constant doing both jobs is the fix for a real bug: the bogey man and
+ * the worthy opponent kept coming out as **the same person**. The bogey pick
+ * used to be a raw count of matches lost, so the player you had faced most was
+ * usually top of it — and the player you have faced most is also, very often,
+ * the one with the closest record, because a long record has had time to even
+ * out. A 10–12 head-to-head is simultaneously "the most matches he has beaten
+ * you in" and "the most level record you have", and the page said both about
+ * one man on the same card.
+ *
+ * A *rate* is the right question anyway — being beaten twelve times by the man
+ * you have played ninety matches against is not a bogey man, it is a lot of
+ * football. Once the bogey is a rate, using the same number as the ceiling for
+ * `worthy` makes the two **mutually exclusive by construction** rather than by
+ * a tie-break somewhere: at 60%, a bogey man is someone who takes at least
+ * three in five, and a rivalry stays worthy only while neither of them does.
+ *
+ * Sixty per cent against `MIN_FACED = 8` means the thinnest possible bogey man
+ * is a 5–3 record. That is deliberately not a high bar — this is a count on a
+ * page about somebody's own football, not a claim about the club — but it is
+ * far enough off even that the two picks can never be one person again.
+ */
+export const BOGEY_RATE = 0.6;
 
 export interface MatchupPicks {
   playedMost: Matchup | null; // most nights alongside
   wonMost: Matchup | null; // most nights *won* alongside — a different question
   facedMost: Matchup | null; // most matches on opposite sides
-  bogey: Matchup | null; // whose team has beaten theirs in the most matches
+  bogey: Matchup | null; // beats them the highest share of the time
   victim: Matchup | null; // and the other way round
   worthy: Matchup | null; // the closest record of the lot
   neverTogether: Matchup | null; // seen plenty, never once on the same team
 }
 
+const shareOf = (wins: number, faced: number): number => (faced > 0 ? wins / faced : 0);
+
+// The highest *share*, not the highest count. Ties go to the pairing with more
+// football behind it — 6 of 8 beats 3 of 4, both being three-quarters — and
+// then to the name, never to whichever way the sort happened to fall.
+const pickByShare = (list: Matchup[], wins: (m: Matchup) => number): Matchup | null => {
+  const best = [...list]
+    .filter((m) => m.faced >= MIN_FACED && shareOf(wins(m), m.faced) >= BOGEY_RATE)
+    .sort(
+      (a, b) =>
+        shareOf(wins(b), b.faced) - shareOf(wins(a), a.faced) ||
+        b.faced - a.faced ||
+        a.name.localeCompare(b.name, 'he'),
+    )[0];
+  return best ?? null;
+};
+
 // The most even head-to-head anybody has: fewest matches between the two
 // columns, and among equally close records the one with the most football
 // behind it — 6–5 is a worthier rivalry than 1–1, and both are a gap of one.
+//
+// The BOGEY_RATE ceiling is what keeps this from naming the same person the
+// bogey pick just named. A record where one side takes three in five is a
+// mismatch being described as a rivalry.
 function pickWorthy(list: Matchup[]): Matchup | null {
   const gap = (m: Matchup) => Math.abs(m.beat - m.beatenBy);
+  const level = (m: Matchup) => shareOf(Math.max(m.beat, m.beatenBy), m.faced) < BOGEY_RATE;
   const best = [...list]
-    .filter((m) => m.faced >= MIN_FACED)
+    .filter((m) => m.faced >= MIN_FACED && level(m))
     .sort((a, b) => gap(a) - gap(b) || b.faced - a.faced || a.name.localeCompare(b.name, 'he'))[0];
   return best ?? null;
 }
@@ -421,8 +470,8 @@ export function matchupPicks(list: Matchup[], subjectNights: number): MatchupPic
     playedMost: pickBy(list, (m) => m.together, MIN_MATCHUP),
     wonMost: pickBy(list, (m) => m.togetherWon, MIN_MATCHUP),
     facedMost: pickBy(list, (m) => m.faced, MIN_FACED),
-    bogey: pickBy(list, (m) => m.beatenBy, MIN_MATCHUP),
-    victim: pickBy(list, (m) => m.beat, MIN_MATCHUP),
+    bogey: pickByShare(list, (m) => m.beatenBy),
+    victim: pickByShare(list, (m) => m.beat),
     worthy: pickWorthy(list),
     // the joke only lands if they have actually been around each other a lot
     neverTogether: pickBy(
