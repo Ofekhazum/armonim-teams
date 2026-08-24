@@ -22,12 +22,16 @@ import {
   toGo,
   winRungs,
 } from '../playerProfile';
-import { MIN_ARC_NIGHTS, playerArcs, rate } from '../playerArcs';
+import { MIN_ARC_NIGHTS, playerArcs } from '../playerArcs';
+import Quarters from './Quarters';
 import { playerTimeline } from '../playerTimeline';
 import PlayerTimeline from './PlayerTimeline';
 import { Name, STYLE_META, TEAM_META } from './ui';
 import { useScrollLock } from '../scrollLock';
 import { fetchAwards, monthsWon } from '../awards';
+import type { PlayerValue } from '../values';
+import { fetchValues } from '../values';
+import PriceTag from './PriceTag';
 import { periodLabel } from '../wrapped';
 
 // One player's page (§2.19). Everything on it is counted from history — the
@@ -166,6 +170,21 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
     };
   }, [player.id]);
 
+  // The price, which this device cannot work out for itself: the formula needs
+  // ratings and ratings do not leave the Worker (§2.28, §2.31). Undefined until
+  // it arrives, and undefined forever if the club is too new or the phone is
+  // offline — `PriceTag` renders nothing rather than an absence.
+  const [price, setPrice] = useState<PlayerValue | undefined>();
+  useEffect(() => {
+    let live = true;
+    fetchValues(players, history).then((values) => {
+      if (live) setPrice(values[player.id]);
+    });
+    return () => {
+      live = false;
+    };
+  }, [player.id, players, history]);
+
   // The same nights the ribbon is drawn from, read as a sequence of moments
   // rather than as a shape (§2.29). `totm` arrives from the network a beat
   // later, which simply adds shirts to a feed that was already correct.
@@ -296,6 +315,12 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
               aka {player.aliases!.join(', ')}
             </p>
           )}
+          {/* Inside the header rather than in a card of its own, because a
+              price is an attribute of the player the way the name and the
+              title are — the cards below are all *counts about* them. It is
+              also where Transfermarkt puts it, which is the reference anyone
+              reading it already has. */}
+          <PriceTag price={price} />
         </header>
 
         {/* The one honour on this page that is a *selection* rather than a
@@ -628,7 +653,7 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
                 somebody's character. */}
             <Card
               title="Across the night"
-              hint={enoughArcs ? `${arcs.matches} matches` : undefined}
+              hint={enoughArcs ? `${arcs.matches} matches logged` : undefined}
             >
               {!enoughArcs ? (
                 <p className="text-sm text-amber-900/55">
@@ -636,39 +661,7 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
                   {MIN_ARC_NIGHTS} needed. A tallied night says how much they won, never when.
                 </p>
               ) : (
-                <div className="space-y-3">
-                  <div>
-                    <div className="mb-1 flex items-baseline justify-between">
-                      <span className="text-[11px] font-bold uppercase tracking-wide text-amber-900/45">
-                        Where their wins land
-                      </span>
-                      <span className="text-[10px] text-amber-900/40">
-                        first quarter → last
-                      </span>
-                    </div>
-                    <div className="flex gap-1">
-                      {arcs.quarters.map((q, i) => {
-                        const r = rate(q);
-                        return (
-                          <div key={i} className="flex-1">
-                            <div
-                              className="flex h-12 items-end overflow-hidden rounded-lg bg-amber-900/[0.06]"
-                              title={`${q.won} of ${q.played} matches won in this quarter of the night`}
-                            >
-                              <div
-                                className="w-full rounded-lg bg-gradient-to-t from-orange-500 to-amber-400"
-                                style={{ height: `${(r ?? 0) * 100}%` }}
-                              />
-                            </div>
-                            <div className="mt-1 text-center font-mono text-[10px] font-bold text-amber-900/50">
-                              {q.played ? `${q.won}/${q.played}` : '—'}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
+                <Quarters arcs={arcs} />
               )}
             </Card>
           </>

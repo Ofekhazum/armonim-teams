@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { verifyWord } from './remote';
+import { TEST_WORD, isTestMode, setTestMode } from './testMode';
 
 // Prompt for the secret word and, if the Worker accepts it, unlock admin mode.
 // The word is verified server-side (and rate-limited there — see §6), never
@@ -14,6 +15,16 @@ export function useAdminUnlock(setAdminWord: (word: string | null) => void) {
   const unlockAdmin = async () => {
     const word = window.prompt('Enter the admin password:');
     if (word == null) return; // cancelled
+
+    // The sandbox word (§2.32). Checked here and never sent anywhere — the
+    // Worker has never heard of it, and must not: it unlocks invented data on
+    // one device, which is not a thing a server has any business knowing. The
+    // page reloads into the other club, so nothing from this one survives.
+    if (word.trim() === TEST_WORD) {
+      setTestMode(!isTestMode());
+      return;
+    }
+
     setUnlocking(true);
     const result = await verifyWord(word.trim());
     setUnlocking(false);

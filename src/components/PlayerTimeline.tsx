@@ -11,11 +11,15 @@ import { TEAM_META } from './ui';
 // line are as legible as the events on it — six months of nothing between two
 // dots reads as six months of nothing, which no ribbon of medals can show.
 
-// How many cards before the feed folds. A regular of two seasons has enough
-// events to push everything else on the page below the fold, and the recent end
-// is the end anyone came for. Chosen so a new player's whole career fits
-// without a button ever appearing.
-const PAGE = 8;
+// How many cards before the feed folds.
+//
+// Three, which is fewer than it looks. A career feed is the one card on this
+// page with no natural length — a regular of two seasons has dozens of events,
+// and at eight the timeline alone was taller than everything below it put
+// together, so the shirts, the shirts worn, the mates and rivals and the rest
+// of the profile were all below the fold on a phone. Three is a glance: what
+// happened lately. The rest is one tap away and folds back up again.
+const PAGE = 3;
 
 // One tone per kind, so the rail reads as a sequence of coloured moments rather
 // than a column of identical dots. Gold is reserved for the two events that are
@@ -154,12 +158,17 @@ export default function PlayerTimeline({ events }: { events: TimelineEvent[] }) 
         })}
       </ol>
 
-      {hidden > 0 && (
+      {/* Opens and closes. A one-way expand is a card that can only ever get
+          bigger, which on a phone means opening a long career once and then
+          scrolling past it for the rest of the visit. */}
+      {(hidden > 0 || all) && (
         <button
-          onClick={() => setAll(true)}
+          onClick={() => setAll((open) => !open)}
           className="mt-3 w-full rounded-xl border border-amber-900/15 px-3 py-2 text-xs font-bold text-amber-900/70 transition-colors hover:border-orange-500 hover:text-amber-900"
         >
-          ↓ {hidden} earlier {hidden === 1 ? 'moment' : 'moments'}
+          {all
+            ? '↑ Show less'
+            : `↓ ${hidden} earlier ${hidden === 1 ? 'moment' : 'moments'}`}
         </button>
       )}
     </div>

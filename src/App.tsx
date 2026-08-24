@@ -31,6 +31,8 @@ import Roster from './components/Roster';
 import MatchDay from './components/MatchDay';
 import History from './components/History';
 import { useAdminUnlock } from './useAdminUnlock';
+import { TEST_WORD, isTestMode } from './testMode';
+import TestModeBanner from './components/TestModeBanner';
 
 type Tab = 'live' | 'match' | 'roster' | 'history';
 
@@ -38,7 +40,13 @@ export default function App() {
   const [state, setState] = useState<AppState>(() => loadState());
   const [tab, setTab] = useState<Tab>('roster');
   // the secret word once unlocked — null means normal (read-only) mode
-  const [adminWord, setAdminWord] = useState<string | null>(null);
+  // The sandbox is admin from the moment it opens (§2.32). Most of what it
+  // exists to exercise — match day, the balancer, filing a night, the reporter
+  // — is behind admin, and there is nothing here to protect: the data is
+  // invented and there is no network to publish it to. The word itself is
+  // never used, only its presence, and `verifyWord` would reject it anyway
+  // because test mode has no Worker to ask.
+  const [adminWord, setAdminWord] = useState<string | null>(isTestMode() ? TEST_WORD : null);
   // whether this device has confirmed the roster's private fields against the
   // server since unlocking — see the fetchFullRoster effect below
   const [rosterHydrated, setRosterHydrated] = useState(false);
@@ -469,6 +477,9 @@ export default function App() {
 
   return (
     <div className="mx-auto max-w-5xl px-3 pb-16 sm:px-6">
+      {/* Above everything, on every tab, and not dismissible — see the note in
+          TestModeBanner. Renders nothing at all outside the sandbox. */}
+      <TestModeBanner />
       <header className="flex flex-wrap items-center justify-between gap-3 py-5">
         <h1 className="text-2xl font-black tracking-tight text-amber-950">
           <span className="mr-2">🦁</span>

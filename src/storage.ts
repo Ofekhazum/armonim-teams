@@ -1,8 +1,17 @@
 import type { AppState, Session } from './types';
 import { initialClock, migratePlayer } from './types';
 import { DEFAULT_PLAYERS } from './defaultRoster';
+import { isTestMode } from './testMode';
+import { buildTestClub } from './testData';
 
-const KEY = 'armonim-teams-v1';
+// Two keys, and which one this tab uses is decided once at module load (§2.32).
+// The live key is never opened in test mode and the test key is never opened
+// outside it — not by a check at each call site, but because `KEY` is a
+// constant that was resolved before the first render. There is no moment at
+// which the app could be reading one club and writing to the other.
+const LIVE_KEY = 'armonim-teams-v1';
+const TEST_KEY = 'armonim-teams-test-v1';
+const KEY = isTestMode() ? TEST_KEY : LIVE_KEY;
 const STORAGE_VERSION = 4;
 
 type PersistedState = AppState & { version?: number };
@@ -67,6 +76,11 @@ export function loadState(): AppState {
   } catch {
     // corrupted or stale state — start fresh
   }
+  // First open of the sandbox: seed it with the invented club rather than with
+  // the real default roster. Everything after this is ordinary app state saved
+  // under the test key, so the sandbox is editable and survives a reload the
+  // same way the real one does.
+  if (isTestMode()) return { ...buildTestClub(), session: emptySession() };
   // nothing saved on this device yet — start from the published roster
   return {
     players: DEFAULT_PLAYERS.map((p) => ({
