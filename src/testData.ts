@@ -22,7 +22,11 @@ import { TEAM_COLORS } from './balancer';
 import { OPENING_PAIRS, restingTeam, winsFromLog } from './matchLog';
 
 const SEED = 0x5f3a91;
-const PLAYER_COUNT = 20;
+// Exported rather than kept local: the banner (`TestModeBanner.tsx`) states
+// both counts in its copy, and a hardcoded "20 nights" in a second file is
+// exactly how that number went stale the first time — NIGHTS moved from 20 to
+// 40 and nothing checked that the sentence describing it still agreed.
+export const PLAYER_COUNT = 20;
 
 /**
  * How many Thursdays. **Forty, and the number was measured rather than picked.**
@@ -46,7 +50,7 @@ const PLAYER_COUNT = 20;
  * Forty is also what puts the keenest players past `VETERAN_NIGHTS = 25`, so
  * the long-service badge can appear at all. Fifty-two buys nothing further.
  */
-const NIGHTS = 40;
+export const NIGHTS = 40;
 const SQUAD_PER_NIGHT = 15; // three fives — the size the balancer is built for
 
 // Hebrew, like the real roster. Not decoration: names are what the profile

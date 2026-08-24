@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import TestModeBanner from './TestModeBanner';
+import { NIGHTS, PLAYER_COUNT } from '../testData';
 
 // The banner (§2.32), after it turned out to cover the Back button on every
 // full-screen overlay. jsdom does not paint or lay anything out, so the actual
@@ -52,5 +53,15 @@ describe('the test mode banner', () => {
     await renderInTestMode();
     expect(screen.getByText(/Test mode — invented club/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Back to the real club/ })).toBeInTheDocument();
+  });
+
+  it('states the actual size of the invented club, not a copied-in number', async () => {
+    // The first bug this caught: the copy said "20 nights" by hand while
+    // testData.ts had already moved NIGHTS to 40, and nothing noticed because
+    // nothing tied the sentence to the constant it was describing. Reading
+    // both off the same export is what makes that class of drift impossible
+    // rather than just unlikely.
+    await renderInTestMode();
+    expect(screen.getByText(`${PLAYER_COUNT} players, ${NIGHTS} nights.`, { exact: false })).toBeInTheDocument();
   });
 });

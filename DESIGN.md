@@ -2309,6 +2309,13 @@ has no stacking context at all, so a static block can never out-rank a `fixed` p
 z-index either is given — the property this needed, not a taller number. The trade: the banner no
 longer stays visible while scrolling a long tab, the way the header above it never has either.
 
+**The banner's copy names the club's size from `testData.ts`'s own exports (`NIGHTS`,
+`PLAYER_COUNT`), not from a number typed into the sentence.** It said "20 nights" by hand for a while
+after `NIGHTS` moved to 40, because nothing tied the sentence to the constant it was describing —
+the same shape of bug as any other duplicated fact, just easy to miss on a banner nobody reads twice.
+Reading both off the one export makes that drift impossible rather than merely unlikely, and there is
+a test asserting the rendered sentence matches the current constants rather than a copied-in number.
+
 **The sandbox is admin from the moment it opens**, because most of what it exists to exercise is
 behind admin and there is nothing here to protect. `test_mode` is checked in the client and **never
 sent anywhere** — the Worker has never heard of it and must not.

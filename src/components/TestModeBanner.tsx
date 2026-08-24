@@ -1,4 +1,5 @@
 import { isTestMode, setTestMode } from '../testMode';
+import { NIGHTS, PLAYER_COUNT } from '../testData';
 
 // The banner that makes test mode impossible to be in by accident (§2.32).
 //
@@ -34,7 +35,8 @@ export default function TestModeBanner() {
         🧪 Test mode — invented club
       </span>
       <span className="text-[11px] font-semibold text-violet-900/70">
-        20 players, 20 nights. Nothing here is published, and the real club is untouched.
+        {PLAYER_COUNT} players, {NIGHTS} nights. Nothing here is published, and the real club is
+        untouched.
       </span>
       <button
         onClick={() => setTestMode(false)}
