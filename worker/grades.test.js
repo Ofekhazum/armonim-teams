@@ -130,6 +130,25 @@ describe('buildGradesPrompt', () => {
     expect(p).toMatch(/Mock the football, never the person/);
   });
 
+  it('refuses a scoreline in nicer words as a joke', () => {
+    // A real spike came back as fact restatement with a nicer verb — "scraped
+    // a single win" — dressed as banter. Named directly so the model cannot
+    // satisfy the letter of "be funny" while missing the point of it.
+    const p = buildGradesPrompt(facts());
+    expect(p).toMatch(/A SCORELINE IN NICER WORDS IS NOT A JOKE/);
+    expect(p).toMatch(/If your sentence would work as a caption under a stats table/);
+  });
+
+  it('hands the model concrete devices rather than only an adjective', () => {
+    // "Funny, sharp, a bit rude" alone produced flat prose in the field — one
+    // sentence is a harder format to be funny in than five paragraphs, and it
+    // needs more to reach for, not less.
+    const p = buildGradesPrompt(facts());
+    for (const device of ['EXAGGERATE WILDLY', 'INVENT A NAME FOR THE NIGHT', 'MOCK DEMAND', 'RHETORICAL']) {
+      expect(p).toContain(device);
+    }
+  });
+
   it('says what each player brought in, so the joke has material', () => {
     const p = buildGradesPrompt(facts());
     expect(p).toContain('נבחר לשחקן הערב'); // the MVP
