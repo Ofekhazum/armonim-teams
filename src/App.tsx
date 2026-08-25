@@ -34,7 +34,7 @@ import { useAdminUnlock } from './useAdminUnlock';
 import { TEST_WORD, isTestMode } from './testMode';
 import TestModeBanner from './components/TestModeBanner';
 
-type Tab = 'live' | 'match' | 'roster' | 'history';
+type Tab = 'live' | 'match' | 'roster' | 'club';
 
 export default function App() {
   const [state, setState] = useState<AppState>(() => loadState());
@@ -496,7 +496,7 @@ export default function App() {
           {(liveFixture || tab === 'live') && liveTabBtn}
           {isAdmin && tabBtn('match', 'Match day')}
           {tabBtn('roster', `Roster (${state.players.length})`)}
-          {tabBtn('history', 'History')}
+          {tabBtn('club', 'Club')}
           {/* Unlocking lives in the header rather than on the Roster tab
               because what it gates is spread across all of them — Match day,
               the rating column in History, ending a live fixture — and having
@@ -562,7 +562,7 @@ export default function App() {
           setAdminWord={setAdminWord}
           rosterHydrated={rosterHydrated}
         />
-      ) : tab === 'history' ? (
+      ) : tab === 'club' ? (
         <History
           history={readHistory}
           players={state.players}

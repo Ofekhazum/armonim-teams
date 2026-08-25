@@ -2512,6 +2512,162 @@ share a line and a third straddle two — "איתי is 3 from 100 career wins  �
 wins" reads as one sentence about a pair of people. These are separate claims about separate people;
 `MilestoneStrip` had already been fixed this way and the argument was the same one.
 
+### 2.36 Club statistics (`leaderboards.ts`, `Leaderboards.tsx`, `History.tsx`)
+
+The History tab became **Club statistics**: the same page it always was, plus podiums and the two-player
+comparison (§2.37). A league scatter plot was built against this same structure and is parked on
+`feature/league-scatter` rather than shipped — the `Section` machinery below is what it slots into if it
+comes back.
+
+**The tab strip says "Club", the page says "Club statistics".** The strip is
+`[Match day] [Roster (20)] [Club]` and lives on a phone; the full phrase is roughly double the width of
+the word it replaced and would have wrapped the nav to two lines. A short tab and a full `<h2>` costs
+nothing and says the same thing.
+
+**The past-nights shelf stays first.** It was tempting to lead with the numbers now that the page is
+named after them, and that would have made two comments — here and in `storage.ts` — quietly stop
+being true, both of which say *the shelf is what the tab is for*. It still is: a night is a story and
+the rest is reference. The new sections go **below** the career table, and the admin panels stay
+exactly where they were.
+
+**Every section folds**, via the same `FoldHeader` the match night uses (§2.34). Nine blocks on one
+phone-width page is the problem folding was built for. **Team of the Month starts folded** — it is
+admin tooling that opens to a row of buttons per month, used once when a pick needs correcting, and it
+was the largest thing between an organiser and the football.
+
+That default is why the stored shape is a **map of choices** rather than a list of hidden ids. A hidden
+list cannot express "closed unless you say otherwise": Team of the Month's default would have been
+indistinguishable from a fold the reader had chosen, so opening it once and returning later would have
+been ambiguous. Storing what somebody actually chose, and falling back to each section's own default
+until they do, keeps the two apart — and means changing a default later does not have to fight state
+already sitting on a device. A stored value that is not a plain map (including the older hidden-list
+format) is read as no preference at all rather than trusted.
+
+**Rating suggestions sit directly above the career table.** They are a claim about the numbers in it,
+and the `vs rating` column they come from is one of its columns; three sections higher up they were an
+instruction to go and check something further down the page.
+
+**But the fold state is stored differently from the match night's, on purpose.** Those folds are keyed
+by fixture in `sessionStorage`, because a fold there is a decision about *tonight* and must not outlive
+it. This tab has no event to expire against — somebody uninterested in podiums is uninterested next
+week too — so it uses `localStorage`, one key holding the hidden section ids. That matches the
+past-nights shelf sitting beside it, whose comment already explains the reasoning: the tabs unmount, so
+without storage "hidden" would only last until you looked at something else. One key rather than a key
+per section, because sections are still being added and a growing family of near-identical keys is how
+one of them ends up misspelled.
+
+#### The podiums
+
+Six boards — most match wins, most nights won outright, most nights played, most MVP picks, longest
+winning run, and on a run right now. **Nothing is newly measured**: every one is a column that already
+existed in `playerStandings`, `mvpCounts`, or `achievements.ts`, which computes both winning runs in
+order to badge them. `longestWinRun` and `activeWinRun` were exported rather than reimplemented — a
+podium and a badge disagreeing about whose run is longest is the kind of bug nobody reports, because
+both numbers look plausible alone.
+
+**Counts only, and the exclusion is the point.** `perNight` is the one number on the career table that
+is a *rate*, and a rate must not go on a podium. Sorted in a column, "2.5 per night off two nights"
+sits in a list the reader can see the rest of; on a podium it becomes "best in the club" with the
+sample size nowhere on screen. Wins, nights and picks are totals — more football can only ever help —
+so none of them can do that to anybody. `perNight` stays a sortable column (§2.9).
+
+**Ties share a rank, and a board can therefore be longer than three names.** Standard competition
+ranking, the same rule `placeOf` uses for three teams level on a night: two players tied on 15 are both
+first and the next is *third*. Drawing exactly three would mean picking one of two genuinely level
+players to print and one to hide, and there is no honest rule for choosing. Measured on the invented
+club, "most nights won outright" runs to five names.
+
+**Zero is dropped before ranking, not after.** A board reading "0 · 0 · 0" is not an empty podium, it is
+three people being told publicly that they have none of something — and for a count like MVP picks that
+most players will never have, that would be most of the roster. A board with no one left disappears
+entirely, which is also why **🔥 On a run right now vanishes after a drawn night**: `winnerOf` says
+nobody takes a night that ends level at the top (§2.6), so nobody is on a run, and the board correctly
+has nothing to say. Verified against the invented club, whose final night ends 4–4.
+
+**Silent below `MIN_NIGHTS_FOR_BOARDS`**, which is `MIN_NIGHTS_FOR_TITLES` imported rather than
+re-declared — that constant already answers "has the league happened enough for a superlative about it
+to mean anything", and its own comment applies here word for word. Two constants would be two answers
+to one question and they would drift. `leaderboards()` returns `[]` rather than a list of empty boards,
+the same shape `fitnessRings` uses (§2.35): "not yet" is one state, said once.
+
+#### What came out of the career table
+
+The badge cluster beside each name, and the nine-line key under the table that existed to decode it.
+That cluster was the only aggregated "who tops what" a non-admin could see, which is why **it could only
+be removed in the same commit that added the podiums** — taking it out first would have lost the
+information for however long the gap lasted. The podiums say the same thing in words, with the count
+beside each name, and the widest rows no longer carry nine emoji.
+
+Untouched: `titleBadgeFor` still drives the roster skins and the title on a player's page, and the
+badges themselves still appear on the player page. Only the table lost them.
+
+**The medal palette moved to `ui.tsx`** and is now shared by the night ribbon and the podiums. A reader
+who has learnt what the 2 on their ribbon means should not have to learn a second palette to read a
+rank.
+
+**A `bdi` sets its own direction, which broke the first layout.** With the name given `flex-1`, a Hebrew
+name aligned to the right edge of a stretched box and drifted a couple of centimetres from the medal it
+belonged to — while an English name in the same markup would not have. The name now hugs its medal and
+a spacer takes the slack, which reads correctly in either direction.
+
+### 2.37 Comparing two players (`compare.ts`, `PlayerCompare.tsx`)
+
+Two pickers and two columns of counts, folded away at the bottom of the Club tab. **Nothing new is
+measured**: each side is `profileCounts` over `profileNights` — the same numbers the career table
+prints — and the shared half is one entry out of `matchups()`, which has counted both "alongside" and
+"against" since §2.18.
+
+**The rule this screen is built around is that it must not rank two named friends.** It is kept by
+restricting the rows to numbers *both players own separately* — nights, nights won, match wins, MVP
+picks, longest run — each a count of something that happened to each of them on their own, so putting
+them side by side is arithmetic a reader could do by looking at the table twice. There is a test
+asserting the rendered panel contains no "leads", no "winner", no "better", no crown and no tick, and
+it is the most important test in the file.
+
+That test earned its keep immediately: the row now labelled **"Longest run"** was first written as
+"Best run", and the assertion failed on the word *best*. The podium already calls the same statistic
+"Longest winning run" (§2.36), so the fix was also the consistent name — but the point is that a
+judgement word had walked onto the screen unnoticed inside an ordinary stat label.
+
+**`perNight` appears here, having been excluded from the podiums, and the difference is the sample
+size.** A podium shows "best in the club" with nothing to calibrate against; here the nights each rate
+was divided by sit two rows above it in the same panel. A rate whose denominator is on screen is a
+fact; one whose denominator is not is a verdict.
+
+**Both pickers start empty.** There is no non-arbitrary default — the app has no idea which of twenty
+players is holding the phone (device identity is still parked) — and defaulting would put an arbitrary
+pair of friends on screen under a heading that invites comparing them. The section is also
+`defaultOpen={false}`, because it does nothing at all until two names are chosen.
+
+**The bar under each row is the ratio and declares nothing.** Where both sides are zero the track stays
+empty rather than splitting 50/50: "0 against 0" is not a dead heat, it is nothing to compare. The bar
+is `dir="ltr"` so the left number always owns the left bar, whichever direction the names beside it run.
+
+**The larger figure on each row is boxed, and where the line is drawn matters.** Marking which of two
+numbers is bigger is arithmetic the reader could do by looking at them; a crown, a tick or the word
+"leads" would be the app calling somebody the better player off a count that cannot carry it. So the
+highlight is a tint and a ring, **tinted per side** rather than gold — which keeps the picker → bar →
+highlight chain in one colour and stops it reading as a medal. Strictly greater, so **a tie boxes
+neither**: level is not a win, and two zeroes are a tie by the same rule, which is right, because
+nobody won a count nobody has. The no-judgement-words test is unaffected and stays green — the
+highlight adds emphasis, not vocabulary.
+
+**The figures themselves wear the page's ordinary ink**, not the side colours. A column of coloured
+numbers reads as a status — *this one is the good one* — before it reads as a quantity, and the
+quantity is the point. The pickers keep their colours, because that is what maps a chosen name onto
+the bar beneath it.
+
+**Three shared states, and they are genuinely different.** Nights on the same team; nights on opposing
+teams; and matches faced — the last only from nights logged match by match (§2.17). So `against > 0`
+with `faced === 0` is a real and common state, meaning "opponents all evening, but nobody wrote the
+matches down", and the panel says exactly that rather than printing a silent zero. Never having shared
+a sheet at all is a third state with its own sentence. The head-to-head line says **"אופק's team has
+beaten ניב's"** — teams beat teams, never people (§2.8) — even though the 🥊 beside it is allowed its fun.
+
+Names come off the fixtures rather than the roster, newest first: somebody who has left the club can
+still be compared because their record happened, and somebody who changed their name reads as the name
+they go by now.
+
 ## 3. Team generation algorithm
 
 Balancing is a small constrained optimization. With ≤15 players, brute force is too big

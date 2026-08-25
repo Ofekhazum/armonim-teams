@@ -129,7 +129,11 @@ export interface PlayerAchievements {
   achievements: Achievement[];
 }
 
-function longestWinRun(apps: { won: boolean }[]): number {
+// Exported for `leaderboards.ts`, which ranks the same two runs it badges here.
+// One implementation rather than two: a podium and a badge disagreeing about
+// whose run is longest is exactly the kind of bug nobody reports, because both
+// numbers look plausible on their own.
+export function longestWinRun(apps: { won: boolean }[]): number {
   let best = 0;
   let cur = 0;
   for (const a of apps) {
@@ -143,7 +147,7 @@ function longestWinRun(apps: { won: boolean }[]): number {
 // one they have ever had — and the only one of the two worth wearing. A player
 // who won three on the trot last winter is not "on a run"; the title says
 // something is happening, so it has to still be happening.
-function activeWinRun(apps: { won: boolean }[]): number {
+export function activeWinRun(apps: { won: boolean }[]): number {
   let n = 0;
   for (let i = apps.length - 1; i >= 0 && apps[i].won; i--) n++;
   return n;
