@@ -2514,8 +2514,10 @@ wins" reads as one sentence about a pair of people. These are separate claims ab
 
 ### 2.36 Club statistics (`leaderboards.ts`, `Leaderboards.tsx`, `History.tsx`)
 
-The History tab became **Club statistics**: the same page it always was, plus podiums, with room reserved
-below for the player comparison and the scatter plot.
+The History tab became **Club statistics**: the same page it always was, plus podiums and the two-player
+comparison (§2.37). A league scatter plot was built against this same structure and is parked on
+`feature/league-scatter` rather than shipped — the `Section` machinery below is what it slots into if it
+comes back.
 
 **The tab strip says "Club", the page says "Club statistics".** The strip is
 `[Match day] [Roster (20)] [Club]` and lives on a phone; the full phrase is roughly double the width of
