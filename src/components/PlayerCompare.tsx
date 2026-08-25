@@ -21,8 +21,23 @@ import { Name, fmtWins } from './ui';
 
 const A_BAR = 'bg-orange-500';
 const B_BAR = 'bg-sky-500';
+// The pickers keep the side colours, because that is what maps a chosen name
+// onto the bar underneath it. The *numbers* do not: a column of coloured
+// figures reads as a status ("this one is the good one") before it reads as a
+// quantity, and the quantity is the point. So they wear the page's ordinary
+// ink and the highlight below carries the comparison.
 const A_TEXT = 'text-orange-700';
 const B_TEXT = 'text-sky-700';
+
+// The side that has more of this particular count, boxed. Deliberately a tint
+// and a ring rather than a crown, a tick or the word "leads": it marks which
+// number is larger, which is arithmetic the reader could do by looking at the
+// two figures — where a crown would be the app calling somebody the better
+// player off a count that cannot carry it (§2.9). Tinted per side rather than
+// gold for the same reason, and because it keeps the picker → bar → highlight
+// chain in one colour.
+const A_WON = 'bg-orange-500/15 ring-1 ring-orange-500/40';
+const B_WON = 'bg-sky-500/15 ring-1 ring-sky-500/40';
 
 interface Row {
   label: string;
@@ -54,17 +69,23 @@ function rowsOf(c: Comparison): Row[] {
 function StatRow({ row }: { row: Row }) {
   const total = row.a + row.b;
   const aPct = total > 0 ? (row.a / total) * 100 : 0;
+  // Strictly greater, so a tie highlights neither — level is not a win, and
+  // boxing both would say the opposite of what the numbers say. Two zeroes are
+  // a tie by this rule as well, which is right: nobody won a count nobody has.
+  const aWon = row.a > row.b;
+  const bWon = row.b > row.a;
+  const figure = 'rounded-md px-1.5 py-0.5 font-mono text-sm font-black tabular-nums text-amber-950';
   return (
     <div>
       <div className="flex items-baseline gap-2">
-        <span className={`w-16 shrink-0 font-mono text-sm font-black tabular-nums ${A_TEXT}`}>
-          {row.print(row.a)}
+        <span className="w-[4.5rem] shrink-0">
+          <span className={`${figure} ${aWon ? A_WON : ''}`}>{row.print(row.a)}</span>
         </span>
         <span className="flex-1 text-center text-[11px] font-bold uppercase tracking-wide text-amber-900/50">
           {row.label}
         </span>
-        <span className={`w-16 shrink-0 text-end font-mono text-sm font-black tabular-nums ${B_TEXT}`}>
-          {row.print(row.b)}
+        <span className="w-[4.5rem] shrink-0 text-end">
+          <span className={`${figure} ${bWon ? B_WON : ''}`}>{row.print(row.b)}</span>
         </span>
       </div>
       {/* `dir="ltr"` so the split reads left-to-right regardless of the names

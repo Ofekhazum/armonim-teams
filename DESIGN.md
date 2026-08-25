@@ -2641,6 +2641,20 @@ pair of friends on screen under a heading that invites comparing them. The secti
 empty rather than splitting 50/50: "0 against 0" is not a dead heat, it is nothing to compare. The bar
 is `dir="ltr"` so the left number always owns the left bar, whichever direction the names beside it run.
 
+**The larger figure on each row is boxed, and where the line is drawn matters.** Marking which of two
+numbers is bigger is arithmetic the reader could do by looking at them; a crown, a tick or the word
+"leads" would be the app calling somebody the better player off a count that cannot carry it. So the
+highlight is a tint and a ring, **tinted per side** rather than gold — which keeps the picker → bar →
+highlight chain in one colour and stops it reading as a medal. Strictly greater, so **a tie boxes
+neither**: level is not a win, and two zeroes are a tie by the same rule, which is right, because
+nobody won a count nobody has. The no-judgement-words test is unaffected and stays green — the
+highlight adds emphasis, not vocabulary.
+
+**The figures themselves wear the page's ordinary ink**, not the side colours. A column of coloured
+numbers reads as a status — *this one is the good one* — before it reads as a quantity, and the
+quantity is the point. The pickers keep their colours, because that is what maps a chosen name onto
+the bar beneath it.
+
 **Three shared states, and they are genuinely different.** Nights on the same team; nights on opposing
 teams; and matches faced — the last only from nights logged match by match (§2.17). So `against > 0`
 with `faced === 0` is a real and common state, meaning "opponents all evening, but nobody wrote the

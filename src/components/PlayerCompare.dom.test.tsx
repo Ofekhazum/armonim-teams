@@ -114,6 +114,49 @@ describe('PlayerCompare', () => {
     expect(screen.getByText('Nights played')).toBeInTheDocument();
   });
 
+  it('boxes the larger number on each row, and only that one', () => {
+    // 'אופק' has 2 nights and 2 wins to 'ניב''s 0 — so the left figure is
+    // boxed on those rows and the right one never is.
+    const { container } = render(<PlayerCompare history={HISTORY} options={OPTIONS} />);
+    pick('Pick a player…', 'אופק');
+    pick('Pick another…', 'ניב');
+    const boxed = [...container.querySelectorAll('span')].filter((s) =>
+      s.className.includes('ring-orange-500/40') || s.className.includes('ring-sky-500/40'),
+    );
+    expect(boxed.length).toBeGreaterThan(0);
+    // every highlight here belongs to the left side, which won every row it won
+    expect(boxed.every((s) => s.className.includes('ring-orange-500/40'))).toBe(true);
+  });
+
+  it('boxes neither side on a tie', () => {
+    // Both played the same two nights on opposite shirts, so "nights played"
+    // is level. Level is not a win, and boxing both would say the opposite of
+    // what the numbers say.
+    const { container } = render(<PlayerCompare history={HISTORY} options={OPTIONS} />);
+    pick('Pick a player…', 'אופק');
+    pick('Pick another…', 'ניב');
+    const row = [...container.querySelectorAll('div')].find((d) =>
+      d.textContent?.startsWith('2') && d.textContent?.includes('NIGHTS PLAYED'),
+    );
+    const highlighted = row
+      ? [...row.querySelectorAll('span')].filter((s) => s.className.includes('ring-'))
+      : [];
+    expect(highlighted).toHaveLength(0);
+  });
+
+  it('prints the figures in ordinary ink, not in the side colours', () => {
+    // A column of coloured numbers reads as a status before it reads as a
+    // quantity. The bars and the highlight carry the comparison instead.
+    const { container } = render(<PlayerCompare history={HISTORY} options={OPTIONS} />);
+    pick('Pick a player…', 'אופק');
+    pick('Pick another…', 'ניב');
+    const figures = [...container.querySelectorAll('span')].filter((s) =>
+      s.className.includes('font-mono') && s.className.includes('tabular-nums'),
+    );
+    expect(figures.length).toBeGreaterThan(0);
+    expect(figures.every((s) => s.className.includes('text-amber-950'))).toBe(true);
+  });
+
   it('leaves the bar empty when both sides are zero', () => {
     // "0 against 0" is not a dead heat, it is nothing to compare — so the
     // track must not be split half and half.
