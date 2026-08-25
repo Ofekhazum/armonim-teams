@@ -2608,6 +2608,50 @@ name aligned to the right edge of a stretched box and drifted a couple of centim
 belonged to — while an English name in the same markup would not have. The name now hugs its medal and
 a spacer takes the slack, which reads correctly in either direction.
 
+### 2.37 Comparing two players (`compare.ts`, `PlayerCompare.tsx`)
+
+Two pickers and two columns of counts, folded away at the bottom of the Club tab. **Nothing new is
+measured**: each side is `profileCounts` over `profileNights` — the same numbers the career table
+prints — and the shared half is one entry out of `matchups()`, which has counted both "alongside" and
+"against" since §2.18.
+
+**The rule this screen is built around is that it must not rank two named friends.** It is kept by
+restricting the rows to numbers *both players own separately* — nights, nights won, match wins, MVP
+picks, longest run — each a count of something that happened to each of them on their own, so putting
+them side by side is arithmetic a reader could do by looking at the table twice. There is a test
+asserting the rendered panel contains no "leads", no "winner", no "better", no crown and no tick, and
+it is the most important test in the file.
+
+That test earned its keep immediately: the row now labelled **"Longest run"** was first written as
+"Best run", and the assertion failed on the word *best*. The podium already calls the same statistic
+"Longest winning run" (§2.36), so the fix was also the consistent name — but the point is that a
+judgement word had walked onto the screen unnoticed inside an ordinary stat label.
+
+**`perNight` appears here, having been excluded from the podiums, and the difference is the sample
+size.** A podium shows "best in the club" with nothing to calibrate against; here the nights each rate
+was divided by sit two rows above it in the same panel. A rate whose denominator is on screen is a
+fact; one whose denominator is not is a verdict.
+
+**Both pickers start empty.** There is no non-arbitrary default — the app has no idea which of twenty
+players is holding the phone (device identity is still parked) — and defaulting would put an arbitrary
+pair of friends on screen under a heading that invites comparing them. The section is also
+`defaultOpen={false}`, because it does nothing at all until two names are chosen.
+
+**The bar under each row is the ratio and declares nothing.** Where both sides are zero the track stays
+empty rather than splitting 50/50: "0 against 0" is not a dead heat, it is nothing to compare. The bar
+is `dir="ltr"` so the left number always owns the left bar, whichever direction the names beside it run.
+
+**Three shared states, and they are genuinely different.** Nights on the same team; nights on opposing
+teams; and matches faced — the last only from nights logged match by match (§2.17). So `against > 0`
+with `faced === 0` is a real and common state, meaning "opponents all evening, but nobody wrote the
+matches down", and the panel says exactly that rather than printing a silent zero. Never having shared
+a sheet at all is a third state with its own sentence. The head-to-head line says **"אופק's team has
+beaten ניב's"** — teams beat teams, never people (§2.8) — even though the 🥊 beside it is allowed its fun.
+
+Names come off the fixtures rather than the roster, newest first: somebody who has left the club can
+still be compared because their record happened, and somebody who changed their name reads as the name
+they go by now.
+
 ## 3. Team generation algorithm
 
 Balancing is a small constrained optimization. With ≤15 players, brute force is too big

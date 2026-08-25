@@ -24,6 +24,7 @@ import { playerAchievements } from '../achievements';
 import { leaderboards } from '../leaderboards';
 import { FoldHeader, Name, TEAM_META, fmtRating, fmtWins } from './ui';
 import Leaderboards from './Leaderboards';
+import PlayerCompare from './PlayerCompare';
 import MvpPicker from './MvpPicker';
 import NightPage from './NightPage';
 
@@ -320,6 +321,17 @@ export default function History({
   // The podiums say who tops what, which is the job the badge cluster in the
   // name column used to do one player at a time (§2.36).
   const boards = useMemo(() => leaderboards(history), [history]);
+  // Who the comparison pickers offer (§2.37). Read off the standings rather
+  // than the roster, so somebody who has left the club can still be compared —
+  // their record happened — and sorted by name, because a picker is something
+  // you scan for a name rather than read in rank order.
+  const comparable = useMemo(
+    () =>
+      standings
+        .map((s) => ({ id: s.id, name: s.name }))
+        .sort((x, y) => x.name.localeCompare(y.name, 'he')),
+    [standings],
+  );
   // leaving admin while sorted by the admin-only column would sort the table
   // by something no longer on screen
   const sortKey: SortKey = !isAdmin && sort.key === 'vsRating' ? 'perNight' : sort.key;
@@ -1023,6 +1035,17 @@ export default function History({
         </div>
         </div>
       </Section>
+
+      {/* Under the table rather than over it: this is the same numbers read two
+          rows at a time, so the full list comes first and the close-up second
+          (§2.37). Folded away by default — it does nothing until somebody picks
+          two names, and an empty panel above the nights would be a permanent
+          prompt on a page nobody opened to answer a question. */}
+      {comparable.length >= 2 && (
+        <Section id="compare" title="⚖️ Compare two players" defaultOpen={false}>
+          <PlayerCompare history={history} options={comparable} />
+        </Section>
+      )}
 
       {story && (
         <NightPage
