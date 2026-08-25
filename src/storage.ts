@@ -140,33 +140,47 @@ export const setNightsShelfOpen = (open: boolean) =>
 // sections on every visit is exactly the annoyance folding removes. Same
 // reasoning as the shelf key above, which is why it sits beside it.
 //
-// One key holding the hidden ids, rather than a key per section: sections will
+// One key holding the whole map, rather than a key per section: sections will
 // be added (comparison, the scatter plot) and a growing family of near-
 // identical keys is how one of them ends up misspelled.
+//
+// **What is stored is what somebody actually chose, not what is currently
+// shut.** An earlier version kept a list of hidden ids, which cannot express
+// "closed unless you say otherwise" — Team of the Month is admin tooling that
+// opens to ten rows of buttons, so it starts folded, and under a hidden-list
+// scheme its default would have been indistinguishable from a fold the reader
+// had chosen. Recording the choice and falling back to each section's own
+// default keeps the two apart, and means changing a default later does not
+// have to fight state already on somebody's device.
 
 const SECTIONS_KEY = 'armonim-club-sections';
 
-const hiddenSections = (): Set<string> => {
+const readSections = (): Record<string, boolean> => {
   try {
     const raw = localStorage.getItem(SECTIONS_KEY);
-    return new Set(raw ? (JSON.parse(raw) as string[]) : []);
+    const parsed: unknown = raw ? JSON.parse(raw) : {};
+    // Arrays and nulls are both `object`. Anything that is not a plain map is
+    // treated as no preference at all rather than trusted — which also quietly
+    // absorbs the older hidden-list format described above.
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? (parsed as Record<string, boolean>)
+      : {};
   } catch {
-    // Unreadable or hand-edited. Open is the default and open is the safe
-    // answer — the worst case is a section somebody hid coming back.
-    return new Set();
+    return {};
   }
 };
 
-export const getSectionOpen = (id: string): boolean => !hiddenSections().has(id);
+/** `fallback` is the section's own default, used until somebody chooses. */
+export const getSectionOpen = (id: string, fallback = true): boolean => {
+  const stored = readSections()[id];
+  return typeof stored === 'boolean' ? stored : fallback;
+};
 
 export const setSectionOpen = (id: string, open: boolean) => {
-  const hidden = hiddenSections();
-  if (open) hidden.delete(id);
-  else hidden.add(id);
   try {
-    localStorage.setItem(SECTIONS_KEY, JSON.stringify([...hidden]));
+    localStorage.setItem(SECTIONS_KEY, JSON.stringify({ ...readSections(), [id]: open }));
   } catch {
-    /* see hiddenSections */
+    /* unwritable storage — the fold still works, it just will not be remembered */
   }
 };
 

@@ -2529,7 +2529,21 @@ the rest is reference. The new sections go **below** the career table, and the a
 exactly where they were.
 
 **Every section folds**, via the same `FoldHeader` the match night uses (§2.34). Nine blocks on one
-phone-width page is the problem folding was built for.
+phone-width page is the problem folding was built for. **Team of the Month starts folded** — it is
+admin tooling that opens to a row of buttons per month, used once when a pick needs correcting, and it
+was the largest thing between an organiser and the football.
+
+That default is why the stored shape is a **map of choices** rather than a list of hidden ids. A hidden
+list cannot express "closed unless you say otherwise": Team of the Month's default would have been
+indistinguishable from a fold the reader had chosen, so opening it once and returning later would have
+been ambiguous. Storing what somebody actually chose, and falling back to each section's own default
+until they do, keeps the two apart — and means changing a default later does not have to fight state
+already sitting on a device. A stored value that is not a plain map (including the older hidden-list
+format) is read as no preference at all rather than trusted.
+
+**Rating suggestions sit directly above the career table.** They are a claim about the numbers in it,
+and the `vs rating` column they come from is one of its columns; three sections higher up they were an
+instruction to go and check something further down the page.
 
 **But the fold state is stored differently from the match night's, on purpose.** Those folds are keyed
 by fixture in `sessionStorage`, because a fold there is a decision about *tonight* and must not outlive
