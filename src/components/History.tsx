@@ -14,9 +14,16 @@ import { buildWrapped, periodLabel, wrappedPeriods } from '../wrapped';
 import { announceMonth, clearMonth, fetchAwards, type Awards } from '../awards';
 import { shareWrappedImage } from '../wrappedImage';
 import { mvpCandidates, mvpCounts, winningTeams } from '../mvp';
-import { getNightsShelfOpen, setNightsShelfOpen } from '../storage';
-import { VETERAN_NIGHTS, playerAchievements, type AchievementKind } from '../achievements';
-import { Name, TEAM_META, fmtRating, fmtWins } from './ui';
+import {
+  getNightsShelfOpen,
+  getSectionOpen,
+  setNightsShelfOpen,
+  setSectionOpen,
+} from '../storage';
+import { playerAchievements } from '../achievements';
+import { leaderboards } from '../leaderboards';
+import { FoldHeader, Name, TEAM_META, fmtRating, fmtWins } from './ui';
+import Leaderboards from './Leaderboards';
 import MvpPicker from './MvpPicker';
 import NightPage from './NightPage';
 
@@ -144,20 +151,36 @@ function useDragScroll() {
 // this reasoning has somewhere to live.
 const MIN_STANDINGS_NIGHTS = 1;
 
-// The key under the table. Deliberately worded as what was counted rather
-// than what it proves — "most wins in the club" and not "best player" — which
-// is the same line the milestones and duo records hold (§2.9).
-const BADGE_KEY: { kind: AchievementKind; icon: string; text: string }[] = [
-  { kind: 'most-wins', icon: '🥇', text: 'most wins' },
-  { kind: 'most-fixtures', icon: '🏅', text: 'most nights won' },
-  { kind: 'mvp', icon: '🌟', text: 'most MVP picks' },
-  { kind: 'shootouts', icon: '🎯', text: 'most shootouts won' },
-  { kind: 'iron-man', icon: '🦾', text: 'never misses' },
-  { kind: 'win-streak', icon: '📈', text: 'longest winning run' },
-  { kind: 'active-run', icon: '🔥', text: 'on a run right now' },
-  { kind: 'ever-present', icon: '✨', text: 'played every night' },
-  { kind: 'veteran', icon: '🎖️', text: `${VETERAN_NIGHTS}+ nights` },
-];
+// A folding section of the Club tab (§2.36). `id` is what the fold state is
+// stored under, so renaming one silently reopens it — which is harmless, and
+// the alternative is a migration for a preference about a heading.
+function Section({
+  id,
+  title,
+  children,
+}: {
+  id: string;
+  title: string;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(() => getSectionOpen(id));
+  const toggle = () => {
+    const next = !open;
+    setOpen(next);
+    setSectionOpen(id, next);
+  };
+  return (
+    <div className="space-y-2">
+      <FoldHeader
+        title={title}
+        open={open}
+        onToggle={toggle}
+        className="text-[13px] text-amber-900/70"
+      />
+      {open && children}
+    </div>
+  );
+}
 
 export default function History({
   history,
@@ -289,9 +312,9 @@ export default function History({
   const editing = openId ? (nights.find((fx) => fx.id === openId) ?? null) : null;
   const editingLogged = (editing?.matchLog?.length ?? 0) > 0;
   const columns = sortColumns(isAdmin);
-  const earnedBadges = BADGE_KEY.filter(({ kind }) =>
-    [...achievements.values()].some((a) => a.achievements.some((x) => x.kind === kind)),
-  );
+  // The podiums say who tops what, which is the job the badge cluster in the
+  // name column used to do one player at a time (§2.36).
+  const boards = useMemo(() => leaderboards(history), [history]);
   // leaving admin while sorted by the admin-only column would sort the table
   // by something no longer on screen
   const sortKey: SortKey = !isAdmin && sort.key === 'vsRating' ? 'perNight' : sort.key;
@@ -340,8 +363,11 @@ export default function History({
 
   return (
     <div className="space-y-4">
+      {/* The tab strip says "Club" — short enough to sit beside Match day and
+          Roster (20) on a phone. The page says what it actually is. */}
       <div className="flex flex-wrap items-baseline gap-x-3 text-sm text-amber-900/60">
-        <span className="text-base font-bold text-amber-950">
+        <h2 className="text-lg font-black text-amber-950">📊 Club statistics</h2>
+        <span className="font-semibold text-amber-900/70">
           {recordedNights} night{recordedNights === 1 ? '' : 's'} recorded
         </span>
         {history.length !== recordedNights && (
@@ -870,19 +896,28 @@ export default function History({
         )}
       </div>
 
-      {/* Opaque rather than the usual `/70`, because the name column is sticky:
-          a translucent cell lets the rows it is holding still scroll visibly
-          underneath it, which reads as a rendering fault. */}
-      <div className="overflow-hidden rounded-2xl border border-amber-900/15 bg-[#fffdf4] shadow-sm">
-        <div className="px-4 pt-4">
-          <h3 className="mb-1 font-bold text-amber-950">📊 Career numbers</h3>
-          {isAdmin && (
+      {/* Below the shelf, because a night is a story and this is reference —
+          the same order the tab has always had. Silent on a young club rather
+          than six headings over empty podiums (§2.36). */}
+      {boards.length > 0 && (
+        <Section id="leaders" title="🏆 Leaderboards">
+          <Leaderboards boards={boards} />
+        </Section>
+      )}
+
+      <Section id="career" title="📊 Career numbers">
+        {/* Opaque rather than the usual `/70`, because the name column is sticky:
+            a translucent cell lets the rows it is holding still scroll visibly
+            underneath it, which reads as a rendering fault. */}
+        <div className="overflow-hidden rounded-2xl border border-amber-900/15 bg-[#fffdf4] shadow-sm">
+        {isAdmin && (
+          <div className="px-4 pt-4">
             <p className="mb-2 text-xs text-amber-900/60">
               <b>vs rating</b> accounts for who they played with and against, so it can put someone
               above a teammate on a higher per-night number. Blank under {MIN_NIGHTS} nights.
             </p>
-          )}
-        </div>
+          </div>
+        )}
         {/* Seven columns will not fit a phone and never did. What changed is
             that the name no longer scrolls away with them: pin it, and reading
             a number sideways still tells you whose it is. */}
@@ -927,19 +962,17 @@ export default function History({
                 const cell = `border-t border-amber-900/10 px-3 py-2 text-right tabular-nums ${stripe}`;
                 return (
                   <tr key={s.id}>
+                    {/* Just the name. The badge cluster that used to sit here
+                        said who topped which column — which is what the
+                        podiums above now say in words, with the count beside
+                        each one (§2.36). Nine emoji on the widest rows, needing
+                        a nine-line key underneath to decode, was the most
+                        crowded thing on the page and the least legible way to
+                        carry that fact. */}
                     <td
                       className={`sticky left-0 z-10 border-t border-amber-900/10 py-2 pl-4 pr-3 ${stripe}`}
                     >
-                      <div className="flex flex-wrap items-center gap-x-1.5">
-                        <Name className="font-semibold text-amber-950">{s.name}</Name>
-                        {/* every badge is a count with a sentence behind it —
-                            hover (or long-press) gives the sentence */}
-                        {(achievements.get(s.id)?.achievements ?? []).map((a) => (
-                          <span key={a.kind} title={a.label} className="text-xs leading-none">
-                            {a.icon}
-                          </span>
-                        ))}
-                      </div>
+                      <Name className="font-semibold text-amber-950">{s.name}</Name>
                     </td>
                     <td className={`${cell} text-amber-900/70`}>{s.nights}</td>
                     <td className={`${cell} font-bold text-amber-950`}>{fmtWins(s.wins)}</td>
@@ -979,20 +1012,8 @@ export default function History({
             </tbody>
           </table>
         </div>
-
-        {/* A badge nobody can decode is decoration. Only the kinds actually
-            earned are listed, so the key stays short and every line on it
-            points at someone in the table above. */}
-        {earnedBadges.length > 0 && (
-          <div className="flex flex-wrap gap-x-4 gap-y-1 border-t border-amber-900/10 px-4 py-2 text-[11px] text-amber-900/55">
-            {earnedBadges.map(({ icon, text }) => (
-              <span key={icon}>
-                {icon} {text}
-              </span>
-            ))}
-          </div>
-        )}
-      </div>
+        </div>
+      </Section>
 
       {story && (
         <NightPage

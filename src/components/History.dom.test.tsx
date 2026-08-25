@@ -143,9 +143,13 @@ describe('the past-nights shelf', () => {
 
   it('hides the shelf without hiding the numbers under it', () => {
     shelf();
-    fireEvent.click(screen.getByText('▲ hide'));
+    // By its own control, not by the "▲ hide" text: the Club tab's other
+    // sections fold with the identical wording now (§2.36), so matching on
+    // that alone would be ambiguous — and would silently start closing a
+    // different section the day the order changed.
+    fireEvent.click(screen.getByRole('button', { name: /Past nights/ }));
     expect(screen.queryByLabelText('Read the night of 2026-08-20')).not.toBeInTheDocument();
-    expect(screen.getByText('📊 Career numbers')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Career numbers/ })).toBeInTheDocument();
   });
 
   it('gives a non-admin no way to edit a night', () => {

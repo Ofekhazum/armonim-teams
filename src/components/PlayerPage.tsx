@@ -26,7 +26,7 @@ import { MIN_ARC_NIGHTS, playerArcs } from '../playerArcs';
 import NightParts from './NightParts';
 import { playerTimeline } from '../playerTimeline';
 import PlayerTimeline from './PlayerTimeline';
-import { Name, STYLE_META, TEAM_META } from './ui';
+import { MEDAL, Name, STYLE_META, TEAM_META } from './ui';
 import { useScrollLock } from '../scrollLock';
 import { fetchAwards, monthsWon } from '../awards';
 import type { PlayerValue } from '../values';
@@ -104,14 +104,8 @@ const TIER_STYLE: { name: string; ring: string; fill: string }[] = [
 // somebody's season in one line — and unlike a win/lose mark it distinguishes
 // the second-place nights from the ones spent bottom.
 //
-// Metallic gradients rather than flat fills, because flat gold and flat bronze
-// are two similar oranges; the highlight is what separates them at 8px. The
-// numeral inside is the part that survives colourblindness and a bad screen.
-const MEDAL: Record<Place, string> = {
-  1: 'bg-gradient-to-br from-yellow-200 via-amber-400 to-yellow-600 text-amber-950 ring-1 ring-amber-600/50',
-  2: 'bg-gradient-to-br from-slate-50 via-slate-300 to-slate-400 text-slate-700 ring-1 ring-slate-400/60',
-  3: 'bg-gradient-to-br from-orange-200 via-amber-600 to-amber-800 text-amber-50 ring-1 ring-amber-800/40',
-};
+// The palette itself lives in `ui.tsx`, shared with the club podiums (§2.36):
+// a 2 here and a 2 there are the same claim in the same colours.
 
 // White is the awkward one: a fill light enough to read as *white* is nearly
 // the colour of the card behind it, and amber-200 — the obvious way out — just

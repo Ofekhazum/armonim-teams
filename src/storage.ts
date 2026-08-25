@@ -116,11 +116,11 @@ const NAME_KEY = 'armonim-my-name';
 export const getMyName = (): string | null => localStorage.getItem(NAME_KEY);
 export const setMyName = (name: string) => localStorage.setItem(NAME_KEY, name);
 
-// --- History tab: is the past-nights shelf open? ----------------------------
+// --- Club tab: is the past-nights shelf open? -------------------------------
 // Remembered per device rather than held in component state, because the tabs
 // unmount — so without this, hiding the shelf would last until the next time
 // anyone looked at anything else, which is not what hiding something means.
-// Open is the default: the shelf is what the tab is for.
+// Open is the default: the shelf is still the first thing on the tab.
 
 const NIGHTS_SHELF_KEY = 'armonim-nights-shelf';
 
@@ -129,6 +129,46 @@ export const getNightsShelfOpen = (): boolean =>
 
 export const setNightsShelfOpen = (open: boolean) =>
   localStorage.setItem(NIGHTS_SHELF_KEY, open ? 'open' : 'hidden');
+
+// --- Club tab: which of the other sections are folded away? -----------------
+//
+// **`localStorage`, and deliberately not the fixture page's answer.** The
+// match-night folds (§2.34) are keyed by fixture in `sessionStorage`, because
+// a fold there is a decision about *tonight* and should not outlive it. This
+// tab has no such event to expire against: a reader who does not care about
+// the podiums does not care about them next week either, and re-folding four
+// sections on every visit is exactly the annoyance folding removes. Same
+// reasoning as the shelf key above, which is why it sits beside it.
+//
+// One key holding the hidden ids, rather than a key per section: sections will
+// be added (comparison, the scatter plot) and a growing family of near-
+// identical keys is how one of them ends up misspelled.
+
+const SECTIONS_KEY = 'armonim-club-sections';
+
+const hiddenSections = (): Set<string> => {
+  try {
+    const raw = localStorage.getItem(SECTIONS_KEY);
+    return new Set(raw ? (JSON.parse(raw) as string[]) : []);
+  } catch {
+    // Unreadable or hand-edited. Open is the default and open is the safe
+    // answer — the worst case is a section somebody hid coming back.
+    return new Set();
+  }
+};
+
+export const getSectionOpen = (id: string): boolean => !hiddenSections().has(id);
+
+export const setSectionOpen = (id: string, open: boolean) => {
+  const hidden = hiddenSections();
+  if (open) hidden.delete(id);
+  else hidden.add(id);
+  try {
+    localStorage.setItem(SECTIONS_KEY, JSON.stringify([...hidden]));
+  } catch {
+    /* see hiddenSections */
+  }
+};
 
 // The host's {roomId, adminToken} for the fixture currently live, if any —
 // kept so a page refresh doesn't demote the host to a regular guest.
