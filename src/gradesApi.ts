@@ -7,7 +7,6 @@
 
 import { REMOTE_URL } from './remote';
 import type { GradesFacts } from './gradesFacts';
-import type { Grade } from './grades';
 
 /** One player's line, and the mark it was written against. */
 export interface GradeLine {
@@ -129,13 +128,20 @@ export const autoGrades = (
  * here. A drifted line is dropped rather than shown, which leaves that player a
  * bare mark — already a complete state, and the honest one. Re-rolling the
  * night brings the banter back.
+ *
+ * Takes only `{id, grade}` rather than the full `Grade[]` — `NightGrades.tsx`
+ * already has `GradeFactLine[]` from `gradesFacts` on hand for rendering, and
+ * both shapes satisfy this one, so nothing has to compute `nightGrades` twice.
  */
-export function usableLines(lines: GradeLines | null, grades: Grade[]): GradeLines {
+export function usableLines(
+  lines: GradeLines | null,
+  players: { id: string; grade: number }[],
+): GradeLines {
   if (!lines) return {};
   const out: GradeLines = {};
-  for (const g of grades) {
-    const line = lines[g.id];
-    if (line && line.grade === g.grade) out[g.id] = line;
+  for (const p of players) {
+    const line = lines[p.id];
+    if (line && line.grade === p.grade) out[p.id] = line;
   }
   return out;
 }

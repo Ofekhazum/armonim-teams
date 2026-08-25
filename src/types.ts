@@ -221,10 +221,7 @@ export type ClockPeriod = 'regulation' | 'added';
 // here rather than in MatchClock.tsx because the clock's *state* is now part
 // of the session — persisted, and published to everyone watching — so the
 // modules that build a fresh session need them without importing a component.
-// TEMPORARY — 1:20 instead of 8:00, to test notifications without standing
-// around for eight minutes. Put this back to `8 * 60 * 1000` before a real
-// fixture. The one-minute warning still fires (20s in); added time is untouched.
-export const REGULATION_MS = 80 * 1000;
+export const REGULATION_MS = 8 * 60 * 1000;
 export const ADDED_MS = 2 * 60 * 1000;
 
 // For the copy that has to say the number out loud.

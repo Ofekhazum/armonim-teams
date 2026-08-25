@@ -2668,7 +2668,7 @@ Names come off the fixtures rather than the roster, newest first: somebody who h
 still be compared because their record happened, and somebody who changed their name reads as the name
 they go by now.
 
-### 2.39 Post-match grades (`grades.ts`, `gradesFacts.ts`, `worker/grades.js`, `GET|POST /grades`)
+### 2.39 Post-match grades (`grades.ts`, `gradesFacts.ts`, `gradesApi.ts`, `NightGrades.tsx`, `worker/grades.js`, `GET|POST /grades`)
 
 A mark out of ten for every player on a filed night, and one line of dressing-room banter beside it.
 
@@ -2747,6 +2747,29 @@ about a number nobody can see. A bare mark is already a complete state.
 re-rolling a report until it reads well must not silently spend grades that have not been written yet.
 `worker/gemini.js` holds the model waterfall, the thinking-config retries and the error wording that
 both features share; what stays with each is its prompt and how it reads the reply.
+
+**On screen (`NightGrades.tsx`), last on the night page, below the report.** The story of the night
+comes first; each player's personal verdict on it comes after. Same generate → draft → publish flow the
+report already teaches, on purpose — an organiser who has learned one has learned the other.
+
+**Grouped by shirt, not one flat ranking of fifteen friends.** The dominant term in the mark is the
+team's result, shared by all five players on it, so a list sorted 10 → 3 would mostly re-derive the three
+teams in blocks while presenting itself as a personal ranking. Three cards mirroring the team cards above
+them are honest about what the number mostly is, and put the genuinely personal spread — MVP, career,
+momentum — where it actually lives: between teammates on the same card. This is also the one place in the
+app that comes close to the no-judgement-words rule §2.37 draws for `PlayerCompare` and does not follow
+it — a grade is a verdict by design here, unlike a count — so the boundary is enforced a different way:
+the word "rating" (the organiser's private 1–5, §2.28) is never used for it, and there is a test for that.
+
+**A player still gets their mark with no line beside it**, and that is not a degraded state — see
+`usableLines` above for the two ordinary reasons: the model skipped them (`missing`, shown to the admin
+on a draft by name) or the stored line has drifted off a mark the archive no longer agrees with. Both
+render identically to a first-time viewer: a chip, no sentence under it.
+
+**The whole section renders nothing for two different kinds of nobody.** A night with no result at all —
+`gradesFacts` returns null — and a night nobody has published yet, read by somebody who cannot publish
+one. Neither is worth an empty shell asking to be filled in, the same restraint `PriceTag` shows for a
+player with no market value yet.
 
 ## 3. Team generation algorithm
 

@@ -10,6 +10,7 @@ import type { StoredRecap } from '../recap';
 import { clearRecap, draftRecap, fetchRecap, saveRecap } from '../recap';
 import { Name, TEAM_META, fmtWins } from './ui';
 import { MilestoneStrip } from './TonightFacts';
+import NightGrades from './NightGrades';
 import { useScrollLock } from '../scrollLock';
 
 // One night, read back (§2.22). Opened from a past night in History, the same
@@ -528,6 +529,12 @@ export default function NightPage({
             </div>
           </section>
         )}
+
+        {/* Everyone's personal verdict on the night just told above it — last
+            on the page, deliberately: the story comes first, the marks come
+            after. See NightGrades.tsx for why they are grouped by shirt
+            rather than one ranked list of fifteen friends. */}
+        <NightGrades fixture={fixture} history={history} players={players} adminWord={adminWord} />
       </div>
     </div>
   );
