@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   isValidClock,
   isValidFixtures,
+  isValidLines,
   isValidLive,
   isValidPlayers,
   isValidSubscription,
@@ -463,5 +464,34 @@ describe('isLogStep', () => {
 
   it('counts the penalties flag as part of the match', () => {
     expect(isLogStep(one, [m('black', { viaPenalties: true })])).toBe(false);
+  });
+});
+
+describe('isValidLines', () => {
+  const ok = { a: { text: 'לא רע', grade: 7 }, b: { text: 'אוי', grade: 3.5 } };
+
+  it('accepts a set of lines filed against player ids', () => {
+    expect(isValidLines(ok)).toBe(true);
+  });
+
+  it('refuses anything that is not a map of lines', () => {
+    expect(isValidLines(null)).toBe(false);
+    expect(isValidLines([])).toBe(false);
+    expect(isValidLines({})).toBe(false); // nothing to store is not a store
+    expect(isValidLines('lines')).toBe(false);
+  });
+
+  it('refuses a line with no mark to check itself against', () => {
+    // The grade travels so a stale line can be spotted and dropped; without it
+    // the sentence would sit beside whatever number turns up later.
+    expect(isValidLines({ a: { text: 'x' } })).toBe(false);
+    expect(isValidLines({ a: { text: 'x', grade: 11 } })).toBe(false);
+    expect(isValidLines({ a: { text: 'x', grade: 'seven' } })).toBe(false);
+  });
+
+  it('refuses an empty or oversized line', () => {
+    expect(isValidLines({ a: { text: '', grade: 6 } })).toBe(false);
+    expect(isValidLines({ a: { text: 'x'.repeat(401), grade: 6 } })).toBe(false);
+    expect(isValidLines({ a: { text: 'x'.repeat(400), grade: 6 } })).toBe(true);
   });
 });

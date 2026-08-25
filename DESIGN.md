@@ -2668,6 +2668,86 @@ Names come off the fixtures rather than the roster, newest first: somebody who h
 still be compared because their record happened, and somebody who changed their name reads as the name
 they go by now.
 
+### 2.39 Post-match grades (`grades.ts`, `gradesFacts.ts`, `worker/grades.js`, `GET|POST /grades`)
+
+A mark out of ten for every player on a filed night, and one line of dressing-room banter beside it.
+
+**The model never decides the number.** Same split as Market Value (§2.31): the app computes something
+defensible, and the model is handed the finished figure and asked to phrase it. Four terms, and only
+two of them can separate teammates at all —
+
+| Term | Weight / cap | What it is |
+|---|---|---|
+| `night` | 2.3, ±2.5 | the team's result **relative to that night's own size**, shared by all five |
+| `mvp` | +1 | the one true per-player signal a night produces |
+| `career` | 0.75, ±0.5 | their record against the club's, shrunk toward the mean (`SHRINK_K = 6`) |
+| `momentum` | 0.65, ±0.7 | their last five nights against **their own** shrunk baseline |
+
+`MatchLogEntry` records `{a, b, winner, viaPenalties}` — team colours, not people. Every match, every
+shootout and every sequence is therefore *identical* for the five players on a shirt, so **on a single
+night exactly one thing distinguishes teammates: the MVP pick.** Everything else that differs between
+them is history, which is what the last two terms are.
+
+**Why "did they beat their own baseline tonight" is not a term.** It was the obvious fifth and it is
+backwards. Measured on the invented club (§2.32), a single night swings a player's per-night figure by
+−2.0 to +2.4 (p10–p90) while the gap between the club's best and worst player is 1.61 — one night is
+mostly luck. Worse, the term *inverts*: on an identical five-win night the weakest player
+"overperforms" by +2.75 and the strongest by +1.14, so over a season every player averages the same
+mark and the best players score **lowest** on ordinary wins. The personal-expectation angle is real and
+worth saying — it belongs in the sentence, where it can be qualitative, not in the number, where it
+would be a lie. **Momentum is safe for the opposite reason:** averaged over several nights it is far
+less noisy, it is measured against each player's own baseline so it favours nobody, and it
+mean-reverts — per-player season averages land between −0.30 and +0.21. It adds movement, not bias.
+
+**`BASE = 6`, not the arithmetic midpoint.** A 1–10 centred on 5.5 is technically balanced and reads as
+mean: most nights are unremarkable, so most marks sat at 5 and below, and a group reading their own
+marks every week would be told they were average-to-poor most of the time. Six leaves the spread and
+the ordering untouched and moves only where "nothing special happened" sits — a judgement about tone,
+not about football. Calibrated: median 6, p10/p90 at 4/8, 1.0% at or below 3, 0.3% perfect, season
+averages 4.79–6.84.
+
+**One prompt for the whole sheet, keyed on an ASCII code.** Fifteen separate requests would burn a
+day's free tier on one night, and fifteen independent completions have no way to avoid handing the same
+joke to four people. So the Worker sends one request and asks for a JSON object mapping `p1`, `p2` … to
+one Hebrew sentence each. The codes exist for the length of that request: the payload carries `key`
+*and* `id`, only `key` reaches the prompt, and `linesFrom` maps the answer back onto player ids before
+anything is stored. Keying on the Hebrew name instead would mean a single altered character silently
+orphaning that player's line.
+
+**Inventing a *connection* is the same offence as inventing an event, and it is what the first spike
+actually did.** Handed the organiser's unassigned note — "the ball went over the fence about five
+times, all by the same guy" — and a player who had lost every match, the model put the two together and
+named him. Nothing in the record said it was him; he was simply the most available culprit. So the
+prompt carries **WHO A FACT BELONGS TO**: never attribute an event, quote or note to a player unless
+that player's key or name is explicitly attached to it, never guess, and an unassigned note stays
+unassigned. It then names the exact wrong inference — *a bad night is not evidence; the player with the
+lowest mark did not do it* — because the general rule alone had already been obeyed in spirit and
+broken in fact. `gradesFacts` drops the `debut-group` milestone for the same reason: "3 players played
+their first night" is the one milestone naming nobody, and the individual debuts say it with names.
+
+**The derby is the one fact in the payload that belongs to two named people** (§2.33). It is recovered
+rather than remembered — `derbyOnRecord` recomputes the pairing the group read before kick-off, since
+the pick is a pure function of that night's teams and the archive before it — and `settleDerby` counts
+what the two shirts did to each other once they were on the pitch. Both players' lines are told to use
+it, in whichever direction it went: whoever came out ahead enjoys it, whoever came off worse hears
+about it, and nobody else may mention it. A shootout counts as a full win here, exactly as it does in
+the record the pairing was picked from — the half-win rule is about the night's tally, not about who
+beat whom — though the prompt is told how many meetings needed one. `met: 0` is reported rather than
+hidden: billed against each other and kept apart by the rotation all evening is a better line than
+most. A night with no `matchLog` returns null, because a tally cannot say who beat whom (§2.17).
+
+**Only the sentences are stored.** The marks are deterministic from the public archive, so every device
+recomputes them identically and a stored copy would be a second source of truth for a settled answer.
+But the mark *travels with* its sentence, as provenance: `usableLines` drops any line whose stored grade
+no longer matches the live one, so a night corrected months later leaves a bare mark rather than banter
+about a number nobody can see. A bare mark is already a complete state.
+
+`POST /grades` takes the same four shapes `POST /recap` does — `{facts}`, `{facts, save}`, `{lines}`,
+`{lines: null}` — behind the secret word, with its own rate-limit counter rather than the recap's, since
+re-rolling a report until it reads well must not silently spend grades that have not been written yet.
+`worker/gemini.js` holds the model waterfall, the thinking-config retries and the error wording that
+both features share; what stays with each is its prompt and how it reads the reply.
+
 ## 3. Team generation algorithm
 
 Balancing is a small constrained optimization. With ≤15 players, brute force is too big
