@@ -100,11 +100,16 @@ export default function GradeForm({ points }: { points: GradePoint[] }) {
         </p>
       ) : (
         <>
-          {/* The strip and its summary. Oldest on the left, so a run reads
-              left-to-right the way the dates below it run. */}
+          {/* **Newest on the left**, which is the opposite of what a football
+              form strip usually does — and right here, because the table
+              directly underneath is newest-first too. The first version ran
+              the strip oldest-to-newest while the rows ran newest-to-oldest,
+              so the leftmost square and the top row were opposite ends of the
+              same five nights. One card should not read in two directions;
+              matching the table it sits on beats matching the convention. */}
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-amber-900/10 pb-3">
             <div className="flex gap-1" aria-hidden>
-              {strip.map((p) => (
+              {[...strip].reverse().map((p) => (
                 <span
                   key={p.fixtureId}
                   title={`${shortDate(p.date)} — ${fmtRating(p.grade)}`}
