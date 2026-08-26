@@ -27,6 +27,7 @@ import type { FixtureRecord, Player } from './types';
 import { resultStrength } from './calibration';
 import { playerAchievements } from './achievements';
 import { profileNights } from './playerProfile';
+import { ratingTier, type RatingTier } from './ratingTier';
 
 /**
  * Nights on record before *anybody* has a price. This is a privacy gate, not a
@@ -50,20 +51,6 @@ export const MIN_HISTORY_FOR_VALUES = 5;
 // rest, where proportional ones keep every term honest and the range sane.
 export const BASE = 6.0;
 
-export type RatingTier = 'bottom' | 'middle' | 'top';
-
-/**
- * The rating, coarsened to a third of the club rather than a number.
- *
- * Exported so `grades.ts`'s cold-start nudge (§2.39) cuts the roster at the
- * same two points this file does, rather than re-declaring 2.5 and 4 a second
- * time somewhere else — the same reasoning `derby.ts` imports `BOGEY_RATE`
- * for: two numbers this close in two files would drift, and the "same third
- * of the club" both features refer to would quietly stop being true.
- */
-export const ratingTier = (rating: number): RatingTier =>
-  rating <= 2.5 ? 'bottom' : rating >= 4 ? 'top' : 'middle';
-
 /**
  * The rating, as a multiplier.
  *
@@ -71,6 +58,10 @@ export const ratingTier = (rating: number): RatingTier =>
  * rating to price is invertible: knowing the four public terms, you solve for
  * the fifth. Bucketed at ±18% the same arithmetic recovers only which third of
  * the club someone is in.
+ *
+ * The bucketing itself lives in `ratingTier.ts` — shared with `grades.ts`, and
+ * kept out of this file specifically so importing it does not drag the solver
+ * below into everybody's bundle. See that file's header.
  */
 const TIER_MULTIPLIER: Record<RatingTier, number> = { bottom: 0.85, middle: 1.0, top: 1.18 };
 const tierOf = (rating: number): number => TIER_MULTIPLIER[ratingTier(rating)];

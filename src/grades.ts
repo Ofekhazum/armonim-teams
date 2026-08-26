@@ -74,7 +74,10 @@
 
 import type { FixtureRecord, TeamColor } from './types';
 import { hasResult } from './calibration';
-import { ratingTier } from './marketValue';
+// From its own module rather than from `marketValue.ts`, which `values.ts`
+// deliberately loads lazily — a static import of it here would put the
+// valuation formula and its ridge solver into everybody's main bundle.
+import { ratingTier } from './ratingTier';
 import { placeOf, profileNights, shirtOf, type Place } from './playerProfile';
 
 /**
