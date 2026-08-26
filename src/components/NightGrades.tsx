@@ -56,7 +56,12 @@ function GradeChip({ grade }: { grade: number }) {
 function PlayerRow({ p, grade, line }: { p: GradeFactLine; grade: number; line?: string }) {
   return (
     <li className="py-1.5 first:pt-0 last:pb-0">
-      <div className="flex items-center justify-between gap-2">
+      {/* RTL, to match the Hebrew line underneath it: the name starts at the
+          right edge, where a Hebrew reader's eye already lands first, and the
+          mark sits at the left as the trailing figure — the same order a
+          Hebrew scoreline puts a name and a number in, rather than the LTR
+          layout this row inherited by default from the page's own chrome. */}
+      <div dir="rtl" className="flex items-center justify-between gap-2">
         <span className="flex min-w-0 items-baseline gap-1">
           {p.isMvp && <span title="Player of the night">🌟</span>}
           {/* No colour of its own: the card's own text-* (TEAM_META.card)
