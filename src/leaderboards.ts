@@ -46,6 +46,27 @@ import { mvpCounts } from './mvp';
 /** How many *ranks* deep a podium goes — not how many names, see the tie rule. */
 export const TOP_RANKS = 3;
 
+/**
+ * The floor on the three boards that are about *repetition*.
+ *
+ * **A run of one is not a run**, which is the whole argument: winning a single
+ * night is winning a single night, and calling it a streak is the board
+ * flattering a number it does not have. Same for "most nights won outright" —
+ * with one night to your name you are not leading anything, you are one of
+ * everybody who has ever won.
+ *
+ * It is also what makes these boards readable early. Measured on the real club
+ * at three nights: without a floor, "most nights won outright" and "longest
+ * winning run" each came back as thirteen names — one player on three, and
+ * twelve more level on one. With it, they say the one thing that is actually
+ * true and stay quiet about the rest.
+ *
+ * The counting boards (match wins, nights played, MVP picks) keep the floor at
+ * zero on purpose: one MVP pick genuinely is one more than most of the club
+ * has, and one match win is a fact rather than a claim about a sequence.
+ */
+export const MIN_FOR_RUN = 2;
+
 export type BoardKey = 'wins' | 'nights-won' | 'nights' | 'mvp' | 'win-run' | 'active-run';
 
 export interface LeaderEntry {
@@ -75,12 +96,18 @@ export interface Leaderboard {
  * is not a podium with nobody on it, it is three people being told publicly
  * that they have none of something — and on a young club, or a count like MVP
  * picks that most players will never have, that would be most of the roster.
+ *
+ * `min` raises that floor for the boards where the smallest possible score is
+ * not a distinction — see {@link MIN_FOR_RUN}. Left at 0 it means "anything
+ * above nothing", which is what the counting boards want, halves included: a
+ * single shootout is half a win and half a win is still a win.
  */
 function podium(
   scores: { id: string; name: string; value: number }[],
+  min = 0,
 ): LeaderEntry[] {
   const ranked = scores
-    .filter((s) => s.value > 0)
+    .filter((s) => s.value > 0 && s.value >= min)
     .sort((a, b) => b.value - a.value || a.name.localeCompare(b.name, 'he'));
 
   const out: LeaderEntry[] = [];
@@ -127,30 +154,38 @@ export function leaderboards(history: FixtureRecord[]): Leaderboard[] {
     unit: string,
     half: boolean,
     value: (s: (typeof standings)[number]) => number,
+    min = 0,
   ): Leaderboard => ({
     key,
     icon,
     title,
     unit,
     half,
-    entries: podium(standings.map((s) => ({ id: s.id, name: s.name, value: value(s) }))),
+    entries: podium(
+      standings.map((s) => ({ id: s.id, name: s.name, value: value(s) })),
+      min,
+    ),
   });
 
+  // The last argument is the floor — see MIN_FOR_RUN for which boards take one
+  // and why the counting boards do not.
   return [
     board('wins', '🥇', 'Most match wins', 'win', true, (s) => s.wins),
-    board('nights-won', '🏅', 'Most nights won outright', 'night', false, (s) =>
-      of(s.id).filter((a) => a.won).length,
+    board(
+      'nights-won',
+      '🏅',
+      'Most nights won outright',
+      'night',
+      false,
+      (s) => of(s.id).filter((a) => a.won).length,
+      MIN_FOR_RUN,
     ),
     board('nights', '🎽', 'Most nights played', 'night', false, (s) => s.nights),
     board('mvp', '🌟', 'Most MVP picks', 'pick', false, (s) => mvps.get(s.id) ?? 0),
-    board('win-run', '📈', 'Longest winning run', 'night', false, (s) =>
-      longestWinRun(of(s.id)),
-    ),
+    board('win-run', '📈', 'Longest winning run', 'night', false, (s) => longestWinRun(of(s.id)), MIN_FOR_RUN),
     // The only board that is about *right now* rather than about a career, so
     // it is the only one that can empty out from one bad Thursday. That is the
     // point of it: a run nobody is on is a run nobody should be wearing.
-    board('active-run', '🔥', 'On a run right now', 'night', false, (s) =>
-      activeWinRun(of(s.id)),
-    ),
+    board('active-run', '🔥', 'On a run right now', 'night', false, (s) => activeWinRun(of(s.id)), MIN_FOR_RUN),
   ].filter((b) => b.entries.length > 0);
 }

@@ -112,14 +112,36 @@ describe('leaderboards', () => {
   });
 
   it('separates the run they are on now from the longest they have had', () => {
-    // 'a' wins four, then loses one. The longest run is still 4; the current
-    // run is over, so that board should not carry them at all.
-    const history = [...runOf('black', 4), ...runOf('white', 1)];
+    // 'a' wins four, then 'b' takes the next two. a's longest run is still 4
+    // but their current one is over; b is the one actually on a run.
+    const history = [...runOf('black', 4), ...runOf('white', 2)];
     expect(boardOf(history, 'win-run')!.entries[0]).toMatchObject({ id: 'a', value: 4 });
-    const active = boardOf(history, 'active-run');
-    expect(active?.entries.find((e) => e.id === 'a')).toBeUndefined();
-    // and 'b', who took the most recent night, is the one on a run
-    expect(active!.entries[0]).toMatchObject({ id: 'b', value: 1 });
+    const active = boardOf(history, 'active-run')!;
+    expect(active.entries.find((e) => e.id === 'a')).toBeUndefined();
+    expect(active.entries[0]).toMatchObject({ id: 'b', value: 2 });
+  });
+
+  it('does not call a single night a run', () => {
+    // MIN_FOR_RUN. One night won is one night won; a streak of one is the
+    // board flattering a number it does not have — and on a young club it is
+    // what turned two of these into thirteen-name lists.
+    const history = [...runOf('black', 3), ...runOf('white', 1)];
+    // 'b' took exactly one night, and is on exactly one right now
+    expect(boardOf(history, 'win-run')!.entries.find((e) => e.id === 'b')).toBeUndefined();
+    expect(boardOf(history, 'nights-won')!.entries.find((e) => e.id === 'b')).toBeUndefined();
+    expect(boardOf(history, 'active-run')).toBeUndefined(); // nobody is on 2+
+    // 'a' cleared the floor on both, and is still there
+    expect(boardOf(history, 'win-run')!.entries[0]).toMatchObject({ id: 'a', value: 3 });
+    expect(boardOf(history, 'nights-won')!.entries[0]).toMatchObject({ id: 'a', value: 3 });
+  });
+
+  it('keeps the floor off the counting boards', () => {
+    // One MVP pick is genuinely one more than most of the club has, and one
+    // match win is a fact rather than a claim about a sequence.
+    const history = [...runOf('black', 1, 'a')];
+    expect(boardOf(history, 'mvp')!.entries[0]).toMatchObject({ id: 'a', value: 1 });
+    expect(boardOf(history, 'nights')!.entries[0]).toMatchObject({ value: 1 });
+    expect(boardOf(history, 'wins')!.entries[0]!.value).toBeGreaterThan(0);
   });
 
   it('is the same answer every time it is asked', () => {
