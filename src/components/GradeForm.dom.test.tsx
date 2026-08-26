@@ -95,6 +95,23 @@ describe('GradeForm', () => {
     expect(within(rows[1]).getByText('9')).toBeInTheDocument();
   });
 
+  it('runs the strip in the same direction as the table — newest first', () => {
+    // These two disagreed at first: the strip ran oldest-to-newest while the
+    // rows ran newest-to-oldest, so the leftmost square and the top row were
+    // opposite ends of the same five nights. One card, one direction.
+    render(<GradeForm points={build([
+      { id: 'oldest', days: 20, grade: 3 },  // rose
+      { id: 'newest', days: 1, grade: 9 },   // emerald
+    ])} />);
+    const blocks = [...document.querySelectorAll('span.h-7.w-7')];
+    expect(blocks).toHaveLength(2);
+    // leftmost square is the newest night, matching row 1 of the table
+    expect(blocks[0].className).toContain('emerald');
+    expect(blocks[1].className).toContain('rose');
+    const rows = screen.getAllByRole('row');
+    expect(within(rows[1]).getByText('9')).toBeInTheDocument();
+  });
+
   it('never shows a column this app does not record', () => {
     // §2.24 — no goals, no assists, no xG, no minutes. The screens this is
     // modelled on have all four, and inventing them here is the same offence

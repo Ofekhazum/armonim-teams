@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { FixtureRecord } from './types';
-import { MIN_NIGHTS_FOR_BOARDS, TOP_RANKS, leaderboards } from './leaderboards';
+import { TOP_RANKS, leaderboards } from './leaderboards';
 
 // The club's podiums (§2.36). Most of what is worth asserting here is about
 // the ranking rule and about what a board *declines* to say: a rate, a zero,
@@ -39,17 +39,25 @@ const boardOf = (history: FixtureRecord[], key: string) =>
   leaderboards(history).find((b) => b.key === key);
 
 describe('leaderboards', () => {
-  it('says nothing at all before the club has happened enough', () => {
-    // One short of the floor: not a page of empty podiums, no page at all.
-    expect(leaderboards(runOf('black', MIN_NIGHTS_FOR_BOARDS - 1))).toEqual([]);
-    expect(leaderboards(runOf('black', MIN_NIGHTS_FOR_BOARDS))).not.toEqual([]);
+  it('has podiums from the very first night, with no minimum to clear', () => {
+    // There used to be a five-night floor. Removed deliberately: an early
+    // podium can be a long list of people genuinely level on one, and that is
+    // preferred to a Club tab that says nothing for five weeks.
+    const boards = leaderboards(runOf('black', 1));
+    expect(boards.length).toBeGreaterThan(0);
+    expect(boards.find((b) => b.key === 'wins')!.entries[0]).toMatchObject({ id: 'a', rank: 1 });
+  });
+
+  it('says nothing at all when there is no football yet', () => {
+    // The one gate left. Six headings with nothing under them is the state
+    // this avoids — "not yet" is one thing to say, not six.
+    expect(leaderboards([])).toEqual([]);
   });
 
   it('ignores nights nobody typed a result into', () => {
-    const decided = runOf('black', MIN_NIGHTS_FOR_BOARDS - 1);
     const blank: FixtureRecord = { ...night(...SQUAD, 'black'), wins: { black: 0, white: 0, blue: 0 } };
-    // The blank night takes the count to the floor, but it is not football.
-    expect(leaderboards([...decided, blank])).toEqual([]);
+    // A blank night is not football, so it puts nobody on any podium.
+    expect(leaderboards([blank])).toEqual([]);
   });
 
   it('ranks match wins, halves and all', () => {

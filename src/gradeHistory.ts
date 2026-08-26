@@ -145,7 +145,13 @@ export function meanGrade(points: { grade: number }[]): number | null {
  */
 export const FORM_NIGHTS = 5;
 
-/** The last few graded nights, oldest first — what the squares are drawn from. */
+/**
+ * The last few graded nights, oldest first — what the squares are drawn from.
+ *
+ * Kept chronological here because that is what "the last five" means and what
+ * `meanGrade` wants; `GradeForm` reverses it for display, so the strip reads
+ * newest-first like the table under it.
+ */
 export const recentForm = (points: GradePoint[]): GradePoint[] =>
   points.slice(-FORM_NIGHTS);
 
