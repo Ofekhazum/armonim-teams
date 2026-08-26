@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { FixtureRecord, MatchLogEntry } from './types';
-import { BASE, MIN_RECENT, nightGrades } from './grades';
+import { BASE, MIN_RECENT, gradeConstants, nightGrades } from './grades';
 
 // The mark out of ten (§2.39). What matters here is that the number is
 // arithmetic a reader could check: that teammates share the part of it which
@@ -11,16 +11,24 @@ let seq = 0;
 const night = (
   teams: { black: string[]; white: string[]; blue: string[] },
   wins: { black: number; white: number; blue: number },
-  extra: { mvpId?: string; matchLog?: MatchLogEntry[] } = {},
+  extra: { mvpId?: string; matchLog?: MatchLogEntry[]; ratings?: Record<string, number> } = {},
 ): FixtureRecord => {
   seq++;
+  const { ratings, ...rest } = extra;
   return {
     id: `f${seq}`,
     date: `2026-01-${String(seq).padStart(2, '0')}`,
     teams,
-    players: [...teams.black, ...teams.white, ...teams.blue].map((id) => ({ id, name: id, rating: 3 })),
+    // 3 (dead centre of the 1-5 scale, ratingTier() → 'middle') unless a test
+    // is specifically exercising the cold-start tier nudge, in which case
+    // every other test in this file staying neutral is the whole point.
+    players: [...teams.black, ...teams.white, ...teams.blue].map((id) => ({
+      id,
+      name: id,
+      rating: ratings?.[id] ?? 3,
+    })),
     wins,
-    ...extra,
+    ...rest,
   };
 };
 
@@ -42,13 +50,18 @@ describe('nightGrades', () => {
     expect(new Set(nights).size).toBe(1);
   });
 
-  it('separates teammates only by the MVP pick, on a first night', () => {
-    // No history, so career and momentum are zero for everybody: the only
-    // thing that can differ is the one genuine per-player signal.
+  it('separates teammates on a first night by the MVP pick, and nothing else that is about them', () => {
+    // No history, and an identical (middle-tier) rating for both, so career,
+    // momentum and tier are all exactly zero for everybody: the parts prove
+    // mvp is the one genuine personal signal, precisely — checked on the
+    // components rather than the rounded total, because jitter (deliberately
+    // small, deliberately uncorrelated with anybody) can land close enough to
+    // a rounding boundary that the *totals* are not reliably ordered, which is
+    // the point of it being noise rather than a second signal.
     const fx = night(T(['a', 'b'], ['x']), { black: 6, white: 2, blue: 0 }, { mvpId: 'a' });
     const gs = nightGrades([fx], fx.id)!;
-    expect(gradeOf(gs, 'a').grade - gradeOf(gs, 'b').grade).toBe(1);
-    expect(gradeOf(gs, 'b').parts).toMatchObject({ career: 0, momentum: 0, mvp: 0 });
+    expect(gradeOf(gs, 'a').parts).toMatchObject({ career: 0, momentum: 0, tier: 0, mvp: 1 });
+    expect(gradeOf(gs, 'b').parts).toMatchObject({ career: 0, momentum: 0, tier: 0, mvp: 0 });
   });
 
   it('scores the night against that night’s own size', () => {
@@ -126,15 +139,114 @@ describe('nightGrades', () => {
     expect(gradeOf(gs, 'a').context.wonNight).toBe(true);
   });
 
-  it('sits an average night on the base mark', () => {
-    // Three teams level: nobody beat the night's own average, so nothing is
-    // added or taken away and the mark is the base.
+  it('sits an average night on the base mark, for an established player', () => {
+    // Three teams level: nobody beat the night's own average, so night is
+    // zero. An average career (a's history is built to average exactly the
+    // club mean) makes career and momentum zero too, and enough nights behind
+    // them (past FADE_NIGHTS) switches tier and jitter off exactly — the only
+    // way this can be asserted as an exact `toBe` rather than "close to".
+    const past = Array.from({ length: gradeConstants.FADE_NIGHTS }, () =>
+      night(T(['a'], ['x']), { black: 3, white: 3, blue: 0 }),
+    );
     const fx = night(T(['a'], ['b'], ['c']), { black: 3, white: 3, blue: 3 });
-    expect(gradeOf(nightGrades([fx], fx.id), 'a').grade).toBe(BASE);
+    const g = gradeOf(nightGrades([...past, fx], fx.id), 'a');
+    expect(g.parts).toMatchObject({ night: 0, mvp: 0, career: 0, momentum: 0, tier: 0, jitter: 0 });
+    expect(g.grade).toBe(BASE);
+  });
+
+  it('lets a first-night player’s mark wobble a little on an average night', () => {
+    // The same night, for somebody with no history at all: jitter is live
+    // (nightsBefore = 0, so coldStartWeight is 1), so the mark is not
+    // guaranteed to land exactly on BASE — only within jitter's own bound.
+    const fx = night(T(['a'], ['b'], ['c']), { black: 3, white: 3, blue: 3 });
+    const g = gradeOf(nightGrades([fx], fx.id), 'a');
+    expect(g.grade).toBeGreaterThanOrEqual(BASE - gradeConstants.JITTER_SPAN - 0.5);
+    expect(g.grade).toBeLessThanOrEqual(BASE + gradeConstants.JITTER_SPAN + 0.5);
   });
 
   it('is the same answer every time it is asked', () => {
     const fx = night(T(['a'], ['b']), { black: 5, white: 2, blue: 0 });
     expect(nightGrades([fx], fx.id)).toEqual(nightGrades([fx], fx.id));
+  });
+});
+
+// The cold-start nudge (§2.39) — an accepted, deliberately narrow exception to
+// "no rating enters this formula", added on the organiser's explicit
+// instruction after the plain formula flatlined an entire team's marks for
+// three real weeks. Everything here is testing the two properties that make
+// the trade-off the one that was actually agreed to: the bump is bounded and
+// bucketed rather than the rating itself, and it is temporary rather than a
+// standing leak.
+describe('the cold-start nudge', () => {
+  it('gives a bottom-tier and a top-tier player different marks on an otherwise identical first night', () => {
+    // The exact complaint this exists to answer: two players with nothing
+    // else to distinguish them — same shirt, same night, no MVP, no history —
+    // used to render as the identical number.
+    const fx = night(T(['a', 'b'], ['x']), { black: 6, white: 2, blue: 0 }, { ratings: { a: 4.5, b: 1.5 } });
+    const gs = nightGrades([fx], fx.id)!;
+    expect(gradeOf(gs, 'a').parts.tier).toBeGreaterThan(gradeOf(gs, 'b').parts.tier);
+  });
+
+  it('buckets by tier, not by the rating itself', () => {
+    // Two different top-tier ratings must land on the exact same bump — a
+    // continuous map back to a rating is the one thing this cannot become.
+    const fx = night(T(['a', 'b'], ['x']), { black: 6, white: 2, blue: 0 }, { ratings: { a: 4, b: 5 } });
+    const gs = nightGrades([fx], fx.id)!;
+    expect(gradeOf(gs, 'a').parts.tier).toBe(gradeOf(gs, 'b').parts.tier);
+  });
+
+  it('gives a middle rating no bump at all', () => {
+    const fx = night(T(['a'], ['x']), { black: 4, white: 2, blue: 0 }, { ratings: { a: 3 } });
+    expect(gradeOf(nightGrades([fx], fx.id), 'a').parts.tier).toBe(0);
+  });
+
+  it('never lets jitter alone exceed its own bound', () => {
+    // Bounded by construction, but checked across enough ids that a mistake
+    // in the hash (e.g. an off-by-one in the normalisation) would show up as
+    // an occasional outlier rather than passing by luck on one sample.
+    for (let i = 0; i < 40; i++) {
+      const fx = night(T([`p${i}`], ['x']), { black: 4, white: 2, blue: 0 });
+      const jitter = gradeOf(nightGrades([fx], fx.id), `p${i}`).parts.jitter;
+      expect(Math.abs(jitter)).toBeLessThanOrEqual(gradeConstants.JITTER_SPAN);
+    }
+  });
+
+  it('fades the tier bump to nothing by FADE_NIGHTS, smoothly rather than as a jump', () => {
+    const bottomRating = { ratings: { a: 1.5 } };
+    const debut = night(T(['a'], ['x']), { black: 4, white: 2, blue: 0 }, bottomRating);
+    expect(gradeOf(nightGrades([debut], debut.id), 'a').parts.tier).toBeLessThan(0);
+
+    // Halfway to FADE_NIGHTS: still present, but shrunk from the debut figure.
+    const half = Array.from({ length: Math.floor(gradeConstants.FADE_NIGHTS / 2) }, () =>
+      night(T(['a'], ['x']), { black: 3, white: 3, blue: 0 }, bottomRating),
+    );
+    const midway = night(T(['a'], ['x']), { black: 4, white: 2, blue: 0 }, bottomRating);
+    const midTier = gradeOf(nightGrades([...half, midway], midway.id), 'a').parts.tier;
+    expect(midTier).toBeLessThan(0);
+    expect(midTier).toBeGreaterThan(gradeOf(nightGrades([debut], debut.id), 'a').parts.tier);
+
+    // At FADE_NIGHTS: gone, exactly, however extreme the rating.
+    const full = Array.from({ length: gradeConstants.FADE_NIGHTS }, () =>
+      night(T(['a'], ['x']), { black: 3, white: 3, blue: 0 }, bottomRating),
+    );
+    const established = night(T(['a'], ['x']), { black: 4, white: 2, blue: 0 }, bottomRating);
+    expect(gradeOf(nightGrades([...full, established], established.id), 'a').parts.tier).toBe(0);
+  });
+
+  it('fades jitter to nothing by FADE_NIGHTS too, not just tier', () => {
+    const full = Array.from({ length: gradeConstants.FADE_NIGHTS }, () =>
+      night(T(['a'], ['x']), { black: 3, white: 3, blue: 0 }),
+    );
+    const established = night(T(['a'], ['x']), { black: 4, white: 2, blue: 0 });
+    expect(gradeOf(nightGrades([...full, established], established.id), 'a').parts.jitter).toBe(0);
+  });
+
+  it('never lets the nudge push a grade outside 1–10', () => {
+    // The most extreme case the clamp has to survive: a bottom-tier debutant
+    // whose team was also blanked.
+    const fx = night(T(['a'], ['x']), { black: 0, white: 6, blue: 0 }, { ratings: { a: 1 } });
+    const g = gradeOf(nightGrades([fx], fx.id), 'a');
+    expect(g.grade).toBeGreaterThanOrEqual(1);
+    expect(g.grade).toBeLessThanOrEqual(10);
   });
 });

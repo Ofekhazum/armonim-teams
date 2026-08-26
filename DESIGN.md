@@ -2673,8 +2673,9 @@ they go by now.
 A mark out of ten for every player on a filed night, and one line of dressing-room banter beside it.
 
 **The model never decides the number.** Same split as Market Value (§2.31): the app computes something
-defensible, and the model is handed the finished figure and asked to phrase it. Four terms, and only
-two of them can separate teammates at all —
+defensible, and the model is handed the finished figure and asked to phrase it. Four terms carry the real
+football, and only two of them can separate teammates at all — a fifth and sixth, `tier` and `jitter`,
+exist for a different reason entirely and are documented on their own below.
 
 | Term | Weight / cap | What it is |
 |---|---|---|
@@ -2682,6 +2683,8 @@ two of them can separate teammates at all —
 | `mvp` | +1 | the one true per-player signal a night produces |
 | `career` | 0.75, ±0.5 | their record against the club's, shrunk toward the mean (`SHRINK_K = 6`) |
 | `momentum` | 0.65, ±0.7 | their last five nights against **their own** shrunk baseline |
+| `tier` | ±0.25, fading | the organiser's rating, coarsened — see **The cold-start nudge** below |
+| `jitter` | ±0.35, fading | a stable per-player-per-night "coin flip" — carries no information at all |
 
 `MatchLogEntry` records `{a, b, winner, viaPenalties}` — team colours, not people. Every match, every
 shootout and every sequence is therefore *identical* for the five players on a shirt, so **on a single
@@ -2705,6 +2708,48 @@ marks every week would be told they were average-to-poor most of the time. Six l
 the ordering untouched and moves only where "nothing special happened" sits — a judgement about tone,
 not about football. Calibrated: median 6, p10/p90 at 4/8, 1.0% at or below 3, 0.3% perfect, season
 averages 4.79–6.84.
+
+**The cold-start nudge (`tier`, `jitter`, `coldStartWeight`, `FADE_NIGHTS`).** On a club three real
+nights old, `momentum` is structurally off for everybody (`MIN_RECENT` nights unmet) and `career` is
+shrunk almost flat (`SHRINK_K = 6` against one or two nights of evidence), so every player on a shirt
+rendered as the identical number for weeks — measured on the actual club, four and five teammates in a
+row at the exact same mark. `marketValue.ts` has the same problem and solves it by withholding the price
+entirely for `MIN_HISTORY_FOR_VALUES` nights (§2.31). This file does not take that route.
+
+**A jitter-only version was designed first and rejected, on the maths rather than on taste.** The
+proposal: a small deterministic per-night noise term, seeded from `fixtureId` + `playerId`, meant to
+break the flatline visually with nothing correlated to anybody. It cannot also give a stronger player a
+"realistic edge" — unbiased noise has no slope by definition — so achieving both halves of the ask
+requires a second, *systematic* term keyed to the organiser's rating (§2.28), which is the one thing this
+formula was built to keep out. And a systematic term does not hide behind noise added on top of it: `night`,
+`mvp`, `career` and `momentum` are all reconstructable by anyone from `GET /history` (no password), so
+the residual `grade − (those four)` is computable for every night a player has played, and by the law of
+large numbers `mean(residual) → tier_bump` as nights accumulate — the noise is exactly what averaging
+cancels, which makes the jitter the thing that gets destroyed by the technique meant to hide the tier
+behind it, not a mitigation of it.
+
+**The organiser weighed that and chose to accept it anyway**, judging a month of visibly identical
+marks a worse cost to the feature than a coarse, decaying, statistically-recoverable-in-principle signal
+that real day-to-day use is unlikely to ever compute. That is the trade recorded here — not a case where
+the risk was missed, one where it was named twice, in the same rigour as this being written down, and
+overruled on purpose:
+
+- **`tier`** buckets the rating into the same three thirds `marketValue.ts`'s `ratingTier` already cuts
+  (exported from there specifically so the two files can never define "top third of the club" two
+  different ways), then maps to a small additive nudge — ±0.25, far short of `night`'s ±2.5, so this
+  breaks a tie and never re-ranks a team.
+- **`jitter`** is the harmless half of the original proposal, kept for what it was always good for:
+  visual variety with zero information in it. A stable FNV-1a hash of the two ids, not a rating input in
+  any form.
+- **`coldStartWeight`** tapers both linearly to exactly 0 by `FADE_NIGHTS`, so the exposure is a *temporary*
+  nudge during the weeks a club has nothing else to show, not a standing leak sitting under an established
+  player forever — averaging a veteran's whole season converges toward 0, not toward their tier. It does
+  not make the early window's exposure zero, only smaller and shorter than "always on" would have been.
+
+Deliberately **not** threaded into `GradeContext` — the model never sees `tier` or `jitter`, only the
+final `grade`, exactly as it never sees any other part of the breakdown. Revisit `TIER_BUMP` or
+`FADE_NIGHTS` only with the organiser in the loop; this is not a constant to widen quietly because a
+future cold start still looks a little flat.
 
 **One prompt for the whole sheet, keyed on an ASCII code.** Fifteen separate requests would burn a
 day's free tier on one night, and fifteen independent completions have no way to avoid handing the same

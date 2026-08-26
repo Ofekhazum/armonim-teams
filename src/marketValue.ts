@@ -50,15 +50,30 @@ export const MIN_HISTORY_FOR_VALUES = 5;
 // rest, where proportional ones keep every term honest and the range sane.
 export const BASE = 6.0;
 
+export type RatingTier = 'bottom' | 'middle' | 'top';
+
 /**
- * The rating, coarsened.
+ * The rating, coarsened to a third of the club rather than a number.
  *
- * Three tiers, and deliberately the **narrowest band in the formula**. A
- * continuous map from rating to price is invertible: knowing the four public
- * terms, you solve for the fifth. Bucketed at ±18% the same arithmetic recovers
- * only which third of the club someone is in.
+ * Exported so `grades.ts`'s cold-start nudge (§2.39) cuts the roster at the
+ * same two points this file does, rather than re-declaring 2.5 and 4 a second
+ * time somewhere else — the same reasoning `derby.ts` imports `BOGEY_RATE`
+ * for: two numbers this close in two files would drift, and the "same third
+ * of the club" both features refer to would quietly stop being true.
  */
-const tierOf = (rating: number): number => (rating <= 2.5 ? 0.85 : rating >= 4 ? 1.18 : 1.0);
+export const ratingTier = (rating: number): RatingTier =>
+  rating <= 2.5 ? 'bottom' : rating >= 4 ? 'top' : 'middle';
+
+/**
+ * The rating, as a multiplier.
+ *
+ * Deliberately the **narrowest band in the formula**. A continuous map from
+ * rating to price is invertible: knowing the four public terms, you solve for
+ * the fifth. Bucketed at ±18% the same arithmetic recovers only which third of
+ * the club someone is in.
+ */
+const TIER_MULTIPLIER: Record<RatingTier, number> = { bottom: 0.85, middle: 1.0, top: 1.18 };
+const tierOf = (rating: number): number => TIER_MULTIPLIER[ratingTier(rating)];
 
 // What their presence has been worth, from results alone (see `resultStrength`).
 // Weighted modestly and clamped tight: it is correlated with the win rate in

@@ -34,9 +34,38 @@
 // it is far less noisy, it is measured against each player's *own* baseline so
 // it favours nobody, and it mean-reverts: per-player season averages land
 // between −0.30 and +0.21 on the sandbox. It adds movement, not bias.
+//
+// **A fifth term, `tier`, exists for one reason: on a young club, `career` and
+// `momentum` are both structurally zero for almost everyone**, and every
+// player on a shirt renders as the identical number for weeks. `momentum`
+// needs `MIN_RECENT` nights before it answers at all; `career` is deliberately
+// shrunk hard toward the club mean while `nightsBefore` is small, which is the
+// same nights-before-anything-means-anything problem `marketValue.ts` solves
+// by withholding a price for `MIN_HISTORY_FOR_VALUES` nights (§2.31).
+//
+// **This file does not take that route, on the organiser's explicit
+// instruction, with the trade-off stated plainly rather than hidden:**
+// `tier` reads the organiser's own private rating (§2.28) — the one thing this
+// formula was built to keep out, and the one thing every other feature in this
+// app (Market Value, the recap, `PlayerCompare`) goes out of its way never to
+// touch. A coarse, capped, *decaying* bump is not the same exposure as
+// publishing the rating itself, but it is not zero either: `night`, `mvp`,
+// `career` and `momentum` are all computable by anyone from `GET /history`,
+// which needs no password, so a bad-faith reader can reconstruct exactly what
+// `tier + jitter` was on any night of theirs and average it over a season. A
+// zero-mean per-night `jitter` (below) cancels under that average by
+// construction — the tier bump does not, and a residual that survives
+// averaging is recoverable in the end, by the law of large numbers, no matter
+// how it is dressed up. `coldStartWeight` narrows the window this is true in —
+// the bump fades to nothing by `FADE_NIGHTS`, so it is a temporary nudge
+// during the exact weeks a club has nothing else to show, not a standing leak
+// under an established player — but it does not make the window's exposure
+// zero, only smaller and shorter. That is a knowingly accepted trade, not an
+// oversight: raise it again before widening `FADE_NIGHTS` or `TIER_BUMP`.
 
 import type { FixtureRecord, TeamColor } from './types';
 import { hasResult } from './calibration';
+import { ratingTier } from './marketValue';
 import { placeOf, profileNights, shirtOf, type Place } from './playerProfile';
 
 /**
@@ -90,11 +119,70 @@ const TREND_EDGE = 0.4;
 
 export type Trend = 'hot' | 'cold' | 'steady';
 
+// The cold-start nudge (see the file header for why this exists and what it
+// costs). Small on purpose relative to `night` — this breaks a tie, it does
+// not re-rank a team.
+const TIER_BUMP: Record<ReturnType<typeof ratingTier>, number> = {
+  bottom: -0.25,
+  middle: 0,
+  top: 0.25,
+};
+
+// Larger than TIER_BUMP's span, so a single night's number never *nakedly*
+// announces which tier it came from — see JITTER below for what it is doing
+// and, just as importantly, what it is not.
+const JITTER_SPAN = 0.35;
+
+/**
+ * How many nights of not-quite-nothing this lasts.
+ *
+ * By `FADE_NIGHTS`, `career`'s shrinkage weight (`nightsBefore / (nightsBefore
+ * + SHRINK_K)`) is past half, and `momentum` has had room to answer for a
+ * while — real signal has taken over, and the nudge has finished handing off
+ * to it. Chosen a little past `SHRINK_K` rather than at it, so the two do not
+ * both still be finding their feet in the same week.
+ */
+const FADE_NIGHTS = 8;
+
+/**
+ * 1 on a debut, straight-line down to 0 by `FADE_NIGHTS` — smoothly, so a
+ * player never sees a visible jump the week the nudge switches off. The taper
+ * is also the reason `tier` is a *temporary* exposure rather than a standing
+ * one: past `FADE_NIGHTS` this returns 0 and the rating stops entering the
+ * arithmetic at all.
+ */
+const coldStartWeight = (nightsBefore: number): number =>
+  clamp(1 - nightsBefore / FADE_NIGHTS, 0, 1);
+
+/**
+ * A small, stable "which way does this night's coin land" per player per
+ * fixture — same two ids always produce the same number, so a reload or a
+ * re-render never shows somebody a different mark for a night already filed.
+ *
+ * **This carries no information about anybody.** It is arithmetic over two
+ * public ids, nothing about the player feeds it, and its only job is to keep
+ * `tier`'s ±0.25 from being nakedly readable as itself on a single night. It
+ * is exactly the part of this scheme that is safe — see the file header for
+ * the part that is not.
+ */
+function jitterOf(fixtureId: string, playerId: string): number {
+  let h = 2166136261; // FNV-1a offset basis
+  for (const ch of `${fixtureId} ${playerId}`) {
+    h ^= ch.charCodeAt(0);
+    h = Math.imul(h, 16777619);
+  }
+  const unit = (h >>> 0) / 0xffffffff; // → [0, 1)
+  return (unit * 2 - 1) * JITTER_SPAN; // → [-JITTER_SPAN, JITTER_SPAN)
+}
+
 export interface GradeParts {
   night: number;
   mvp: number;
   career: number;
   momentum: number;
+  /** The cold-start nudge — see the file header before touching either. */
+  tier: number;
+  jitter: number;
 }
 
 /**
@@ -206,9 +294,16 @@ export function nightGrades(history: FixtureRecord[], fixtureId: string): Grade[
       }
 
       const isMvp = fx.mvpId === id;
-      const parts: GradeParts = { night, mvp: isMvp ? MVP_BONUS : 0, career, momentum };
+      const rating = fx.players.find((p) => p.id === id)?.rating ?? 3;
+      const coldStart = coldStartWeight(nightsBefore);
+      // `+ 0` rather than a bare product: `negative * 0` is `-0` in IEEE754,
+      // and a mark that is exactly BASE past FADE_NIGHTS should read as
+      // ordinary 0 rather than surface a sign nobody put there.
+      const tier = TIER_BUMP[ratingTier(rating)] * coldStart + 0;
+      const jitter = jitterOf(fx.id, id) * coldStart + 0;
+      const parts: GradeParts = { night, mvp: isMvp ? MVP_BONUS : 0, career, momentum, tier, jitter };
       const grade = clamp(
-        round(BASE + parts.night + parts.mvp + parts.career + parts.momentum),
+        round(BASE + parts.night + parts.mvp + parts.career + parts.momentum + parts.tier + parts.jitter),
         GRADE_MIN,
         GRADE_MAX,
       );
@@ -262,4 +357,7 @@ export const gradeConstants = {
   SHRINK_K,
   RECENT_NIGHTS,
   MIN_RECENT,
+  TIER_BUMP,
+  JITTER_SPAN,
+  FADE_NIGHTS,
 };
