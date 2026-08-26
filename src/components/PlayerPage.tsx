@@ -546,7 +546,7 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
                 entirely for a player nobody has ever published a mark for —
                 see the note on `gradePoints`. */}
             {gradePoints.length > 0 && (
-              <Card title="Form" hint="published marks">
+              <Card title="Form">
                 <GradeForm points={gradePoints} />
               </Card>
             )}

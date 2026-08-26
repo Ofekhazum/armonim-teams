@@ -2845,8 +2845,8 @@ player with no market value yet.
 
 A player's published marks lately, on their profile — the third way of asking about the same nights, so
 it sits between the medal ribbon (where they finished) and the timeline (what happened). A row of
-coloured squares, a summary of the last few, and a table with a mark on the end of each row: the shape
-every football screen uses for form.
+coloured squares and a table with a mark on the end of each row: the shape every football screen uses
+for form, pared back once on the organiser's own read of it (below).
 
 **It replaced a line chart, and the reason is worth keeping.** The graph drew a continuous trend through
 points a week apart, which invites reading a slope into what are really five separate evenings, and it
@@ -2856,12 +2856,22 @@ implying anything in the gaps. (The chart is in the history at `95a77d9` if it i
 **The columns are what a night actually knows.** The screens this is modelled on show minutes, xG, goals
 and assists; this app records none of those, because nobody writes them down (§2.24). It records the
 shirt, what the team took, where they finished and the player-of-the-night pick — so those are the
-columns, and there is a test asserting the words *goal*, *assist*, *xG* and *minute* never appear on it.
-Inventing them here would be the same offence the grades prompt spends three paragraphs preventing.
+columns (the "wins" column named for what it is, not for a Football Manager convention that assumes a
+season of matches rather than a night of them), and there is a test asserting the words *goal*, *assist*,
+*xG* and *minute* never appear on it. Inventing them here would be the same offence the grades prompt
+spends three paragraphs preventing.
 
-**A shared placing is written `=1`.** Level at the top means nobody took the night (§2.6), so a player
-can hold a gold 1 on a night the summary counts as not won — which looks like a bug until the tie is
-marked. Both first places in the sandbox's most recent five turned out to be exactly this.
+**No "won of last N" / "MVP of last N" tiles, on the organiser's second pass at the design.** The first
+version carried both beside the strip, in the spirit of the reference screens' summary row. Dropped for
+being redundant with what the table already shows one scroll down, and for being where a shared-top night
+first exposed the next point.
+
+**A shared placing shows a plain number, not `=1`.** The first version marked a tie explicitly — level at
+the top means nobody took the night (§2.6), so without the mark a gold 1 could read as an outright win
+that did not happen. Simplified back to a bare number on request; the honest distinction is not gone, only
+quieter — the hover title still says "Level on 1" rather than "Finished 1st" on a shared night, which
+costs nothing and loses nothing for anyone who taps it, while the badge itself stays uncluttered for
+everyone who does not.
 
 **A bulk endpoint had to exist first, and it is the interesting part.** Grades are stored one KV key per
 fixture, which is right for the night page — it reads one night. This panel reads *every* night a player

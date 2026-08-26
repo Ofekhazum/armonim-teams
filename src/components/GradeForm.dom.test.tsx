@@ -95,15 +95,6 @@ describe('GradeForm', () => {
     expect(within(rows[1]).getByText('9')).toBeInTheDocument();
   });
 
-  it('summarises the last five: nights won and MVPs', () => {
-    render(<GradeForm points={build([
-      { id: 'a', days: 2, grade: 9, wins: 5, mvp: true },
-      { id: 'b', days: 6, grade: 4, wins: 0 },
-    ])} />);
-    expect(screen.getByText(/won of last 2/)).toBeInTheDocument();
-    expect(screen.getByText(/MVP of last 2/)).toBeInTheDocument();
-  });
-
   it('never shows a column this app does not record', () => {
     // §2.24 — no goals, no assists, no xG, no minutes. The screens this is
     // modelled on have all four, and inventing them here is the same offence
@@ -128,10 +119,11 @@ describe('GradeForm', () => {
     expect(screen.getAllByRole('row')).toHaveLength(9);
   });
 
-  it('marks a shared placing, so a gold 1 never contradicts "0 won"', () => {
-    // Both teams level at the top: §2.6 says nobody took the night, so the
-    // summary reads 0 won while the medal still says first. "=1" is what
-    // stops that looking like a bug.
+  it('keeps a shared placing honest in the hover title, even though the badge shows a plain number', () => {
+    // Both teams level at the top: §2.6 says nobody took the night. The badge
+    // itself reads a plain "1" (a deliberate simplification), but the tie is
+    // still on record for anyone who hovers it — this is not the same claim
+    // as "finished 1st outright", and the title should not pretend it is.
     const history: FixtureRecord[] = [
       {
         id: 'tie',
@@ -142,11 +134,9 @@ describe('GradeForm', () => {
       },
     ];
     render(<GradeForm points={playerGradeSeries(history, { tie: { a: 7 } }, 'a')} />);
-    expect(screen.getByText('=1')).toBeInTheDocument();
-    // The summary sits beside its label, so read the pair rather than a bare
-    // "0" — both the won and MVP tiles show one.
-    const wonLabel = screen.getByText(/won of last 1/);
-    expect(wonLabel.parentElement?.textContent).toMatch(/^0/);
+    expect(screen.getByText('1')).toBeInTheDocument();
+    expect(screen.queryByText('=1')).not.toBeInTheDocument();
+    expect(screen.getByTitle('Level on 1')).toBeInTheDocument();
   });
 
   it('says the window is empty rather than looking broken', () => {

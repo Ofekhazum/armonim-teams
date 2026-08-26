@@ -63,8 +63,6 @@ export default function GradeForm({ points }: { points: GradePoint[] }) {
 
   const strip = recentForm(shown);
   const stripMean = meanGrade(strip);
-  const won = strip.filter((p) => p.wonNight).length;
-  const mvps = strip.filter((p) => p.isMvp).length;
 
   // Newest first: the question this card answers is "how has it been lately",
   // and the answer to that belongs at the top rather than eight rows down.
@@ -115,13 +113,6 @@ export default function GradeForm({ points }: { points: GradePoint[] }) {
               ))}
             </div>
 
-            {/* Counts, not goals and assists — the two per-night facts this app
-                actually holds about a person rather than a team. */}
-            <div className="flex items-center gap-4 text-center">
-              <Summary n={String(won)} label={`won of last ${strip.length}`} />
-              <Summary n={String(mvps)} label={`MVP of last ${strip.length}`} />
-            </div>
-
             {stripMean !== null && (
               <div className="ms-auto text-end">
                 <span
@@ -143,7 +134,7 @@ export default function GradeForm({ points }: { points: GradePoint[] }) {
               <tr className="text-[10px] font-bold uppercase tracking-wide text-amber-900/40">
                 <th className="py-1 text-start font-bold">Date</th>
                 <th className="py-1 text-start font-bold">Night</th>
-                <th className="py-1 text-end font-bold">Took</th>
+                <th className="py-1 text-end font-bold">Wins</th>
                 <th className="py-1 text-end font-bold">Mark</th>
               </tr>
             </thead>
@@ -157,17 +148,17 @@ export default function GradeForm({ points }: { points: GradePoint[] }) {
                           the night ribbon uses — one visual language for
                           "where did they finish" across the app.
 
-                          A shared placing is marked "=1", the way every sports
-                          table marks a tie. Without it a gold 1 sits next to a
-                          summary reading "0 won of last 5" and looks like a
-                          bug, when it is §2.6 doing exactly its job: level at
-                          the top means nobody took the night. */}
+                          The badge itself stays a plain number even on a
+                          shared placing — the tie is still on record in the
+                          hover title (§2.6: level at the top means nobody
+                          took the night), just not spelled out on the face of
+                          the badge. */}
                       {p.place !== null && (
                         <span
                           title={p.shared ? `Level on ${p.place}` : `Finished ${p.place}`}
-                          className={`grid h-4 min-w-[1rem] shrink-0 place-items-center rounded px-0.5 font-mono text-[9px] font-black ${MEDAL[p.place]}`}
+                          className={`grid h-4 w-4 shrink-0 place-items-center rounded font-mono text-[9px] font-black ${MEDAL[p.place]}`}
                         >
-                          {p.shared ? `=${p.place}` : p.place}
+                          {p.place}
                         </span>
                       )}
                       <span className={`rounded px-1.5 py-0.5 text-[11px] font-semibold ${TEAM_META[p.shirt].tile}`}>
@@ -206,10 +197,3 @@ export default function GradeForm({ points }: { points: GradePoint[] }) {
     </div>
   );
 }
-
-const Summary = ({ n, label }: { n: string; label: string }) => (
-  <div>
-    <div className="font-mono text-sm font-black tabular-nums text-amber-950">{n}</div>
-    <div className="text-[10px] leading-tight text-amber-900/45">{label}</div>
-  </div>
-);
