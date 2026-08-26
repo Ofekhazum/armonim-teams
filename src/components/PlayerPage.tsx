@@ -34,7 +34,7 @@ import { SHOW_MARKET_VALUE, fetchValues } from '../values';
 import { fetchAllMarks } from '../gradesApi';
 import { playerGradeSeries, type AllMarks } from '../gradeHistory';
 import PriceTag from './PriceTag';
-import GradeGraph from './GradeGraph';
+import GradeForm from './GradeForm';
 import { periodLabel } from '../wrapped';
 
 // One player's page (§2.19). Everything on it is counted from history — the
@@ -547,7 +547,7 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
                 see the note on `gradePoints`. */}
             {gradePoints.length > 0 && (
               <Card title="Form" hint="published marks">
-                <GradeGraph points={gradePoints} />
+                <GradeForm points={gradePoints} />
               </Card>
             )}
 

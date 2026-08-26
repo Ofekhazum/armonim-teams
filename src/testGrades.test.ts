@@ -4,7 +4,7 @@ import { nightGrades } from './grades';
 import { testGradeLines } from './testGrades';
 
 // The sandbox's grades (§2.32, §2.39). The one property that actually matters
-// is that they agree with the formula: the profile's form graph computes marks
+// is that they agree with the formula: the profile's form panel computes marks
 // from `nightGrades` in test mode, so a night page showing a different number
 // for the same night would be a sandbox that misrepresents the feature.
 
@@ -25,7 +25,7 @@ describe('testGradeLines', () => {
     }
   });
 
-  it('uses the real marks, so the night page and the form graph agree', () => {
+  it('uses the real marks, so the night page and the form panel agree', () => {
     // The reason this file does not roll a random number, stated as a test.
     for (const fx of graded.slice(0, 5)) {
       const lines = testGradeLines(club.history, fx.id)!;

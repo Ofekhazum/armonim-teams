@@ -7,9 +7,9 @@
 // as `testAwards.ts` is.
 //
 // **The marks are the real ones, not invented.** `nightGrades` over the
-// invented history, which is the same call the profile's form graph already
+// invented history, which is the same call the profile's form panel already
 // makes in test mode. Rolling a random number here instead would put a
-// different mark on the night page from the one the graph shows for that night
+// different mark on the night page from the one the panel shows for that night
 // two taps away — a sandbox that misrepresents the feature rather than
 // demonstrating it. The invented club's own results already spread the marks
 // across most of the scale, which is the variety a random number was wanted for.
