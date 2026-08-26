@@ -311,13 +311,19 @@ describe('writeGrades', () => {
     vi.unstubAllGlobals();
   });
 
-  it('names who was left out instead of failing the whole night', async () => {
+  it('names who was left out, and still publishes their mark', async () => {
+    // Every player gets an entry because the mark is the published artifact —
+    // a public device cannot recompute it (see linesFrom). Only `text` is
+    // missing for the players the model skipped.
     vi.stubGlobal(
       'fetch',
       vi.fn(async () => reply('{"p1":"מלך"}')),
     );
     const out = await writeGrades({ GEMINI_KEY: 'k' }, facts());
-    expect(Object.keys(out.lines)).toEqual(['id1']);
+    expect(Object.keys(out.lines)).toEqual(['id1', 'id2', 'id3']);
+    expect(out.lines.id1).toEqual({ text: 'מלך', grade: 10 });
+    expect(out.lines.id2).toEqual({ grade: 4.5 });
+    expect(out.lines.id3).toEqual({ grade: 3.5 });
     expect(out.missing).toEqual(['אופק', 'בר']);
     vi.unstubAllGlobals();
   });

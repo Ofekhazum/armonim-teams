@@ -139,29 +139,17 @@ describe('nightGrades', () => {
     expect(gradeOf(gs, 'a').context.wonNight).toBe(true);
   });
 
-  it('sits an average night on the base mark, for an established player', () => {
+  it('sits an average night on the base mark, up to the jitter', () => {
     // Three teams level: nobody beat the night's own average, so night is
-    // zero. An average career (a's history is built to average exactly the
-    // club mean) makes career and momentum zero too, and enough nights behind
-    // them (past FADE_NIGHTS) switches tier and jitter off exactly — the only
-    // way this can be asserted as an exact `toBe` rather than "close to".
-    const past = Array.from({ length: gradeConstants.FADE_NIGHTS }, () =>
-      night(T(['a'], ['x']), { black: 3, white: 3, blue: 0 }),
-    );
-    const fx = night(T(['a'], ['b'], ['c']), { black: 3, white: 3, blue: 3 });
-    const g = gradeOf(nightGrades([...past, fx], fx.id), 'a');
-    expect(g.parts).toMatchObject({ night: 0, mvp: 0, career: 0, momentum: 0, tier: 0, jitter: 0 });
-    expect(g.grade).toBe(BASE);
-  });
-
-  it('lets a first-night player’s mark wobble a little on an average night', () => {
-    // The same night, for somebody with no history at all: jitter is live
-    // (nightsBefore = 0, so coldStartWeight is 1), so the mark is not
-    // guaranteed to land exactly on BASE — only within jitter's own bound.
+    // zero, and a middle-tier player with no history has career, momentum and
+    // tier all at zero too. The *football* is therefore exactly BASE — but
+    // jitter is permanent (see below), so the printed mark is BASE give or
+    // take it, which is what this can honestly assert.
     const fx = night(T(['a'], ['b'], ['c']), { black: 3, white: 3, blue: 3 });
     const g = gradeOf(nightGrades([fx], fx.id), 'a');
-    expect(g.grade).toBeGreaterThanOrEqual(BASE - gradeConstants.JITTER_SPAN - 0.5);
-    expect(g.grade).toBeLessThanOrEqual(BASE + gradeConstants.JITTER_SPAN + 0.5);
+    expect(g.parts).toMatchObject({ night: 0, mvp: 0, career: 0, momentum: 0, tier: 0 });
+    // ±jitter, then rounding to the nearest half on top of it.
+    expect(Math.abs(g.grade - BASE)).toBeLessThanOrEqual(gradeConstants.JITTER_SPAN + 0.5);
   });
 
   it('is the same answer every time it is asked', () => {
@@ -177,7 +165,7 @@ describe('nightGrades', () => {
 // the trade-off the one that was actually agreed to: the bump is bounded and
 // bucketed rather than the rating itself, and it is temporary rather than a
 // standing leak.
-describe('the cold-start nudge', () => {
+describe('the tier shade', () => {
   it('gives a bottom-tier and a top-tier player different marks on an otherwise identical first night', () => {
     // The exact complaint this exists to answer: two players with nothing
     // else to distinguish them — same shirt, same night, no MVP, no history —
@@ -211,42 +199,88 @@ describe('the cold-start nudge', () => {
     }
   });
 
-  it('fades the tier bump to nothing by FADE_NIGHTS, smoothly rather than as a jump', () => {
-    const bottomRating = { ratings: { a: 1.5 } };
-    const debut = night(T(['a'], ['x']), { black: 4, white: 2, blue: 0 }, bottomRating);
-    expect(gradeOf(nightGrades([debut], debut.id), 'a').parts.tier).toBeLessThan(0);
+  it('never fades — a long career keeps the same shade as a debut', () => {
+    // The deliberate reversal of an earlier design that tapered this to zero
+    // by a fixed number of nights. The organiser maintains these ratings as
+    // players improve and decline, so a term that switched itself off once
+    // somebody had played enough would be fighting exactly the updates it is
+    // supposed to reflect.
+    const bottom = { ratings: { a: 1.5 } };
+    const debut = night(T(['a'], ['x']), { black: 4, white: 2, blue: 0 }, bottom);
+    const debutTier = gradeOf(nightGrades([debut], debut.id), 'a').parts.tier;
+    expect(debutTier).toBeLessThan(0);
 
-    // Halfway to FADE_NIGHTS: still present, but shrunk from the debut figure.
-    const half = Array.from({ length: Math.floor(gradeConstants.FADE_NIGHTS / 2) }, () =>
-      night(T(['a'], ['x']), { black: 3, white: 3, blue: 0 }, bottomRating),
+    const long = Array.from({ length: 30 }, () =>
+      night(T(['a'], ['x']), { black: 3, white: 3, blue: 0 }, bottom),
     );
-    const midway = night(T(['a'], ['x']), { black: 4, white: 2, blue: 0 }, bottomRating);
-    const midTier = gradeOf(nightGrades([...half, midway], midway.id), 'a').parts.tier;
-    expect(midTier).toBeLessThan(0);
-    expect(midTier).toBeGreaterThan(gradeOf(nightGrades([debut], debut.id), 'a').parts.tier);
-
-    // At FADE_NIGHTS: gone, exactly, however extreme the rating.
-    const full = Array.from({ length: gradeConstants.FADE_NIGHTS }, () =>
-      night(T(['a'], ['x']), { black: 3, white: 3, blue: 0 }, bottomRating),
-    );
-    const established = night(T(['a'], ['x']), { black: 4, white: 2, blue: 0 }, bottomRating);
-    expect(gradeOf(nightGrades([...full, established], established.id), 'a').parts.tier).toBe(0);
+    const established = night(T(['a'], ['x']), { black: 4, white: 2, blue: 0 }, bottom);
+    const lateTier = gradeOf(nightGrades([...long, established], established.id), 'a').parts.tier;
+    expect(lateTier).toBe(debutTier);
   });
 
-  it('fades jitter to nothing by FADE_NIGHTS too, not just tier', () => {
-    const full = Array.from({ length: gradeConstants.FADE_NIGHTS }, () =>
-      night(T(['a'], ['x']), { black: 3, white: 3, blue: 0 }),
-    );
-    const established = night(T(['a'], ['x']), { black: 4, white: 2, blue: 0 });
-    expect(gradeOf(nightGrades([...full, established], established.id), 'a').parts.jitter).toBe(0);
+  it('follows a re-rating, using the rating the player held on that night', () => {
+    // The organiser re-rates somebody upward mid-season. The nights they were
+    // bottom-tier for keep the shade they were actually marked with, and the
+    // nights after it get the new one — the same as-of-that-night rule every
+    // other term in this file follows.
+    const early = night(T(['a'], ['x']), { black: 4, white: 2, blue: 0 }, { ratings: { a: 1.5 } });
+    const late = night(T(['a'], ['x']), { black: 4, white: 2, blue: 0 }, { ratings: { a: 4.5 } });
+    const history = [early, late];
+    expect(gradeOf(nightGrades(history, early.id), 'a').parts.tier).toBeLessThan(0);
+    expect(gradeOf(nightGrades(history, late.id), 'a').parts.tier).toBeGreaterThan(0);
   });
 
-  it('never lets the nudge push a grade outside 1–10', () => {
-    // The most extreme case the clamp has to survive: a bottom-tier debutant
+  it('is outweighed by every part of the formula that is about actual football', () => {
+    // The property that keeps a permanent rating term honest: it shades a
+    // mark, it cannot carry one. A top-tier player on a blanked team must
+    // still mark below a bottom-tier player whose team took the night.
+    const fx = night(
+      T(['strong'], ['weak']),
+      { black: 0, white: 6, blue: 0 },
+      { ratings: { strong: 5, weak: 1 } },
+    );
+    const gs = nightGrades([fx], fx.id)!;
+    expect(gradeOf(gs, 'weak').grade).toBeGreaterThan(gradeOf(gs, 'strong').grade);
+  });
+
+  it('stays smaller than career, momentum and the night itself', () => {
+    // Stated as an assertion rather than left to the comments: widening
+    // TIER_BUMP past these is the change that would turn a shade into a verdict.
+    const span = Math.max(...Object.values(gradeConstants.TIER_BUMP));
+    expect(span).toBeLessThan(gradeConstants.CAREER_CAP);
+    expect(span).toBeLessThan(gradeConstants.MOMENTUM_CAP);
+    expect(span).toBeLessThan(gradeConstants.NIGHT_CAP);
+  });
+
+  it('never lets the shade push a grade outside 1–10', () => {
+    // The most extreme case the clamp has to survive: a bottom-tier player
     // whose team was also blanked.
     const fx = night(T(['a'], ['x']), { black: 0, white: 6, blue: 0 }, { ratings: { a: 1 } });
     const g = gradeOf(nightGrades([fx], fx.id), 'a');
     expect(g.grade).toBeGreaterThanOrEqual(1);
     expect(g.grade).toBeLessThanOrEqual(10);
+  });
+
+  it('leaves momentum its full weight — the shade is an addition, not a replacement', () => {
+    // Guarding the thing that was explicitly asked to survive this change: a
+    // player's own recent form must still move their mark, and by more than
+    // their tier does.
+    const build = (early: number, late: number) => {
+      const old = Array.from({ length: 6 }, () =>
+        night(T(['a'], ['x']), { black: early, white: 6 - early, blue: 0 }),
+      );
+      const recent = Array.from({ length: 5 }, () =>
+        night(T(['a'], ['x']), { black: late, white: 6 - late, blue: 0 }),
+      );
+      const tonight = night(T(['a'], ['x']), { black: 3, white: 3, blue: 0 });
+      return gradeOf(nightGrades([...old, ...recent, tonight], tonight.id), 'a');
+    };
+    const hot = build(1, 5);
+    const cold = build(5, 1);
+    expect(hot.parts.momentum).toBeGreaterThan(0);
+    expect(cold.parts.momentum).toBeLessThan(0);
+    // and the swing form can produce is wider than the whole tier span
+    const tierSpan = Math.max(...Object.values(gradeConstants.TIER_BUMP)) * 2;
+    expect(hot.parts.momentum - cold.parts.momentum).toBeGreaterThan(tierSpan);
   });
 });

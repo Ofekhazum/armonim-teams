@@ -3,14 +3,20 @@
 // The same four calls `recap.ts` makes and deliberately the same shape, because
 // it is the same act: generate, read it, keep it or throw it away. What differs
 // is what comes back — a map of one-liners rather than one report — and the one
-// rule that map carries, which is `usableLines` at the bottom.
+// rule that map carries, which is `publishedMarks` at the bottom.
 
 import { REMOTE_URL } from './remote';
 import type { GradesFacts } from './gradesFacts';
 
-/** One player's line, and the mark it was written against. */
+/**
+ * One player's published mark, and the banter beside it if the model wrote any.
+ *
+ * `text` is optional and `grade` is not, which is the right way round: a mark
+ * with no sentence is an ordinary complete state (the model skipped somebody),
+ * where a sentence with no mark would be banter about a number nobody can see.
+ */
 export interface GradeLine {
-  text: string;
+  text?: string;
   grade: number;
 }
 
@@ -115,33 +121,38 @@ export const autoGrades = (
 ): Promise<GradesResult> => post({ secret, fixtureId, facts, save: true });
 
 /**
- * The stored lines that still describe the marks in front of us.
+ * What to actually put on screen for each player: the published mark, and the
+ * banter if there is any.
  *
- * **The marks are recomputed, the sentences are not**, and that gap is the one
- * thing this feature can get quietly wrong. `nightGrades` reads the archive, so
- * a night corrected months later — a win tally fixed, an MVP added — moves the
- * marks underneath banter that was written about the old ones. A line hyping
- * somebody who now shows a 4 is worse than no line at all, because it reads as
- * the app not knowing what it thinks.
+ * **The published record wins over anything computed locally**, and that is a
+ * correctness requirement rather than a preference. `grades.ts` reads the
+ * organiser's private rating (§2.28), which `publicFixture` strips out of
+ * `GET /history` — so on every device except the organiser's, a locally
+ * computed mark is simply *wrong*. Measured against the real club, six of
+ * sixteen players came out half a mark apart between an admin device and a
+ * public one. The organiser computes the marks where the ratings live and
+ * publishes them, exactly as `GET /values` publishes a price no public device
+ * could work out (§2.31).
  *
- * So the mark travels with the sentence and is checked against the live one
- * here. A drifted line is dropped rather than shown, which leaves that player a
- * bare mark — already a complete state, and the honest one. Re-rolling the
- * night brings the banter back.
+ * An earlier version compared the stored mark against a locally recomputed one
+ * and dropped the line when they disagreed, to catch banter left stale by a
+ * night corrected later. That test stopped being valid the moment the rating
+ * entered the formula: on a viewer's device it fires for a large share of the
+ * club every time, silently hiding the banter from exactly the people it was
+ * written for while the organiser sees it fine. Staleness after a correction is
+ * handled the way the recap already handles it — the organiser re-rolls.
  *
- * Takes only `{id, grade}` rather than the full `Grade[]` — `NightGrades.tsx`
- * already has `GradeFactLine[]` from `gradesFacts` on hand for rendering, and
- * both shapes satisfy this one, so nothing has to compute `nightGrades` twice.
+ * `players` is the fallback order and the fallback marks, used only for a
+ * player absent from the record entirely.
  */
-export function usableLines(
+export function publishedMarks(
   lines: GradeLines | null,
   players: { id: string; grade: number }[],
 ): GradeLines {
-  if (!lines) return {};
   const out: GradeLines = {};
   for (const p of players) {
-    const line = lines[p.id];
-    if (line && line.grade === p.grade) out[p.id] = line;
+    const stored = lines?.[p.id];
+    out[p.id] = stored ? stored : { grade: p.grade };
   }
   return out;
 }

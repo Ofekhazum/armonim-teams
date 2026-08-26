@@ -255,6 +255,10 @@ const MAX_LINE = 300;
  * **The `p1` codes stop here.** They exist for the length of one request, and
  * what comes out is addressed by player id, so nothing stored or rendered ever
  * depends on a handle whose meaning was the order of one array.
+ *
+ * **Every player gets an entry, whether or not the model wrote about them**,
+ * because the mark is now the published artifact rather than something each
+ * device works out for itself — see the note on `grade` below.
  */
 function linesFrom(raw, players) {
   const from = raw.indexOf('{');
@@ -276,20 +280,26 @@ function linesFrom(raw, players) {
   // and not for one, and that judgement belongs to whoever is looking at the
   // screen. A number would not let them make it.
   const missing = [];
+  let wrote = 0;
   for (const p of players) {
     const said = parsed[p.key];
-    if (typeof said !== 'string' || !said.trim()) {
-      missing.push(p.name);
-      continue;
-    }
-    // The mark travels with the sentence. It is not what gets displayed — every
-    // device recomputes that from the archive — it is what the sentence was
-    // written *against*, so a night later corrected, or a formula later tuned,
-    // can be spotted and the stale banter dropped rather than left sitting
-    // beside a number it no longer describes.
-    lines[p.id] = { text: said.trim().slice(0, MAX_LINE), grade: p.grade };
+    const has = typeof said === 'string' && said.trim().length > 0;
+    if (!has) missing.push(p.name);
+    else wrote++;
+    // **The mark is published, not recomputed**, and this is the only place it
+    // can be. `grades.ts` reads the organiser's private rating (§2.28, §2.39),
+    // which `publicFixture` strips out of `GET /history` — so every device
+    // except the organiser's would work out a *different* number from the same
+    // archive. Measured on the real club: six of sixteen players came out half
+    // a mark apart. Storing the figure the organiser actually saw is what makes
+    // one night one set of marks for everybody, the same way `GET /values`
+    // publishes a price nobody else could compute.
+    //
+    // `text` is absent rather than empty when the model skipped somebody: a
+    // mark with no banter is an ordinary, complete state.
+    lines[p.id] = has ? { text: said.trim().slice(0, MAX_LINE), grade: p.grade } : { grade: p.grade };
   }
-  if (Object.keys(lines).length === 0) {
+  if (wrote === 0) {
     return { error: 'the model answered about nobody on the sheet' };
   }
   return { lines, missing };

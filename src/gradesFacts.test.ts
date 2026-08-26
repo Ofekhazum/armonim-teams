@@ -4,7 +4,7 @@ import { winsFromLog } from './matchLog';
 import { buildTestClub } from './testData';
 import { gradesFacts } from './gradesFacts';
 import { nightGrades } from './grades';
-import { usableLines, type GradeLines } from './gradesApi';
+import { publishedMarks, type GradeLines } from './gradesApi';
 
 // The payload behind the grades (§2.39). Two things carry all the risk here:
 // the `p1` codes, which are the only address the model's answer comes back
@@ -175,7 +175,7 @@ describe('gradesFacts', () => {
   });
 });
 
-describe('usableLines', () => {
+describe('publishedMarks', () => {
   const fx = night([m('black', 'white', 'black'), m('black', 'blue', 'black')]);
   const graded = nightGrades([fx], fx.id)!;
   const lines = (over: Partial<Record<string, number>> = {}): GradeLines =>
@@ -183,23 +183,44 @@ describe('usableLines', () => {
       graded.map((g) => [g.id, { text: `line for ${g.id}`, grade: over[g.id] ?? g.grade }]),
     );
 
-  it('keeps a line written against the mark that is still showing', () => {
-    expect(Object.keys(usableLines(lines(), graded))).toHaveLength(graded.length);
+  it('shows every player, with the mark and the line that were published', () => {
+    const shown = publishedMarks(lines(), graded);
+    expect(Object.keys(shown)).toHaveLength(graded.length);
+    for (const g of graded) {
+      expect(shown[g.id]).toEqual({ text: `line for ${g.id}`, grade: g.grade });
+    }
   });
 
-  it('drops a line whose mark has moved underneath it', () => {
-    // A night corrected months later, or the formula retuned: the banter is
-    // now about a number nobody can see, and a bare mark is the honest state.
-    const drifted = usableLines(lines({ [graded[0].id]: graded[0].grade + 1 }), graded);
-    expect(drifted[graded[0].id]).toBeUndefined();
-    expect(Object.keys(drifted)).toHaveLength(graded.length - 1);
+  it('prefers the published mark over anything computed locally', () => {
+    // The regression this whole function exists for. `grades.ts` reads the
+    // organiser's private rating, which `publicFixture` strips out of
+    // GET /history — so a viewer's locally computed mark disagrees with the
+    // organiser's for a large share of the club, and the published one is the
+    // only figure that is the same on everybody's phone. Six of sixteen real
+    // players came out half a mark apart when this was measured.
+    const published = publishedMarks(lines({ [graded[0].id]: graded[0].grade + 1 }), graded);
+    expect(published[graded[0].id].grade).toBe(graded[0].grade + 1);
+    expect(published[graded[0].id].text).toBe(`line for ${graded[0].id}`);
   });
 
-  it('is empty rather than throwing when there is nothing stored', () => {
-    expect(usableLines(null, graded)).toEqual({});
+  it('keeps the mark for a player the model skipped, with no line', () => {
+    const partial: GradeLines = { [graded[0].id]: { grade: 7 } };
+    const shown = publishedMarks(partial, graded);
+    expect(shown[graded[0].id]).toEqual({ grade: 7 });
+    expect(shown[graded[0].id].text).toBeUndefined();
+  });
+
+  it('falls back to the local mark only for a player absent from the record', () => {
+    const shown = publishedMarks({}, graded);
+    for (const g of graded) expect(shown[g.id]).toEqual({ grade: g.grade });
+  });
+
+  it('does not throw when there is nothing stored at all', () => {
+    expect(Object.keys(publishedMarks(null, graded))).toHaveLength(graded.length);
   });
 
   it('ignores a line for somebody who did not play', () => {
-    expect(usableLines({ nobody: { text: 'x', grade: 6 } }, graded)).toEqual({});
+    const shown = publishedMarks({ nobody: { text: 'x', grade: 6 } }, graded);
+    expect(shown.nobody).toBeUndefined();
   });
 });

@@ -35,33 +35,42 @@
 // it favours nobody, and it mean-reverts: per-player season averages land
 // between −0.30 and +0.21 on the sandbox. It adds movement, not bias.
 //
-// **A fifth term, `tier`, exists for one reason: on a young club, `career` and
-// `momentum` are both structurally zero for almost everyone**, and every
-// player on a shirt renders as the identical number for weeks. `momentum`
-// needs `MIN_RECENT` nights before it answers at all; `career` is deliberately
-// shrunk hard toward the club mean while `nightsBefore` is small, which is the
-// same nights-before-anything-means-anything problem `marketValue.ts` solves
-// by withholding a price for `MIN_HISTORY_FOR_VALUES` nights (§2.31).
+// **A fifth term, `tier`, is a permanent structural component and reads the
+// organiser's private rating (§2.28)** — the one input every other feature in
+// this app (Market Value, the recap, `PlayerCompare`) goes out of its way never
+// to touch. It is here on the organiser's explicit and repeated instruction,
+// and the reasoning behind it is theirs: a better player should mark higher
+// than a weaker one on a comparable night, the ratings are actively maintained
+// as players improve or decline, and a grade that ignored them would be
+// fighting those updates rather than reflecting them.
 //
-// **This file does not take that route, on the organiser's explicit
-// instruction, with the trade-off stated plainly rather than hidden:**
-// `tier` reads the organiser's own private rating (§2.28) — the one thing this
-// formula was built to keep out, and the one thing every other feature in this
-// app (Market Value, the recap, `PlayerCompare`) goes out of its way never to
-// touch. A coarse, capped, *decaying* bump is not the same exposure as
-// publishing the rating itself, but it is not zero either: `night`, `mvp`,
-// `career` and `momentum` are all computable by anyone from `GET /history`,
-// which needs no password, so a bad-faith reader can reconstruct exactly what
-// `tier + jitter` was on any night of theirs and average it over a season. A
-// zero-mean per-night `jitter` (below) cancels under that average by
-// construction — the tier bump does not, and a residual that survives
-// averaging is recoverable in the end, by the law of large numbers, no matter
-// how it is dressed up. `coldStartWeight` narrows the window this is true in —
-// the bump fades to nothing by `FADE_NIGHTS`, so it is a temporary nudge
-// during the exact weeks a club has nothing else to show, not a standing leak
-// under an established player — but it does not make the window's exposure
-// zero, only smaller and shorter. That is a knowingly accepted trade, not an
-// oversight: raise it again before widening `FADE_NIGHTS` or `TIER_BUMP`.
+// **The cost, stated plainly rather than buried.** `night`, `mvp`, `career` and
+// `momentum` are all computable by anyone from `GET /history`, which needs no
+// password. So the residual `grade − (those four)` is `tier + jitter` on every
+// night a player has played, and `jitter` is zero-mean by construction — it
+// cancels under averaging, which is exactly the operation that recovers what it
+// was meant to hide. `tier` does not cancel. By the law of large numbers, the
+// mean residual converges on the player's tier bump, so **a determined reader
+// can recover which third of the club the organiser puts somebody in**, and the
+// estimate gets *sharper* the longer that player has been coming — the
+// club's most loyal members are its most exposed. This was measured, argued and
+// overruled deliberately, twice; it is an accepted product trade, not an
+// oversight.
+//
+// An earlier version faded this out by `FADE_NIGHTS`, which capped the exposure
+// at a short window. That was removed on purpose: a fading bump means an
+// improving player's updated rating stops reaching their marks precisely once
+// they have played enough for the update to be based on something, which is
+// backwards. `marketValue.ts` makes the same call — its `tier` never decays,
+// and it buys its safety a different way, by withholding the whole feature
+// until `MIN_HISTORY_FOR_VALUES` nights of real variance exist to hide inside.
+//
+// **What keeps this bounded** is that `tier` is the *smallest* term in the
+// formula: ±0.25 against `career`'s ±0.5, `momentum`'s ±0.7 and `night`'s ±2.5.
+// It breaks a tie between teammates and shades a season's average. It cannot
+// carry a bad night, and it cannot out-vote form. Widening `TIER_BUMP` past
+// `CAREER_CAP` would change that and should not happen without the organiser
+// saying so in as many words.
 
 import type { FixtureRecord, TeamColor } from './types';
 import { hasResult } from './calibration';
@@ -119,40 +128,28 @@ const TREND_EDGE = 0.4;
 
 export type Trend = 'hot' | 'cold' | 'steady';
 
-// The cold-start nudge (see the file header for why this exists and what it
-// costs). Small on purpose relative to `night` — this breaks a tie, it does
-// not re-rank a team.
+/**
+ * The organiser's rating, coarsened to a third of the club and turned into a
+ * small permanent shade on every mark (see the file header for why this term
+ * exists and what it costs).
+ *
+ * **The smallest term in the formula, and deliberately so.** ±0.25 against
+ * `career`'s ±0.5, `momentum`'s ±0.7 and `night`'s ±2.5: enough to separate
+ * teammates who are otherwise identical and to tilt a season's average the way
+ * the organiser's own judgement points, never enough to rescue a bad night or
+ * to outweigh somebody's actual form.
+ */
 const TIER_BUMP: Record<ReturnType<typeof ratingTier>, number> = {
   bottom: -0.25,
   middle: 0,
   top: 0.25,
 };
 
-// Larger than TIER_BUMP's span, so a single night's number never *nakedly*
-// announces which tier it came from — see JITTER below for what it is doing
-// and, just as importantly, what it is not.
+// Wider than TIER_BUMP's whole span, so no single night's mark is a bare
+// readout of which tier it came from. Note what this does and does not buy:
+// it is zero-mean, so it obscures one night and cancels across many. See the
+// file header — it is not what makes this term safe, because nothing does.
 const JITTER_SPAN = 0.35;
-
-/**
- * How many nights of not-quite-nothing this lasts.
- *
- * By `FADE_NIGHTS`, `career`'s shrinkage weight (`nightsBefore / (nightsBefore
- * + SHRINK_K)`) is past half, and `momentum` has had room to answer for a
- * while — real signal has taken over, and the nudge has finished handing off
- * to it. Chosen a little past `SHRINK_K` rather than at it, so the two do not
- * both still be finding their feet in the same week.
- */
-const FADE_NIGHTS = 8;
-
-/**
- * 1 on a debut, straight-line down to 0 by `FADE_NIGHTS` — smoothly, so a
- * player never sees a visible jump the week the nudge switches off. The taper
- * is also the reason `tier` is a *temporary* exposure rather than a standing
- * one: past `FADE_NIGHTS` this returns 0 and the rating stops entering the
- * arithmetic at all.
- */
-const coldStartWeight = (nightsBefore: number): number =>
-  clamp(1 - nightsBefore / FADE_NIGHTS, 0, 1);
 
 /**
  * A small, stable "which way does this night's coin land" per player per
@@ -294,13 +291,14 @@ export function nightGrades(history: FixtureRecord[], fixtureId: string): Grade[
       }
 
       const isMvp = fx.mvpId === id;
+      // The rating as it stood *on that night*, off the fixture's own snapshot
+      // rather than off today's roster — the same rule every other term here
+      // follows. A player the organiser has since re-rated keeps the marks
+      // their old nights were actually given, instead of having a season
+      // silently re-scored underneath them.
       const rating = fx.players.find((p) => p.id === id)?.rating ?? 3;
-      const coldStart = coldStartWeight(nightsBefore);
-      // `+ 0` rather than a bare product: `negative * 0` is `-0` in IEEE754,
-      // and a mark that is exactly BASE past FADE_NIGHTS should read as
-      // ordinary 0 rather than surface a sign nobody put there.
-      const tier = TIER_BUMP[ratingTier(rating)] * coldStart + 0;
-      const jitter = jitterOf(fx.id, id) * coldStart + 0;
+      const tier = TIER_BUMP[ratingTier(rating)];
+      const jitter = jitterOf(fx.id, id);
       const parts: GradeParts = { night, mvp: isMvp ? MVP_BONUS : 0, career, momentum, tier, jitter };
       const grade = clamp(
         round(BASE + parts.night + parts.mvp + parts.career + parts.momentum + parts.tier + parts.jitter),
@@ -359,5 +357,4 @@ export const gradeConstants = {
   MIN_RECENT,
   TIER_BUMP,
   JITTER_SPAN,
-  FADE_NIGHTS,
 };

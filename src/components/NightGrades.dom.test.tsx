@@ -110,17 +110,19 @@ describe('NightGrades', () => {
     expect(screen.getByText(/Blue/)).toBeInTheDocument();
   });
 
-  it('keeps the mark but drops the line once the stored grade drifts', async () => {
-    // A night corrected after the fact: the archive's marks moved, and the
-    // banter that was written about the old ones is no longer honestly true.
+  it('shows the published mark, not one worked out on this device', async () => {
+    // The regression that matters most for a viewer. `grades.ts` reads the
+    // organiser's private rating, which the public GET /history strips — so a
+    // viewer's own arithmetic disagrees with the organiser's. The published
+    // figure is the only one that is the same on every phone in the club.
     const fx = fixture();
     const graded = nightGrades([fx], fx.id)!;
+    const target = graded[0];
+    const published = target.grade === 10 ? 7.5 : 10; // deliberately not the local answer
     const lines = Object.fromEntries(
-      graded.map((g, i) => [
+      graded.map((g) => [
         g.id,
-        // The first player's stored mark no longer matches what the archive
-        // says today; everyone else's still does.
-        { text: `line for ${g.id}`, grade: i === 0 ? g.grade + 1 : g.grade },
+        { text: `line for ${g.id}`, grade: g.id === target.id ? published : g.grade },
       ]),
     );
     vi.stubGlobal(
@@ -130,9 +132,32 @@ describe('NightGrades', () => {
 
     render(<NightGrades fixture={fx} history={[fx]} players={roster} adminWord={null} />);
 
-    const drifted = graded[0];
-    await screen.findByText(NAMES[drifted.id]);
-    expect(screen.queryByText(`line for ${drifted.id}`)).not.toBeInTheDocument();
+    await screen.findByText(NAMES[target.id]);
+    // The published mark is on screen and the locally computed one is not,
+    // and the banter stays put rather than being hidden from the viewer.
+    expect(screen.getByText(String(published))).toBeInTheDocument();
+    expect(screen.getByText(`line for ${target.id}`)).toBeInTheDocument();
+  });
+
+  it('keeps a mark for a player the model skipped, with no line under it', async () => {
+    const fx = fixture();
+    const graded = nightGrades([fx], fx.id)!;
+    const skipped = graded[0];
+    const lines = Object.fromEntries(
+      graded.map((g) => [
+        g.id,
+        g.id === skipped.id ? { grade: g.grade } : { text: `line for ${g.id}`, grade: g.grade },
+      ]),
+    );
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(JSON.stringify({ lines, at: Date.now() }))),
+    );
+
+    render(<NightGrades fixture={fx} history={[fx]} players={roster} adminWord={null} />);
+
+    await screen.findByText(NAMES[skipped.id]);
+    expect(screen.queryByText(`line for ${skipped.id}`)).not.toBeInTheDocument();
     for (const g of graded.slice(1)) {
       expect(screen.getByText(`line for ${g.id}`)).toBeInTheDocument();
     }

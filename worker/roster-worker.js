@@ -327,6 +327,11 @@ export function isValidMatchLog(log) {
 // escape hatch and its whole purpose is putting a human's own words next to a
 // mark, so the only rules are that it is a string, that it is bounded, and that
 // it is filed against a player id.
+//
+// **`grade` is required and `text` is not**, which is the shape that carries
+// the privacy line: the mark is the published artifact (see linesFrom in
+// grades.js — a public device cannot recompute it), and a player the model
+// skipped still has one.
 export function isValidLines(lines) {
   if (!lines || typeof lines !== 'object' || Array.isArray(lines)) return false;
   const ids = Object.keys(lines);
@@ -335,8 +340,7 @@ export function isValidLines(lines) {
     if (!isStr(id, MAX_ID_CHARS)) return false;
     const line = lines[id];
     if (!line || typeof line !== 'object') return false;
-    if (!isStr(line.text, MAX_GRADE_LINE_CHARS)) return false;
-    // The mark the sentence was written against; see linesFrom in grades.js.
+    if (line.text !== undefined && !isStr(line.text, MAX_GRADE_LINE_CHARS)) return false;
     return Number.isFinite(line.grade) && line.grade >= 1 && line.grade <= 10;
   });
 }

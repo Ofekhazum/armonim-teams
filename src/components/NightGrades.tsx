@@ -3,7 +3,7 @@ import type { FixtureRecord, Player, TeamColor } from '../types';
 import { TEAM_COLORS } from '../balancer';
 import { gradesFacts, type GradeFactLine } from '../gradesFacts';
 import type { GradeLines, StoredGrades } from '../gradesApi';
-import { clearGrades, draftGrades, fetchGrades, saveGrades, usableLines } from '../gradesApi';
+import { clearGrades, draftGrades, fetchGrades, publishedMarks, saveGrades } from '../gradesApi';
 import { Name, TEAM_META, fmtRating } from './ui';
 
 // One line of banter beside every mark (§2.39), on the night page below the
@@ -53,7 +53,7 @@ function GradeChip({ grade }: { grade: number }) {
   );
 }
 
-function PlayerRow({ p, line }: { p: GradeFactLine; line?: string }) {
+function PlayerRow({ p, grade, line }: { p: GradeFactLine; grade: number; line?: string }) {
   return (
     <li className="py-1.5 first:pt-0 last:pb-0">
       <div className="flex items-center justify-between gap-2">
@@ -64,14 +64,15 @@ function PlayerRow({ p, line }: { p: GradeFactLine; line?: string }) {
               black and blue — the same thing TeamCards does above it. */}
           <Name className="truncate text-sm font-semibold">{p.name}</Name>
         </span>
-        <GradeChip grade={p.grade} />
+        {/* The published mark, never the locally computed one — see
+            publishedMarks(). A viewer's device cannot work this out. */}
+        <GradeChip grade={grade} />
       </div>
       {/* Hebrew, right-to-left, under the name — the model's one sentence,
-          when there is one to show. A player with no line still gets a mark:
-          see usableLines for why a line can go missing without the mark
-          going anywhere. Same reasoning as the name above: opacity on the
-          inherited colour rather than a fixed one, so it still reads on a
-          dark shirt. */}
+          when there is one to show. A player the model skipped still gets a
+          mark, which is an ordinary complete state rather than a gap. Same
+          reasoning as the name above: opacity on the inherited colour rather
+          than a fixed one, so it still reads on a dark shirt. */}
       {line && (
         <p dir="rtl" className="mt-0.5 text-xs leading-snug opacity-80">
           {line}
@@ -101,7 +102,12 @@ function TeamGroup({
           both — `py-1.5` on each row is enough space to tell them apart. */}
       <ul>
         {players.map((p) => (
-          <PlayerRow key={p.id} p={p} line={shown[p.id]?.text} />
+          <PlayerRow
+            key={p.id}
+            p={p}
+            grade={shown[p.id]?.grade ?? p.grade}
+            line={shown[p.id]?.text}
+          />
         ))}
       </ul>
     </div>
@@ -181,7 +187,7 @@ export default function NightGrades({ fixture, history, players, adminWord = nul
     setSaved(null);
   };
 
-  const shown = usableLines(draft ?? saved?.lines ?? null, facts.players);
+  const shown = publishedMarks(draft ?? saved?.lines ?? null, facts.players);
 
   const share = () => {
     const lines = TEAM_COLORS.flatMap((c) => {
@@ -189,7 +195,11 @@ export default function NightGrades({ fixture, history, players, adminWord = nul
       if (team.length === 0) return [];
       return [
         `${TEAM_META[c].label}:`,
-        ...team.map((p) => `  ${p.name} — ${fmtRating(p.grade)}${shown[p.id] ? ` — ${shown[p.id].text}` : ''}`),
+        ...team.map((p) => {
+          const mark = shown[p.id]?.grade ?? p.grade;
+          const line = shown[p.id]?.text;
+          return `  ${p.name} — ${fmtRating(mark)}${line ? ` — ${line}` : ''}`;
+        }),
       ];
     });
     const text = `${fixture.date}\n\n${lines.join('\n')}`;

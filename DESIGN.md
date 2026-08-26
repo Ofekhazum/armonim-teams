@@ -2683,8 +2683,8 @@ exist for a different reason entirely and are documented on their own below.
 | `mvp` | +1 | the one true per-player signal a night produces |
 | `career` | 0.75, ±0.5 | their record against the club's, shrunk toward the mean (`SHRINK_K = 6`) |
 | `momentum` | 0.65, ±0.7 | their last five nights against **their own** shrunk baseline |
-| `tier` | ±0.25, fading | the organiser's rating, coarsened — see **The cold-start nudge** below |
-| `jitter` | ±0.35, fading | a stable per-player-per-night "coin flip" — carries no information at all |
+| `tier` | ±0.25, permanent | the organiser's rating, coarsened — see **The tier shade** below |
+| `jitter` | ±0.35, permanent | a stable per-player-per-night "coin flip" — carries no information at all |
 
 `MatchLogEntry` records `{a, b, winner, viaPenalties}` — team colours, not people. Every match, every
 shootout and every sequence is therefore *identical* for the five players on a shirt, so **on a single
@@ -2709,47 +2709,65 @@ the ordering untouched and moves only where "nothing special happened" sits — 
 not about football. Calibrated: median 6, p10/p90 at 4/8, 1.0% at or below 3, 0.3% perfect, season
 averages 4.79–6.84.
 
-**The cold-start nudge (`tier`, `jitter`, `coldStartWeight`, `FADE_NIGHTS`).** On a club three real
-nights old, `momentum` is structurally off for everybody (`MIN_RECENT` nights unmet) and `career` is
-shrunk almost flat (`SHRINK_K = 6` against one or two nights of evidence), so every player on a shirt
-rendered as the identical number for weeks — measured on the actual club, four and five teammates in a
-row at the exact same mark. `marketValue.ts` has the same problem and solves it by withholding the price
-entirely for `MIN_HISTORY_FOR_VALUES` nights (§2.31). This file does not take that route.
+**The tier shade (`tier`, `jitter`).** On a club three real nights old, `momentum` is structurally off
+for everybody (`MIN_RECENT` nights unmet) and `career` is shrunk almost flat (`SHRINK_K = 6` against one
+or two nights of evidence), so every player on a shirt rendered as the identical number for weeks —
+measured on the actual club, four and five teammates in a row at the exact same mark. `marketValue.ts`
+has the same problem and solves it by withholding the price entirely for `MIN_HISTORY_FOR_VALUES` nights
+(§2.31). This file does not take that route: it puts the organiser's rating (§2.28) into the formula as a
+small, coarse, **permanent** term.
 
 **A jitter-only version was designed first and rejected, on the maths rather than on taste.** The
 proposal: a small deterministic per-night noise term, seeded from `fixtureId` + `playerId`, meant to
 break the flatline visually with nothing correlated to anybody. It cannot also give a stronger player a
 "realistic edge" — unbiased noise has no slope by definition — so achieving both halves of the ask
-requires a second, *systematic* term keyed to the organiser's rating (§2.28), which is the one thing this
-formula was built to keep out. And a systematic term does not hide behind noise added on top of it: `night`,
-`mvp`, `career` and `momentum` are all reconstructable by anyone from `GET /history` (no password), so
-the residual `grade − (those four)` is computable for every night a player has played, and by the law of
-large numbers `mean(residual) → tier_bump` as nights accumulate — the noise is exactly what averaging
-cancels, which makes the jitter the thing that gets destroyed by the technique meant to hide the tier
-behind it, not a mitigation of it.
+requires a second, *systematic* term keyed to the rating. And a systematic term does not hide behind noise
+added on top of it: `night`, `mvp`, `career` and `momentum` are all reconstructable by anyone from
+`GET /history` (no password), so the residual `grade − (those four)` is computable for every night a
+player has played, and by the law of large numbers `mean(residual) → tier` as nights accumulate — the
+noise is exactly what averaging cancels, which makes the jitter the thing destroyed by the technique
+meant to hide the tier behind it, not a mitigation of it.
 
-**The organiser weighed that and chose to accept it anyway**, judging a month of visibly identical
-marks a worse cost to the feature than a coarse, decaying, statistically-recoverable-in-principle signal
-that real day-to-day use is unlikely to ever compute. That is the trade recorded here — not a case where
-the risk was missed, one where it was named twice, in the same rigour as this being written down, and
-overruled on purpose:
+**A fading version was built next, then deliberately removed.** `coldStartWeight` tapered both terms to
+zero by `FADE_NIGHTS = 8`, capping the exposure at a short window. The organiser's objection was decisive
+and is a product argument the maths cannot answer: the ratings are *actively maintained* as players
+improve and decline, so a term that switches itself off once somebody has played enough nights is fighting
+exactly the updates it exists to reflect. Permanence is also what `marketValue.ts` does — its `tier` never
+decays either; it buys safety by withholding the whole feature until real variance exists to hide inside.
+
+**So the accepted, on-the-record trade is:** a determined reader who reconstructs the four public terms and
+averages the residual over a season recovers **which third of the club the organiser puts somebody in** —
+and the estimate gets *sharper* with tenure, so the most loyal members are the most exposed. This was
+measured, argued twice, and overruled on purpose on the grounds that a weeknight five-a-side group will
+not run the regression. Not a missed risk; a priced one.
 
 - **`tier`** buckets the rating into the same three thirds `marketValue.ts`'s `ratingTier` already cuts
-  (exported from there specifically so the two files can never define "top third of the club" two
-  different ways), then maps to a small additive nudge — ±0.25, far short of `night`'s ±2.5, so this
-  breaks a tie and never re-ranks a team.
-- **`jitter`** is the harmless half of the original proposal, kept for what it was always good for:
-  visual variety with zero information in it. A stable FNV-1a hash of the two ids, not a rating input in
-  any form.
-- **`coldStartWeight`** tapers both linearly to exactly 0 by `FADE_NIGHTS`, so the exposure is a *temporary*
-  nudge during the weeks a club has nothing else to show, not a standing leak sitting under an established
-  player forever — averaging a veteran's whole season converges toward 0, not toward their tier. It does
-  not make the early window's exposure zero, only smaller and shorter than "always on" would have been.
+  (exported from there specifically so the two files can never define "top third of the club" two different
+  ways). Read from **that night's `FixturePlayer` snapshot**, not today's roster, so re-rating somebody
+  changes their future marks without silently re-scoring their past ones.
+- **`jitter`** is the harmless half of the original proposal, kept for what it was always good for: visual
+  variety with zero information in it. A stable FNV-1a hash of the two ids.
+- **What keeps it bounded** is that `tier` is the smallest term in the formula — ±0.25 against `career`'s
+  ±0.5, `momentum`'s ±0.7 and `night`'s ±2.5. There is a test asserting exactly that, and another asserting
+  a top-tier player on a blanked team still marks below a bottom-tier player whose team took the night. It
+  shades a mark; it cannot carry one. Widening `TIER_BUMP` past `CAREER_CAP` turns a shade into a verdict
+  and needs the organiser saying so in as many words.
 
 Deliberately **not** threaded into `GradeContext` — the model never sees `tier` or `jitter`, only the
-final `grade`, exactly as it never sees any other part of the breakdown. Revisit `TIER_BUMP` or
-`FADE_NIGHTS` only with the organiser in the loop; this is not a constant to widen quietly because a
-future cold start still looks a little flat.
+final `grade`, exactly as it never sees any other part of the breakdown.
+
+**The mark became a published artifact the moment the rating entered it (`publishedMarks`).** This is the
+structural consequence that is easy to miss: `publicFixture` strips `rating` from every filed night before
+`GET /history` serves it, so `nightGrades` — which runs client-side — computes one answer on the
+organiser's device (which pulls `/history/full`) and a *different* answer on everybody else's. Measured
+against the real club with ratings attached: **six of sixteen players came out half a mark apart.** An
+earlier version made this worse by comparing the stored mark against the locally recomputed one and
+dropping the banter when they disagreed, as a staleness check — on a viewer's phone that fired for a large
+share of the club every time, hiding the lines from precisely the people they were written for while the
+organiser saw them fine. So the Worker now stores a `grade` for **every** player (with `text` optional, for
+the ones the model skipped) and the UI renders the published figure, never a local one — the same shape
+`GET /values` already uses for a price no public device could work out. Staleness after a correction is
+handled the way the recap handles it: the organiser re-rolls.
 
 **One prompt for the whole sheet, keyed on an ASCII code.** Fifteen separate requests would burn a
 day's free tier on one night, and fifteen independent completions have no way to avoid handing the same
@@ -2781,11 +2799,10 @@ beat whom — though the prompt is told how many meetings needed one. `met: 0` i
 hidden: billed against each other and kept apart by the rotation all evening is a better line than
 most. A night with no `matchLog` returns null, because a tally cannot say who beat whom (§2.17).
 
-**Only the sentences are stored.** The marks are deterministic from the public archive, so every device
-recomputes them identically and a stored copy would be a second source of truth for a settled answer.
-But the mark *travels with* its sentence, as provenance: `usableLines` drops any line whose stored grade
-no longer matches the live one, so a night corrected months later leaves a bare mark rather than banter
-about a number nobody can see. A bare mark is already a complete state.
+**The marks and the sentences are both stored**, keyed by player id — see the note on `publishedMarks`
+above for why the mark cannot simply be recomputed by whoever is reading it. `text` is optional within
+that record and `grade` is not: a mark with no banter is an ordinary complete state, where a sentence
+with no mark would be banter about a number nobody can see.
 
 `POST /grades` takes the same four shapes `POST /recap` does — `{facts}`, `{facts, save}`, `{lines}`,
 `{lines: null}` — behind the secret word, with its own rate-limit counter rather than the recap's, since
@@ -2806,10 +2823,9 @@ app that comes close to the no-judgement-words rule §2.37 draws for `PlayerComp
 it — a grade is a verdict by design here, unlike a count — so the boundary is enforced a different way:
 the word "rating" (the organiser's private 1–5, §2.28) is never used for it, and there is a test for that.
 
-**A player still gets their mark with no line beside it**, and that is not a degraded state — see
-`usableLines` above for the two ordinary reasons: the model skipped them (`missing`, shown to the admin
-on a draft by name) or the stored line has drifted off a mark the archive no longer agrees with. Both
-render identically to a first-time viewer: a chip, no sentence under it.
+**A player still gets their mark with no line beside it**, and that is not a degraded state — it means
+the model skipped them, which the admin sees named on the draft (`missing`) and can re-roll if it is
+worth it. On screen it is simply a chip with no sentence under it.
 
 **The whole section renders nothing for two different kinds of nobody.** A night with no result at all —
 `gradesFacts` returns null — and a night nobody has published yet, read by somebody who cannot publish
