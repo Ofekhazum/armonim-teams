@@ -43,10 +43,23 @@ const GRADE_TONE = {
 
 const toneOf = (grade: number) => (grade >= 8 ? 'standout' : grade <= 4 ? 'rough' : 'ordinary');
 
+/**
+ * One mark, in a disc of fixed size.
+ *
+ * **Square-and-round rather than padded**, which is the whole point: padding
+ * sizes a chip to its text, so a "5" came out a small circle and a "4.5" a wide
+ * pill, and a column of them read as ragged blobs rather than as a set of
+ * marks. A fixed `h-9 w-9` with the number grid-centred means every disc is the
+ * same disc and only the number inside it changes — the thing that differs
+ * between two players should be the *figure*, not the shape it sits in.
+ *
+ * Sized to fit the widest mark it will ever hold: "10" and "4.5" are both three
+ * glyphs at most, comfortable at 36px with an 11px mono face.
+ */
 function GradeChip({ grade }: { grade: number }) {
   return (
     <span
-      className={`shrink-0 rounded-full border px-1.5 py-0.5 font-mono text-[11px] font-black tabular-nums ${GRADE_TONE[toneOf(grade)]}`}
+      className={`grid h-9 w-9 shrink-0 place-items-center rounded-full border font-mono text-[11px] font-black tabular-nums ${GRADE_TONE[toneOf(grade)]}`}
     >
       {fmtRating(grade)}
     </span>

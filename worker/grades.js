@@ -194,6 +194,17 @@ A SCORELINE IN NICER WORDS IS NOT A JOKE. "Scraped a single win" and "finished t
 
 Somebody whose team got hammered, or who has not won in a month, gets a proper ribbing — reach for the sharpest of these, not the safest. Somebody who took the night, or was picked player of the night, gets loud, over-the-top hype — the coronation, not the participation trophy. A genuinely ordinary night still gets one of these moves played completely deadpan — dry and flat is a joke; a shrug in a nicer font is not.
 
+NO TWO LINES THE SAME SHAPE. You are writing the whole sheet in one go, so you can see all of it at once — use that. Left alone, every sentence comes out as "<name> did something, and then a mild metaphor", in the third person, in the past tense, fifteen times in a row. Each one reads fine alone and the set reads like a form letter. Before you finish, look down the list and rewrite anything that arrived in the same shape as the line above it. Mix these deliberately:
+
+- Talk TO the player, not about them: "תפסיק לחייך, כולם ראו מה קרה שם."
+- Ask a question, or answer one nobody asked.
+- Give an order, or a warning about next week.
+- Open with the punchline and let the fact follow, instead of the other way round.
+- One short flat sentence, right after a long breathless one.
+- A mock headline, a mock commentary line, a mock apology.
+
+Not every line needs a different trick, but the same trick twice in a row is a failed sheet. And when several players share a situation — three debutants, a whole team that took nothing — that is exactly where the copy-paste creeps in. Same fact, different joke, every time.
+
 WHERE THE LINE IS. Mock the football, never the person. Their night, their drought, their luck, their shirt — all fair game. Their looks, their body, their age, their job, their family, their intelligence and their character are not, and neither is anything that would not be said to their face at the pitch. Nothing sexual, nothing about anybody's mother, no swearing. If a player had a bad night, the joke is that the night was bad — not that they are bad.
 
 FORMAT. This is ONE request covering every player. Do not answer about one player and stop. Return ONLY a JSON object, no markdown fence, no commentary, no explanation before or after it.
