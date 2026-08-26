@@ -1,5 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
-import { buildGradesPrompt, gradesKey, isValidGradeFacts, writeGrades } from './grades.js';
+import {
+  buildGradesPrompt,
+  gradesKey,
+  isValidGradeFacts,
+  readAllMarks,
+  writeGrades,
+} from './grades.js';
 
 // The grades prompt (§2.39). The mark is arithmetic and tested in
 // src/grades.test.ts; what matters here is what the model is told — that it is
@@ -364,5 +370,75 @@ describe('writeGrades', () => {
 describe('gradesKey', () => {
   it('is namespaced away from every other key in the store', () => {
     expect(gradesKey('fx1')).toBe('grades:fx1');
+  });
+});
+
+describe('readAllMarks', () => {
+  // A tiny stand-in for the KV binding: enough of `list` and `get` to exercise
+  // the paging and the parsing, which is where this can actually go wrong.
+  const kv = (store, pageSize = 100) => ({
+    async list({ prefix, cursor }) {
+      const keys = Object.keys(store).filter((k) => k.startsWith(prefix)).sort();
+      const start = cursor ? Number(cursor) : 0;
+      const slice = keys.slice(start, start + pageSize);
+      const end = start + pageSize;
+      return {
+        keys: slice.map((name) => ({ name })),
+        list_complete: end >= keys.length,
+        cursor: String(end),
+      };
+    },
+    async get(name) {
+      return store[name] ?? null;
+    },
+  });
+
+  const night = (lines) => JSON.stringify({ lines, at: 1 });
+
+  it('returns marks only, keyed by fixture then player', () => {
+    // The banter is the bulky half and a graph plots numbers — see the note
+    // on readAllMarks for why the text is dropped here.
+    const store = {
+      'grades:f1': night({ a: { text: 'מלך', grade: 8 }, b: { grade: 4.5 } }),
+    };
+    return expect(readAllMarks({ ROSTER_KV: kv(store) })).resolves.toEqual({
+      f1: { a: 8, b: 4.5 },
+    });
+  });
+
+  it('walks every page rather than stopping at the first', async () => {
+    const store = {};
+    for (let i = 0; i < 7; i++) store[`grades:f${i}`] = night({ a: { grade: 6 } });
+    const all = await readAllMarks({ ROSTER_KV: kv(store, 2) });
+    expect(Object.keys(all)).toHaveLength(7);
+  });
+
+  it('ignores keys belonging to anything else in the store', async () => {
+    const store = {
+      'grades:f1': night({ a: { grade: 7 } }),
+      'recap:f1': JSON.stringify({ text: 'not a grade' }),
+      history: JSON.stringify({ fixtures: [] }),
+    };
+    expect(Object.keys(await readAllMarks({ ROSTER_KV: kv(store) }))).toEqual(['f1']);
+  });
+
+  it('survives one unreadable night without losing the rest', async () => {
+    // A single corrupt value must not take the whole graph down with it.
+    const store = {
+      'grades:bad': '{ not json',
+      'grades:good': night({ a: { grade: 9 } }),
+    };
+    expect(await readAllMarks({ ROSTER_KV: kv(store) })).toEqual({ good: { a: 9 } });
+  });
+
+  it('drops an entry whose grade is missing or not a number', async () => {
+    const store = {
+      'grades:f1': night({ a: { grade: 7 }, b: { text: 'no mark' }, c: { grade: 'eight' } }),
+    };
+    expect(await readAllMarks({ ROSTER_KV: kv(store) })).toEqual({ f1: { a: 7 } });
+  });
+
+  it('is an empty object when nothing has been published at all', async () => {
+    expect(await readAllMarks({ ROSTER_KV: kv({}) })).toEqual({});
   });
 });

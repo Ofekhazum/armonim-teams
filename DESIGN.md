@@ -2841,6 +2841,59 @@ worth it. On screen it is simply a chip with no sentence under it.
 one. Neither is worth an empty shell asking to be filled in, the same restraint `PriceTag` shows for a
 player with no market value yet.
 
+### 2.40 The form graph (`gradeHistory.ts`, `GradeGraph.tsx`, `GET /grades/all`)
+
+A player's published marks over time, as a line on their profile — the third way of asking about the
+same nights, so it sits between the medal ribbon (where they finished) and the timeline (what happened).
+
+**Hand-rolled SVG, because the alternative is a dependency.** This project's runtime dependencies are
+`react` and `react-dom` and nothing else. A charting library for one graph would be the largest thing
+in the bundle by some distance and would still leave every decision below to be made by hand.
+
+**A bulk endpoint had to exist first, and it is the interesting part.** Grades are stored one KV key per
+fixture, which is right for the night page — it reads one night. A graph reads *every* night a player
+has played, and a request per night is fine at three and absurd at fifty. `/awards` already documents
+this exact tension ("a player page wants all of them at once"); `GET /grades/all` resolves it from the
+other side — the per-night keys stay, and `readAllMarks` does the fan-out inside one request, where it
+can be concurrent. It returns **marks only**: the banter is the bulky half, a graph plots numbers, and
+dropping the text takes a season from roughly 150KB to under 20KB rather than letting this quietly
+become the way a whole season of writing gets downloaded to draw a line.
+
+**The y-axis is pinned to the full 1–10 and never fitted to the data.** A chart scaled to its own range
+turns a season spent between 5.5 and 6.5 into a mountain range, which is a lie told in the reader's
+favour. Pinned, an ordinary run looks ordinary and a real collapse looks like one — the same reasoning
+`NightParts` records for its dashed average and the league scatter's `MIN_Y_SPAN` for its floor. There
+is a test asserting two marks half a point apart stay within single-digit pixels of each other.
+
+**The x-axis is real time, not one step per night**, so somebody who missed six weeks has six weeks of
+empty graph. `PlayerTimeline` gives the reason for its rail and it holds here: the gaps are as much of
+a career as the events, and evenly spacing the points deletes them.
+
+**1M is the default** (`DEFAULT_RANGE`, asserted in a test because it is a product decision a later tidy
+could undo). A season across a phone is a line with no shape in it; a month is four or five nights,
+which reads as a run of form — the question somebody opens their own profile to ask. Every longer view
+is one tap away.
+
+**Windows are anchored to today, not to the player's last night.** Anchoring to their last night would
+guarantee the default view was never empty, at the cost of "1M" meaning a different month for every
+player. A window that means what it says can be empty, and an empty one is itself the answer to "how has
+their month been" — so the empty state says so and points at a longer range rather than looking broken.
+
+**Three states that are not the happy one**, all of which the club will actually hit: a night played but
+never graded is *absent* rather than plotted at zero (which would read as the worst evening of someone's
+career); a single published night draws a dot and no line, because a line needs two — the club's real
+state the day this shipped was exactly one graded night; and a player nobody has ever published a mark
+for gets no card at all.
+
+**Hit targets are columns, not dots.** At fifty nights across 320px the dots sit closer together than a
+fingertip, so each point owns the vertical slice of chart nearest to it. The readout sits above the
+plot rather than floating over it — a tooltip on a phone covers the thing it is describing — and holds
+its row's height whether or not anything is selected, so picking a point never shifts the graph.
+
+**In test mode the marks are computed locally** from the invented club, the same move `fetchValues`
+makes and for the same reason: the sandbox exists to review features against a season of football, and
+a graph that is permanently empty there cannot be reviewed at all. Live devices never take that path.
+
 ## 3. Team generation algorithm
 
 Balancing is a small constrained optimization. With ≤15 players, brute force is too big

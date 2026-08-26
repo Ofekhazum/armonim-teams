@@ -6,7 +6,15 @@
 // rule that map carries, which is `publishedMarks` at the bottom.
 
 import { REMOTE_URL } from './remote';
+import { isTestMode } from './testMode';
+// Statically, unlike `values.ts`'s lazy pull of `marketValue.ts`: that one
+// keeps a ridge solver out of everybody's bundle, where `grades.ts` is already
+// in it via `gradesFacts` → `NightGrades` → the night page. A dynamic import
+// here would buy no chunk and only warn at build time that it had not.
+import { nightGrades } from './grades';
+import type { FixtureRecord } from './types';
 import type { GradesFacts } from './gradesFacts';
+import type { AllMarks } from './gradeHistory';
 
 /**
  * One player's published mark, and the banter beside it if the model wrote any.
@@ -39,6 +47,43 @@ export type GradesError =
 export type GradesResult =
   | { lines: GradeLines; missing?: string[] }
   | { error: GradesError; detail?: string };
+
+/**
+ * Every published mark in the club, without the banter — `{ fixtureId: {
+ * playerId: grade } }`. `{}` on any failure, because a graph is decoration and
+ * a profile must render exactly the same without one.
+ *
+ * One request for the whole club rather than one per night: see `readAllMarks`
+ * in the Worker for why the per-night keys stay and the fan-out happens there.
+ */
+export async function fetchAllMarks(history: FixtureRecord[] = []): Promise<AllMarks> {
+  // The sandbox has no Worker to ask and nothing published in it, so it works
+  // its own marks out — the same move `fetchValues` makes, and for the same
+  // reason: the invented club (§2.32) exists to review features against a
+  // season of football, and a graph that is always empty there cannot be
+  // reviewed at all. Live devices never take this path; they read what the
+  // organiser published, which is the whole point of `publishedMarks`.
+  if (isTestMode()) {
+    const out: AllMarks = {};
+    for (const fx of history) {
+      const graded = nightGrades(history, fx.id);
+      if (!graded) continue;
+      const marks: Record<string, number> = {};
+      for (const g of graded) marks[g.id] = g.grade;
+      out[fx.id] = marks;
+    }
+    return out;
+  }
+  if (!REMOTE_URL) return {};
+  try {
+    const res = await fetch(`${REMOTE_URL}/grades/all`, { cache: 'no-store' });
+    if (!res.ok) return {};
+    const data = (await res.json()) as { grades?: AllMarks };
+    return data.grades && typeof data.grades === 'object' ? data.grades : {};
+  } catch {
+    return {};
+  }
+}
 
 /** Whatever has been written for this night, or null. Public — anybody reads. */
 export async function fetchGrades(fixtureId: string): Promise<StoredGrades | null> {

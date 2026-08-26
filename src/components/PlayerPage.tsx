@@ -31,7 +31,10 @@ import { useScrollLock } from '../scrollLock';
 import { fetchAwards, monthsWon } from '../awards';
 import type { PlayerValue } from '../values';
 import { SHOW_MARKET_VALUE, fetchValues } from '../values';
+import { fetchAllMarks } from '../gradesApi';
+import { playerGradeSeries, type AllMarks } from '../gradeHistory';
 import PriceTag from './PriceTag';
+import GradeGraph from './GradeGraph';
 import { periodLabel } from '../wrapped';
 
 // One player's page (§2.19). Everything on it is counted from history — the
@@ -209,6 +212,25 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
       live = false;
     };
   }, [player.id, players, history]);
+
+  // Published marks for the whole club, joined against this device's own
+  // archive for the dates (§2.39). One request rather than one per night —
+  // see `readAllMarks` in the Worker. `{}` on any failure, so an offline
+  // phone or a club with nothing published yet simply has no graph.
+  const [marks, setMarks] = useState<AllMarks>({});
+  useEffect(() => {
+    let live = true;
+    fetchAllMarks(history).then((all) => {
+      if (live) setMarks(all);
+    });
+    return () => {
+      live = false;
+    };
+  }, [history]);
+  const gradePoints = useMemo(
+    () => playerGradeSeries(history, marks, player.id),
+    [history, marks, player.id],
+  );
 
   // The same nights the ribbon is drawn from, read as a sequence of moments
   // rather than as a shape (§2.29). `totm` arrives from the network a beat
@@ -516,6 +538,18 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
               )}
               {caption('nights')}
             </Card>
+
+            {/* Between the ribbon and the timeline, because it is the third
+                way of asking about the same nights and sits naturally in the
+                middle of them: the ribbon is where they finished, this is how
+                well they played, the timeline is what happened. Absent
+                entirely for a player nobody has ever published a mark for —
+                see the note on `gradePoints`. */}
+            {gradePoints.length > 0 && (
+              <Card title="Form" hint="published marks">
+                <GradeGraph points={gradePoints} />
+              </Card>
+            )}
 
             {/* Directly under the ribbon, because they are the same nights
                 asked two different questions. The ribbon answers "how has it
