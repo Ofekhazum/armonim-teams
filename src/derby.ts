@@ -211,3 +211,79 @@ export function derbyTonight(
 
   return best;
 }
+
+/**
+ * The derby that was announced before a night that has since been filed.
+ *
+ * Nothing is stored when the banner goes up, and nothing needs to be: the pick
+ * is a pure function of that night's teams and the archive before it, so it can
+ * be recovered exactly. That matters for the grades (§2.39), which are written
+ * days later and have to be talking about the rivalry the group actually read
+ * on the night rather than a fresh one computed against newer history.
+ *
+ * `rosterIds` is how a guest is recognised after the fact — a filed
+ * `FixturePlayer` carries no `isGuest` flag, only an id, and an id that is not
+ * on the roster is a guest. Optional because it barely matters: a guest's id is
+ * minted fresh each visit (§2.6), so a pair involving one cannot reach
+ * `MIN_MATCHES` anyway. Passing it makes the intent explicit rather than
+ * leaving it to a floor to catch by accident.
+ */
+export function derbyOnRecord(
+  fx: FixtureRecord,
+  history: FixtureRecord[],
+  rosterIds?: ReadonlySet<string>,
+): Derby | null {
+  const todays: TonightPlayer[] = fx.players.map((p) => ({
+    id: p.id,
+    name: p.name,
+    isGuest: rosterIds ? !rosterIds.has(p.id) : false,
+  }));
+  return derbyTonight(fx.teams, todays, history, fx.id);
+}
+
+/** A derby with tonight's answer to it attached. */
+export interface DerbySettled extends Derby {
+  /** Matches the two shirts played against each other tonight. */
+  met: number;
+  /** Of those, how many each side took. */
+  aTook: number;
+  bTook: number;
+  /** How many of the meetings needed a shootout — good material, nothing more. */
+  penalties: number;
+}
+
+/**
+ * How the announced derby actually went, or `null` if the night cannot say.
+ *
+ * Null has two causes and they are the same answer to the reader: a night with
+ * no `matchLog` was only ever a tally, so who beat whom is unanswerable
+ * (§2.17); and a night where the two shirts never met leaves the rivalry
+ * genuinely unresolved. The second is reported rather than hidden — `met: 0` is
+ * a fact about the evening and a better line than most — so only the first
+ * returns null.
+ *
+ * **A shootout counts as a win here**, exactly as it does in the record the
+ * pairing was picked from above. The half-point rule is about the night's
+ * tally, not about who beat whom, and a derby settled on penalties that scored
+ * half a win for each side would be no settlement at all.
+ */
+export function settleDerby(fx: FixtureRecord, derby: Derby): DerbySettled | null {
+  const log = fx.matchLog;
+  if (!log?.length) return null;
+
+  let met = 0;
+  let aTook = 0;
+  let bTook = 0;
+  let penalties = 0;
+  for (const m of log) {
+    const pair = (m.a === derby.aShirt && m.b === derby.bShirt) ||
+      (m.a === derby.bShirt && m.b === derby.aShirt);
+    if (!pair) continue;
+    met++;
+    if (m.viaPenalties) penalties++;
+    if (m.winner === derby.aShirt) aTook++;
+    else bTook++;
+  }
+
+  return { ...derby, met, aTook, bTook, penalties };
+}

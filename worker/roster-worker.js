@@ -20,6 +20,8 @@
 //   GET  /values       → public read of every player's market value (price only)
 //   GET  /recap?id=…   → public read of a night's written recap, if there is one
 //   POST /recap        → write one for a night; requires the secret word
+//   GET  /grades?id=…  → public read of a night's one-line player grades
+//   POST /grades       → write them for a night; requires the secret word
 //   POST /verify       → check the secret word (used to unlock admin mode)
 //   GET  /room/:id     → WebSocket upgrade into a live team-picking room
 //
@@ -42,6 +44,7 @@ export { ClockNotifier } from './clock-notifier.js';
 
 import { bytesToB64u, publicKeyBytes } from './push.js';
 import { isValidFacts, recapKey, writeRecap } from './recap.js';
+import { gradesKey, isValidGradeFacts, writeGrades } from './grades.js';
 import { announceMonth, clearMonth, isPeriod, readAwards, registerAwards } from './awards.js';
 // Bundled from src/ the same way src/totm.ts is, and for the same reason: the
 // formula has to exist in exactly one place, and this is the only place that
@@ -93,6 +96,11 @@ const MAX_DATE_CHARS = 20;
 // 280, because a record filed by an older or newer build should not be the
 // thing that makes an entire season's publish bounce.
 const MAX_NOTE_CHARS = 400;
+// One player's grade line. The prompt asks for 120 characters and `grades.js`
+// truncates a generated one at 300; this is the ceiling on a *hand-edited* one,
+// left roomier because a person rewriting a joke they did not like should not
+// be fighting a limit set for a model that ignored its brief.
+const MAX_GRADE_LINE_CHARS = 400;
 const TEAM_COLORS = ['black', 'white', 'blue'];
 
 // Whatever a publish stores here is served back to every device in the club,
@@ -121,6 +129,16 @@ const PUBLISH_WINDOW_MS = 10 * 60 * 1000;
 // a limit — it has to be invisible to the person it is not aimed at.
 const RECAP_LIMIT = 12;
 const RECAP_WINDOW_MS = 60 * 60 * 1000;
+
+// The same budget, on its own counter, for the grades (§2.39).
+//
+// Its own rather than shared with the recap: they are two different acts on the
+// same night, an organiser will reasonably do both, and one counter would mean
+// re-rolling a report until it reads well silently spending the grades that
+// have not been written yet. Same size because the shape of the act is the same
+// — one a week, rerolled a few times when the banter lands flat.
+const GRADES_LIMIT = 12;
+const GRADES_WINDOW_MS = 60 * 60 * 1000;
 
 // Room upgrades are unauthenticated by design — the share link is the
 // invitation — so the only thing standing between a script and an unbounded
@@ -298,6 +316,32 @@ export function isValidMatchLog(log) {
     if (m.winner !== m.a && m.winner !== m.b) return false;
     if (typeof m.viaPenalties !== 'boolean') return false;
     return true;
+  });
+}
+
+// A set of grade lines being stored rather than generated — an organiser saving
+// what they just read, or an edit of one line that landed badly (§2.39).
+//
+// Shape-checked as hard as anything else that gets written back to the whole
+// club, and note what is *not* checked: the text. This route is the manual
+// escape hatch and its whole purpose is putting a human's own words next to a
+// mark, so the only rules are that it is a string, that it is bounded, and that
+// it is filed against a player id.
+//
+// **`grade` is required and `text` is not**, which is the shape that carries
+// the privacy line: the mark is the published artifact (see linesFrom in
+// grades.js — a public device cannot recompute it), and a player the model
+// skipped still has one.
+export function isValidLines(lines) {
+  if (!lines || typeof lines !== 'object' || Array.isArray(lines)) return false;
+  const ids = Object.keys(lines);
+  if (ids.length === 0 || ids.length > MAX_FIXTURE_PLAYERS) return false;
+  return ids.every((id) => {
+    if (!isStr(id, MAX_ID_CHARS)) return false;
+    const line = lines[id];
+    if (!line || typeof line !== 'object') return false;
+    if (line.text !== undefined && !isStr(line.text, MAX_GRADE_LINE_CHARS)) return false;
+    return Number.isFinite(line.grade) && line.grade >= 1 && line.grade <= 10;
   });
 }
 
@@ -485,6 +529,22 @@ export default {
       }
     }
 
+    // public read of a night's grade lines. The marks themselves are not here
+    // and never will be: `src/grades.ts` computes them from the archive every
+    // device already has, so storing them would be a second copy of an answer
+    // that is already agreed. Only the sentences, which nothing can recompute.
+    if (url.pathname === '/grades' && request.method === 'GET') {
+      const id = url.searchParams.get('id');
+      if (!isStr(id, 200)) return json({ error: 'bad id' }, 400);
+      const raw = await env.ROSTER_KV.get(gradesKey(id));
+      if (!raw) return json({ lines: null });
+      try {
+        return json(JSON.parse(raw));
+      } catch {
+        return json({ lines: null });
+      }
+    }
+
     // public read of every Team of the Month registered so far (§2.25). One
     // document rather than one key per month, because a player page wants all
     // of them at once — where a recap is read one night at a time.
@@ -662,6 +722,7 @@ export default {
       '/history',
       '/live',
       '/recap',
+      '/grades',
       '/awards',
       '/verify',
       '/push/test',
@@ -824,6 +885,60 @@ export default {
           return json({ ok: true, ...stored });
         }
         return json({ ok: true, text: written.text });
+      }
+
+      // Write a night's grade lines (§2.39). The same four shapes as /recap,
+      // for the same reason — the organiser reads them before the group does,
+      // and `save: true` is the automatic version already built:
+      //
+      //   { facts }             → write them and hand them back, store nothing
+      //   { facts, save: true } → write and store in one call
+      //   { lines }             → store these, generated or edited by hand
+      //   { lines: null }       → forget them for this night
+      if (url.pathname === '/grades') {
+        if (!isStr(body.fixtureId, 200)) return json({ error: 'bad id' }, 400);
+        const key = gradesKey(body.fixtureId);
+
+        if (body.lines === null) {
+          await env.ROSTER_KV.delete(key);
+          return json({ ok: true, lines: null });
+        }
+
+        if (body.lines !== undefined) {
+          if (!isValidLines(body.lines)) return json({ error: 'bad lines' }, 400);
+          const stored = { lines: body.lines, at: Date.now() };
+          await env.ROSTER_KV.put(key, JSON.stringify(stored));
+          return json({ ok: true, ...stored });
+        }
+
+        if (!isValidGradeFacts(body.facts)) return json({ error: 'bad facts' }, 400);
+
+        // Rated only once the payload is known to be worth a call, and only for
+        // generation — see the identical reasoning above /recap. Storing an
+        // approved set and clearing one stay free.
+        const gen = await countAttempt(
+          limiterFor(env, `grades:${ip}`),
+          GRADES_LIMIT,
+          GRADES_WINDOW_MS,
+        );
+        if (gen.blocked) {
+          return json({ error: 'too many grades' }, 429, {
+            'Retry-After': String(gen.retryAfter),
+          });
+        }
+
+        const written = await writeGrades(env, body.facts);
+        if (written.error) return json({ error: written.error }, 502);
+        // `missing` travels either way. A set of lines with two players absent
+        // is usable and worth showing; whether it is worth a re-roll is a
+        // judgement for whoever is reading it, and they cannot make it if the
+        // gaps arrive silently.
+        if (body.save === true) {
+          const stored = { lines: written.lines, at: Date.now() };
+          await env.ROSTER_KV.put(key, JSON.stringify(stored));
+          return json({ ok: true, ...stored, missing: written.missing });
+        }
+        return json({ ok: true, lines: written.lines, missing: written.missing });
       }
 
       if (url.pathname === '/history') {

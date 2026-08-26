@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { FixtureRecord, MatchLogEntry, TeamColor, Teams, TonightPlayer } from './types';
 import { winsFromLog } from './matchLog';
-import { MIN_MATCHES, derbyTonight } from './derby';
+import { MIN_MATCHES, derbyOnRecord, derbyTonight, settleDerby } from './derby';
 
 // Tonight's derby (§2.33). The pick is the closest record over at least
 // MIN_MATCHES matches, with neither side past BOGEY_RATE — so most of what is
@@ -244,5 +244,94 @@ describe('derbyTonight', () => {
     expect(derbyTonight(TEAMS, todays(), short)).toBeNull();
     const exact = [blackBeatsWhite(5), whiteBeatsBlack(MIN_MATCHES - 5)];
     expect(derbyTonight(TEAMS, todays(), exact)!.faced).toBe(MIN_MATCHES);
+  });
+});
+
+describe('derbyOnRecord', () => {
+  it('recovers the pick the group read, from the filed night alone', () => {
+    // Nothing is stored when the banner goes up, so this has to reproduce it —
+    // the grades are written days later and must be about the same rivalry.
+    const history = [blackBeatsWhite(6), whiteBeatsBlack(6)];
+    const tonight = night([m('black', 'white', 'black')]);
+    const announced = derbyTonight(TEAMS, todays(), history, tonight.id);
+    expect(derbyOnRecord(tonight, history)).toEqual(announced);
+  });
+
+  it('leaves tonight out of the record the pairing is picked from', () => {
+    // A whitewash tonight must not be what makes tonight's pairing level, nor
+    // what pushes it past BOGEY_RATE.
+    const history = [blackBeatsWhite(6), whiteBeatsBlack(6)];
+    const tonight = night(Array.from({ length: 8 }, () => m('black', 'white', 'black')));
+    expect(derbyOnRecord(tonight, [...history, tonight])!.faced).toBe(12);
+  });
+
+  it('treats a player off the roster as a guest', () => {
+    const history = [blackBeatsWhite(6), whiteBeatsBlack(6)];
+    const tonight = night([m('black', 'white', 'black')]);
+    // Everybody is a guest → nobody can hold a rivalry.
+    expect(derbyOnRecord(tonight, history, new Set())).toBeNull();
+    expect(derbyOnRecord(tonight, history, new Set(SQUAD))).not.toBeNull();
+  });
+});
+
+describe('settleDerby', () => {
+  const history = [blackBeatsWhite(6), whiteBeatsBlack(6)];
+  const pick = (fx: FixtureRecord) => derbyOnRecord(fx, history)!;
+
+  it('counts only the matches the two shirts played each other', () => {
+    // Two black-white meetings among four matches: the blue ones are somebody
+    // else's evening.
+    const fx = night([
+      m('black', 'white', 'black'),
+      m('black', 'blue', 'blue'),
+      m('white', 'blue', 'white'),
+      m('black', 'white', 'white'),
+    ]);
+    const settled = settleDerby(fx, pick(fx))!;
+    expect(settled.met).toBe(2);
+    expect(settled.aTook).toBe(1);
+    expect(settled.bTook).toBe(1);
+  });
+
+  it('reads the same whichever way round the log lists the pair', () => {
+    const fx = night([m('white', 'black', 'black'), m('black', 'white', 'black')]);
+    const settled = settleDerby(fx, pick(fx))!;
+    expect(settled.met).toBe(2);
+    expect(settled.aTook).toBe(2); // a is black, per the shirt order
+    expect(settled.bTook).toBe(0);
+  });
+
+  it('counts a shootout as a win, and says it was one', () => {
+    // The half-win rule is about the night's tally, not about who beat whom —
+    // the same call derbyTonight makes when reading history.
+    const fx = night([{ a: 'black', b: 'white', winner: 'black', viaPenalties: true }]);
+    const settled = settleDerby(fx, pick(fx))!;
+    expect(settled.aTook).toBe(1);
+    expect(settled.bTook).toBe(0);
+    expect(settled.penalties).toBe(1);
+  });
+
+  it('reports a night the two never met, rather than hiding it', () => {
+    const fx = night([m('black', 'blue', 'black'), m('white', 'blue', 'white')]);
+    const settled = settleDerby(fx, pick(fx))!;
+    expect(settled.met).toBe(0);
+    expect(settled.aTook).toBe(0);
+    expect(settled.bTook).toBe(0);
+  });
+
+  it('cannot answer for a night that was only ever a tally', () => {
+    // §2.17 — no match log, no head-to-head. Null, not zero.
+    const fx = night([m('black', 'white', 'black')]);
+    const picked = pick(fx);
+    expect(settleDerby({ ...fx, matchLog: undefined }, picked)).toBeNull();
+    expect(settleDerby({ ...fx, matchLog: [] }, picked)).toBeNull();
+  });
+
+  it('keeps the record they came in on alongside tonight’s answer', () => {
+    const fx = night([m('black', 'white', 'black')]);
+    const settled = settleDerby(fx, pick(fx))!;
+    expect(settled.faced).toBe(12);
+    expect(settled.aWon).toBe(6);
+    expect(settled.bWon).toBe(6);
   });
 });

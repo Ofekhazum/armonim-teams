@@ -2668,6 +2668,170 @@ Names come off the fixtures rather than the roster, newest first: somebody who h
 still be compared because their record happened, and somebody who changed their name reads as the name
 they go by now.
 
+### 2.39 Post-match grades (`grades.ts`, `gradesFacts.ts`, `gradesApi.ts`, `NightGrades.tsx`, `worker/grades.js`, `GET|POST /grades`)
+
+A mark out of ten for every player on a filed night, and one line of dressing-room banter beside it.
+
+**The model never decides the number.** Same split as Market Value (§2.31): the app computes something
+defensible, and the model is handed the finished figure and asked to phrase it. Four terms carry the real
+football, and only two of them can separate teammates at all — a fifth and sixth, `tier` and `jitter`,
+exist for a different reason entirely and are documented on their own below.
+
+| Term | Weight / cap | What it is |
+|---|---|---|
+| `night` | 2.3, ±2.5 | the team's result **relative to that night's own size**, shared by all five |
+| `mvp` | +1 | the one true per-player signal a night produces |
+| `career` | 0.75, ±0.5 | their record against the club's, shrunk toward the mean (`SHRINK_K = 6`) |
+| `momentum` | 0.65, ±0.7 | their last five nights against **their own** shrunk baseline |
+| `tier` | ±0.25, permanent | the organiser's rating, coarsened — see **The tier shade** below |
+| `jitter` | ±0.35, permanent | a stable per-player-per-night "coin flip" — carries no information at all |
+
+`MatchLogEntry` records `{a, b, winner, viaPenalties}` — team colours, not people. Every match, every
+shootout and every sequence is therefore *identical* for the five players on a shirt, so **on a single
+night exactly one thing distinguishes teammates: the MVP pick.** Everything else that differs between
+them is history, which is what the last two terms are.
+
+**Why "did they beat their own baseline tonight" is not a term.** It was the obvious fifth and it is
+backwards. Measured on the invented club (§2.32), a single night swings a player's per-night figure by
+−2.0 to +2.4 (p10–p90) while the gap between the club's best and worst player is 1.61 — one night is
+mostly luck. Worse, the term *inverts*: on an identical five-win night the weakest player
+"overperforms" by +2.75 and the strongest by +1.14, so over a season every player averages the same
+mark and the best players score **lowest** on ordinary wins. The personal-expectation angle is real and
+worth saying — it belongs in the sentence, where it can be qualitative, not in the number, where it
+would be a lie. **Momentum is safe for the opposite reason:** averaged over several nights it is far
+less noisy, it is measured against each player's own baseline so it favours nobody, and it
+mean-reverts — per-player season averages land between −0.30 and +0.21. It adds movement, not bias.
+
+**`BASE = 6`, not the arithmetic midpoint.** A 1–10 centred on 5.5 is technically balanced and reads as
+mean: most nights are unremarkable, so most marks sat at 5 and below, and a group reading their own
+marks every week would be told they were average-to-poor most of the time. Six leaves the spread and
+the ordering untouched and moves only where "nothing special happened" sits — a judgement about tone,
+not about football. Calibrated: median 6, p10/p90 at 4/8, 1.0% at or below 3, 0.3% perfect, season
+averages 4.79–6.84.
+
+**The tier shade (`tier`, `jitter`).** On a club three real nights old, `momentum` is structurally off
+for everybody (`MIN_RECENT` nights unmet) and `career` is shrunk almost flat (`SHRINK_K = 6` against one
+or two nights of evidence), so every player on a shirt rendered as the identical number for weeks —
+measured on the actual club, four and five teammates in a row at the exact same mark. `marketValue.ts`
+has the same problem and solves it by withholding the price entirely for `MIN_HISTORY_FOR_VALUES` nights
+(§2.31). This file does not take that route: it puts the organiser's rating (§2.28) into the formula as a
+small, coarse, **permanent** term.
+
+**A jitter-only version was designed first and rejected, on the maths rather than on taste.** The
+proposal: a small deterministic per-night noise term, seeded from `fixtureId` + `playerId`, meant to
+break the flatline visually with nothing correlated to anybody. It cannot also give a stronger player a
+"realistic edge" — unbiased noise has no slope by definition — so achieving both halves of the ask
+requires a second, *systematic* term keyed to the rating. And a systematic term does not hide behind noise
+added on top of it: `night`, `mvp`, `career` and `momentum` are all reconstructable by anyone from
+`GET /history` (no password), so the residual `grade − (those four)` is computable for every night a
+player has played, and by the law of large numbers `mean(residual) → tier` as nights accumulate — the
+noise is exactly what averaging cancels, which makes the jitter the thing destroyed by the technique
+meant to hide the tier behind it, not a mitigation of it.
+
+**A fading version was built next, then deliberately removed.** `coldStartWeight` tapered both terms to
+zero by `FADE_NIGHTS = 8`, capping the exposure at a short window. The organiser's objection was decisive
+and is a product argument the maths cannot answer: the ratings are *actively maintained* as players
+improve and decline, so a term that switches itself off once somebody has played enough nights is fighting
+exactly the updates it exists to reflect. Permanence is also what `marketValue.ts` does — its `tier` never
+decays either; it buys safety by withholding the whole feature until real variance exists to hide inside.
+
+**So the accepted, on-the-record trade is:** a determined reader who reconstructs the four public terms and
+averages the residual over a season recovers **which third of the club the organiser puts somebody in** —
+and the estimate gets *sharper* with tenure, so the most loyal members are the most exposed. This was
+measured, argued twice, and overruled on purpose on the grounds that a weeknight five-a-side group will
+not run the regression. Not a missed risk; a priced one.
+
+- **`tier`** buckets the rating into the same three thirds `marketValue.ts`'s `ratingTier` already cuts
+  (exported from there specifically so the two files can never define "top third of the club" two different
+  ways). Read from **that night's `FixturePlayer` snapshot**, not today's roster, so re-rating somebody
+  changes their future marks without silently re-scoring their past ones.
+- **`jitter`** is the harmless half of the original proposal, kept for what it was always good for: visual
+  variety with zero information in it. A stable FNV-1a hash of the two ids.
+- **What keeps it bounded** is that `tier` is the smallest term in the formula — ±0.25 against `career`'s
+  ±0.5, `momentum`'s ±0.7 and `night`'s ±2.5. There is a test asserting exactly that, and another asserting
+  a top-tier player on a blanked team still marks below a bottom-tier player whose team took the night. It
+  shades a mark; it cannot carry one. Widening `TIER_BUMP` past `CAREER_CAP` turns a shade into a verdict
+  and needs the organiser saying so in as many words.
+
+Deliberately **not** threaded into `GradeContext` — the model never sees `tier` or `jitter`, only the
+final `grade`, exactly as it never sees any other part of the breakdown.
+
+**The mark became a published artifact the moment the rating entered it (`publishedMarks`).** This is the
+structural consequence that is easy to miss: `publicFixture` strips `rating` from every filed night before
+`GET /history` serves it, so `nightGrades` — which runs client-side — computes one answer on the
+organiser's device (which pulls `/history/full`) and a *different* answer on everybody else's. Measured
+against the real club with ratings attached: **six of sixteen players came out half a mark apart.** An
+earlier version made this worse by comparing the stored mark against the locally recomputed one and
+dropping the banter when they disagreed, as a staleness check — on a viewer's phone that fired for a large
+share of the club every time, hiding the lines from precisely the people they were written for while the
+organiser saw them fine. So the Worker now stores a `grade` for **every** player (with `text` optional, for
+the ones the model skipped) and the UI renders the published figure, never a local one — the same shape
+`GET /values` already uses for a price no public device could work out. Staleness after a correction is
+handled the way the recap handles it: the organiser re-rolls.
+
+**One prompt for the whole sheet, keyed on an ASCII code.** Fifteen separate requests would burn a
+day's free tier on one night, and fifteen independent completions have no way to avoid handing the same
+joke to four people. So the Worker sends one request and asks for a JSON object mapping `p1`, `p2` … to
+one Hebrew sentence each. The codes exist for the length of that request: the payload carries `key`
+*and* `id`, only `key` reaches the prompt, and `linesFrom` maps the answer back onto player ids before
+anything is stored. Keying on the Hebrew name instead would mean a single altered character silently
+orphaning that player's line.
+
+**Inventing a *connection* is the same offence as inventing an event, and it is what the first spike
+actually did.** Handed the organiser's unassigned note — "the ball went over the fence about five
+times, all by the same guy" — and a player who had lost every match, the model put the two together and
+named him. Nothing in the record said it was him; he was simply the most available culprit. So the
+prompt carries **WHO A FACT BELONGS TO**: never attribute an event, quote or note to a player unless
+that player's key or name is explicitly attached to it, never guess, and an unassigned note stays
+unassigned. It then names the exact wrong inference — *a bad night is not evidence; the player with the
+lowest mark did not do it* — because the general rule alone had already been obeyed in spirit and
+broken in fact. `gradesFacts` drops the `debut-group` milestone for the same reason: "3 players played
+their first night" is the one milestone naming nobody, and the individual debuts say it with names.
+
+**The derby is the one fact in the payload that belongs to two named people** (§2.33). It is recovered
+rather than remembered — `derbyOnRecord` recomputes the pairing the group read before kick-off, since
+the pick is a pure function of that night's teams and the archive before it — and `settleDerby` counts
+what the two shirts did to each other once they were on the pitch. Both players' lines are told to use
+it, in whichever direction it went: whoever came out ahead enjoys it, whoever came off worse hears
+about it, and nobody else may mention it. A shootout counts as a full win here, exactly as it does in
+the record the pairing was picked from — the half-win rule is about the night's tally, not about who
+beat whom — though the prompt is told how many meetings needed one. `met: 0` is reported rather than
+hidden: billed against each other and kept apart by the rotation all evening is a better line than
+most. A night with no `matchLog` returns null, because a tally cannot say who beat whom (§2.17).
+
+**The marks and the sentences are both stored**, keyed by player id — see the note on `publishedMarks`
+above for why the mark cannot simply be recomputed by whoever is reading it. `text` is optional within
+that record and `grade` is not: a mark with no banter is an ordinary complete state, where a sentence
+with no mark would be banter about a number nobody can see.
+
+`POST /grades` takes the same four shapes `POST /recap` does — `{facts}`, `{facts, save}`, `{lines}`,
+`{lines: null}` — behind the secret word, with its own rate-limit counter rather than the recap's, since
+re-rolling a report until it reads well must not silently spend grades that have not been written yet.
+`worker/gemini.js` holds the model waterfall, the thinking-config retries and the error wording that
+both features share; what stays with each is its prompt and how it reads the reply.
+
+**On screen (`NightGrades.tsx`), last on the night page, below the report.** The story of the night
+comes first; each player's personal verdict on it comes after. Same generate → draft → publish flow the
+report already teaches, on purpose — an organiser who has learned one has learned the other.
+
+**Grouped by shirt, not one flat ranking of fifteen friends.** The dominant term in the mark is the
+team's result, shared by all five players on it, so a list sorted 10 → 3 would mostly re-derive the three
+teams in blocks while presenting itself as a personal ranking. Three cards mirroring the team cards above
+them are honest about what the number mostly is, and put the genuinely personal spread — MVP, career,
+momentum — where it actually lives: between teammates on the same card. This is also the one place in the
+app that comes close to the no-judgement-words rule §2.37 draws for `PlayerCompare` and does not follow
+it — a grade is a verdict by design here, unlike a count — so the boundary is enforced a different way:
+the word "rating" (the organiser's private 1–5, §2.28) is never used for it, and there is a test for that.
+
+**A player still gets their mark with no line beside it**, and that is not a degraded state — it means
+the model skipped them, which the admin sees named on the draft (`missing`) and can re-roll if it is
+worth it. On screen it is simply a chip with no sentence under it.
+
+**The whole section renders nothing for two different kinds of nobody.** A night with no result at all —
+`gradesFacts` returns null — and a night nobody has published yet, read by somebody who cannot publish
+one. Neither is worth an empty shell asking to be filled in, the same restraint `PriceTag` shows for a
+player with no market value yet.
+
 ## 3. Team generation algorithm
 
 Balancing is a small constrained optimization. With ≤15 players, brute force is too big
