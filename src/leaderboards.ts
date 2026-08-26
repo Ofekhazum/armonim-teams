@@ -29,17 +29,19 @@ import { MIN_NIGHTS_FOR_TITLES, activeWinRun, longestWinRun } from './achievemen
 import { appearances } from './milestones';
 import { mvpCounts } from './mvp';
 
-/**
- * How much football before the club has podiums at all.
- *
- * Deliberately `MIN_NIGHTS_FOR_TITLES`, imported rather than re-declared. That
- * constant already answers the question this one is asking — "has the league
- * happened enough for a superlative about it to mean anything" — and its
- * reasoning applies here word for word: "most nights won" off three nights is
- * a fact about the history's length, not about the player. Two constants would
- * be two answers to one question, and they would drift.
- */
-export const MIN_NIGHTS_FOR_BOARDS = MIN_NIGHTS_FOR_TITLES;
+// **There is deliberately no minimum number of nights here any more.**
+//
+// There was: `MIN_NIGHTS_FOR_TITLES`, on the reasoning that "most nights won"
+// off three nights is a fact about the history's length rather than about the
+// player. That reasoning is still true, and the organiser weighed it against a
+// Club tab that says nothing for five weeks and chose to show the boards
+// anyway — measured, on the real club's three nights: two of the six boards
+// separate people cleanly, and the other four come out as eight to thirteen
+// names level on one. Ties sharing a rank is correct and stays correct; it just
+// means an early podium can be a long list of people who are genuinely level.
+//
+// The one thing still filtered is a board with *nothing* in it — see the return
+// of `leaderboards`.
 
 /** How many *ranks* deep a podium goes — not how many names, see the tie rule. */
 export const TOP_RANKS = 3;
@@ -96,18 +98,20 @@ function podium(
 }
 
 /**
- * Every podium, in the order they are drawn.
+ * Every podium that has somebody on it, in the order they are drawn.
  *
- * Returns `[]` below {@link MIN_NIGHTS_FOR_BOARDS} rather than a list of empty
- * boards — the same shape `fitnessRings` uses (§2.35), and for the same
- * reason: "not yet" is one state and it should be said once, not repeated
- * under six headings.
+ * **A board with no entries is dropped rather than drawn empty**, which is the
+ * only gate left. `podium` already discards a zero — nobody is on a podium for
+ * never having won one — so a club with no football yet produces six boards
+ * with nothing in them, and six empty headings is the state `fitnessRings`
+ * (§2.35) exists to avoid: "not yet" is one thing to say, not six. It also
+ * covers the narrower case that outlives the early weeks, which is a single
+ * board nobody has scored on — a season where no run ever reached two, say.
  */
 export function leaderboards(history: FixtureRecord[]): Leaderboard[] {
   const recorded = [...history]
     .filter((fx) => hasResult(fx.wins))
     .sort((a, b) => a.date.localeCompare(b.date));
-  if (recorded.length < MIN_NIGHTS_FOR_BOARDS) return [];
 
   const standings = playerStandings(history);
   const mvps = new Map(mvpCounts(history).map((m) => [m.id, m.count]));
