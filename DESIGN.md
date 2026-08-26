@@ -2894,6 +2894,15 @@ its row's height whether or not anything is selected, so picking a point never s
 makes and for the same reason: the sandbox exists to review features against a season of football, and
 a graph that is permanently empty there cannot be reviewed at all. Live devices never take that path.
 
+`testGrades.ts` does the same job for the *night page*, which had the worse version of this problem — no
+Worker meant an empty marks panel and a write button that could only ever fail. It derives each night's
+lines on demand, and the marks in them are the **real** ones from `nightGrades` rather than random
+numbers: the form graph already computes marks that way in test mode, so rolling a different figure here
+would put one number on the night page and another on the graph two taps away. Only the banter is
+invented — there is no model to ask — drawn from four pools split by grade band, because a
+"carried the whole team" line under a 3.5 reads as broken rather than as invented, and picked by a hash
+of the two ids so a night reads the same every time it is opened.
+
 ## 3. Team generation algorithm
 
 Balancing is a small constrained optimization. With ≤15 players, brute force is too big

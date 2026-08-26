@@ -145,13 +145,17 @@ export default function NightGrades({ fixture, history, players, adminWord = nul
     setDraft(null);
     setMissing([]);
     setFailed(null);
-    fetchGrades(fixture.id).then((g) => {
+    fetchGrades(fixture.id, history).then((g) => {
       if (!cancelled) setSaved(g);
     });
     return () => {
       cancelled = true;
     };
-  }, [fixture.id]);
+    // `history` is read by the sandbox branch of `fetchGrades`, so it belongs
+    // here — it is the app's own state object and stable between edits, so
+    // listing it costs a refetch when a night is corrected and nothing
+    // otherwise.
+  }, [fixture.id, history]);
 
   // Null on a night with no result — the same night `nightGrades` itself
   // refuses, since there is nothing to grade. The whole section renders
@@ -162,7 +166,7 @@ export default function NightGrades({ fixture, history, players, adminWord = nul
   const write = async () => {
     setBusy('writing');
     setFailed(null);
-    const out = await draftGrades(fixture.id, facts, adminWord ?? '');
+    const out = await draftGrades(fixture.id, facts, adminWord ?? '', history);
     setBusy(null);
     if ('error' in out) return setFailed(say(out.error, out.detail));
     setDraft(out.lines);

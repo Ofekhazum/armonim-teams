@@ -12,7 +12,11 @@ import { isTestMode } from './testMode';
 // in it via `gradesFacts` → `NightGrades` → the night page. A dynamic import
 // here would buy no chunk and only warn at build time that it had not.
 import { nightGrades } from './grades';
+import { testGradeLines } from './testGrades';
 import type { FixtureRecord } from './types';
+
+const dateOf = (history: FixtureRecord[], fixtureId: string) =>
+  history.find((f) => f.id === fixtureId)?.date;
 import type { GradesFacts } from './gradesFacts';
 import type { AllMarks } from './gradeHistory';
 
@@ -85,8 +89,21 @@ export async function fetchAllMarks(history: FixtureRecord[] = []): Promise<AllM
   }
 }
 
-/** Whatever has been written for this night, or null. Public — anybody reads. */
-export async function fetchGrades(fixtureId: string): Promise<StoredGrades | null> {
+/**
+ * Whatever has been written for this night, or null. Public — anybody reads.
+ *
+ * `history` is used only by the sandbox, which has nothing published and no
+ * Worker to ask, and derives the night's marks instead (see `testGrades.ts`).
+ * Live devices ignore it and read what the organiser published.
+ */
+export async function fetchGrades(
+  fixtureId: string,
+  history: FixtureRecord[] = [],
+): Promise<StoredGrades | null> {
+  if (isTestMode()) {
+    const lines = testGradeLines(history, fixtureId);
+    return lines ? { lines, at: Date.parse(dateOf(history, fixtureId) ?? '') || Date.now() } : null;
+  }
   if (!REMOTE_URL) return null;
   try {
     const res = await fetch(`${REMOTE_URL}/grades?id=${encodeURIComponent(fixtureId)}`, {
@@ -134,23 +151,50 @@ const post = async (body: unknown): Promise<GradesResult> => {
   }
 };
 
-/** Write them and hand them back without storing — the draft the organiser reads. */
+/**
+ * Write them and hand them back without storing — the draft the organiser reads.
+ *
+ * In the sandbox there is no model to ask, so the invented lines come back
+ * instead of an error. Without this the one button on the panel could only ever
+ * fail there, which makes the feature impossible to look at in the place built
+ * for looking at features.
+ */
 export const draftGrades = (
   fixtureId: string,
   facts: GradesFacts,
   secret: string,
-): Promise<GradesResult> => post({ secret, fixtureId, facts });
+  history: FixtureRecord[] = [],
+): Promise<GradesResult> => {
+  if (isTestMode()) {
+    const lines = testGradeLines(history, fixtureId);
+    return Promise.resolve(lines ? { lines, missing: [] } : { error: 'error' });
+  }
+  return post({ secret, fixtureId, facts });
+};
 
-/** Store the approved set, so everyone else reads these rather than their own. */
+/**
+ * Store the approved set, so everyone else reads these rather than their own.
+ *
+ * A no-op in the sandbox, which has nowhere to store anything: the lines it
+ * shows are derived from the invented history every time they are asked for,
+ * so they are already exactly what publishing them would produce.
+ */
 export const saveGrades = (
   fixtureId: string,
   lines: GradeLines,
   secret: string,
-): Promise<GradesResult> => post({ secret, fixtureId, lines });
+): Promise<GradesResult> =>
+  isTestMode() ? Promise.resolve({ lines }) : post({ secret, fixtureId, lines });
 
-/** Forget them. The night goes back to bare marks, which is a complete state. */
+/**
+ * Forget them. The night goes back to bare marks, which is a complete state.
+ *
+ * In the sandbox this clears what is on screen but nothing underneath, because
+ * there is nothing underneath — reopening the night derives the lines again.
+ * The same way the sandbox reseeds everything else it invents.
+ */
 export const clearGrades = (fixtureId: string, secret: string): Promise<GradesResult> =>
-  post({ secret, fixtureId, lines: null });
+  isTestMode() ? Promise.resolve({ lines: {} }) : post({ secret, fixtureId, lines: null });
 
 /**
  * Write and store in one call, with nobody reading them in between.
