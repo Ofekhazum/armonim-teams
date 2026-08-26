@@ -207,4 +207,30 @@ describe('NightGrades', () => {
     expect(text.toLowerCase()).not.toContain('rating');
     expect(text).not.toContain('דירוג');
   });
+
+  it('lays the Hebrew out right-to-left, stated rather than inherited', async () => {
+    // The banter is Hebrew and the row is `dir="rtl"`, which *should* make
+    // `text-align: start` resolve to right — and does in Chromium. It did not
+    // on the organiser's iOS Safari, where wrapped lines came out flush left.
+    // So the alignment is stated outright, and pinned here: a tidy-up that
+    // drops `text-right` as "redundant" would silently reintroduce the bug on
+    // the one device this app is actually read on.
+    const fx = fixture();
+    const graded = nightGrades([fx], fx.id)!;
+    const lines = Object.fromEntries(
+      graded.map((g) => [g.id, { text: `line for ${g.id}`, grade: g.grade }]),
+    );
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(JSON.stringify({ lines, at: Date.now() }))),
+    );
+
+    render(<NightGrades fixture={fx} history={[fx]} players={roster} adminWord={null} />);
+    await screen.findByText(NAMES.a);
+
+    const row = screen.getByText(`line for ${graded[0].id}`).closest('li')!;
+    expect(row).toHaveAttribute('dir', 'rtl');
+    expect(screen.getByText(`line for ${graded[0].id}`)).toHaveClass('text-right');
+    vi.unstubAllGlobals();
+  });
 });

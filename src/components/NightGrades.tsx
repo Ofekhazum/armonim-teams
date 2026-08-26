@@ -55,33 +55,38 @@ function GradeChip({ grade }: { grade: number }) {
 
 function PlayerRow({ p, grade, line }: { p: GradeFactLine; grade: number; line?: string }) {
   return (
-    <li className="py-1.5 first:pt-0 last:pb-0">
-      {/* RTL, to match the Hebrew line underneath it: the name starts at the
-          right edge, where a Hebrew reader's eye already lands first, and the
-          mark sits at the left as the trailing figure — the same order a
-          Hebrew scoreline puts a name and a number in, rather than the LTR
-          layout this row inherited by default from the page's own chrome. */}
-      <div dir="rtl" className="flex items-center justify-between gap-2">
-        <span className="flex min-w-0 items-baseline gap-1">
+    // RTL on the whole row rather than on each part: the name starts at the
+    // right edge, where a Hebrew reader's eye already lands first, and the mark
+    // sits at the left as the trailing figure — the same order a Hebrew
+    // scoreline puts a name and a number in.
+    <li dir="rtl">
+      <div className="flex items-center justify-between gap-2">
+        <span className="flex min-w-0 items-baseline gap-1.5">
           {p.isMvp && <span title="Player of the night">🌟</span>}
           {/* No colour of its own: the card's own text-* (TEAM_META.card)
               already reads on that card, light ink on white, light text on
               black and blue — the same thing TeamCards does above it. */}
-          <Name className="truncate text-sm font-semibold">{p.name}</Name>
+          <Name className="truncate text-sm font-bold">{p.name}</Name>
         </span>
         {/* The published mark, never the locally computed one — see
             publishedMarks(). A viewer's device cannot work this out. */}
         <GradeChip grade={grade} />
       </div>
-      {/* Hebrew, right-to-left, under the name — the model's one sentence,
-          when there is one to show. A player the model skipped still gets a
-          mark, which is an ordinary complete state rather than a gap. Same
-          reasoning as the name above: opacity on the inherited colour rather
-          than a fixed one, so it still reads on a dark shirt. */}
+      {/* The model's one sentence, when there is one to show. A player the
+          model skipped still gets a mark, which is an ordinary complete state
+          rather than a gap.
+
+          **`text-right` explicitly, rather than leaning on `dir` alone.** A
+          `dir="rtl"` element's `text-align` resolves to `start`, which *should*
+          mean right — and does, measurably, in Chromium. It did not hold up on
+          the organiser's iOS Safari, where wrapped lines came out flush left
+          under a correctly right-aligned name. Stating the alignment outright
+          costs one class and removes the engine from the question.
+
+          Opacity on the inherited colour rather than a fixed one, so it still
+          reads on a dark shirt. */}
       {line && (
-        <p dir="rtl" className="mt-0.5 text-xs leading-snug opacity-80">
-          {line}
-        </p>
+        <p className="mt-1 text-right text-xs leading-relaxed opacity-75">{line}</p>
       )}
     </li>
   );
@@ -98,14 +103,18 @@ function TeamGroup({
 }) {
   if (players.length === 0) return null;
   return (
-    <div className={`rounded-xl border p-2.5 shadow-sm ${TEAM_META[color].card}`}>
-      <h4 className={`mb-1 text-xs font-black ${TEAM_META[color].header}`}>
+    <div className={`rounded-xl border p-3.5 shadow-sm ${TEAM_META[color].card}`}>
+      <h4 className={`mb-3 text-xs font-black ${TEAM_META[color].header}`}>
         {TEAM_META[color].emoji} {TEAM_META[color].label}
       </h4>
       {/* No hairline between rows: the card's own background swings from a
           dark shirt to a cream one, and one divider colour cannot read on
-          both — `py-1.5` on each row is enough space to tell them apart. */}
-      <ul>
+          both. Grouping is done with space instead — a name sits `mt-1` from
+          its own sentence and `space-y-4` from the next player, so the pair
+          reads as one block rather than as four evenly-spaced lines. That gap
+          being bigger than the one inside a row is the whole of what makes
+          this legible. */}
+      <ul className="space-y-4">
         {players.map((p) => (
           <PlayerRow
             key={p.id}
