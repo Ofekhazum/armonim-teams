@@ -145,6 +145,19 @@ describe('buildGradesPrompt', () => {
     expect(p).toMatch(/If your sentence would work as a caption under a stats table/);
   });
 
+  it('tells the model not to write every line in the same shape', () => {
+    // The first real sheet came back with fifteen of sixteen lines in the
+    // identical construction — third person, past tense, name then a mild
+    // metaphor. Each was fine alone; the set read like a form letter. Being
+    // one batched request is what makes this fixable at all: the model can
+    // see the whole sheet before it answers.
+    const p = buildGradesPrompt(facts());
+    expect(p).toMatch(/NO TWO LINES THE SAME SHAPE/);
+    expect(p).toMatch(/the same trick twice in a row is a failed sheet/);
+    // and the place the repetition actually showed up worst
+    expect(p).toMatch(/three debutants/);
+  });
+
   it('hands the model concrete devices rather than only an adjective', () => {
     // "Funny, sharp, a bit rude" alone produced flat prose in the field — one
     // sentence is a harder format to be funny in than five paragraphs, and it
