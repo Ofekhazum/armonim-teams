@@ -2841,6 +2841,84 @@ worth it. On screen it is simply a chip with no sentence under it.
 one. Neither is worth an empty shell asking to be filled in, the same restraint `PriceTag` shows for a
 player with no market value yet.
 
+### 2.40 The form panel (`gradeHistory.ts`, `GradeForm.tsx`, `GET /grades/all`)
+
+A player's published marks lately, on their profile — the third way of asking about the same nights, so
+it sits between the medal ribbon (where they finished) and the timeline (what happened). A row of
+coloured squares and a table with a mark on the end of each row: the shape every football screen uses
+for form, pared back once on the organiser's own read of it (below).
+
+**It replaced a line chart, and the reason is worth keeping.** The graph drew a continuous trend through
+points a week apart, which invites reading a slope into what are really five separate evenings, and it
+spent most of its pixels on the empty space between them. Squares and rows say the same thing without
+implying anything in the gaps. (The chart is in the history at `95a77d9` if it is ever wanted back.)
+
+**The columns are what a night actually knows.** The screens this is modelled on show minutes, xG, goals
+and assists; this app records none of those, because nobody writes them down (§2.24). It records the
+shirt, what the team took, where they finished and the player-of-the-night pick — so those are the
+columns (the "wins" column named for what it is, not for a Football Manager convention that assumes a
+season of matches rather than a night of them), and there is a test asserting the words *goal*, *assist*,
+*xG* and *minute* never appear on it. Inventing them here would be the same offence the grades prompt
+spends three paragraphs preventing.
+
+**No "won of last N" / "MVP of last N" tiles, on the organiser's second pass at the design.** The first
+version carried both beside the strip, in the spirit of the reference screens' summary row. Dropped for
+being redundant with what the table already shows one scroll down, and for being where a shared-top night
+first exposed the next point.
+
+**A shared placing shows a plain number, not `=1`.** The first version marked a tie explicitly — level at
+the top means nobody took the night (§2.6), so without the mark a gold 1 could read as an outright win
+that did not happen. Simplified back to a bare number on request; the honest distinction is not gone, only
+quieter — the hover title still says "Level on 1" rather than "Finished 1st" on a shared night, which
+costs nothing and loses nothing for anyone who taps it, while the badge itself stays uncluttered for
+everyone who does not.
+
+**A bulk endpoint had to exist first, and it is the interesting part.** Grades are stored one KV key per
+fixture, which is right for the night page — it reads one night. This panel reads *every* night a player
+has played, and a request per night is fine at three and absurd at fifty. `/awards` already documents
+this exact tension ("a player page wants all of them at once"); `GET /grades/all` resolves it from the
+other side — the per-night keys stay, and `readAllMarks` does the fan-out inside one request, where it
+can be concurrent. It returns **marks only**: the banter is the bulky half, this panel shows numbers, and
+dropping the text takes a season from roughly 150KB to under 20KB rather than letting this quietly
+become the way a whole season of writing gets downloaded to draw a form strip.
+
+**Five tones on the squares, not the three `NightGrades` uses for its chip.** A strip is read as a
+*gradient* — the eye is hunting a run of green or a slide into red — and three tones cannot show a slide.
+
+**The strip is the last five, whatever the window.** Five is what every football screen means by recent
+form, and it is also `RECENT_NIGHTS` in `grades.ts`, so the squares and the momentum term inside the
+mark are looking at the same stretch of football rather than two different definitions of "lately".
+
+**1M is the default** (`DEFAULT_RANGE`, asserted in a test because it is a product decision a later tidy
+could undo). A month is four or five nights, which reads as a run of form — the question somebody opens
+their own profile to ask. Every longer view is one tap away, and the table folds at eight rows for the
+same reason `PlayerTimeline` folds at three: on a phone an unfolded season is taller than the rest of
+the profile put together.
+
+**Windows are anchored to today, not to the player's last night.** Anchoring to their last night would
+guarantee the default view was never empty, at the cost of "1M" meaning a different month for every
+player. A window that means what it says can be empty, and an empty one is itself the answer to "how has
+their month been" — so the empty state says so and points at a longer range rather than looking broken.
+
+**Three states that are not the happy one**, all of which the club will actually hit: a night played but
+never graded is *absent* rather than shown as a zero, which would read as the worst evening of someone's
+career; a single graded night draws one square and a summary reading "last 1 night" — the club's real
+state the day this shipped was exactly one published night; and a player nobody has ever published a
+mark for gets no card at all.
+
+**In test mode the marks are computed locally** from the invented club, the same move `fetchValues`
+makes and for the same reason: the sandbox exists to review features against a season of football, and
+a panel that is permanently empty there cannot be reviewed at all. Live devices never take that path.
+
+`testGrades.ts` does the same job for the *night page*, which had the worse version of this problem — no
+Worker meant an empty marks panel and a write button that could only ever fail. It derives each night's
+lines on demand, and the marks in them are the **real** ones from `nightGrades` rather than random
+numbers: the form panel already computes marks that way in test mode, so rolling a different figure here
+would put one number on the night page and another on the graph two taps away. Only the banter is
+invented — there is no model to ask — drawn from four pools split by grade band, because a
+"carried the whole team" line under a 3.5 reads as broken rather than as invented, and picked by a hash
+of the two ids so a night reads the same every time it is opened.
+
 ## 3. Team generation algorithm
 
 Balancing is a small constrained optimization. With ≤15 players, brute force is too big

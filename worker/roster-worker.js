@@ -21,6 +21,7 @@
 //   GET  /recap?id=…   → public read of a night's written recap, if there is one
 //   POST /recap        → write one for a night; requires the secret word
 //   GET  /grades?id=…  → public read of a night's one-line player grades
+//   GET  /grades/all   → every published mark, marks only (the form graph)
 //   POST /grades       → write them for a night; requires the secret word
 //   POST /verify       → check the secret word (used to unlock admin mode)
 //   GET  /room/:id     → WebSocket upgrade into a live team-picking room
@@ -44,7 +45,7 @@ export { ClockNotifier } from './clock-notifier.js';
 
 import { bytesToB64u, publicKeyBytes } from './push.js';
 import { isValidFacts, recapKey, writeRecap } from './recap.js';
-import { gradesKey, isValidGradeFacts, writeGrades } from './grades.js';
+import { gradesKey, isValidGradeFacts, readAllMarks, writeGrades } from './grades.js';
 import { announceMonth, clearMonth, isPeriod, readAwards, registerAwards } from './awards.js';
 // Bundled from src/ the same way src/totm.ts is, and for the same reason: the
 // formula has to exist in exactly one place, and this is the only place that
@@ -527,6 +528,14 @@ export default {
       } catch {
         return json({ text: null });
       }
+    }
+
+    // Every published mark in the club, without the banter — what a player's
+    // grade graph is drawn from (§2.39). Checked before `/grades` below, and
+    // public for the same reason that route is: a mark is already visible to
+    // anyone who opens the night it belongs to.
+    if (url.pathname === '/grades/all' && request.method === 'GET') {
+      return json({ grades: await readAllMarks(env) });
     }
 
     // public read of a night's grade lines. The marks themselves are not here

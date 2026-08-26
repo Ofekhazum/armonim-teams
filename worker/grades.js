@@ -34,7 +34,57 @@ const TEAM_HE = { black: 'השחורים', white: 'הלבנים', blue: 'הכח�
 const he = (team) => TEAM_HE[team] ?? team;
 
 /** What a stored set of lines looks like in KV under `grades:<fixtureId>`. */
-export const gradesKey = (fixtureId) => `grades:${fixtureId}`;
+const GRADES_PREFIX = 'grades:';
+export const gradesKey = (fixtureId) => `${GRADES_PREFIX}${fixtureId}`;
+
+/**
+ * Every published mark in the club, as `{ fixtureId: { playerId: grade } }`.
+ *
+ * **Why a bulk read exists at all.** Grades are stored one key per fixture,
+ * which is exactly right for the night page — it reads one night. A player's
+ * grade graph (§2.39) reads *every* night they have played, and doing that a
+ * key at a time is a request per night: fine at three, absurd at fifty. This is
+ * the same problem `/awards` already solved by keeping one document ("a player
+ * page wants all of them at once"), reached from the other direction: the
+ * per-night keys stay, and the fan-out happens here, inside one request, on the
+ * side of the wire that can do it concurrently.
+ *
+ * **Marks only, deliberately.** The banter is the bulky half — one Hebrew
+ * sentence per player per night — and a graph plots numbers. Dropping the text
+ * takes a season from something like 150KB to under 20KB, and keeps this
+ * endpoint from quietly becoming the way a whole season of writing gets
+ * downloaded to draw a line.
+ */
+export async function readAllMarks(env) {
+  const out = {};
+  let cursor;
+  do {
+    const page = await env.ROSTER_KV.list({ prefix: GRADES_PREFIX, cursor });
+    const records = await Promise.all(
+      page.keys.map(async (k) => {
+        const raw = await env.ROSTER_KV.get(k.name);
+        if (!raw) return null;
+        try {
+          return { id: k.name.slice(GRADES_PREFIX.length), value: JSON.parse(raw) };
+        } catch {
+          // one unreadable night must not take the whole graph down with it
+          return null;
+        }
+      }),
+    );
+    for (const rec of records) {
+      const lines = rec?.value?.lines;
+      if (!lines || typeof lines !== 'object') continue;
+      const marks = {};
+      for (const [playerId, line] of Object.entries(lines)) {
+        if (Number.isFinite(line?.grade)) marks[playerId] = line.grade;
+      }
+      if (Object.keys(marks).length > 0) out[rec.id] = marks;
+    }
+    cursor = page.list_complete ? undefined : page.cursor;
+  } while (cursor);
+  return out;
+}
 
 /**
  * One player's line in the payload, as prose the prompt can read.

@@ -56,7 +56,12 @@ function GradeChip({ grade }: { grade: number }) {
 function PlayerRow({ p, grade, line }: { p: GradeFactLine; grade: number; line?: string }) {
   return (
     <li className="py-1.5 first:pt-0 last:pb-0">
-      <div className="flex items-center justify-between gap-2">
+      {/* RTL, to match the Hebrew line underneath it: the name starts at the
+          right edge, where a Hebrew reader's eye already lands first, and the
+          mark sits at the left as the trailing figure — the same order a
+          Hebrew scoreline puts a name and a number in, rather than the LTR
+          layout this row inherited by default from the page's own chrome. */}
+      <div dir="rtl" className="flex items-center justify-between gap-2">
         <span className="flex min-w-0 items-baseline gap-1">
           {p.isMvp && <span title="Player of the night">🌟</span>}
           {/* No colour of its own: the card's own text-* (TEAM_META.card)
@@ -145,13 +150,17 @@ export default function NightGrades({ fixture, history, players, adminWord = nul
     setDraft(null);
     setMissing([]);
     setFailed(null);
-    fetchGrades(fixture.id).then((g) => {
+    fetchGrades(fixture.id, history).then((g) => {
       if (!cancelled) setSaved(g);
     });
     return () => {
       cancelled = true;
     };
-  }, [fixture.id]);
+    // `history` is read by the sandbox branch of `fetchGrades`, so it belongs
+    // here — it is the app's own state object and stable between edits, so
+    // listing it costs a refetch when a night is corrected and nothing
+    // otherwise.
+  }, [fixture.id, history]);
 
   // Null on a night with no result — the same night `nightGrades` itself
   // refuses, since there is nothing to grade. The whole section renders
@@ -162,7 +171,7 @@ export default function NightGrades({ fixture, history, players, adminWord = nul
   const write = async () => {
     setBusy('writing');
     setFailed(null);
-    const out = await draftGrades(fixture.id, facts, adminWord ?? '');
+    const out = await draftGrades(fixture.id, facts, adminWord ?? '', history);
     setBusy(null);
     if ('error' in out) return setFailed(say(out.error, out.detail));
     setDraft(out.lines);
