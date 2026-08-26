@@ -15,6 +15,22 @@ import type { FixtureRecord, Player } from './types';
 import { REMOTE_URL } from './remote';
 import { isTestMode } from './testMode';
 
+/**
+ * Whether a price is shown anywhere in the app.
+ *
+ * **Off at the organiser's request, and this is a curtain rather than a
+ * demolition.** The formula (`marketValue.ts`), the tier it shares with the
+ * grades (`ratingTier.ts`), the Worker's `GET /values`, the stored data and
+ * every test all stay exactly as they were — the feature works, nobody can see
+ * it. Flipping this back to `true` is the whole of turning it on again.
+ *
+ * Gating the *fetch* as well as the render matters: `PlayerPage` opens for
+ * every player on the roster, and a hidden feature quietly costing a network
+ * round trip per open is the kind of thing nobody notices until the bill for
+ * it is somebody's data allowance.
+ */
+export const SHOW_MARKET_VALUE = false;
+
 export interface PlayerValue {
   /** In millions of euros. */
   value: number;

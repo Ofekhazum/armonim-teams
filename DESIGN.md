@@ -2182,6 +2182,15 @@ Nothing does — it feeds a price tag, where being roughly right is the requirem
 
 ### 2.31 Market value (`src/marketValue.ts`, `GET /values`)
 
+> **Hidden from the UI since 2026-08-26, at the organiser's request** — `SHOW_MARKET_VALUE` in
+> `values.ts` is `false`, so no price renders anywhere and `PlayerPage` does not even ask for one.
+> Everything described below is intact and still tested: the formula, `GET /values`, the stored data,
+> `PriceTag` itself, and `ratingTier.ts` — which the grades (§2.39) now share and which is the reason
+> this cannot simply be deleted. Because the flag is a compile-time constant, the whole feature is
+> tree-shaken out of the bundle rather than merely hidden in it. Flipping it back to `true` is the
+> whole of turning the feature on again; three tests in `PlayerPage.dom.test.tsx` fail if it flips by
+> accident.
+
 A Transfermarkt-style price tag: one number in euros that says roughly what a player is worth to the
 club and moves a little every week.
 

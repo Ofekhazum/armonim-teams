@@ -1,9 +1,10 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { buildTestClub } from '../testData';
 import { playerStandings } from '../calibration';
 import { ladderBadges, profileCounts, profileNights } from '../playerProfile';
 import { playerAchievements } from '../achievements';
+import { SHOW_MARKET_VALUE } from '../values';
 import PlayerPage from './PlayerPage';
 
 // The ladder badges' medallions (§2.19), after they stopped being capped at
@@ -89,5 +90,83 @@ describe('ladder badge medallions', () => {
     expect(
       screen.getByText(/^(Bronze|Silver|Gold|Emerald|Sapphire|Amethyst|Diamond) — /),
     ).toBeInTheDocument();
+  });
+});
+
+// The market value is hidden rather than removed (§2.31): the formula, the
+// Worker route and PriceTag itself are all untouched behind `SHOW_MARKET_VALUE`.
+// These are what stop it coming back by accident — a stray render or a stray
+// fetch would both be invisible in review and obvious to the club.
+describe('the hidden market value', () => {
+  const open = () => {
+    const { players, history } = buildTestClub();
+    const busiest = playerStandings(history)[0];
+    const player = players.find((p) => p.id === busiest.id)!;
+    render(
+      <PlayerPage
+        player={player}
+        history={history}
+        players={players}
+        isAdmin={false}
+        onEdit={() => {}}
+        onClose={() => {}}
+      />,
+    );
+  };
+
+  it('is off', () => {
+    // Stated outright, so flipping the flag without meaning to fails here
+    // first rather than on somebody's phone.
+    expect(SHOW_MARKET_VALUE).toBe(false);
+  });
+
+  it('puts no price on the profile, even when one is available to put there', async () => {
+    // The fetch has to *succeed* for this to test the render guard at all.
+    // With the default stub (which rejects) the price stays undefined and
+    // PriceTag renders nothing whatever the flag says — so this assertion
+    // passed with the feature switched on, which is a test proving nothing.
+    const { players, history } = buildTestClub();
+    const busiest = playerStandings(history)[0];
+    const player = players.find((p) => p.id === busiest.id)!;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        new Response(
+          JSON.stringify({ values: { [player.id]: { value: 8.75, previous: 8.5 } } }),
+        ),
+      ),
+    );
+
+    render(
+      <PlayerPage
+        player={player}
+        history={history}
+        players={players}
+        isAdmin={false}
+        onEdit={() => {}}
+        onClose={() => {}}
+      />,
+    );
+    // Let any in-flight price resolve before looking.
+    await screen.findByText(player.name);
+
+    expect(screen.queryByText(/€/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/not a rating/)).not.toBeInTheDocument();
+    vi.unstubAllGlobals();
+  });
+
+  it('does not even ask for one', () => {
+    // A hidden feature must not still be paying for itself on every open of
+    // every player's page.
+    const spy = vi.fn((url: unknown) => {
+      void url;
+      return Promise.reject(new Error('no network in component tests'));
+    });
+    vi.stubGlobal('fetch', spy);
+    open();
+    for (const [url] of spy.mock.calls) {
+      expect(String(url)).not.toContain('/values');
+    }
+    vi.unstubAllGlobals();
   });
 });

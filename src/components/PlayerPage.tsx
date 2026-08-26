@@ -30,7 +30,7 @@ import { MEDAL, Name, STYLE_META, TEAM_META } from './ui';
 import { useScrollLock } from '../scrollLock';
 import { fetchAwards, monthsWon } from '../awards';
 import type { PlayerValue } from '../values';
-import { fetchValues } from '../values';
+import { SHOW_MARKET_VALUE, fetchValues } from '../values';
 import PriceTag from './PriceTag';
 import { periodLabel } from '../wrapped';
 
@@ -194,8 +194,13 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
   // ratings and ratings do not leave the Worker (§2.28, §2.31). Undefined until
   // it arrives, and undefined forever if the club is too new or the phone is
   // offline — `PriceTag` renders nothing rather than an absence.
+  //
+  // Not asked for at all while the feature is hidden (see SHOW_MARKET_VALUE):
+  // this page opens for every player on the roster, so a request nobody can
+  // see the result of would be paid on every one of those opens.
   const [price, setPrice] = useState<PlayerValue | undefined>();
   useEffect(() => {
+    if (!SHOW_MARKET_VALUE) return;
     let live = true;
     fetchValues(players, history).then((values) => {
       if (live) setPrice(values[player.id]);
@@ -339,8 +344,11 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
               price is an attribute of the player the way the name and the
               title are — the cards below are all *counts about* them. It is
               also where Transfermarkt puts it, which is the reference anyone
-              reading it already has. */}
-          <PriceTag price={price} />
+              reading it already has.
+
+              Hidden for now — see SHOW_MARKET_VALUE in values.ts. The tag and
+              its formula are untouched behind it. */}
+          {SHOW_MARKET_VALUE && <PriceTag price={price} />}
         </header>
 
         {/* The one honour on this page that is a *selection* rather than a
