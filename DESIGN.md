@@ -2836,6 +2836,13 @@ the word "rating" (the organiser's private 1–5, §2.28) is never used for it, 
 the model skipped them, which the admin sees named on the draft (`missing`) and can re-roll if it is
 worth it. On screen it is simply a chip with no sentence under it.
 
+**The chip's tone (`GRADE_TONE`, `toneOf`) is flat for the ordinary run of marks and breaks that rule
+only at the top.** Rose at 4 and below, plain card ink in between, green from 7 up — a group reading
+their own marks every week should see green often enough for it to mean something, not reserve it for a
+handful of outliers. 9 and 10 step further, on purpose: a gold gradient for 9–9.9 and a violet-to-indigo
+one for a perfect 10, because those two are rare enough, and worth enough to the player who gets one,
+that a flat fill undersells them.
+
 **The whole section renders nothing for two different kinds of nobody.** A night with no result at all —
 `gradesFacts` returns null — and a night nobody has published yet, read by somebody who cannot publish
 one. Neither is worth an empty shell asking to be filled in, the same restraint `PriceTag` shows for a
