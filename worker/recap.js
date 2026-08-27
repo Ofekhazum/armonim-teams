@@ -154,7 +154,12 @@ ${
 
 This is true, and it is the only thing in this record that is an *event* rather than a number — everything else you have been given is a scoreline. So it is the most valuable material in the report and it should read that way: give it **two or three sentences, not one**, and make them the funniest in the piece. Build on it properly — an absurd consequence, a mock investigation, a grand conclusion drawn from it, a callback to it later in the paragraph. A single flat sentence reporting it and moving on is the one way to waste it.
 
-**IT MAY DESCRIBE MORE THAN ONE THING.** Read it as a whole before you use any of it: it can hold two separate events, or three, joined by nothing more than a comma or an "and". If it does, they are **separate facts with separate owners** — work through them one at a time, and do not merge them into a single story or assume the person named in one had anything to do with the other. Use as many of them as you can carry; the funniest gets the most room, and a small one can be a throwaway aside. Every ownership rule below applies to **each event on its own**.
+**IT MAY DESCRIBE MORE THAN ONE THING.** Read it as a whole before you use any of it. It can hold two separate events, or three or more, and they arrive in either of two shapes:
+
+- **One per line**, sometimes with a dash or a number in front. Every line is its own event. This is the clearest case and you must treat each line separately.
+- **Run together in one sentence**, joined by a comma or an "and". Split it yourself. Be careful here: "X and Y" is sometimes one event described in two halves and sometimes two unrelated events, and the test is whether either half stands up on its own as a thing that happened.
+
+However they arrive, they are **separate facts with separate owners** — work through them one at a time, do not merge them into a single story, and never assume the person named in one had anything to do with another. Use as many as you can carry; the funniest gets the most room and a small one can be a throwaway aside. Every ownership rule below applies to **each event on its own**.
 
 YOU SAW IT YOURSELF. You were at the pitch tonight. Never say where this came from — no "according to the organisers", no "it was reported that", no mention of anyone having handed you this. You watched it happen, and you write it that way. (This is about not citing a source for something you witnessed. The invented, obviously-ridiculous attribution described further down — "sources close to the changing room say" — is a joke and is still very welcome; it is a different thing entirely.)
 

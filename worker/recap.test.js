@@ -134,6 +134,12 @@ describe('buildPrompt', () => {
     expect(said).toMatch(/IT MAY DESCRIBE MORE THAN ONE THING/i);
     expect(said).toMatch(/separate facts with separate owners/i);
     expect(said).toMatch(/do not merge them into a single story/i);
+    // Both shapes an organiser actually types, named explicitly — a
+    // line-separated list is what the note box is documented to want, and
+    // running two events together in one sentence is what happens anyway.
+    expect(said).toMatch(/One per line/i);
+    expect(said).toMatch(/Run together in one sentence/i);
+    expect(said).toMatch(/whether either half stands up on its own/i);
     // and the ownership check is per-event rather than per-note
     expect(said).toMatch(/Take each event in the line above separately/i);
     expect(said).toMatch(/Two events in one line can have two different answers/i);
