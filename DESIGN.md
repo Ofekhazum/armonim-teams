@@ -2943,14 +2943,39 @@ worth it. On screen it is simply a chip with no sentence under it.
   the place this goes wrong, and carries a worked wrong example (`להגן על התואר`) and a right one.
   An abstract prohibition gives a model nothing to pattern-match against; two examples do.
 
-**The organiser's note can hold more than one event (2026-08-28).** `said` is one free-text field and
-an organiser will reasonably put two things in it, but WHO IT BELONGS TO was written in the singular
-— "read the line and see whether it names a player" — which has no answer when one half names
-somebody and the other names nobody. Merging them is precisely how a named player gets attached to an
-event nobody was named for, which is the §2.24 failure this section exists to prevent. The note is
-now explicitly *several* facts with *several* owners, checked one at a time. It also asks for two or
-three sentences rather than one: it is the only actual event in a record that is otherwise entirely
-scorelines, and a flat single-sentence mention spends the best material in the report.
+**The organiser's note can hold more than one event, and the Worker splits it (2026-08-28).** `said`
+is one free-text field and an organiser will reasonably put two things in it, but WHO IT BELONGS TO
+was written in the singular — "read the line and see whether it names a player" — which has no answer
+when one half names somebody and the other names nobody. Merging them is precisely how a named player
+gets attached to an event nobody was named for, which is the §2.24 failure that section exists to
+prevent.
+
+The first fix told the model to split the note itself. That was still the weak link: **every
+ownership rule downstream depends on the split being right**, and it was resting on a model's reading
+of a comma. `splitEvents()` now does it in code, and the prompt receives a numbered list —
+`EVENT 1: "…"`, `EVENT 2: "…"` — so the model never decides where one event ends. What the prompt
+still has to do is stop it *undoing* the split, which is a much easier thing to ask.
+
+Two separators, both typed naturally, neither requiring a habit the organiser doesn't already have:
+
+- **`@like this@`** — explicit, for an event long enough to wrap or holding punctuation. If any
+  `@…@` pair is present, only those are read: a half-marked note produces the marked events and
+  nothing else, rather than a silent mix of the two conventions.
+- **One line per event** otherwise, with a leading `-`, `*` or `1.` trimmed (repeated, so `- 3. x`
+  loses both markers). The default, because it needs no syntax at all.
+
+**Prose with no separator stays one event, deliberately.** "The ball went over the fence and somebody
+brought a dog" is genuinely undecidable between one event and two, and a split on "and" would break
+far more notes than it fixed. A single event renders exactly as before — a plain quoted line, no list
+scaffolding — so the common case is untouched.
+
+The note box says all of this, because which format to use was knowledge living only in the prompt,
+where the person typing the note cannot read it. It also says that naming a player is what hands the
+reporter permission to go after them, since that is the other half of how the field behaves.
+
+The section also asks for two or three sentences rather than one: it is the only actual event in a
+record that is otherwise entirely scorelines, and a flat single-sentence mention spends the best
+material in the report.
 
 **The chip's tone (`GRADE_TONE`, `toneOf`) is flat for the ordinary run of marks and breaks that rule
 only at the top.** Rose at 4 and below, plain card ink in between, green from 7 up — a group reading

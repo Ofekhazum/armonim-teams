@@ -93,6 +93,45 @@ export function isValidFacts(facts) {
 const list = (items, empty) => (items.length ? items.map((s) => `- ${s}`).join('\n') : empty);
 
 /**
+ * The organiser's note, split into the separate events it may describe.
+ *
+ * **Split here rather than in the prompt, which is the whole point.** The note
+ * used to arrive as one quoted blob with an instruction to work out for itself
+ * where one event ended and the next began — and every ownership rule depends
+ * on getting that right, because one event can name a player (which is what
+ * hands the reporter permission to go after them) while the next names nobody
+ * and must stay unattributed. Leaving that to a model's reading of a comma was
+ * the weak link. Code splits it; the model is handed a numbered list and never
+ * has to decide.
+ *
+ * Two separators, both of which an organiser types naturally:
+ *
+ * - **`@like this@`** — explicit, and the one to reach for when an event is
+ *   long enough to wrap or holds punctuation a plainer split would trip on. If
+ *   any `@…@` pair is present, only those are read, so a half-marked note
+ *   cannot silently produce a mix of marked and unmarked events.
+ * - **One per line** otherwise, with a leading bullet or number trimmed off.
+ *   The default, because it needs no syntax at all.
+ *
+ * Prose with no separator comes back as a single event, which is the right
+ * answer: "the ball went over the fence and somebody brought a dog" is
+ * genuinely undecidable between one event and two, and splitting on "and"
+ * would break far more notes than it fixed.
+ */
+export function splitEvents(said) {
+  if (typeof said !== 'string') return [];
+  const marked = [...said.matchAll(/@([^@]+)@/g)].map((m) => m[1].trim()).filter(Boolean);
+  if (marked.length > 0) return marked;
+  return said
+    .split('\n')
+    // a leading "-", "*", "1." or "1)" is the organiser saying "next one", not
+    // part of what happened
+    // repeated, so "- 3. something" loses both markers rather than one
+    .map((line) => line.replace(/^\s*(?:(?:[-*•]|\d+[.)])\s*)+/, '').trim())
+    .filter(Boolean);
+}
+
+/**
  * The prompt. Hebrew output, because it is read in a Hebrew WhatsApp group by
  * people whose names are in Hebrew — the app's own chrome being English is a
  * fact about the app, not about its audience.
@@ -150,20 +189,24 @@ ${list(facts.duos, '- none')}
 ${
     facts.said
       ? `SOMETHING ELSE THAT HAPPENED TONIGHT
-"${facts.said}"
+${(() => {
+  const events = splitEvents(facts.said);
+  return events.length > 1
+    ? `${events.length} separate things happened. They have already been separated for you — each numbered line below is its OWN event, with its own owner:\n\n${events
+        .map((e, i) => `EVENT ${i + 1}: "${e}"`)
+        .join('\n')}`
+    : `"${events[0] ?? facts.said}"`;
+})()}
 
 This is true, and it is the only thing in this record that is an *event* rather than a number — everything else you have been given is a scoreline. So it is the most valuable material in the report and it should read that way: give it **two or three sentences, not one**, and make them the funniest in the piece. Build on it properly — an absurd consequence, a mock investigation, a grand conclusion drawn from it, a callback to it later in the paragraph. A single flat sentence reporting it and moving on is the one way to waste it.
 
-**IT MAY DESCRIBE MORE THAN ONE THING.** Read it as a whole before you use any of it. It can hold two separate events, or three or more, and they arrive in either of two shapes:
+**WHEN THERE IS MORE THAN ONE EVENT, THEY ARE ALREADY SEPARATED FOR YOU.** If you see EVENT 1, EVENT 2 and so on above, that split is not a suggestion and it is not yours to revisit — do not merge two of them into one story, do not treat one as background for another, and never assume the person named in one had anything to do with any of the others. They are **separate facts with separate owners**, and every ownership rule below is applied to **each event on its own**: one of them naming a player tells you nothing about who the next one belongs to.
 
-- **One per line**, sometimes with a dash or a number in front. Every line is its own event. This is the clearest case and you must treat each line separately.
-- **Run together in one sentence**, joined by a comma or an "and". Split it yourself. Be careful here: "X and Y" is sometimes one event described in two halves and sometimes two unrelated events, and the test is whether either half stands up on its own as a thing that happened.
-
-However they arrive, they are **separate facts with separate owners** — work through them one at a time, do not merge them into a single story, and never assume the person named in one had anything to do with another. Use as many as you can carry; the funniest gets the most room and a small one can be a throwaway aside. Every ownership rule below applies to **each event on its own**.
+Use as many as you can carry. The funniest gets the most room; a smaller one can be a throwaway aside or a callback later in the paragraph. Dropping one entirely is better than welding it onto another.
 
 YOU SAW IT YOURSELF. You were at the pitch tonight. Never say where this came from — no "according to the organisers", no "it was reported that", no mention of anyone having handed you this. You watched it happen, and you write it that way. (This is about not citing a source for something you witnessed. The invented, obviously-ridiculous attribution described further down — "sources close to the changing room say" — is a joke and is still very welcome; it is a different thing entirely.)
 
-WHO IT BELONGS TO. Take each event in the line above separately, and for each one see whether it names a player. Two events in one line can have two different answers — one may name somebody and the next may name nobody, and getting that right for one does not excuse getting it wrong for the other.
+WHO IT BELONGS TO. Take each event above separately, and for each one see whether it names a player. Two events can have two different answers — one may name somebody and the next may name nobody — and getting it right for one does not excuse getting it wrong for the other. Run this check once per event, not once for the note.
 - If it names someone, it is theirs. Go after them for it by name, as hard as the rest of the report goes after anybody.
 - If it names nobody, it belongs to nobody, and NO PLAYER'S NAME MAY APPEAR ANYWHERE NEAR IT. Report it as a thing that happened tonight, with no author. Do not guess who did it. Do not pin it on a player or a team. Do not tell anybody to do better at it, aim straighter, or stop doing it next week. Naming a culprit the line does not name is inventing something, and it is the same offence as inventing a goal.
 

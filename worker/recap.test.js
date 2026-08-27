@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildPrompt, isValidFacts, recapKey, writeRecap } from './recap.js';
+import { buildPrompt, isValidFacts, recapKey, splitEvents, writeRecap } from './recap.js';
 
 // The reporter's job is to write, and its one hard constraint is to write only
 // about what happened. These tests are mostly about the guard rails: what the
@@ -122,27 +122,80 @@ describe('buildPrompt', () => {
     expect(said).toMatch(/if the line names nobody, next week is not about it/i);
   });
 
-  it('treats the organiser’s note as several events, each with its own owner', () => {
+  describe('splitting the organiser’s note into events', () => {
+    // Done in code rather than left to the prompt, because every ownership
+    // rule downstream depends on the split: one event naming a player is what
+    // hands the reporter permission to go after them, and the next event
+    // naming nobody must stay unattributed. A model's reading of a comma was
+    // the weak link in that chain.
+
+    it('reads @…@ markers as the explicit separator', () => {
+      expect(splitEvents('@one thing@ @and another@')).toEqual(['one thing', 'and another']);
+    });
+
+    it('lets the markers win outright, so a half-marked note cannot mix', () => {
+      // Marked and unmarked in the same note is a mistake, not a format —
+      // taking only the marked ones is the predictable answer.
+      expect(splitEvents('@marked one@\nan unmarked line')).toEqual(['marked one']);
+    });
+
+    it('falls back to one event per line, with the bullet trimmed off', () => {
+      expect(splitEvents('- first\n- second\n* third')).toEqual(['first', 'second', 'third']);
+      expect(splitEvents('1. first\n2) second')).toEqual(['first', 'second']);
+      // both markers, not just the outer one
+      expect(splitEvents('- 3. doubled up')).toEqual(['doubled up']);
+    });
+
+    it('keeps prose in one piece rather than guessing at "and"', () => {
+      // "X and Y" is genuinely undecidable between one event and two.
+      // Splitting on it would break more notes than it fixed, so an
+      // unseparated note stays a single event.
+      const said = 'the ball went over the fence and somebody brought a dog';
+      expect(splitEvents(said)).toEqual([said]);
+    });
+
+    it('drops the empty lines a textarea collects', () => {
+      expect(splitEvents('first\n\n\nsecond\n  \n')).toEqual(['first', 'second']);
+    });
+
+    it('says nothing when there is nothing', () => {
+      expect(splitEvents('')).toEqual([]);
+      expect(splitEvents(undefined)).toEqual([]);
+    });
+
+    it('hands the model a numbered list it does not have to derive', () => {
+      const p = buildPrompt(facts({ said: '@Tom kicked it out@ @somebody brought a dog@' }));
+      expect(p).toContain('2 separate things happened');
+      expect(p).toContain('EVENT 1: "Tom kicked it out"');
+      expect(p).toContain('EVENT 2: "somebody brought a dog"');
+      expect(p).toMatch(/that split is not a suggestion and it is not yours to revisit/i);
+      expect(p).toMatch(/Run this check once per event, not once for the note/i);
+    });
+
+    it('leaves a single event quoted plainly, with no list scaffolding', () => {
+      // The common case must not grow a numbered list of one.
+      const p = buildPrompt(facts({ said: 'Tom kicked it over the fence' }));
+      expect(p).toContain('"Tom kicked it over the fence"');
+      expect(p).not.toContain('EVENT 1:');
+      expect(p).not.toContain('separate things happened');
+    });
+  });
+
+  it('forbids merging the events it was handed, and checks ownership per event', () => {
     // The note is one free-text field and an organiser will reasonably put two
-    // things in it. The ownership rule was written in the singular ("read the
-    // line and see whether it names a player"), which has no answer when one
-    // half names somebody and the other half names nobody — and merging them
-    // is how a named player gets attached to an event nobody was named for.
-    const said = buildPrompt(
-      facts({ said: 'the ball went over the fence 5 times, and Tom brought a dog' }),
-    );
-    expect(said).toMatch(/IT MAY DESCRIBE MORE THAN ONE THING/i);
+    // things in it. The ownership rule used to be written in the singular
+    // ("read the line and see whether it names a player"), which has no answer
+    // when one half names somebody and the other names nobody — and merging
+    // them is how a named player gets attached to an event nobody was named
+    // for. The split is now done in code; what the prompt still has to do is
+    // stop the model undoing it.
+    const said = buildPrompt(facts({ said: '@the ball went over the fence@ @Tom brought a dog@' }));
     expect(said).toMatch(/separate facts with separate owners/i);
-    expect(said).toMatch(/do not merge them into a single story/i);
-    // Both shapes an organiser actually types, named explicitly — a
-    // line-separated list is what the note box is documented to want, and
-    // running two events together in one sentence is what happens anyway.
-    expect(said).toMatch(/One per line/i);
-    expect(said).toMatch(/Run together in one sentence/i);
-    expect(said).toMatch(/whether either half stands up on its own/i);
-    // and the ownership check is per-event rather than per-note
-    expect(said).toMatch(/Take each event in the line above separately/i);
-    expect(said).toMatch(/Two events in one line can have two different answers/i);
+    expect(said).toMatch(/do not merge two of them into one story/i);
+    expect(said).toMatch(/never assume the person named in one had anything to do with any of the others/i);
+    expect(said).toMatch(/one of them naming a player tells you nothing about who the next one belongs to/i);
+    // dropping one beats welding it onto another
+    expect(said).toMatch(/Dropping one entirely is better than welding it onto another/i);
   });
 
   it('asks for the note to be built on rather than just reported', () => {

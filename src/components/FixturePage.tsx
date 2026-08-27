@@ -185,8 +185,8 @@ export default function FixturePage({
                 Naming a player in the line is also what gives the reporter
                 permission to go after them for it, so the box says that too. */}
             <p className="mt-1 text-xs text-amber-900/50">
-              More than one thing? Put each on its own line. Name a player and they'll get the
-              blame — leave the name out and it belongs to nobody.
+              More than one thing? Put each on its own line, or wrap each in @…@. Name a player and
+              they'll get the blame — leave the name out and it belongs to nobody.
             </p>
             <textarea
               value={note}
