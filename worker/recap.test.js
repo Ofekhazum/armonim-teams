@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildPrompt, isValidFacts, recapKey, writeRecap } from './recap.js';
+import { buildPrompt, isValidFacts, recapKey, splitEvents, writeRecap } from './recap.js';
 
 // The reporter's job is to write, and its one hard constraint is to write only
 // about what happened. These tests are mostly about the guard rails: what the
@@ -122,6 +122,90 @@ describe('buildPrompt', () => {
     expect(said).toMatch(/if the line names nobody, next week is not about it/i);
   });
 
+  describe('splitting the organiser’s note into events', () => {
+    // Done in code rather than left to the prompt, because every ownership
+    // rule downstream depends on the split: one event naming a player is what
+    // hands the reporter permission to go after them, and the next event
+    // naming nobody must stay unattributed. A model's reading of a comma was
+    // the weak link in that chain.
+
+    it('reads @…@ markers as the explicit separator', () => {
+      expect(splitEvents('@one thing@ @and another@')).toEqual(['one thing', 'and another']);
+    });
+
+    it('lets the markers win outright, so a half-marked note cannot mix', () => {
+      // Marked and unmarked in the same note is a mistake, not a format —
+      // taking only the marked ones is the predictable answer.
+      expect(splitEvents('@marked one@\nan unmarked line')).toEqual(['marked one']);
+    });
+
+    it('falls back to one event per line, with the bullet trimmed off', () => {
+      expect(splitEvents('- first\n- second\n* third')).toEqual(['first', 'second', 'third']);
+      expect(splitEvents('1. first\n2) second')).toEqual(['first', 'second']);
+      // both markers, not just the outer one
+      expect(splitEvents('- 3. doubled up')).toEqual(['doubled up']);
+    });
+
+    it('keeps prose in one piece rather than guessing at "and"', () => {
+      // "X and Y" is genuinely undecidable between one event and two.
+      // Splitting on it would break more notes than it fixed, so an
+      // unseparated note stays a single event.
+      const said = 'the ball went over the fence and somebody brought a dog';
+      expect(splitEvents(said)).toEqual([said]);
+    });
+
+    it('drops the empty lines a textarea collects', () => {
+      expect(splitEvents('first\n\n\nsecond\n  \n')).toEqual(['first', 'second']);
+    });
+
+    it('says nothing when there is nothing', () => {
+      expect(splitEvents('')).toEqual([]);
+      expect(splitEvents(undefined)).toEqual([]);
+    });
+
+    it('hands the model a numbered list it does not have to derive', () => {
+      const p = buildPrompt(facts({ said: '@Tom kicked it out@ @somebody brought a dog@' }));
+      expect(p).toContain('2 separate things happened');
+      expect(p).toContain('EVENT 1: "Tom kicked it out"');
+      expect(p).toContain('EVENT 2: "somebody brought a dog"');
+      expect(p).toMatch(/that split is not a suggestion and it is not yours to revisit/i);
+      expect(p).toMatch(/Run this check once per event, not once for the note/i);
+    });
+
+    it('leaves a single event quoted plainly, with no list scaffolding', () => {
+      // The common case must not grow a numbered list of one.
+      const p = buildPrompt(facts({ said: 'Tom kicked it over the fence' }));
+      expect(p).toContain('"Tom kicked it over the fence"');
+      expect(p).not.toContain('EVENT 1:');
+      expect(p).not.toContain('separate things happened');
+    });
+  });
+
+  it('forbids merging the events it was handed, and checks ownership per event', () => {
+    // The note is one free-text field and an organiser will reasonably put two
+    // things in it. The ownership rule used to be written in the singular
+    // ("read the line and see whether it names a player"), which has no answer
+    // when one half names somebody and the other names nobody — and merging
+    // them is how a named player gets attached to an event nobody was named
+    // for. The split is now done in code; what the prompt still has to do is
+    // stop the model undoing it.
+    const said = buildPrompt(facts({ said: '@the ball went over the fence@ @Tom brought a dog@' }));
+    expect(said).toMatch(/separate facts with separate owners/i);
+    expect(said).toMatch(/do not merge two of them into one story/i);
+    expect(said).toMatch(/never assume the person named in one had anything to do with any of the others/i);
+    expect(said).toMatch(/one of them naming a player tells you nothing about who the next one belongs to/i);
+    // dropping one beats welding it onto another
+    expect(said).toMatch(/Dropping one entirely is better than welding it onto another/i);
+  });
+
+  it('asks for the note to be built on rather than just reported', () => {
+    // It is the only actual event in a record that is otherwise all
+    // scorelines, and a single flat sentence spends it.
+    const said = buildPrompt(facts({ said: 'somebody drove home in their boots' }));
+    expect(said).toMatch(/two or three sentences, not one/i);
+    expect(said).toMatch(/absurd consequence, a mock investigation/i);
+  });
+
   it('rations the invented-source joke rather than banning or repeating it', () => {
     expect(p).toContain('Once, maybe twice in the whole report');
     expect(p).toMatch(/turned its best joke into a verbal tic/i);
@@ -144,8 +228,22 @@ describe('buildPrompt', () => {
     // to come back for השחורים is aimed at five people who will not be in that
     // team. Reported from a real report that ended exactly that way.
     expect(p).toContain('THE SHIRTS ARE DRAWN FRESH EVERY WEEK');
-    expect(p).toMatch(/never aim it at a shirt colour/i);
     expect(p).toMatch(/next week's teams do not exist yet/i);
+    // Told three times over and still coming back, so the sign-off now names
+    // itself as the place it goes wrong rather than only stating the rule.
+    expect(p).toMatch(/this is also the paragraph where the shirt rule gets broken/i);
+    expect(p).toMatch(/may only be made to a named player about themselves/i);
+  });
+
+  it('shows the sign-off mistake and its fix, rather than only forbidding it', () => {
+    // Three separate statements of the rule had not stopped it. A wrong
+    // example and a right one give the model something to pattern-match
+    // against, which an abstract prohibition does not.
+    expect(p).toMatch(/Wrong, and the exact mistake to avoid/i);
+    expect(p).toContain('להגן על התואר'); // "defend the title" — the wrong one
+    expect(p).toMatch(/what a colour will do, want, defend or avenge/i);
+    expect(p).toMatch(/Right:/);
+    expect(p).toMatch(/no assumption about what shirt anybody will be wearing/i);
   });
 
   it('asks for sharp rather than polite, and says who is reading', () => {

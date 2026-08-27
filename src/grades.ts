@@ -46,16 +46,18 @@
 //
 // **The cost, stated plainly rather than buried.** `night`, `mvp`, `career` and
 // `momentum` are all computable by anyone from `GET /history`, which needs no
-// password. So the residual `grade − (those four)` is `tier + jitter` on every
-// night a player has played, and `jitter` is zero-mean by construction — it
-// cancels under averaging, which is exactly the operation that recovers what it
-// was meant to hide. `tier` does not cancel. By the law of large numbers, the
-// mean residual converges on the player's tier bump, so **a determined reader
-// can recover which third of the club the organiser puts somebody in**, and the
-// estimate gets *sharper* the longer that player has been coming — the
-// club's most loyal members are its most exposed. This was measured, argued and
-// overruled deliberately, twice; it is an accepted product trade, not an
-// oversight.
+// password. So the residual `grade − (those four)` is `tier` exactly, on every
+// night a player has played — **a determined reader can recover which third of
+// the club the organiser puts somebody in**, and since 2026-08-28 they can do it
+// from a single night rather than by averaging a season.
+//
+// A zero-mean `jitter` used to sit in that residual. It never actually helped:
+// averaging is what recovers `tier`, and averaging is precisely what removes a
+// zero-mean hash, so it hid one night at a time against an attack that reads
+// many. It was removed once it started cancelling the rating it was shading —
+// see the note where it used to be defined. This was measured, argued and
+// overruled deliberately, three times now; it is an accepted product trade,
+// not an oversight.
 //
 // An earlier version faded this out by `FADE_NIGHTS`, which capped the exposure
 // at a short window. That was removed on purpose: a fading bump means an
@@ -65,12 +67,14 @@
 // and it buys its safety a different way, by withholding the whole feature
 // until `MIN_HISTORY_FOR_VALUES` nights of real variance exist to hide inside.
 //
-// **What keeps this bounded** is that `tier` is the *smallest* term in the
-// formula: ±0.25 against `career`'s ±0.5, `momentum`'s ±0.7 and `night`'s ±2.5.
-// It breaks a tie between teammates and shades a season's average. It cannot
-// carry a bad night, and it cannot out-vote form. Widening `TIER_BUMP` past
-// `CAREER_CAP` would change that and should not happen without the organiser
-// saying so in as many words.
+// **What keeps this bounded** is no longer its size — the organiser has raised
+// it three times and it is now the second-strongest term in the formula, at
+// ±0.8 against `career`'s ±0.5 and `momentum`'s ±0.55. What bounds it is that
+// `night` still spans 5.0 plus a `WIN_BONUS`, so **a top-tier player on a beaten
+// team still marks below a bottom-tier player on the winning one.** That
+// ordering is the line: it is what keeps these marks about the football rather
+// than about the organiser's opinion of who is good, and it should not be
+// crossed without them saying so in as many words.
 
 import type { FixtureRecord, TeamColor } from './types';
 import { hasResult } from './calibration';
@@ -101,11 +105,132 @@ export const GRADE_MAX = 10;
  * thirteen-match night, and the club plays both. A team taking exactly its
  * share of a night scores 0 here.
  */
-const NIGHT_W = 2.3;
+const NIGHT_W = 2.6;
 const NIGHT_CAP = 2.5;
 
-/** The only thing on this list that is about a person rather than a team. */
-const MVP_BONUS = 1;
+/**
+ * A night won outright is worth at least this, whatever else is true.
+ *
+ * **Asked for directly, after the first real night the club graded.** A team
+ * took 7 of 12 while the other two took 2 and 3, and players on it still came
+ * out at 7.5 — the personal terms (`career`, `momentum`, `tier`) span enough
+ * between them, which is easily enough to drag somebody below the
+ * mark their team's night deserved. The complaint was not that the ordering was
+ * wrong, it was that the *floor* was: winning a night comfortably and being
+ * told you were a 7.5 reads as a correction rather than a result.
+ *
+ * A floor rather than a bigger `night` term, because the two do different
+ * things. Widening `night` lifts the winners and pushes the other two teams
+ * down by the same move — it is one symmetric slider — and nobody complained
+ * about the losing teams. This lifts only the team that actually took the
+ * night, and leaves every other mark on the sheet exactly where it was.
+ *
+ * **What it costs, said plainly:** marks inside the winning team compress. Two
+ * players who would have been 7 and 7.5 are now both 8, and the spread that
+ * survives is only the part above the floor. That is the trade the floor *is* —
+ * the alternative is a winner reading a 7. `NIGHT_W` was widened a little at
+ * the same time (2.3 → 2.6) so a dominant win clears 8 on its own and the floor
+ * stays what it is meant to be: a safety net for the narrow wins, not the thing
+ * setting most of the winners' marks.
+ *
+ * Outright only. A night level at the top belongs to nobody (§2.6), so nobody
+ * on it is floored for having won one.
+ */
+const WIN_FLOOR = 8;
+
+/**
+ * The most a player can score without being picked player of the night.
+ *
+ * **The top of the scale is reserved for the pick, deliberately.** Before this,
+ * a top-tier player on a winning team started at 9.50 before any of their own
+ * history was counted, and needed only `career + momentum >= +0.25` to reach a
+ * 10 — on a 7-of-12 night that was not even a rout, with no pick. The
+ * theoretical maximum without one was 11.10 raw, which the clamp was quietly
+ * absorbing: when the ceiling is overshot by that much, the top of the scale
+ * has stopped discriminating and a 10 means "good night on a good team".
+ *
+ * Now 9.5 and 10 exist only for the player the room voted for. That makes the
+ * two best marks of the evening say something a scoreline cannot, which is the
+ * whole reason the MVP is in this formula (§2.39: it is the one genuinely
+ * personal signal a night produces).
+ *
+ * It does **not** hand the MVP the best mark automatically — a pick on a beaten
+ * team still marks below a winner, because `night` outweighs `MVP_BONUS` by
+ * some distance. It only means the top two rungs cannot be climbed without one.
+ *
+ * Interaction with {@link WIN_FLOOR} is deliberate and worth reading together:
+ * a non-MVP winner now lives in [8, 9], which on a half-point scale is three
+ * rungs. That is enough for the three rating tiers to separate cleanly — as
+ * they do on the night this was measured against — and it is the honest width
+ * of "won the night, was not the best player on the pitch".
+ */
+const UNPICKED_CAP = 9;
+
+/**
+ * And nobody who turned up goes below this, whatever the scoreboard did.
+ *
+ * The same night that produced {@link WIN_FLOOR}: the two teams that did not
+ * win were landing at 3 and 3.5, and the organiser raised both to 4. It is the
+ * `BASE = 6` argument applied to the other end of the scale — the mark is read
+ * every week by the person it is about, and there is no version of a Thursday
+ * five-a-side night that is worth telling somebody they were a 3 out of 10 for.
+ *
+ * **What it is not.** Not a claim that every night was fine, and not a
+ * flattening of the bottom third: the spread between a quiet night and a
+ * hammering survives above the floor, and losing teams still mark clearly below
+ * winning ones. It only sets where the bottom of the scale actually starts, the
+ * way `BASE` sets where the middle sits.
+ *
+ * `GRADE_MIN` stays 1 as the definition of the scale rather than being raised
+ * to match — the scale is 1–10 and that is what the chip renders against; this
+ * is a floor applied within it, and conflating the two would hide that a
+ * judgement is being made here.
+ */
+const PLAYED_FLOOR = 4;
+
+/**
+ * The only thing on this list that is about a person rather than a team.
+ *
+ * Trimmed 1.0 → 0.75 on 2026-08-28, together with `WIN_BONUS`, because the
+ * constants had stacked up past the point where the night still mattered at the
+ * top of the scale. A top-tier player who was picked on a winning team started
+ * at `BASE + tier + WIN_BONUS + MVP_BONUS` = **8.55** before the margin was
+ * counted at all, so a 10 needed only 1.2 more — an ordinary win. Measured over
+ * every mark the club had recorded: three of the four MVP picks came out at 10,
+ * one of them on a night their team took 7 of 14 with the runner-up on 5, and
+ * **9.5 had never once been awarded**. A rung that never fires is the tell that
+ * the scale has a gap rather than a top.
+ */
+const MVP_BONUS = 0.75;
+
+/**
+ * Taking the night outright, as a thing in itself rather than as a margin.
+ *
+ * **This exists to stop {@link WIN_FLOOR} doing the separating.** With the
+ * floor alone, a winning team's shared starting point on a typical night was
+ * 7.95 — a fraction under the floor — so essentially the whole team landed
+ * *on* 8 and the floor was deciding most of their marks. Measured on the night
+ * that prompted it: a 5-star earned exactly 8.0 while a 3-star earned 7.0 and
+ * was lifted to 8 to meet him. The rating had been widened specifically so it
+ * would show, and the floor was flattening it straight back out.
+ *
+ * A discrete bonus for winning, in the same shape as `MVP_BONUS`, lifts the
+ * team's whole starting point clear of the floor instead — so the personal
+ * terms spread people out *above* 8 rather than piling them on it, and the
+ * floor goes back to being what it was meant to be: a backstop for the one
+ * player whose form was bad enough to fall through, not the thing setting the
+ * team's marks.
+ *
+ * Winning is also worth saying as its own fact. `night` measures the *margin*,
+ * which is a different claim: taking a night 5–4–3 and taking it 9–2–1 are both
+ * winning it, and only one of them is a rout.
+ *
+ * Trimmed 0.75 → 0.5 on 2026-08-28 alongside `MVP_BONUS` — see the note there.
+ * It costs the winning team almost nothing in practice, because `UNPICKED_CAP`
+ * already holds them at 9; what it buys is that the margin, rather than a stack
+ * of constants, decides which of 9.5 and 10 a picked player gets.
+ */
+const WIN_BONUS = 0.5;
 
 // Both historical terms are shrunk toward the club mean, the same move
 // `duos.ts` and `marketValue.ts` make: a player three nights into their career
@@ -117,10 +242,31 @@ const SHRINK_K = 6;
 // wins/night of the club mean, momentum within about ±1.1 of a player's own
 // baseline. The weights below turn those into grade points, and the caps stop
 // one freak run from swamping the night itself.
-const CAREER_W = 0.75;
+// CAREER_W trimmed 0.75 -> 0.6 on 2026-08-28, alongside the momentum trim
+// below and for the same reason: on a heavily beaten team `night` has already
+// taken the mark down to about 4.7, and a player's record and form then pile on
+// top of a fact those two largely *restate* — somebody on a losing team is
+// usually somebody whose recent record is losing. Two beaten teammates were
+// coming out below the floor and being flattened together by it.
+const CAREER_W = 0.6;
 const CAREER_CAP = 0.5;
+// Trimmed 0.7 → 0.55 → 0.25 across 2026-08-28, so the organiser's rating clearly
+// outranks it (see TIER_BUMP). Momentum is the noisiest real signal here — it
+// reads five nights, which on a young club is often three, and one evening moves
+// it a long way.
+//
+// The final trim came from a measured case rather than a preference. On a team
+// that took 2 of 12, `night` alone puts everybody at about 4.7; a cold run then
+// pushed a player under `PLAYED_FLOOR`, where the floor flattened them together
+// with a teammate the organiser rates lower. **Form was being counted twice** —
+// a beaten team is usually made of players whose recent results are losses, so
+// `night` and `momentum` were both charging for the same fact.
+//
+// At ±0.25 the whole hot-to-cold swing is 0.5, which is exactly one rung on a
+// half-point scale: enough to be visible and to be argued about, not enough to
+// decide a mark on its own.
 const MOMENTUM_W = 0.65;
-const MOMENTUM_CAP = 0.7;
+const MOMENTUM_CAP = 0.25;
 
 /** How many nights back "recent form" looks, and the fewest it will answer on. */
 export const RECENT_NIGHTS = 5;
@@ -133,56 +279,78 @@ export type Trend = 'hot' | 'cold' | 'steady';
 
 /**
  * The organiser's rating, coarsened to a third of the club and turned into a
- * small permanent shade on every mark (see the file header for why this term
- * exists and what it costs).
+ * permanent shade on every mark (see the file header for why this term exists
+ * and what it costs).
  *
- * **The smallest term in the formula, and deliberately so.** ±0.25 against
- * `career`'s ±0.5, `momentum`'s ±0.7 and `night`'s ±2.5: enough to separate
- * teammates who are otherwise identical and to tilt a season's average the way
- * the organiser's own judgement points, never enough to rescue a bad night or
- * to outweigh somebody's actual form.
+ * **Widened from ±0.25 to ±0.6 and then to ±0.8 on 2026-08-28**, which the file
+ * header said must not happen without the organiser asking for it in as many
+ * words. They asked, and the diagnosis backed them: at ±0.25 this was the
+ * *weakest* term in the formula, and the jitter — noise carrying no information
+ * whatsoever — had a wider span than it did. Measured on the real
+ * night that prompted the complaint: a 5-star and a 2.5-star on the same shirt
+ * came out on the identical mark, because the 0.5 the rating opened between
+ * them was cancelled almost exactly by jitter and career. The organiser's own
+ * judgement was being outvoted by a hash function.
+ *
+ * **Raised again to ±0.8 the same day**, on the organiser's follow-up: they
+ * want the rating to be more decisive than form. At a span of 1.6 it now
+ * outranks `momentum` (1.1 after its own trim), `career` (1.0) and the MVP
+ * bonus — making it the second-strongest term in the formula, behind only the
+ * night's result. That is a deliberate statement about what a mark is for in
+ * this club: the organiser's read of a player is meant to show through a single
+ * bad Thursday, and only the team's result outweighs it.
+ *
+ * What it still cannot do is rescue a bad night on its own. `night` spans 5.0
+ * plus a `WIN_BONUS`, so a top-tier player on a beaten team stays below a
+ * bottom-tier player on the winning one — which is the ordering that keeps
+ * these marks about football rather than about the organiser's opinion.
+ *
+ * **The privacy cost, which is real and got worse.** The file header explains
+ * that averaging a player's residual over many nights recovers their tier.
+ * A wider bump makes that recovery both faster and sharper — fewer nights are
+ * needed and the answer is less ambiguous. It stays a three-way bucket rather
+ * than the raw 1–5 precisely to bound what is recoverable to "which third",
+ * which is why this was widened rather than made continuous.
  */
 const TIER_BUMP: Record<ReturnType<typeof ratingTier>, number> = {
-  bottom: -0.25,
+  bottom: -0.8,
   middle: 0,
-  top: 0.25,
+  top: 0.8,
 };
 
-// Wider than TIER_BUMP's whole span, so no single night's mark is a bare
-// readout of which tier it came from. Note what this does and does not buy:
-// it is zero-mean, so it obscures one night and cancels across many. See the
-// file header — it is not what makes this term safe, because nothing does.
-const JITTER_SPAN = 0.35;
-
-/**
- * A small, stable "which way does this night's coin land" per player per
- * fixture — same two ids always produce the same number, so a reload or a
- * re-render never shows somebody a different mark for a night already filed.
- *
- * **This carries no information about anybody.** It is arithmetic over two
- * public ids, nothing about the player feeds it, and its only job is to keep
- * `tier`'s ±0.25 from being nakedly readable as itself on a single night. It
- * is exactly the part of this scheme that is safe — see the file header for
- * the part that is not.
- */
-function jitterOf(fixtureId: string, playerId: string): number {
-  let h = 2166136261; // FNV-1a offset basis
-  for (const ch of `${fixtureId} ${playerId}`) {
-    h ^= ch.charCodeAt(0);
-    h = Math.imul(h, 16777619);
-  }
-  const unit = (h >>> 0) / 0xffffffff; // → [0, 1)
-  return (unit * 2 - 1) * JITTER_SPAN; // → [-JITTER_SPAN, JITTER_SPAN)
-}
+// **There is deliberately no jitter term any more (removed 2026-08-28).**
+//
+// There was: a stable per-player-per-night hash worth ±0.35, later ±0.2. Its
+// stated job was to stop a single night's mark being a bare readout of which
+// tier it came from. Three things retired it, in order of how much they matter:
+//
+//  1. **It never did that job.** The term it was hiding is recovered by
+//     *averaging* a player's residual (see the file header), and a zero-mean
+//     hash is exactly what averaging removes. It obscured one night at a time
+//     against an attack that reads many.
+//  2. **It was cancelling the signal it was meant to shade.** Measured on a
+//     real night while `tier` was ±0.25: a 5-star and a 2.5-star on the same
+//     shirt came out on the identical mark, the rating between them wiped out
+//     by two hash values pointing opposite ways. Noise was outvoting the
+//     organiser's own judgement.
+//  3. **Marks round to the nearest half.** So its whole remaining effect was to
+//     flip players sitting near a rounding boundary, arbitrarily. That is not
+//     variety, it is a coin toss on somebody's mark, and it is unanswerable
+//     when they ask why they got a 6 and their teammate a 6.5.
+//
+// What replaces it is nothing, and that is the point: **every difference
+// between two players' marks now traces back to a fact about them.** Two
+// teammates the app genuinely knows nothing to separate — two debutants on the
+// same shirt, say — read the same number, which is the honest answer rather
+// than a manufactured one.
 
 export interface GradeParts {
   night: number;
   mvp: number;
   career: number;
   momentum: number;
-  /** The cold-start nudge — see the file header before touching either. */
+  /** The organiser's rating, coarsened — see TIER_BUMP and the file header. */
   tier: number;
-  jitter: number;
 }
 
 /**
@@ -210,6 +378,24 @@ export interface GradeContext {
   runBefore: number;
   /** Nights since their team last took one, coming in. */
   droughtBefore: number;
+  /**
+   * How many of *their own* nights ago they were last picked player of the
+   * night — 1 being the last time they played — or null if never.
+   *
+   * **Here because the sentence-writer was being cruel with a straight face.**
+   * A player picked MVP a fortnight earlier had two bad nights after it, which
+   * is enough to set `trend: 'cold'`, and the line called it a free-fall. Every
+   * word of that was true of the last two nights and false about the player,
+   * and the model had no way to know: the payload said "declining form" and
+   * carried nothing at all about the pick. The MVP is the one genuinely
+   * personal thing a night produces (§2.39), and it was being thrown away the
+   * moment the night after it went badly.
+   *
+   * Counted in nights *they played* rather than in calendar weeks or in
+   * fixtures, so somebody who missed a month does not have their pick aged out
+   * by nights they were not at.
+   */
+  lastMvpAgo: number | null;
 }
 
 export interface Grade {
@@ -301,19 +487,43 @@ export function nightGrades(history: FixtureRecord[], fixtureId: string): Grade[
       // silently re-scored underneath them.
       const rating = fx.players.find((p) => p.id === id)?.rating ?? 3;
       const tier = TIER_BUMP[ratingTier(rating)];
-      const jitter = jitterOf(fx.id, id);
-      const parts: GradeParts = { night, mvp: isMvp ? MVP_BONUS : 0, career, momentum, tier, jitter };
-      const grade = clamp(
-        round(BASE + parts.night + parts.mvp + parts.career + parts.momentum + parts.tier + parts.jitter),
-        GRADE_MIN,
-        GRADE_MAX,
+      // Outright winners only — see WIN_BONUS, WIN_FLOOR and §2.6.
+      const wonNight = place === 1 && !hasTie(fx, teamWins);
+      const parts: GradeParts = {
+        night: night + (wonNight ? WIN_BONUS : 0),
+        mvp: isMvp ? MVP_BONUS : 0,
+        career,
+        momentum,
+        tier,
+      };
+      // Rounded before the floor rather than after, so the floor is exactly the
+      // number it says it is: flooring a rounded 7.5 cannot leave anybody below
+      // the mark, where rounding a floored 7.9 could.
+      const raw = round(
+        BASE + parts.night + parts.mvp + parts.career + parts.momentum + parts.tier,
       );
+      // Floor first, then the ceiling. `UNPICKED_CAP` is inclusive — 9 is an
+      // ordinary mark anybody can earn, and only the two rungs above it are
+      // reserved for the pick.
+      const floored = Math.max(raw, wonNight ? WIN_FLOOR : PLAYED_FLOOR);
+      const capped = isMvp ? floored : Math.min(floored, UNPICKED_CAP);
+      const grade = clamp(capped, GRADE_MIN, GRADE_MAX);
 
       // Coming in: a live winning run, or nights since their team last took one.
       let runBefore = 0;
       for (let i = before.length - 1; i >= 0 && before[i].won; i--) runBefore++;
       let droughtBefore = 0;
       for (let i = before.length - 1; i >= 0 && before[i].won === false; i--) droughtBefore++;
+
+      // The most recent night of their own that they were picked on, counted
+      // back from tonight — see `lastMvpAgo`.
+      let lastMvpAgo: number | null = null;
+      for (let i = before.length - 1; i >= 0; i--) {
+        if (byDate.find((f) => f.id === before[i].fixtureId)?.mvpId === id) {
+          lastMvpAgo = before.length - i;
+          break;
+        }
+      }
 
       out.push({
         id,
@@ -324,7 +534,7 @@ export function nightGrades(history: FixtureRecord[], fixtureId: string): Grade[
           shirt: c,
           teamWins,
           place,
-          wonNight: place === 1 && !hasTie(fx, teamWins),
+          wonNight,
           isMvp,
           nightsBefore,
           baseline,
@@ -332,6 +542,7 @@ export function nightGrades(history: FixtureRecord[], fixtureId: string): Grade[
           trend,
           runBefore,
           droughtBefore,
+          lastMvpAgo,
         },
       });
     }
@@ -351,6 +562,10 @@ export const gradeConstants = {
   NIGHT_W,
   NIGHT_CAP,
   MVP_BONUS,
+  WIN_BONUS,
+  UNPICKED_CAP,
+  WIN_FLOOR,
+  PLAYED_FLOOR,
   CAREER_W,
   CAREER_CAP,
   MOMENTUM_W,
@@ -359,5 +574,4 @@ export const gradeConstants = {
   RECENT_NIGHTS,
   MIN_RECENT,
   TIER_BUMP,
-  JITTER_SPAN,
 };

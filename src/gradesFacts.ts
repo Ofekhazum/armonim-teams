@@ -38,6 +38,8 @@ export interface GradeFactLine {
   trend: Trend | null;
   runBefore: number;
   droughtBefore: number;
+  /** Nights of their own since they were last picked MVP — see GradeContext. */
+  lastMvpAgo: number | null;
 }
 
 /**
@@ -104,6 +106,7 @@ export function gradesFacts(
     trend: g.context.trend,
     runBefore: g.context.runBefore,
     droughtBefore: g.context.droughtBefore,
+    lastMvpAgo: g.context.lastMvpAgo,
   }));
   const keyOf = new Map(players.map((p) => [p.id, p.key]));
 

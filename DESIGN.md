@@ -2749,6 +2749,98 @@ exist for a different reason entirely and are documented on their own below.
 | `tier` | ±0.25, permanent | the organiser's rating, coarsened — see **The tier shade** below |
 | `jitter` | ±0.35, permanent | a stable per-player-per-night "coin flip" — carries no information at all |
 
+**`WIN_FLOOR = 8` — a night won outright is worth at least eight (added 2026-08-28).** From the first
+real night the club graded: one team took 7 of 12 while the other two took 2 and 3, and players on
+the winning side still came out at 7.5. The ordering was right; the *floor* was wrong. The four
+personal terms span about ±1.5 between them, which is easily enough to drag somebody under the mark
+their team's night earned, and winning a night comfortably while being told you were a 7.5 reads as
+a correction rather than a result.
+
+**A floor rather than a wider `night` term, because the two are different moves.** `night` is one
+symmetric slider: widening it lifts the winners and pushes the other two teams down by exactly the
+same amount, and nobody complained about the losing teams. The floor lifts only the side that
+actually took the night and leaves every other mark on the sheet where it was. `NIGHT_W` did go
+2.3 → 2.6 at the same time, but for a different purpose — so a dominant win clears 8 on its own
+(base + night = 7.95 on that 7/3/2 night) and the floor stays a safety net for narrow wins rather
+than the thing setting most winners' marks.
+
+Applied **after** rounding, so the floor is exactly the number it claims; and to outright winners
+only, since a night level at the top belongs to nobody (§2.6). **The cost, stated plainly:** marks
+inside the winning team compress — two players who would have been 7 and 7.5 are both 8 now, and only
+the spread above the floor survives. That is what a floor *is*, and the alternative is a night's
+winner reading a 7.
+
+**`WIN_BONUS = 0.75` — because the floor turned out to be doing the separating (2026-08-28).** The
+floor alone had a failure mode that showed up the same evening it shipped, once `TIER_BUMP` was
+widened: a winning team's shared starting point on a typical night is `BASE + night` = **7.95**, a
+fraction *under* the floor, so essentially the whole team landed on 8 and the floor was setting most
+of their marks. Measured on the real night — a 5-star earned exactly 8.0, a 3-star earned 7.0 and was
+lifted to 8 to meet him, and the two came out level. The rating had just been widened precisely so it
+would show, and the floor was flattening it straight back out.
+
+A discrete bonus for winning, in the same shape as `MVP_BONUS`, lifts the team's starting point clear
+of the floor so the personal terms spread people out **above** 8 rather than piling them on it. Same
+night, after: 10 / 9.5 / 9 / 8.5 / 8, ordered by rating, with nobody floored. The floor returns to
+being the backstop it was meant to be — for the one player whose form was bad enough to fall through,
+not the thing deciding the team's marks.
+
+It is also a more honest split of what `night` was carrying. `night` measures the **margin**; taking
+a night 5–4–3 and taking it 9–2–1 are both winning it and only one is a rout, so the fact of winning
+deserves its own term rather than being smuggled into the size of the win.
+
+**`UNPICKED_CAP = 9` — the top two rungs belong to the pick (2026-08-28).** Raising `TIER_BUMP` and
+adding `WIN_BONUS` in the same afternoon pushed the ceiling without anyone re-checking it: a top-tier
+player on a winning team started at **9.50** before any of their own history counted, and needed only
+`career + momentum ≥ +0.25` to reach a 10 — on a 7-of-12 night that was not even a rout, with no
+pick. The theoretical maximum without one was 11.10 raw, and the clamp was quietly absorbing 1.35 of
+it. When the ceiling is overshot by that much, the top of the scale has stopped discriminating and a
+10 means "good night on a good team".
+
+**The cap is inclusive, and that distinction is the whole design.** 9 stays an ordinary mark anybody
+can earn; what is withheld is 9.5 and 10. So the two best marks of an evening say something a
+scoreline cannot — which is the entire reason the MVP is in this formula (§2.39: the one genuinely
+personal signal a night produces).
+
+It does not hand the pick the best mark automatically: `night` outweighs `MVP_BONUS` by some
+distance, so a pick on a beaten team still marks below somebody who took the night, and a pick on a
+*narrow* win is a good mark rather than a perfect one. A 10 still needs the domination **and** the
+pick.
+
+Read together with `WIN_FLOOR`, a non-MVP winner now lives in **[8, 9]** — three rungs on a
+half-point scale, which is exactly enough for the three rating tiers to separate cleanly, as they do
+on the night this was measured against (9 / 9 / 8.5 / 8, with the pick alone at 10).
+
+**`MVP_BONUS` 1.0 → 0.75 and `WIN_BONUS` 0.75 → 0.5 — the constants had stacked past the margin
+(2026-08-28).** `UNPICKED_CAP` gated *who* could reach the top of the scale but never *what it cost*,
+and the answer turned out to be: not much. A top-tier player picked on a winning team started at
+`BASE + tier + WIN_BONUS + MVP_BONUS` = **8.55** before the margin was counted at all, so a 10 needed
+only 1.2 more — about a 1.45× share, which is an ordinary win.
+
+Measured over every mark the club had recorded (61 of them, four nights): **three of the four MVP
+picks came out at 10**, one on a night their team took 7 of 14 with the runner-up on 5 — and **9.5
+had never once been awarded.** A rung that never fires is the tell that a scale has a gap rather than
+a top; the mark was jumping straight from 9 to 10.
+
+Trimming the two constants rather than adding a fourth clamp was deliberate. There are already three
+(`WIN_FLOOR`, `PLAYED_FLOOR`, `UNPICKED_CAP`), and a "10 requires `night` ≥ X" rule would be a fourth
+special case doing work a smaller constant does on its own. The effect is surgical: across the club's
+whole history **three marks move, all on the one night that did not deserve its top marks** — the
+picked player drops 10 → 9.5 and two teammates 9 → 8.5. The 1.75× rout on 2026-08-27 is untouched,
+including its 10, because there the margin carries the mark rather than the constants.
+
+**`PLAYED_FLOOR = 4` — and nobody who turned up goes below four.** The other half of the same
+decision: on that night the two teams that did not win were landing at 3 and 3.5, and the organiser
+raised both. It is the `BASE = 6` argument applied to the bottom of the scale rather than the middle
+— the mark is read every week by the person it is about, and there is no version of a Thursday
+five-a-side that is worth telling somebody they were a 3 out of 10 for. It does not flatten the
+bottom third: the spread between a quiet night and a hammering survives above the floor, and the
+losing sides still mark clearly below the winning one. On the 7/3/2 night the three teams come out
+**8–10**, **4–7** and **4–6.5**.
+
+`GRADE_MIN` stays 1 rather than being raised to match. The scale is 1–10 and that is what the chip
+renders against; these are floors applied *within* it, and collapsing the two would hide that a
+judgement is being made rather than a range being defined.
+
 `MatchLogEntry` records `{a, b, winner, viaPenalties}` — team colours, not people. Every match, every
 shootout and every sequence is therefore *identical* for the five players on a shirt, so **on a single
 night exactly one thing distinguishes teammates: the MVP pick.** Everything else that differs between
@@ -2770,7 +2862,9 @@ mean: most nights are unremarkable, so most marks sat at 5 and below, and a grou
 marks every week would be told they were average-to-poor most of the time. Six leaves the spread and
 the ordering untouched and moves only where "nothing special happened" sits — a judgement about tone,
 not about football. Calibrated: median 6, p10/p90 at 4/8, 1.0% at or below 3, 0.3% perfect, season
-averages 4.79–6.84.
+averages 4.79–6.84. (Those figures are from before the two floors below, which were added later and
+move the bottom of that distribution up — nothing now sits under 4, and the winning third of any
+night sits at 8 or above.)
 
 **The tier shade (`tier`, `jitter`).** On a club three real nights old, `momentum` is structurally off
 for everybody (`MIN_RECENT` nights unmet) and `career` is shrunk almost flat (`SHRINK_K = 6` against one
@@ -2889,6 +2983,139 @@ the word "rating" (the organiser's private 1–5, §2.28) is never used for it, 
 **A player still gets their mark with no line beside it**, and that is not a degraded state — it means
 the model skipped them, which the admin sees named on the draft (`missing`) and can re-roll if it is
 worth it. On screen it is simply a chip with no sentence under it.
+
+**`TIER_BUMP` widened ±0.25 → ±0.6, and `JITTER_SPAN` narrowed 0.35 → 0.2 (2026-08-28).** The file
+header said widening this past `CAREER_CAP` "should not happen without the organiser saying so in as
+many words". They said so, and the diagnosis backed them rather than merely permitting them: at
+±0.25 the organiser's rating was **the weakest term in the whole formula**, and the jitter — noise
+carrying no information at all — had a *wider* span than it did.
+
+Measured on the night that prompted it (7/3/2, black 2 / white 7 / blue 3): ירין (rated 5) and אשד
+(rated 2.5) were on the same shirt and came out on the **identical mark of 5.5**, because the 0.5 the
+rating opened between them was cancelled almost exactly by jitter (+0.07 vs +0.26) and career. A
+5-star finished level with a 2.5-star, and a hash function was the reason. At ±0.6 against a jitter
+of ±0.2, the same night puts all three 5-stars above every 2.5-star.
+
+The jitter's own rationale inverted with it. It was set *wider* than the tier so a single night's
+mark could not be read straight off as a tier — but what that bought in practice was noise loud
+enough to cancel the signal, and it never protected anything against averaging anyway (it is
+zero-mean; averaging is precisely what removes it). It stays non-zero only so two identical teammates
+do not read the same number every week.
+
+**The privacy cost got worse and is not hidden.** §2.39's accepted trade is that averaging a
+player's residual recovers their tier; a wider bump makes that recovery both faster and sharper. It
+stays a three-way bucket rather than the raw 1–5 specifically to keep what is recoverable bounded to
+"which third of the club" — which is why it was widened rather than made continuous.
+
+**The jitter is gone, and `tier` now outranks `momentum` (2026-08-28).** Two follow-ups from the same
+conversation. The organiser wanted their rating to be more decisive than a player's recent form, so
+`TIER_BUMP` went to ±0.8 and `MOMENTUM_CAP` down to 0.55 — the rating is now the second-strongest
+term in the formula, behind only the night's result.
+
+The jitter was removed outright, and the case against it turned out to be threefold. It **never did
+its job**: the term it was hiding is recovered by *averaging* a residual, and a zero-mean hash is
+precisely what averaging removes, so it obscured one night at a time against an attack that reads
+many. It was **cancelling the signal it was meant to shade** — the 5-star/2.5-star collision above
+was two hash values pointing opposite ways. And since marks round to the nearest half, its whole
+remaining effect was to **flip players sitting near a rounding boundary, arbitrarily** — not variety,
+a coin toss on somebody's mark, and unanswerable when they ask why they got a 6 and their teammate a
+6.5.
+
+What replaces it is nothing, deliberately: **every difference between two marks now traces to a fact
+about the players.** Two teammates the app knows nothing to separate — two debutants on one shirt —
+read the same number, which is the honest answer rather than a manufactured one. The privacy note in
+`grades.ts` is updated to say plainly that the tier is now recoverable from a single night rather
+than by averaging a season.
+
+**What bounds the rating is no longer its size.** It has been raised three times; what keeps these
+marks about football is that `night` spans 5.0 plus a `WIN_BONUS`, so **a top-tier player on a beaten
+team still marks below a bottom-tier player on the winning one.** That ordering is the line, and
+`grades.test.ts` asserts it.
+
+**`MOMENTUM_CAP` 0.55 → 0.25 and `CAREER_W` 0.75 → 0.6 — form was being charged twice
+(2026-08-28).** Reported as "why is a 3 marking above a 3.5", and the diagnosis found two separate
+things, only one of which was about the rating.
+
+The first is that **`ratingTier` buckets at ≤2.5 / ≥4**, so 3 and 3.5 are the *same* bucket and
+moving a player between them changes nothing at all. The rating only bites when it crosses a
+boundary. This is working as designed — the bucketing is what bounds the §2.28 leak to "which third"
+— but it is not obvious from the roster screen, where the ratings look continuous.
+
+The second is the real defect. On a team that took 2 of 12, `night` alone puts everybody at about
+4.7, a hair above `PLAYED_FLOOR`. A cold run then pushed a player *under* the floor, where it
+flattened them together with a teammate rated lower — the same compression `WIN_BONUS` had just
+fixed at the top of the scale, appearing at the bottom. And the two terms doing it were largely
+restating each other: **a beaten team is mostly made of players whose recent results are losses**, so
+`night` and `momentum` were charging twice for one fact.
+
+At ±0.25 the whole hot-to-cold swing is 0.5 — exactly one rung on a half-point scale. Visible, and
+arguable, without deciding a mark on its own. Measured on the real night, the only marks that move
+are the two the complaint was about (a cold player up half a rung, off the floor) and one hot player
+down half a rung.
+
+**`lastMvpAgo` — a recent player-of-the-night is not in free fall (2026-08-28).** A player picked MVP
+a fortnight earlier had two poor nights after it, which is enough to set `trend: 'cold'`, and the
+banter called it "the free-fall of the last month". Every word was true of the last two nights and
+false about the player — and the model could not have known, because the payload said "declining
+form" and carried **nothing at all** about the pick. The MVP is the one genuinely personal thing a
+night produces, and it was being discarded the moment the night after it went badly.
+
+`GradeContext` now carries how many of *their own* nights ago they were last picked — counted in
+nights they played rather than in fixtures, so somebody who missed a month does not have the honour
+aged out by nights they were not at. The prompt gets a matching rule: a recent pick outranks a cold
+spell sitting beside it, the gap between the badge and the last fortnight is fair game to rib, and
+writing somebody off as finished is not.
+
+**Three prompt corrections from the same night's feedback (2026-08-28).**
+
+- **A run that ended was still being congratulated.** The fact read `הגיע עם 3 ערבים ברצף של ניצחון`
+  and stopped there, so a player whose team was beaten got a line praising the streak that had just
+  been taken off them. Both halves were already in the payload (`runBefore`, `wonNight`), so
+  `describe()` now says which way it went — `והרצף ממשיך` or `והרצף נגמר הלילה` — and a new prompt
+  section, WHAT SOMEBODY ARRIVED WITH IS NOT WHAT HAPPENED TONIGHT, says outright that the last
+  clause of a player's line often reverses the first.
+- **Lines were promising things about next week's shirts.** The grades prompt had one sentence on
+  this inside HOW THE NIGHT WORKS; the night reporter has had a full section for months and *still*
+  broke the rule, so the grades prompt now gets the same treatment plus the standing exception: a
+  player's own luck in a colour is about the player and follows them into whatever they wear next.
+- **The reporter's sign-off, for the fourth time.** Three separate statements of the rule had not
+  stopped it, so the fix is no longer another statement: the sign-off paragraph now names itself as
+  the place this goes wrong, and carries a worked wrong example (`להגן על התואר`) and a right one.
+  An abstract prohibition gives a model nothing to pattern-match against; two examples do.
+
+**The organiser's note can hold more than one event, and the Worker splits it (2026-08-28).** `said`
+is one free-text field and an organiser will reasonably put two things in it, but WHO IT BELONGS TO
+was written in the singular — "read the line and see whether it names a player" — which has no answer
+when one half names somebody and the other names nobody. Merging them is precisely how a named player
+gets attached to an event nobody was named for, which is the §2.24 failure that section exists to
+prevent.
+
+The first fix told the model to split the note itself. That was still the weak link: **every
+ownership rule downstream depends on the split being right**, and it was resting on a model's reading
+of a comma. `splitEvents()` now does it in code, and the prompt receives a numbered list —
+`EVENT 1: "…"`, `EVENT 2: "…"` — so the model never decides where one event ends. What the prompt
+still has to do is stop it *undoing* the split, which is a much easier thing to ask.
+
+Two separators, both typed naturally, neither requiring a habit the organiser doesn't already have:
+
+- **`@like this@`** — explicit, for an event long enough to wrap or holding punctuation. If any
+  `@…@` pair is present, only those are read: a half-marked note produces the marked events and
+  nothing else, rather than a silent mix of the two conventions.
+- **One line per event** otherwise, with a leading `-`, `*` or `1.` trimmed (repeated, so `- 3. x`
+  loses both markers). The default, because it needs no syntax at all.
+
+**Prose with no separator stays one event, deliberately.** "The ball went over the fence and somebody
+brought a dog" is genuinely undecidable between one event and two, and a split on "and" would break
+far more notes than it fixed. A single event renders exactly as before — a plain quoted line, no list
+scaffolding — so the common case is untouched.
+
+The note box says all of this, because which format to use was knowledge living only in the prompt,
+where the person typing the note cannot read it. It also says that naming a player is what hands the
+reporter permission to go after them, since that is the other half of how the field behaves.
+
+The section also asks for two or three sentences rather than one: it is the only actual event in a
+record that is otherwise entirely scorelines, and a flat single-sentence mention spends the best
+material in the report.
 
 **The chip's tone (`GRADE_TONE`, `toneOf`) is flat for the ordinary run of marks and breaks that rule
 only at the top.** Rose at 4 and below, plain card ink in between, green from 7 up — a group reading

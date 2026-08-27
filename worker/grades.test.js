@@ -185,6 +185,44 @@ describe('buildGradesPrompt', () => {
     expect(p).toMatch(/NOT the moment for a dig about luck, freeloading, riding the team's coat-tails/);
   });
 
+  it('says whether a winning run survived tonight, not just that they arrived on one', () => {
+    // A player came in on three straight, their team was beaten, and the mark
+    // was still decent — so the line congratulated them on the run. The fact
+    // said "arrived with 3 in a row" and stopped there, leaving the model to
+    // notice the loss on its own. It now says which way it went.
+    const ended = buildGradesPrompt(
+      facts({
+        players: [player({ runBefore: 3, wonNight: false, place: 3, teamWins: 1 })],
+      }),
+    );
+    expect(ended).toContain('והרצף נגמר הלילה');
+    expect(ended).not.toContain('והרצף ממשיך');
+
+    const kept = buildGradesPrompt(
+      facts({ players: [player({ runBefore: 3, wonNight: true })] }),
+    );
+    expect(kept).toContain('והרצף ממשיך');
+    expect(kept).not.toContain('והרצף נגמר הלילה');
+  });
+
+  it('tells the model that what somebody arrived with can be reversed by tonight', () => {
+    const p = buildGradesPrompt(facts());
+    expect(p).toMatch(/WHAT SOMEBODY ARRIVED WITH IS NOT WHAT HAPPENED TONIGHT/);
+    expect(p).toMatch(/not a run to congratulate somebody on/i);
+    expect(p).toMatch(/the last clause on it often reverses the first/i);
+  });
+
+  it('keeps the banter from promising anything about next week’s shirts', () => {
+    // Same failure the night report had: a colour is a team for one evening,
+    // so a line about what the blues will do next week is aimed at five people
+    // who will not be in that team.
+    const p = buildGradesPrompt(facts());
+    expect(p).toMatch(/THE SHIRTS ARE DRAWN FRESH EVERY WEEK, AND NO LINE MAY POINT PAST TONIGHT/);
+    expect(p).toMatch(/would still make sense only if the teams stayed the same/i);
+    // but a player's own luck in a colour still belongs to them
+    expect(p).toMatch(/follows them into whatever they wear next/i);
+  });
+
   it('hands the model concrete devices rather than only an adjective', () => {
     // "Funny, sharp, a bit rude" alone produced flat prose in the field — one
     // sentence is a harder format to be funny in than five paragraphs, and it

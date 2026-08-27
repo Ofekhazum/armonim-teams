@@ -177,12 +177,23 @@ export default function FixturePage({
               Optional, and it goes to the reporter — the one thing in the night's write-up that
               can't be worked out from the results. Skip it and nothing changes.
             </p>
+            {/* The format line is not decoration. The reporter reads this as
+                possibly *several* events, each with its own owner (one may
+                name somebody, the next may name nobody), and a list is the
+                only shape that says where one ends and the next begins —
+                "X and Y" is genuinely ambiguous between one event and two.
+                Naming a player in the line is also what gives the reporter
+                permission to go after them for it, so the box says that too. */}
+            <p className="mt-1 text-xs text-amber-900/50">
+              More than one thing? Put each on its own line, or wrap each in @…@. Name a player and
+              they'll get the blame — leave the name out and it belongs to nobody.
+            </p>
             <textarea
               value={note}
               onChange={(e) => setNote(e.target.value.slice(0, NOTE_MAX))}
               rows={3}
               autoFocus
-              placeholder="טום העיף את הכדור מעבר לגדר 5 פעמים"
+              placeholder={'טום העיף את הכדור מעבר לגדר 5 פעמים\nמישהו הביא כלב למגרש'}
               className="mt-3 w-full rounded-xl border border-amber-900/25 bg-white px-3 py-2 text-sm text-amber-950 outline-none focus:border-orange-500"
             />
             <div className="mt-1 text-right text-[11px] text-amber-900/35">
