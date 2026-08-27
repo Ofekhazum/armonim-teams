@@ -2770,6 +2770,24 @@ inside the winning team compress — two players who would have been 7 and 7.5 a
 the spread above the floor survives. That is what a floor *is*, and the alternative is a night's
 winner reading a 7.
 
+**`WIN_BONUS = 0.75` — because the floor turned out to be doing the separating (2026-08-28).** The
+floor alone had a failure mode that showed up the same evening it shipped, once `TIER_BUMP` was
+widened: a winning team's shared starting point on a typical night is `BASE + night` = **7.95**, a
+fraction *under* the floor, so essentially the whole team landed on 8 and the floor was setting most
+of their marks. Measured on the real night — a 5-star earned exactly 8.0, a 3-star earned 7.0 and was
+lifted to 8 to meet him, and the two came out level. The rating had just been widened precisely so it
+would show, and the floor was flattening it straight back out.
+
+A discrete bonus for winning, in the same shape as `MVP_BONUS`, lifts the team's starting point clear
+of the floor so the personal terms spread people out **above** 8 rather than piling them on it. Same
+night, after: 10 / 9.5 / 9 / 8.5 / 8, ordered by rating, with nobody floored. The floor returns to
+being the backstop it was meant to be — for the one player whose form was bad enough to fall through,
+not the thing deciding the team's marks.
+
+It is also a more honest split of what `night` was carrying. `night` measures the **margin**; taking
+a night 5–4–3 and taking it 9–2–1 are both winning it and only one is a rout, so the fact of winning
+deserves its own term rather than being smuggled into the size of the win.
+
 **`PLAYED_FLOOR = 4` — and nobody who turned up goes below four.** The other half of the same
 decision: on that night the two teams that did not win were landing at 3 and 3.5, and the organiser
 raised both. It is the `BASE = 6` argument applied to the bottom of the scale rather than the middle

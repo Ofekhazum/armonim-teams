@@ -159,6 +159,30 @@ const PLAYED_FLOOR = 4;
 /** The only thing on this list that is about a person rather than a team. */
 const MVP_BONUS = 1;
 
+/**
+ * Taking the night outright, as a thing in itself rather than as a margin.
+ *
+ * **This exists to stop {@link WIN_FLOOR} doing the separating.** With the
+ * floor alone, a winning team's shared starting point on a typical night was
+ * 7.95 — a fraction under the floor — so essentially the whole team landed
+ * *on* 8 and the floor was deciding most of their marks. Measured on the night
+ * that prompted it: a 5-star earned exactly 8.0 while a 3-star earned 7.0 and
+ * was lifted to 8 to meet him. The rating had been widened specifically so it
+ * would show, and the floor was flattening it straight back out.
+ *
+ * A discrete bonus for winning, in the same shape as `MVP_BONUS`, lifts the
+ * team's whole starting point clear of the floor instead — so the personal
+ * terms spread people out *above* 8 rather than piling them on it, and the
+ * floor goes back to being what it was meant to be: a backstop for the one
+ * player whose form was bad enough to fall through, not the thing setting the
+ * team's marks.
+ *
+ * Winning is also worth saying as its own fact. `night` measures the *margin*,
+ * which is a different claim: taking a night 5–4–3 and taking it 9–2–1 are both
+ * winning it, and only one of them is a rout.
+ */
+const WIN_BONUS = 0.75;
+
 // Both historical terms are shrunk toward the club mean, the same move
 // `duos.ts` and `marketValue.ts` make: a player three nights into their career
 // should sit near the middle rather than at whichever extreme those three
@@ -397,12 +421,19 @@ export function nightGrades(history: FixtureRecord[], fixtureId: string): Grade[
       const rating = fx.players.find((p) => p.id === id)?.rating ?? 3;
       const tier = TIER_BUMP[ratingTier(rating)];
       const jitter = jitterOf(fx.id, id);
-      const parts: GradeParts = { night, mvp: isMvp ? MVP_BONUS : 0, career, momentum, tier, jitter };
-      // Outright winners only — see WIN_FLOOR and §2.6. Applied after the
-      // rounding rather than before it, so the floor is exactly the number it
-      // says it is: raising 7.9 to 8 and then rounding could still land on 8,
-      // but flooring a rounded 7.5 cannot leave anybody below the mark.
+      // Outright winners only — see WIN_BONUS, WIN_FLOOR and §2.6.
       const wonNight = place === 1 && !hasTie(fx, teamWins);
+      const parts: GradeParts = {
+        night: night + (wonNight ? WIN_BONUS : 0),
+        mvp: isMvp ? MVP_BONUS : 0,
+        career,
+        momentum,
+        tier,
+        jitter,
+      };
+      // Rounded before the floor rather than after, so the floor is exactly the
+      // number it says it is: flooring a rounded 7.5 cannot leave anybody below
+      // the mark, where rounding a floored 7.9 could.
       const raw = round(
         BASE + parts.night + parts.mvp + parts.career + parts.momentum + parts.tier + parts.jitter,
       );
@@ -465,6 +496,7 @@ export const gradeConstants = {
   NIGHT_W,
   NIGHT_CAP,
   MVP_BONUS,
+  WIN_BONUS,
   WIN_FLOOR,
   PLAYED_FLOOR,
   CAREER_W,

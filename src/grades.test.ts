@@ -158,6 +158,34 @@ describe('nightGrades', () => {
     }
   });
 
+  it('still separates the winners rather than piling them all on the floor', () => {
+    // The complaint that produced WIN_BONUS. With the floor alone, a winning
+    // team's shared starting point was a fraction *under* 8, so the whole team
+    // landed on it: a 5-star earned exactly 8.0 and a 3-star earned 7.0 and was
+    // lifted to 8 to meet him. The rating had just been widened so it would
+    // show, and the floor was flattening it straight back out.
+    const fx = night(T(['top', 'mid', 'low'], ['x'], ['y']), { black: 7, white: 3, blue: 2 }, {
+      ratings: { top: 5, mid: 4, low: 3 },
+    });
+    const gs = nightGrades([fx], fx.id)!;
+    const [t, m, l] = ['top', 'mid', 'low'].map((id) => gradeOf(gs, id).grade);
+    expect(t).toBeGreaterThan(l); // the whole point
+    expect(t).toBeGreaterThanOrEqual(m);
+    // and everybody is still above the floor they were promised
+    for (const g of [t, m, l]) expect(g).toBeGreaterThanOrEqual(gradeConstants.WIN_FLOOR);
+  });
+
+  it('pays for taking the night on top of the margin it was taken by', () => {
+    // `night` is the margin; WIN_BONUS is the fact of winning. A narrow win
+    // and a rout are both wins, and only one of them is a rout.
+    const narrow = night(T(['a'], ['b'], ['c']), { black: 5, white: 4, blue: 3 });
+    const rout = night(T(['a'], ['b'], ['c']), { black: 9, white: 2, blue: 1 });
+    const n = gradeOf(nightGrades([narrow], narrow.id), 'a').grade;
+    const r = gradeOf(nightGrades([rout], rout.id), 'a').grade;
+    expect(r).toBeGreaterThan(n); // the margin still counts for something
+    expect(n).toBeGreaterThanOrEqual(gradeConstants.WIN_FLOOR); // and both are wins
+  });
+
   it('holds the floor even for a player whose own record drags them down', () => {
     // A long run of empty nights coming in is exactly the case that produced
     // the 7.5: career and momentum both pulling hard the wrong way on a night
