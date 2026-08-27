@@ -101,8 +101,38 @@ export const GRADE_MAX = 10;
  * thirteen-match night, and the club plays both. A team taking exactly its
  * share of a night scores 0 here.
  */
-const NIGHT_W = 2.3;
+const NIGHT_W = 2.6;
 const NIGHT_CAP = 2.5;
+
+/**
+ * A night won outright is worth at least this, whatever else is true.
+ *
+ * **Asked for directly, after the first real night the club graded.** A team
+ * took 7 of 12 while the other two took 2 and 3, and players on it still came
+ * out at 7.5 — the personal terms (`career`, `momentum`, `tier`, `jitter`) span
+ * about ±1.5 between them, which is easily enough to drag somebody below the
+ * mark their team's night deserved. The complaint was not that the ordering was
+ * wrong, it was that the *floor* was: winning a night comfortably and being
+ * told you were a 7.5 reads as a correction rather than a result.
+ *
+ * A floor rather than a bigger `night` term, because the two do different
+ * things. Widening `night` lifts the winners and pushes the other two teams
+ * down by the same move — it is one symmetric slider — and nobody complained
+ * about the losing teams. This lifts only the team that actually took the
+ * night, and leaves every other mark on the sheet exactly where it was.
+ *
+ * **What it costs, said plainly:** marks inside the winning team compress. Two
+ * players who would have been 7 and 7.5 are now both 8, and the spread that
+ * survives is only the part above the floor. That is the trade the floor *is* —
+ * the alternative is a winner reading a 7. `NIGHT_W` was widened a little at
+ * the same time (2.3 → 2.6) so a dominant win clears 8 on its own and the floor
+ * stays what it is meant to be: a safety net for the narrow wins, not the thing
+ * setting most of the winners' marks.
+ *
+ * Outright only. A night level at the top belongs to nobody (§2.6), so nobody
+ * on it is floored for having won one.
+ */
+const WIN_FLOOR = 8;
 
 /** The only thing on this list that is about a person rather than a team. */
 const MVP_BONUS = 1;
@@ -303,11 +333,15 @@ export function nightGrades(history: FixtureRecord[], fixtureId: string): Grade[
       const tier = TIER_BUMP[ratingTier(rating)];
       const jitter = jitterOf(fx.id, id);
       const parts: GradeParts = { night, mvp: isMvp ? MVP_BONUS : 0, career, momentum, tier, jitter };
-      const grade = clamp(
-        round(BASE + parts.night + parts.mvp + parts.career + parts.momentum + parts.tier + parts.jitter),
-        GRADE_MIN,
-        GRADE_MAX,
+      // Outright winners only — see WIN_FLOOR and §2.6. Applied after the
+      // rounding rather than before it, so the floor is exactly the number it
+      // says it is: raising 7.9 to 8 and then rounding could still land on 8,
+      // but flooring a rounded 7.5 cannot leave anybody below the mark.
+      const wonNight = place === 1 && !hasTie(fx, teamWins);
+      const raw = round(
+        BASE + parts.night + parts.mvp + parts.career + parts.momentum + parts.tier + parts.jitter,
       );
+      const grade = clamp(wonNight ? Math.max(raw, WIN_FLOOR) : raw, GRADE_MIN, GRADE_MAX);
 
       // Coming in: a live winning run, or nights since their team last took one.
       let runBefore = 0;
@@ -324,7 +358,7 @@ export function nightGrades(history: FixtureRecord[], fixtureId: string): Grade[
           shirt: c,
           teamWins,
           place,
-          wonNight: place === 1 && !hasTie(fx, teamWins),
+          wonNight,
           isMvp,
           nightsBefore,
           baseline,
@@ -351,6 +385,7 @@ export const gradeConstants = {
   NIGHT_W,
   NIGHT_CAP,
   MVP_BONUS,
+  WIN_FLOOR,
   CAREER_W,
   CAREER_CAP,
   MOMENTUM_W,

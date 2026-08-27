@@ -122,6 +122,31 @@ describe('buildPrompt', () => {
     expect(said).toMatch(/if the line names nobody, next week is not about it/i);
   });
 
+  it('treats the organiser’s note as several events, each with its own owner', () => {
+    // The note is one free-text field and an organiser will reasonably put two
+    // things in it. The ownership rule was written in the singular ("read the
+    // line and see whether it names a player"), which has no answer when one
+    // half names somebody and the other half names nobody — and merging them
+    // is how a named player gets attached to an event nobody was named for.
+    const said = buildPrompt(
+      facts({ said: 'the ball went over the fence 5 times, and Tom brought a dog' }),
+    );
+    expect(said).toMatch(/IT MAY DESCRIBE MORE THAN ONE THING/i);
+    expect(said).toMatch(/separate facts with separate owners/i);
+    expect(said).toMatch(/do not merge them into a single story/i);
+    // and the ownership check is per-event rather than per-note
+    expect(said).toMatch(/Take each event in the line above separately/i);
+    expect(said).toMatch(/Two events in one line can have two different answers/i);
+  });
+
+  it('asks for the note to be built on rather than just reported', () => {
+    // It is the only actual event in a record that is otherwise all
+    // scorelines, and a single flat sentence spends it.
+    const said = buildPrompt(facts({ said: 'somebody drove home in their boots' }));
+    expect(said).toMatch(/two or three sentences, not one/i);
+    expect(said).toMatch(/absurd consequence, a mock investigation/i);
+  });
+
   it('rations the invented-source joke rather than banning or repeating it', () => {
     expect(p).toContain('Once, maybe twice in the whole report');
     expect(p).toMatch(/turned its best joke into a verbal tic/i);
@@ -144,8 +169,22 @@ describe('buildPrompt', () => {
     // to come back for השחורים is aimed at five people who will not be in that
     // team. Reported from a real report that ended exactly that way.
     expect(p).toContain('THE SHIRTS ARE DRAWN FRESH EVERY WEEK');
-    expect(p).toMatch(/never aim it at a shirt colour/i);
     expect(p).toMatch(/next week's teams do not exist yet/i);
+    // Told three times over and still coming back, so the sign-off now names
+    // itself as the place it goes wrong rather than only stating the rule.
+    expect(p).toMatch(/this is also the paragraph where the shirt rule gets broken/i);
+    expect(p).toMatch(/may only be made to a named player about themselves/i);
+  });
+
+  it('shows the sign-off mistake and its fix, rather than only forbidding it', () => {
+    // Three separate statements of the rule had not stopped it. A wrong
+    // example and a right one give the model something to pattern-match
+    // against, which an abstract prohibition does not.
+    expect(p).toMatch(/Wrong, and the exact mistake to avoid/i);
+    expect(p).toContain('להגן על התואר'); // "defend the title" — the wrong one
+    expect(p).toMatch(/what a colour will do, want, defend or avenge/i);
+    expect(p).toMatch(/Right:/);
+    expect(p).toMatch(/no assumption about what shirt anybody will be wearing/i);
   });
 
   it('asks for sharp rather than polite, and says who is reading', () => {

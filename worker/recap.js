@@ -152,11 +152,13 @@ ${
       ? `SOMETHING ELSE THAT HAPPENED TONIGHT
 "${facts.said}"
 
-This is true, and it is the only thing in this record that is an *event* rather than a number — so use it, give it a sentence of its own or more, and let it be one of the best bits of the report.
+This is true, and it is the only thing in this record that is an *event* rather than a number — everything else you have been given is a scoreline. So it is the most valuable material in the report and it should read that way: give it **two or three sentences, not one**, and make them the funniest in the piece. Build on it properly — an absurd consequence, a mock investigation, a grand conclusion drawn from it, a callback to it later in the paragraph. A single flat sentence reporting it and moving on is the one way to waste it.
+
+**IT MAY DESCRIBE MORE THAN ONE THING.** Read it as a whole before you use any of it: it can hold two separate events, or three, joined by nothing more than a comma or an "and". If it does, they are **separate facts with separate owners** — work through them one at a time, and do not merge them into a single story or assume the person named in one had anything to do with the other. Use as many of them as you can carry; the funniest gets the most room, and a small one can be a throwaway aside. Every ownership rule below applies to **each event on its own**.
 
 YOU SAW IT YOURSELF. You were at the pitch tonight. Never say where this came from — no "according to the organisers", no "it was reported that", no mention of anyone having handed you this. You watched it happen, and you write it that way. (This is about not citing a source for something you witnessed. The invented, obviously-ridiculous attribution described further down — "sources close to the changing room say" — is a joke and is still very welcome; it is a different thing entirely.)
 
-WHO IT BELONGS TO. Read the line above and see whether it names a player.
+WHO IT BELONGS TO. Take each event in the line above separately, and for each one see whether it names a player. Two events in one line can have two different answers — one may name somebody and the next may name nobody, and getting that right for one does not excuse getting it wrong for the other.
 - If it names someone, it is theirs. Go after them for it by name, as hard as the rest of the report goes after anybody.
 - If it names nobody, it belongs to nobody, and NO PLAYER'S NAME MAY APPEAR ANYWHERE NEAR IT. Report it as a thing that happened tonight, with no author. Do not guess who did it. Do not pin it on a player or a team. Do not tell anybody to do better at it, aim straighter, or stop doing it next week. Naming a culprit the line does not name is inventing something, and it is the same offence as inventing a goal.
 
@@ -185,10 +187,14 @@ Then five paragraphs, in this order, 280 to 380 words in total:
 3. THE OTHER TWO TEAMS. One or two sentences each, both of them, by name — points, matches played, longest run, and at least one player named from each. Neither team may be skipped, even if their night was quiet. A team that won nothing gets a line about that.
 4. THE PEOPLE. This is the heart of the report and it should be the longest paragraph.${
     facts.said
-      ? ' The line under SOMETHING ELSE THAT HAPPENED TONIGHT belongs here, and it is the best thing you have been given — nothing else in this record is an actual event.'
+      ? ' Everything under SOMETHING ELSE THAT HAPPENED TONIGHT belongs here, and it is the best material you have been given — nothing else in this record is an actual event. Give it real room (two or three sentences, and more if it holds more than one event) rather than a passing mention.'
       : ''
   } Milestones reached, the stories above, the player of the night, and anyone who won a lot or a little. Somebody who played four or more and won nothing gets a sympathetic ribbing rather than a kicking. Superstition is encouraged — if somebody keeps winning in one shirt colour, that is a curse and a blessing, not a coincidence.
-5. THE SIGN-OFF. One or two sentences looking forward to next week. Make somebody a promise or a threat about it — and it must be **people, by name**, called out for **their own results tonight**: who won nothing, who won everything, who is on a run. Never aim it at a shirt colour: the teams are redrawn, so "if השחורים don't start winning next week" is a threat against five people who will not be in that team. And never aim it at an event nobody was named for — see WHO IT BELONGS TO above if there is a line up there.
+5. THE SIGN-OFF. One or two sentences looking forward to next week, aimed at **people, by name**, called out for **their own results tonight**: who won nothing, who won everything, who is on a run, who has not taken a night since the spring. And never aim it at an event nobody was named for — see WHO IT BELONGS TO above if there is a line up there. This is also the paragraph where the shirt rule gets broken, every time, so read it again before you write this: **next week's teams do not exist yet and nobody is in one.** A threat, a promise or a warning may only be made to a named player about themselves.
+
+   Wrong, and the exact mistake to avoid: "נראה אם הכחולים יצליחו להגן על התואר" — the blues of next week are five different people. Also wrong: "השחורים חייבים לחזור חזק", "הלבנים ירצו נקמה", or anything at all about what a colour will do, want, defend or avenge.
+
+   Right: "ניב לוקח ערב שלישי ברצף, ומישהו צריך לעצור אותו לפני שזה נהיה הרגל" — a named person, their own record, and no assumption about what shirt anybody will be wearing.
 
 Rules:
 - Every paragraph must be a complete thought that finishes. Never stop mid-sentence.

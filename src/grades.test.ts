@@ -139,6 +139,50 @@ describe('nightGrades', () => {
     expect(gradeOf(gs, 'a').context.wonNight).toBe(true);
   });
 
+  it('never marks a night winner below the floor, whoever they are', () => {
+    // The real complaint this floor came from: a team took 7 of 12 while the
+    // other two took 2 and 3, and players on it still came out at 7.5. The
+    // personal terms span about ±1.5 between them, which is enough to drag
+    // somebody under the mark their team's night earned.
+    const fx = night(T(['a', 'b', 'c'], ['x', 'y'], ['z']), { black: 7, white: 3, blue: 2 });
+    const gs = nightGrades([fx], fx.id)!;
+    for (const id of ['a', 'b', 'c']) {
+      expect(gradeOf(gs, id).context.wonNight).toBe(true);
+      expect(gradeOf(gs, id).grade).toBeGreaterThanOrEqual(gradeConstants.WIN_FLOOR);
+    }
+  });
+
+  it('holds the floor even for a player whose own record drags them down', () => {
+    // A long run of empty nights coming in is exactly the case that produced
+    // the 7.5: career and momentum both pulling hard the wrong way on a night
+    // their team walked.
+    const past = Array.from({ length: 6 }, () =>
+      night(T(['loser'], ['w'], ['b']), { black: 0, white: 5, blue: 4 }),
+    );
+    const fx = night(T(['loser'], ['w'], ['b']), { black: 7, white: 3, blue: 2 });
+    const gs = nightGrades([...past, fx], fx.id)!;
+    const g = gradeOf(gs, 'loser');
+    expect(g.context.trend).toBe('cold'); // the drag is real
+    expect(g.grade).toBeGreaterThanOrEqual(gradeConstants.WIN_FLOOR);
+  });
+
+  it('does not floor a night that ended level at the top', () => {
+    // §2.6 — nobody took it, so nobody is floored for having won it.
+    const fx = night(T(['a'], ['b'], ['c']), { black: 4, white: 4, blue: 1 });
+    const gs = nightGrades([fx], fx.id)!;
+    expect(gradeOf(gs, 'a').grade).toBeLessThan(gradeConstants.WIN_FLOOR);
+  });
+
+  it('leaves the teams that did not win exactly where they were', () => {
+    // The floor lifts only the winners. Widening the `night` term instead
+    // would have pushed these two down by the same move, and nobody asked
+    // for the losing teams to be marked harder.
+    const fx = night(T(['a'], ['x'], ['z']), { black: 7, white: 3, blue: 2 });
+    const gs = nightGrades([fx], fx.id)!;
+    expect(gradeOf(gs, 'x').grade).toBeLessThan(gradeConstants.WIN_FLOOR);
+    expect(gradeOf(gs, 'z').grade).toBeLessThan(gradeOf(gs, 'x').grade);
+  });
+
   it('sits an average night on the base mark, up to the jitter', () => {
     // Three teams level: nobody beat the night's own average, so night is
     // zero, and a middle-tier player with no history has career, momentum and

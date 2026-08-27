@@ -101,7 +101,19 @@ function describe(p) {
   else {
     if (p.trend === 'hot') bits.push('בכושר עולה בחודש האחרון');
     if (p.trend === 'cold') bits.push('בירידת כושר בחודש האחרון');
-    if (p.runBefore >= 2) bits.push(`הגיע עם ${p.runBefore} ערבים ברצף של ניצחון`);
+    // **Whether the run survived tonight, not just that they arrived on one.**
+    // A line saying only "came in on 3 straight" reads as praise, and the model
+    // took it as praise on a night the player's team was beaten — the run had
+    // ended and the sentence carried on congratulating them for it. Both halves
+    // are already known here (`runBefore` and `wonNight`), so the fact says
+    // which it is rather than leaving the model to notice.
+    if (p.runBefore >= 2) {
+      bits.push(
+        p.wonNight
+          ? `הגיע עם ${p.runBefore} ערבים ברצף של ניצחון, והרצף ממשיך`
+          : `הגיע עם ${p.runBefore} ערבים ברצף של ניצחון — והרצף נגמר הלילה`,
+      );
+    }
     if (p.droughtBefore >= 3) bits.push(`לא לקח ערב כבר ${p.droughtBefore} ערבים`);
   }
   return `[${p.key}] ${p.name} — ${bits.join(', ')}`;
@@ -166,7 +178,13 @@ export function buildGradesPrompt(facts) {
 
 WRITE IN HEBREW. Every word must be Hebrew, except the player names, which are already Hebrew and which you must copy EXACTLY as given — never translate, transliterate, shorten or nickname a name.
 
-HOW THE NIGHT WORKS. Three teams of five share one pitch. Two play, one rests. The winner stays on and the resting team comes on. A match is 8 minutes or ends early at a two-goal lead; still level after golden goal means penalties, worth half a win. The shirts are redrawn every week, so a colour is a team for one evening and nothing more.
+HOW THE NIGHT WORKS. Three teams of five share one pitch. Two play, one rests. The winner stays on and the resting team comes on. A match is 8 minutes or ends early at a two-goal lead; still level after golden goal means penalties, worth half a win.
+
+THE SHIRTS ARE DRAWN FRESH EVERY WEEK, AND NO LINE MAY POINT PAST TONIGHT. A colour is a team for one evening and nothing else. Everybody in tonight's השחורים will be scattered across all three teams next week, so a sentence like "next week the blues will have to defend it" is a promise made to five people who will not be in that team, and it will read as nonsense to every one of them. Write about the colours as much as you like *inside tonight* — they won it, they held the pitch, they collapsed — and never as something that carries on. No colour is owed revenge, due a comeback, expected to defend anything, or on any kind of trajectory. If a line of yours would still make sense only if the teams stayed the same, it is wrong and you must rewrite it.
+
+A player's own luck in a colour is different, and is fair game, because it is about the person: somebody who keeps winning whenever they are handed a white shirt is cursed or blessed, and that follows them into whatever they wear next.
+
+WHAT SOMEBODY ARRIVED WITH IS NOT WHAT HAPPENED TONIGHT. Some lines below say what a player brought into the evening — a winning run, a drought, a rising or falling month. Those describe the road in, and the line you write has to square them with how tonight actually went. A run that "ended tonight" is not a run to congratulate somebody on; it is the thing that just got taken away from them, and that is the joke. A drought that finally broke is not still a drought. Read the whole of a player's line before you decide what tone to take, because the last clause on it often reverses the first.
 
 THE MARKS ARE ALREADY DECIDED. Each player's mark out of ten was calculated before you saw it, from how their team did that night, whether they were picked player of the night, their record, and the run they came in on. You are NOT grading anybody. You are writing the line that goes beside a mark that already exists. Never argue with a mark, never say a mark is unfair, and never state the number itself — it is printed right next to your sentence.
 

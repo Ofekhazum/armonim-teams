@@ -2749,6 +2749,27 @@ exist for a different reason entirely and are documented on their own below.
 | `tier` | ±0.25, permanent | the organiser's rating, coarsened — see **The tier shade** below |
 | `jitter` | ±0.35, permanent | a stable per-player-per-night "coin flip" — carries no information at all |
 
+**`WIN_FLOOR = 8` — a night won outright is worth at least eight (added 2026-08-28).** From the first
+real night the club graded: one team took 7 of 12 while the other two took 2 and 3, and players on
+the winning side still came out at 7.5. The ordering was right; the *floor* was wrong. The four
+personal terms span about ±1.5 between them, which is easily enough to drag somebody under the mark
+their team's night earned, and winning a night comfortably while being told you were a 7.5 reads as
+a correction rather than a result.
+
+**A floor rather than a wider `night` term, because the two are different moves.** `night` is one
+symmetric slider: widening it lifts the winners and pushes the other two teams down by exactly the
+same amount, and nobody complained about the losing teams. The floor lifts only the side that
+actually took the night and leaves every other mark on the sheet where it was. `NIGHT_W` did go
+2.3 → 2.6 at the same time, but for a different purpose — so a dominant win clears 8 on its own
+(base + night = 7.95 on that 7/3/2 night) and the floor stays a safety net for narrow wins rather
+than the thing setting most winners' marks.
+
+Applied **after** rounding, so the floor is exactly the number it claims; and to outright winners
+only, since a night level at the top belongs to nobody (§2.6). **The cost, stated plainly:** marks
+inside the winning team compress — two players who would have been 7 and 7.5 are both 8 now, and only
+the spread above the floor survives. That is what a floor *is*, and the alternative is a night's
+winner reading a 7.
+
 `MatchLogEntry` records `{a, b, winner, viaPenalties}` — team colours, not people. Every match, every
 shootout and every sequence is therefore *identical* for the five players on a shirt, so **on a single
 night exactly one thing distinguishes teammates: the MVP pick.** Everything else that differs between
@@ -2889,6 +2910,32 @@ the word "rating" (the organiser's private 1–5, §2.28) is never used for it, 
 **A player still gets their mark with no line beside it**, and that is not a degraded state — it means
 the model skipped them, which the admin sees named on the draft (`missing`) and can re-roll if it is
 worth it. On screen it is simply a chip with no sentence under it.
+
+**Three prompt corrections from the same night's feedback (2026-08-28).**
+
+- **A run that ended was still being congratulated.** The fact read `הגיע עם 3 ערבים ברצף של ניצחון`
+  and stopped there, so a player whose team was beaten got a line praising the streak that had just
+  been taken off them. Both halves were already in the payload (`runBefore`, `wonNight`), so
+  `describe()` now says which way it went — `והרצף ממשיך` or `והרצף נגמר הלילה` — and a new prompt
+  section, WHAT SOMEBODY ARRIVED WITH IS NOT WHAT HAPPENED TONIGHT, says outright that the last
+  clause of a player's line often reverses the first.
+- **Lines were promising things about next week's shirts.** The grades prompt had one sentence on
+  this inside HOW THE NIGHT WORKS; the night reporter has had a full section for months and *still*
+  broke the rule, so the grades prompt now gets the same treatment plus the standing exception: a
+  player's own luck in a colour is about the player and follows them into whatever they wear next.
+- **The reporter's sign-off, for the fourth time.** Three separate statements of the rule had not
+  stopped it, so the fix is no longer another statement: the sign-off paragraph now names itself as
+  the place this goes wrong, and carries a worked wrong example (`להגן על התואר`) and a right one.
+  An abstract prohibition gives a model nothing to pattern-match against; two examples do.
+
+**The organiser's note can hold more than one event (2026-08-28).** `said` is one free-text field and
+an organiser will reasonably put two things in it, but WHO IT BELONGS TO was written in the singular
+— "read the line and see whether it names a player" — which has no answer when one half names
+somebody and the other names nobody. Merging them is precisely how a named player gets attached to an
+event nobody was named for, which is the §2.24 failure this section exists to prevent. The note is
+now explicitly *several* facts with *several* owners, checked one at a time. It also asks for two or
+three sentences rather than one: it is the only actual event in a record that is otherwise entirely
+scorelines, and a flat single-sentence mention spends the best material in the report.
 
 **The chip's tone (`GRADE_TONE`, `toneOf`) is flat for the ordinary run of marks and breaks that rule
 only at the top.** Rose at 4 and below, plain card ink in between, green from 7 up — a group reading
