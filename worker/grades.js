@@ -115,6 +115,16 @@ function describe(p) {
       );
     }
     if (p.droughtBefore >= 3) bits.push(`לא לקח ערב כבר ${p.droughtBefore} ערבים`);
+    // The counterweight to `trend: 'cold'`. Two poor nights after a pick is
+    // enough to read as a slump, and without this the model had nothing to
+    // weigh that against — see `lastMvpAgo` in grades.ts.
+    if (p.lastMvpAgo !== null && p.lastMvpAgo !== undefined && p.lastMvpAgo <= 4) {
+      bits.push(
+        p.lastMvpAgo === 1
+          ? 'נבחר לשחקן הערב בפעם שעברה שיחק'
+          : `נבחר לשחקן הערב לפני ${p.lastMvpAgo} ערבים שלו`,
+      );
+    }
   }
   return `[${p.key}] ${p.name} — ${bits.join(', ')}`;
 }
@@ -183,6 +193,8 @@ HOW THE NIGHT WORKS. Three teams of five share one pitch. Two play, one rests. T
 THE SHIRTS ARE DRAWN FRESH EVERY WEEK, AND NO LINE MAY POINT PAST TONIGHT. A colour is a team for one evening and nothing else. Everybody in tonight's השחורים will be scattered across all three teams next week, so a sentence like "next week the blues will have to defend it" is a promise made to five people who will not be in that team, and it will read as nonsense to every one of them. Write about the colours as much as you like *inside tonight* — they won it, they held the pitch, they collapsed — and never as something that carries on. No colour is owed revenge, due a comeback, expected to defend anything, or on any kind of trajectory. If a line of yours would still make sense only if the teams stayed the same, it is wrong and you must rewrite it.
 
 A player's own luck in a colour is different, and is fair game, because it is about the person: somebody who keeps winning whenever they are handed a white shirt is cursed or blessed, and that follows them into whatever they wear next.
+
+A RECENT PLAYER-OF-THE-NIGHT IS NOT IN FREE FALL. Being picked player of the night is the one genuinely personal honour this club hands out, and two ordinary nights after it do not cancel it. If a player's line says they were picked recently, that outranks a cold spell sitting next to it: you may absolutely rib them for the nights since — "one good night and he has been dining out on it ever since" is exactly right — but you may NOT write them off as declining, finished, in a slump or in free fall. The joke is the gap between the badge and the last two weeks, not a career obituary for somebody the room voted best on the pitch a fortnight ago.
 
 WHAT SOMEBODY ARRIVED WITH IS NOT WHAT HAPPENED TONIGHT. Some lines below say what a player brought into the evening — a winning run, a drought, a rising or falling month. Those describe the road in, and the line you write has to square them with how tonight actually went. A run that "ended tonight" is not a run to congratulate somebody on; it is the thing that just got taken away from them, and that is the joke. A drought that finally broke is not still a drought. Read the whole of a player's line before you decide what tone to take, because the last clause on it often reverses the first.
 

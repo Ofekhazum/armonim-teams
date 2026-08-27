@@ -2926,6 +2926,42 @@ the word "rating" (the organiser's private 1–5, §2.28) is never used for it, 
 the model skipped them, which the admin sees named on the draft (`missing`) and can re-roll if it is
 worth it. On screen it is simply a chip with no sentence under it.
 
+**`TIER_BUMP` widened ±0.25 → ±0.6, and `JITTER_SPAN` narrowed 0.35 → 0.2 (2026-08-28).** The file
+header said widening this past `CAREER_CAP` "should not happen without the organiser saying so in as
+many words". They said so, and the diagnosis backed them rather than merely permitting them: at
+±0.25 the organiser's rating was **the weakest term in the whole formula**, and the jitter — noise
+carrying no information at all — had a *wider* span than it did.
+
+Measured on the night that prompted it (7/3/2, black 2 / white 7 / blue 3): ירין (rated 5) and אשד
+(rated 2.5) were on the same shirt and came out on the **identical mark of 5.5**, because the 0.5 the
+rating opened between them was cancelled almost exactly by jitter (+0.07 vs +0.26) and career. A
+5-star finished level with a 2.5-star, and a hash function was the reason. At ±0.6 against a jitter
+of ±0.2, the same night puts all three 5-stars above every 2.5-star.
+
+The jitter's own rationale inverted with it. It was set *wider* than the tier so a single night's
+mark could not be read straight off as a tier — but what that bought in practice was noise loud
+enough to cancel the signal, and it never protected anything against averaging anyway (it is
+zero-mean; averaging is precisely what removes it). It stays non-zero only so two identical teammates
+do not read the same number every week.
+
+**The privacy cost got worse and is not hidden.** §2.39's accepted trade is that averaging a
+player's residual recovers their tier; a wider bump makes that recovery both faster and sharper. It
+stays a three-way bucket rather than the raw 1–5 specifically to keep what is recoverable bounded to
+"which third of the club" — which is why it was widened rather than made continuous.
+
+**`lastMvpAgo` — a recent player-of-the-night is not in free fall (2026-08-28).** A player picked MVP
+a fortnight earlier had two poor nights after it, which is enough to set `trend: 'cold'`, and the
+banter called it "the free-fall of the last month". Every word was true of the last two nights and
+false about the player — and the model could not have known, because the payload said "declining
+form" and carried **nothing at all** about the pick. The MVP is the one genuinely personal thing a
+night produces, and it was being discarded the moment the night after it went badly.
+
+`GradeContext` now carries how many of *their own* nights ago they were last picked — counted in
+nights they played rather than in fixtures, so somebody who missed a month does not have the honour
+aged out by nights they were not at. The prompt gets a matching rule: a recent pick outranks a cold
+spell sitting beside it, the gap between the badge and the last fortnight is fair game to rib, and
+writing somebody off as finished is not.
+
 **Three prompt corrections from the same night's feedback (2026-08-28).**
 
 - **A run that ended was still being congratulated.** The fact read `הגיע עם 3 ערבים ברצף של ניצחון`

@@ -185,26 +185,51 @@ export type Trend = 'hot' | 'cold' | 'steady';
 
 /**
  * The organiser's rating, coarsened to a third of the club and turned into a
- * small permanent shade on every mark (see the file header for why this term
- * exists and what it costs).
+ * permanent shade on every mark (see the file header for why this term exists
+ * and what it costs).
  *
- * **The smallest term in the formula, and deliberately so.** ±0.25 against
- * `career`'s ±0.5, `momentum`'s ±0.7 and `night`'s ±2.5: enough to separate
- * teammates who are otherwise identical and to tilt a season's average the way
- * the organiser's own judgement points, never enough to rescue a bad night or
- * to outweigh somebody's actual form.
+ * **Widened from ±0.25 to ±0.6 on 2026-08-28, which is the thing the file
+ * header said must not happen without the organiser asking for it in as many
+ * words.** They asked, and the diagnosis backed them: at ±0.25 this was the
+ * *weakest* term in the formula, and `JITTER_SPAN` — noise carrying no
+ * information whatsoever — had a wider span than it did. Measured on the real
+ * night that prompted the complaint: a 5-star and a 2.5-star on the same shirt
+ * came out on the identical mark, because the 0.5 the rating opened between
+ * them was cancelled almost exactly by jitter and career. The organiser's own
+ * judgement was being outvoted by a hash function.
+ *
+ * At ±0.6 the span is 1.2, which sits just under `momentum`'s 1.4 and above
+ * `career`'s 1.0 — so a rating can now separate teammates and shade a season
+ * without ever rescuing a bad night. `night` is still worth 5.0 across its
+ * range, and remains what actually decides a mark.
+ *
+ * **The privacy cost, which is real and got worse.** The file header explains
+ * that averaging a player's residual over many nights recovers their tier.
+ * A wider bump makes that recovery both faster and sharper — fewer nights are
+ * needed and the answer is less ambiguous. It stays a three-way bucket rather
+ * than the raw 1–5 precisely to bound what is recoverable to "which third",
+ * which is why this was widened rather than made continuous.
  */
 const TIER_BUMP: Record<ReturnType<typeof ratingTier>, number> = {
-  bottom: -0.25,
+  bottom: -0.6,
   middle: 0,
-  top: 0.25,
+  top: 0.6,
 };
 
-// Wider than TIER_BUMP's whole span, so no single night's mark is a bare
-// readout of which tier it came from. Note what this does and does not buy:
-// it is zero-mean, so it obscures one night and cancels across many. See the
-// file header — it is not what makes this term safe, because nothing does.
-const JITTER_SPAN = 0.35;
+// Narrowed 0.35 → 0.2 alongside the TIER_BUMP widening, and the reasoning
+// inverted with it. This used to be *wider* than TIER_BUMP's whole span, on
+// the theory that it kept a single night's mark from being a bare readout of
+// the tier. What that actually bought, measured on a real night, was noise
+// loud enough to cancel the rating outright — two players three rating points
+// apart landing on the same mark. It never protected anything against
+// averaging anyway (see the file header: it is zero-mean, so it is exactly
+// what averaging removes), so it was paying a real cost in signal for a
+// protection that only ever held for one night at a time.
+//
+// It stays non-zero because two otherwise-identical teammates reading the
+// exact same number every week looks broken, and a little movement is worth
+// keeping for that alone.
+const JITTER_SPAN = 0.2;
 
 /**
  * A small, stable "which way does this night's coin land" per player per
@@ -262,6 +287,24 @@ export interface GradeContext {
   runBefore: number;
   /** Nights since their team last took one, coming in. */
   droughtBefore: number;
+  /**
+   * How many of *their own* nights ago they were last picked player of the
+   * night — 1 being the last time they played — or null if never.
+   *
+   * **Here because the sentence-writer was being cruel with a straight face.**
+   * A player picked MVP a fortnight earlier had two bad nights after it, which
+   * is enough to set `trend: 'cold'`, and the line called it a free-fall. Every
+   * word of that was true of the last two nights and false about the player,
+   * and the model had no way to know: the payload said "declining form" and
+   * carried nothing at all about the pick. The MVP is the one genuinely
+   * personal thing a night produces (§2.39), and it was being thrown away the
+   * moment the night after it went badly.
+   *
+   * Counted in nights *they played* rather than in calendar weeks or in
+   * fixtures, so somebody who missed a month does not have their pick aged out
+   * by nights they were not at.
+   */
+  lastMvpAgo: number | null;
 }
 
 export interface Grade {
@@ -375,6 +418,16 @@ export function nightGrades(history: FixtureRecord[], fixtureId: string): Grade[
       let droughtBefore = 0;
       for (let i = before.length - 1; i >= 0 && before[i].won === false; i--) droughtBefore++;
 
+      // The most recent night of their own that they were picked on, counted
+      // back from tonight — see `lastMvpAgo`.
+      let lastMvpAgo: number | null = null;
+      for (let i = before.length - 1; i >= 0; i--) {
+        if (byDate.find((f) => f.id === before[i].fixtureId)?.mvpId === id) {
+          lastMvpAgo = before.length - i;
+          break;
+        }
+      }
+
       out.push({
         id,
         name: fx.players.find((p) => p.id === id)?.name ?? '?',
@@ -392,6 +445,7 @@ export function nightGrades(history: FixtureRecord[], fixtureId: string): Grade[
           trend,
           runBefore,
           droughtBefore,
+          lastMvpAgo,
         },
       });
     }

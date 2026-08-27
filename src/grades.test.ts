@@ -17,7 +17,13 @@ const night = (
   const { ratings, ...rest } = extra;
   return {
     id: `f${seq}`,
-    date: `2026-01-${String(seq).padStart(2, '0')}`,
+    // A real date `seq` days after the start of 2026, rather than
+    // `2026-01-${seq}`. That older form ran out of month: once this file had
+    // built its hundredth fixture, `padStart(2, '0')` produced `2026-01-100`,
+    // which sorts *before* `2026-01-99` as a string — so every ordering in
+    // `nightGrades` silently inverted for tests near the end of the file, and
+    // a night's own history stopped being the nights before it.
+    date: new Date(Date.UTC(2026, 0, 1) + seq * 86_400_000).toISOString().slice(0, 10),
     teams,
     // 3 (dead centre of the 1-5 scale, ratingTier() → 'middle') unless a test
     // is specifically exercising the cold-start tier nudge, in which case
@@ -202,6 +208,34 @@ describe('nightGrades', () => {
     expect(g.grade).toBe(gradeConstants.PLAYED_FLOOR);
   });
 
+  it('remembers how recently somebody was picked player of the night', () => {
+    // A player picked a fortnight earlier had two poor nights after it, which
+    // is enough for `trend: 'cold'` — and the banter called it a free fall,
+    // because the payload said "declining" and said nothing at all about the
+    // pick. Counted in nights they played, so the honour does not age out
+    // while somebody is away.
+    const a = night(T(['p'], ['x'], ['y']), { black: 5, white: 3, blue: 2 }, { mvpId: 'p' });
+    const b = night(T(['p'], ['x'], ['y']), { black: 1, white: 5, blue: 4 });
+    const c = night(T(['p'], ['x'], ['y']), { black: 1, white: 5, blue: 4 });
+    const gs = nightGrades([a, b, c], c.id)!;
+    expect(gradeOf(gs, 'p').context.lastMvpAgo).toBe(2);
+    // and the teammate who has never been picked says so with a null rather
+    // than with a number that would read as "a long time ago"
+    expect(gradeOf(gs, 'x').context.lastMvpAgo).toBeNull();
+  });
+
+  it('counts the MVP gap in their own nights, not in the club’s', () => {
+    // Somebody who misses a month should not have their pick aged out by
+    // nights they were not at.
+    const own = night(T(['p'], ['x'], ['y']), { black: 5, white: 3, blue: 2 }, { mvpId: 'p' });
+    const away = Array.from({ length: 4 }, () =>
+      night(T(['q'], ['x'], ['y']), { black: 4, white: 4, blue: 4 }),
+    );
+    const back = night(T(['p'], ['x'], ['y']), { black: 1, white: 5, blue: 4 });
+    const gs = nightGrades([own, ...away, back], back.id)!;
+    expect(gradeOf(gs, 'p').context.lastMvpAgo).toBe(1); // their last night, not five ago
+  });
+
   it('sits an average night on the base mark, up to the jitter', () => {
     // Three teams level: nobody beat the night's own average, so night is
     // zero, and a middle-tier player with no history has career, momentum and
@@ -306,13 +340,33 @@ describe('the tier shade', () => {
     expect(gradeOf(gs, 'weak').grade).toBeGreaterThan(gradeOf(gs, 'strong').grade);
   });
 
-  it('stays smaller than career, momentum and the night itself', () => {
-    // Stated as an assertion rather than left to the comments: widening
-    // TIER_BUMP past these is the change that would turn a shade into a verdict.
+  it('stays smaller than momentum and the night itself', () => {
+    // Stated as an assertion rather than left to the comments: this is what
+    // keeps the rating a shade rather than a verdict.
+    //
+    // **It used to include `CAREER_CAP` and deliberately no longer does.** At
+    // ±0.25 the rating was the weakest term in the formula and narrower than
+    // the jitter, so a 5-star and a 2.5-star on one shirt came out identical —
+    // the organiser's judgement outvoted by a hash. Widened to ±0.6 on their
+    // explicit instruction, which puts it past career and still under the two
+    // terms that must keep outranking it: what a player has actually been
+    // doing, and what their team did tonight.
     const span = Math.max(...Object.values(gradeConstants.TIER_BUMP));
-    expect(span).toBeLessThan(gradeConstants.CAREER_CAP);
     expect(span).toBeLessThan(gradeConstants.MOMENTUM_CAP);
     expect(span).toBeLessThan(gradeConstants.NIGHT_CAP);
+    // and it must stay clear of the noise it was being drowned by
+    expect(span).toBeGreaterThan(gradeConstants.JITTER_SPAN);
+  });
+
+  it('lets the rating separate two teammates who are otherwise identical', () => {
+    // The actual complaint, as a test. Same shirt, same result, same (empty)
+    // history — so `night`, `career` and `momentum` are identical and the only
+    // thing left between them is what the organiser thinks.
+    const fx = night(T(['top', 'bottom'], ['x'], ['y']), { black: 4, white: 4, blue: 4 }, {
+      ratings: { top: 5, bottom: 2.5 },
+    });
+    const gs = nightGrades([fx], fx.id)!;
+    expect(gradeOf(gs, 'top').grade).toBeGreaterThan(gradeOf(gs, 'bottom').grade);
   });
 
   it('never lets the shade push a grade outside 1–10', () => {
