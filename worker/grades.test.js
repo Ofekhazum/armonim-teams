@@ -175,6 +175,16 @@ describe('buildGradesPrompt', () => {
     expect(p).toMatch(/MAKE SENSE FIRST, CLEVER SECOND/);
   });
 
+  it('tells the model to praise a high mark instead of undercutting it', () => {
+    // A real published line gave a player on an 8.5 a "hitching a ride on the
+    // team" dig — a coat-tail joke, which is the wrong register for a mark
+    // that says this person is personally doing well. The mark, not just the
+    // win flag or the MVP pick, has to set the tone.
+    const p = buildGradesPrompt(facts());
+    expect(p).toMatch(/THE PLAYER'S OWN MARK DECIDES WHICH OF THESE YOU REACH FOR/);
+    expect(p).toMatch(/NOT the moment for a dig about luck, freeloading, riding the team's coat-tails/);
+  });
+
   it('hands the model concrete devices rather than only an adjective', () => {
     // "Funny, sharp, a bit rude" alone produced flat prose in the field — one
     // sentence is a harder format to be funny in than five paragraphs, and it
