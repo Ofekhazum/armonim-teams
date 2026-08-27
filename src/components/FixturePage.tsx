@@ -143,7 +143,7 @@ export default function FixturePage({
           organiser and the two controls they actually came for. */}
       <MatchClock state={clock} onChange={onChangeClock} fixtureId={liveFixtureId} />
 
-      <MatchLog log={matchLog} onChange={onChangeLog} />
+      <MatchLog log={matchLog} onChange={onChangeLog} canUndo={isAdmin} />
 
       <TonightFacts
         players={players}

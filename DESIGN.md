@@ -913,6 +913,27 @@ authenticated write, because a non-numeric `endsAt` would render as `NaN` on fif
 The worst a stranger who read the Worker URL out of the public bundle can do is show a wrong number
 for a few minutes, which the next press of Reset undoes.
 
+**Recording is shared; undoing is not (added 2026-08-27).** The same reasoning that opens the clock
+and the match log to everybody stops short of the undo, and the asymmetry is the point. Writing a
+match down is *additive and self-correcting*: the worst a wrong tap does is put a match on a list
+everyone can see is wrong, and two people recording the same result is explicitly fine — `isLogStep`
+treats an identical log as a retry. An undo removes a result somebody else wrote, and afterwards
+there is nothing on screen to say it was ever there. So "Undo last match" is now behind `canUndo` on
+`MatchLog`, passed as `isAdmin` from both the organiser's fixture page and the view the group
+watches.
+
+The gate is in the UI only, and that is worth stating plainly rather than implying otherwise:
+`POST /live/log` still accepts a one-shorter log from anyone, because making it authenticated would
+mean authenticating the recording it shares a route with. This stops the accidental and the casual —
+somebody tapping it because it is there — not somebody deliberately calling the endpoint. Given what
+an undo costs (one match, on a night everybody watched, easily re-recorded), that is the proportionate
+place to spend the complexity.
+
+`canUndo` defaults to **false**, so a new caller has to opt in deliberately: a permission that
+defaults to granted is one forgotten prop away from not being a permission. `MatchLog.dom.test.tsx`
+pins both halves — that the organiser is offered it, and that a viewer who is not is still able to
+record a result, since hiding the undo is only correct while the recording stays open.
+
 Two consequences of shared control worth naming. A press is applied **optimistically** and outranks
 incoming polls for `LOCAL_CLOCK_GRACE_MS` — a request already in flight when someone hits Start
 carries the *previous* clock, and letting it land afterwards would snap the button back. And

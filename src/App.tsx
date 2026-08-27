@@ -526,6 +526,9 @@ export default function App() {
             history={readHistory}
             onChangeClock={setLiveClock}
             onChangeLog={shareLog}
+            // gates the undo only — anyone at the pitch may still record a
+            // result here, which is the whole point of this view
+            isAdmin={isAdmin}
             // an organiser looking at a night some other device started still
             // owns it, and must be able to stop it — see the note in the view
             onEndFixture={

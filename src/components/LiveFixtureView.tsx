@@ -14,6 +14,9 @@ interface Props {
   // Present for an organiser who is *not* running the night on this device —
   // see the note on the button below. Absent for everyone else.
   onEndFixture?: () => void;
+  // Gates "Undo last match" only. Recording a result stays open to everybody
+  // here on purpose — see the note above and `canUndo` in MatchLog.
+  isAdmin?: boolean;
 }
 
 const agoLabel = (startedAt: number): string => {
@@ -50,6 +53,7 @@ export default function LiveFixtureView({
   onChangeClock,
   onChangeLog,
   onEndFixture,
+  isAdmin = false,
 }: Props) {
   const byId = new Map(fixture.players.map((p) => [p.id, p]));
   const gkSet = new Set(fixture.gkIds);
@@ -121,7 +125,7 @@ export default function LiveFixtureView({
           open is here to see the time and write down who won. */}
       <MatchClock state={fixture.clock} onChange={onChangeClock} fixtureId={fixture.id} />
 
-      <MatchLog log={matchLog} onChange={onChangeLog} />
+      <MatchLog log={matchLog} onChange={onChangeLog} canUndo={isAdmin} />
 
       <TonightFacts
         players={fixture.players}
