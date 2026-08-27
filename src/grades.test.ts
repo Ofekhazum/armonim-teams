@@ -66,7 +66,12 @@ describe('nightGrades', () => {
     // the point of it being noise rather than a second signal.
     const fx = night(T(['a', 'b'], ['x']), { black: 6, white: 2, blue: 0 }, { mvpId: 'a' });
     const gs = nightGrades([fx], fx.id)!;
-    expect(gradeOf(gs, 'a').parts).toMatchObject({ career: 0, momentum: 0, tier: 0, mvp: 1 });
+    expect(gradeOf(gs, 'a').parts).toMatchObject({
+      career: 0,
+      momentum: 0,
+      tier: 0,
+      mvp: gradeConstants.MVP_BONUS,
+    });
     expect(gradeOf(gs, 'b').parts).toMatchObject({ career: 0, momentum: 0, tier: 0, mvp: 0 });
   });
 

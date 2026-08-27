@@ -188,8 +188,20 @@ const UNPICKED_CAP = 9;
  */
 const PLAYED_FLOOR = 4;
 
-/** The only thing on this list that is about a person rather than a team. */
-const MVP_BONUS = 1;
+/**
+ * The only thing on this list that is about a person rather than a team.
+ *
+ * Trimmed 1.0 → 0.75 on 2026-08-28, together with `WIN_BONUS`, because the
+ * constants had stacked up past the point where the night still mattered at the
+ * top of the scale. A top-tier player who was picked on a winning team started
+ * at `BASE + tier + WIN_BONUS + MVP_BONUS` = **8.55** before the margin was
+ * counted at all, so a 10 needed only 1.2 more — an ordinary win. Measured over
+ * every mark the club had recorded: three of the four MVP picks came out at 10,
+ * one of them on a night their team took 7 of 14 with the runner-up on 5, and
+ * **9.5 had never once been awarded**. A rung that never fires is the tell that
+ * the scale has a gap rather than a top.
+ */
+const MVP_BONUS = 0.75;
 
 /**
  * Taking the night outright, as a thing in itself rather than as a margin.
@@ -212,8 +224,13 @@ const MVP_BONUS = 1;
  * Winning is also worth saying as its own fact. `night` measures the *margin*,
  * which is a different claim: taking a night 5–4–3 and taking it 9–2–1 are both
  * winning it, and only one of them is a rout.
+ *
+ * Trimmed 0.75 → 0.5 on 2026-08-28 alongside `MVP_BONUS` — see the note there.
+ * It costs the winning team almost nothing in practice, because `UNPICKED_CAP`
+ * already holds them at 9; what it buys is that the margin, rather than a stack
+ * of constants, decides which of 9.5 and 10 a picked player gets.
  */
-const WIN_BONUS = 0.75;
+const WIN_BONUS = 0.5;
 
 // Both historical terms are shrunk toward the club mean, the same move
 // `duos.ts` and `marketValue.ts` make: a player three nights into their career

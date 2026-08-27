@@ -2810,6 +2810,24 @@ Read together with `WIN_FLOOR`, a non-MVP winner now lives in **[8, 9]** — thr
 half-point scale, which is exactly enough for the three rating tiers to separate cleanly, as they do
 on the night this was measured against (9 / 9 / 8.5 / 8, with the pick alone at 10).
 
+**`MVP_BONUS` 1.0 → 0.75 and `WIN_BONUS` 0.75 → 0.5 — the constants had stacked past the margin
+(2026-08-28).** `UNPICKED_CAP` gated *who* could reach the top of the scale but never *what it cost*,
+and the answer turned out to be: not much. A top-tier player picked on a winning team started at
+`BASE + tier + WIN_BONUS + MVP_BONUS` = **8.55** before the margin was counted at all, so a 10 needed
+only 1.2 more — about a 1.45× share, which is an ordinary win.
+
+Measured over every mark the club had recorded (61 of them, four nights): **three of the four MVP
+picks came out at 10**, one on a night their team took 7 of 14 with the runner-up on 5 — and **9.5
+had never once been awarded.** A rung that never fires is the tell that a scale has a gap rather than
+a top; the mark was jumping straight from 9 to 10.
+
+Trimming the two constants rather than adding a fourth clamp was deliberate. There are already three
+(`WIN_FLOOR`, `PLAYED_FLOOR`, `UNPICKED_CAP`), and a "10 requires `night` ≥ X" rule would be a fourth
+special case doing work a smaller constant does on its own. The effect is surgical: across the club's
+whole history **three marks move, all on the one night that did not deserve its top marks** — the
+picked player drops 10 → 9.5 and two teammates 9 → 8.5. The 1.75× rout on 2026-08-27 is untouched,
+including its 10, because there the margin carries the mark rather than the constants.
+
 **`PLAYED_FLOOR = 4` — and nobody who turned up goes below four.** The other half of the same
 decision: on that night the two teams that did not win were landing at 3 and 3.5, and the organiser
 raised both. It is the `BASE = 6` argument applied to the bottom of the scale rather than the middle
