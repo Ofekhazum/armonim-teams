@@ -134,6 +134,28 @@ const NIGHT_CAP = 2.5;
  */
 const WIN_FLOOR = 8;
 
+/**
+ * And nobody who turned up goes below this, whatever the scoreboard did.
+ *
+ * The same night that produced {@link WIN_FLOOR}: the two teams that did not
+ * win were landing at 3 and 3.5, and the organiser raised both to 4. It is the
+ * `BASE = 6` argument applied to the other end of the scale — the mark is read
+ * every week by the person it is about, and there is no version of a Thursday
+ * five-a-side night that is worth telling somebody they were a 3 out of 10 for.
+ *
+ * **What it is not.** Not a claim that every night was fine, and not a
+ * flattening of the bottom third: the spread between a quiet night and a
+ * hammering survives above the floor, and losing teams still mark clearly below
+ * winning ones. It only sets where the bottom of the scale actually starts, the
+ * way `BASE` sets where the middle sits.
+ *
+ * `GRADE_MIN` stays 1 as the definition of the scale rather than being raised
+ * to match — the scale is 1–10 and that is what the chip renders against; this
+ * is a floor applied within it, and conflating the two would hide that a
+ * judgement is being made here.
+ */
+const PLAYED_FLOOR = 4;
+
 /** The only thing on this list that is about a person rather than a team. */
 const MVP_BONUS = 1;
 
@@ -341,7 +363,11 @@ export function nightGrades(history: FixtureRecord[], fixtureId: string): Grade[
       const raw = round(
         BASE + parts.night + parts.mvp + parts.career + parts.momentum + parts.tier + parts.jitter,
       );
-      const grade = clamp(wonNight ? Math.max(raw, WIN_FLOOR) : raw, GRADE_MIN, GRADE_MAX);
+      const grade = clamp(
+        Math.max(raw, wonNight ? WIN_FLOOR : PLAYED_FLOOR),
+        GRADE_MIN,
+        GRADE_MAX,
+      );
 
       // Coming in: a live winning run, or nights since their team last took one.
       let runBefore = 0;
@@ -386,6 +412,7 @@ export const gradeConstants = {
   NIGHT_CAP,
   MVP_BONUS,
   WIN_FLOOR,
+  PLAYED_FLOOR,
   CAREER_W,
   CAREER_CAP,
   MOMENTUM_W,

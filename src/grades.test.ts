@@ -173,14 +173,33 @@ describe('nightGrades', () => {
     expect(gradeOf(gs, 'a').grade).toBeLessThan(gradeConstants.WIN_FLOOR);
   });
 
-  it('leaves the teams that did not win exactly where they were', () => {
-    // The floor lifts only the winners. Widening the `night` term instead
-    // would have pushed these two down by the same move, and nobody asked
-    // for the losing teams to be marked harder.
+  it('keeps the teams that did not win below the winners, and above the played floor', () => {
+    // Two floors, not one. The winners' lifts them to 8; everybody else still
+    // has a floor, but a lower one, and the ordering between the three teams
+    // has to survive both — a floor that flattened the losing sides into the
+    // winners would have thrown away what the night actually was.
     const fx = night(T(['a'], ['x'], ['z']), { black: 7, white: 3, blue: 2 });
     const gs = nightGrades([fx], fx.id)!;
     expect(gradeOf(gs, 'x').grade).toBeLessThan(gradeConstants.WIN_FLOOR);
     expect(gradeOf(gs, 'z').grade).toBeLessThan(gradeOf(gs, 'x').grade);
+    for (const id of ['x', 'z']) {
+      expect(gradeOf(gs, id).grade).toBeGreaterThanOrEqual(gradeConstants.PLAYED_FLOOR);
+    }
+  });
+
+  it('never marks anybody who turned up below the played floor', () => {
+    // The hardest case the formula can produce: a player whose team was
+    // whitewashed, with a long record of the same behind them, so `night`,
+    // `career` and `momentum` are all pulling down at once.
+    const past = Array.from({ length: 8 }, () =>
+      night(T(['sunk'], ['w'], ['b']), { black: 0, white: 7, blue: 5 }),
+    );
+    const fx = night(T(['sunk'], ['w'], ['b']), { black: 0, white: 8, blue: 4 }, {
+      ratings: { sunk: 1 }, // bottom tier as well, for good measure
+    });
+    const g = gradeOf(nightGrades([...past, fx], fx.id), 'sunk');
+    expect(g.context.trend).toBe('cold');
+    expect(g.grade).toBe(gradeConstants.PLAYED_FLOOR);
   });
 
   it('sits an average night on the base mark, up to the jitter', () => {

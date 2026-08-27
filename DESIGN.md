@@ -2770,6 +2770,19 @@ inside the winning team compress — two players who would have been 7 and 7.5 a
 the spread above the floor survives. That is what a floor *is*, and the alternative is a night's
 winner reading a 7.
 
+**`PLAYED_FLOOR = 4` — and nobody who turned up goes below four.** The other half of the same
+decision: on that night the two teams that did not win were landing at 3 and 3.5, and the organiser
+raised both. It is the `BASE = 6` argument applied to the bottom of the scale rather than the middle
+— the mark is read every week by the person it is about, and there is no version of a Thursday
+five-a-side that is worth telling somebody they were a 3 out of 10 for. It does not flatten the
+bottom third: the spread between a quiet night and a hammering survives above the floor, and the
+losing sides still mark clearly below the winning one. On the 7/3/2 night the three teams come out
+**8–10**, **4–7** and **4–6.5**.
+
+`GRADE_MIN` stays 1 rather than being raised to match. The scale is 1–10 and that is what the chip
+renders against; these are floors applied *within* it, and collapsing the two would hide that a
+judgement is being made rather than a range being defined.
+
 `MatchLogEntry` records `{a, b, winner, viaPenalties}` — team colours, not people. Every match, every
 shootout and every sequence is therefore *identical* for the five players on a shirt, so **on a single
 night exactly one thing distinguishes teammates: the MVP pick.** Everything else that differs between
@@ -2791,7 +2804,9 @@ mean: most nights are unremarkable, so most marks sat at 5 and below, and a grou
 marks every week would be told they were average-to-poor most of the time. Six leaves the spread and
 the ordering untouched and moves only where "nothing special happened" sits — a judgement about tone,
 not about football. Calibrated: median 6, p10/p90 at 4/8, 1.0% at or below 3, 0.3% perfect, season
-averages 4.79–6.84.
+averages 4.79–6.84. (Those figures are from before the two floors below, which were added later and
+move the bottom of that distribution up — nothing now sits under 4, and the winning third of any
+night sits at 8 or above.)
 
 **The tier shade (`tier`, `jitter`).** On a club three real nights old, `momentum` is structurally off
 for everybody (`MIN_RECENT` nights unmet) and `career` is shrunk almost flat (`SHRINK_K = 6` against one
