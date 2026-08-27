@@ -2091,6 +2091,39 @@ One regression caught by an existing test while writing this: defaulting `attack
 `mergePublicRoster` before `migratePlayer` runs makes the migration keep the default and silently
 lose a legacy `playstyle`. It is left `undefined` and passed through instead.
 
+**The window next to the locked door: `defaultRoster.ts` (found 2026-08-27, on a pre-share audit).**
+Everything above is about the wire, and all of it worked — pulled live, `GET /roster` and
+`GET /history` were both correctly stripped. What none of it covered is that the seed roster is
+*compiled into the bundle*, and the bundle is served to every viewer out of a **public repository**.
+All twenty-one players' real ratings and attack values were sitting in
+`dist/assets/index-*.js`, readable with one DevTools tab. The endpoint next door was carefully
+removing exactly those five fields while the file beside it published two of them.
+
+The fix keeps the seed but empties it of opinion: `rating: 3` (`RATING_UNSEEN`, the same value
+`mergePublicRoster` already falls back to) and `attack: 50` (`ATTACK_DEFAULT`) for everybody, so the
+array cannot rank a squad however it is read. Names, ids and the goalkeeper flag stay — a first-time
+visitor still opens the app to a squad. Nothing else changed, because nothing else had to: the
+recovery path was already built and tested. An organiser's device fills the real numbers back in from
+`/roster/full` the moment admin is unlocked, which §2.28 already describes as *the only way a device
+learns what the organiser thinks of anybody*.
+
+**Guarded by a test rather than a comment**, because the way this returns is not malice but
+convenience — the update instructions in that file say "Roster tab → Export, then replace the array
+below", and an export contains the real numbers. `defaultRoster.test.ts` asserts every seeded rating
+and attack is identical, which fails the build on a pasted export. It was verified against the old
+file before shipping: two of its four tests fail on it.
+
+**A consequence taken deliberately:** the role badge on each roster row is drawn from `attack`, so
+until admin is unlocked every player now shows the balanced badge. That is the honest rendering of a
+field this device has not been told — and the badges only ever looked right before because of the
+leak. If they should be public, the fix is to take `attack` out of `PRIVATE_PLAYER_FIELDS` and
+publish it properly, not to put real values back in the seed.
+
+**What the fix cannot reach:** the repository is public and the ratings were committed, so they
+remain in git history. Removing them from the bundle ends the practical exposure — nobody reads git
+history to find out what the organiser thinks of them — but making the history itself private means
+making the repository private.
+
 ### 2.29 The career as a feed (`src/playerTimeline.ts`, `PlayerTimeline.tsx`)
 
 The player page already drew the same history twice. The **ribbon** — one medal per night, oldest
