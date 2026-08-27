@@ -30,18 +30,25 @@ interface Props {
   adminWord?: string | null;
 }
 
-// Three plain tones rather than a gradient, because a mark is read once and at
-// a glance — the same reasoning `PriceTag`'s up/down/flat chip follows.
-// Thresholds come straight off the calibration in grades.ts: the middle band
-// is everything between the p10 and p90 of an ordinary season, so "standout"
-// and "rough" both mean roughly one night in ten.
+// Plain flat tones for the ordinary run of marks, because a mark is read once
+// and at a glance — the same reasoning `PriceTag`'s up/down/flat chip follows.
+// The top two bands break that rule on purpose: a 9 or a 10 is rare enough
+// (and worth enough to the player reading it) that it earns something a flat
+// fill can't give it — see `premium` and `perfect` below.
 const GRADE_TONE = {
+  // A 10 is rarer than a 9, so it gets a step up rather than the same gold —
+  // a shifting spectrum rather than a flat colour, which a single fill can't do.
+  perfect:
+    'border-transparent bg-gradient-to-br from-fuchsia-500 via-violet-500 to-indigo-500 text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.45)]',
+  premium:
+    'border-amber-500/40 bg-gradient-to-br from-amber-300 to-yellow-500 text-amber-950 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.5)]',
   standout: 'border-emerald-600/30 bg-emerald-500/10 text-emerald-800',
   ordinary: 'border-amber-900/15 bg-white/60 text-amber-900/70',
   rough: 'border-rose-600/25 bg-rose-500/10 text-rose-800',
 } as const;
 
-const toneOf = (grade: number) => (grade >= 8 ? 'standout' : grade <= 4 ? 'rough' : 'ordinary');
+const toneOf = (grade: number) =>
+  grade >= 10 ? 'perfect' : grade >= 9 ? 'premium' : grade >= 7 ? 'standout' : grade <= 4 ? 'rough' : 'ordinary';
 
 /**
  * One mark, in a disc of fixed size.

@@ -158,6 +158,33 @@ describe('buildGradesPrompt', () => {
     expect(p).toMatch(/three debutants/);
   });
 
+  it('tells the model not to write a shared team result as a line about the team', () => {
+    // Real published lines addressed a whole shirt at once — "השחורים סיימו
+    // אחרונים", "לפחות סיימתם" — next to one player's name. The sentence has
+    // to land on the one person it sits beside, even off a fact all five
+    // teammates share.
+    const p = buildGradesPrompt(facts());
+    expect(p).toMatch(/EVERY LINE LANDS ON ONE NAMED PLAYER, NEVER ON THE TEAM/);
+    expect(p).toMatch(/never the plural "you" and never a comment aimed at the team as a whole/);
+  });
+
+  it('asks the model to make sense before it tries to be clever', () => {
+    // Some published lines did not parse as one coherent thought in Hebrew —
+    // a metaphor reaching further than one sentence can hold.
+    const p = buildGradesPrompt(facts());
+    expect(p).toMatch(/MAKE SENSE FIRST, CLEVER SECOND/);
+  });
+
+  it('tells the model to praise a high mark instead of undercutting it', () => {
+    // A real published line gave a player on an 8.5 a "hitching a ride on the
+    // team" dig — a coat-tail joke, which is the wrong register for a mark
+    // that says this person is personally doing well. The mark, not just the
+    // win flag or the MVP pick, has to set the tone.
+    const p = buildGradesPrompt(facts());
+    expect(p).toMatch(/THE PLAYER'S OWN MARK DECIDES WHICH OF THESE YOU REACH FOR/);
+    expect(p).toMatch(/NOT the moment for a dig about luck, freeloading, riding the team's coat-tails/);
+  });
+
   it('hands the model concrete devices rather than only an adjective', () => {
     // "Funny, sharp, a bit rude" alone produced flat prose in the field — one
     // sentence is a harder format to be funny in than five paragraphs, and it
