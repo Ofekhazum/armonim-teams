@@ -28,6 +28,21 @@ import { TEAM_META } from './ui';
 interface Props {
   log: MatchLogEntry[];
   onChange: (log: MatchLogEntry[]) => void;
+  /**
+   * Whether to offer "Undo last match". Organiser only.
+   *
+   * **Recording is shared; taking something back is not**, and the asymmetry is
+   * the point. Writing down who won is additive and self-correcting — the
+   * worst a wrong tap does is add a match everyone can see is wrong, and two
+   * people recording the same result is explicitly fine (see `isLogStep`).
+   * An undo deletes a result somebody else wrote, and after the fact there is
+   * nothing on screen to show it ever existed.
+   *
+   * Defaults to `false` so a new caller has to opt in deliberately. A
+   * permission that defaults to "granted" is one forgotten prop away from
+   * being no permission at all.
+   */
+  canUndo?: boolean;
 }
 
 const Chip = ({ color }: { color: TeamColor }) => (
@@ -39,7 +54,7 @@ const Chip = ({ color }: { color: TeamColor }) => (
 const SELECT =
   'rounded-lg border border-amber-900/25 bg-white px-2 py-1.5 text-sm font-semibold text-amber-950 outline-none focus:border-orange-500';
 
-export default function MatchLog({ log, onChange }: Props) {
+export default function MatchLog({ log, onChange, canUndo = false }: Props) {
   const pair = nextPairing(log);
   // Only ever used for the opening pairing — every later one is decided by the
   // result, not by anybody choosing.
@@ -169,12 +184,16 @@ export default function MatchLog({ log, onChange }: Props) {
             </p>
           )}
           <Outcome a={pair[0]} b={pair[1]} />
-          <button
-            onClick={() => onChange(log.slice(0, -1))}
-            className="text-xs font-semibold text-amber-900/60 underline underline-offset-2 hover:text-orange-700"
-          >
-            Undo last match
-          </button>
+          {/* Organiser only — see `canUndo`. Everyone at the pitch can record
+              a result; only the person who owns the night can take one back. */}
+          {canUndo && (
+            <button
+              onClick={() => onChange(log.slice(0, -1))}
+              className="text-xs font-semibold text-amber-900/60 underline underline-offset-2 hover:text-orange-700"
+            >
+              Undo last match
+            </button>
+          )}
         </div>
       )}
 
