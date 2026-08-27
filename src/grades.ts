@@ -225,15 +225,31 @@ const SHRINK_K = 6;
 // wins/night of the club mean, momentum within about ±1.1 of a player's own
 // baseline. The weights below turn those into grade points, and the caps stop
 // one freak run from swamping the night itself.
-const CAREER_W = 0.75;
+// CAREER_W trimmed 0.75 -> 0.6 on 2026-08-28, alongside the momentum trim
+// below and for the same reason: on a heavily beaten team `night` has already
+// taken the mark down to about 4.7, and a player's record and form then pile on
+// top of a fact those two largely *restate* — somebody on a losing team is
+// usually somebody whose recent record is losing. Two beaten teammates were
+// coming out below the floor and being flattened together by it.
+const CAREER_W = 0.6;
 const CAREER_CAP = 0.5;
-// Trimmed 0.7 → 0.55 on 2026-08-28, so the organiser's rating outranks it (see
-// TIER_BUMP). Momentum is the noisiest real signal in the formula — it reads
-// five nights, which on a young club is often three, and a single evening moves
-// it a long way. It should move a mark; it should not be the loudest thing in
-// it after the result itself.
+// Trimmed 0.7 → 0.55 → 0.25 across 2026-08-28, so the organiser's rating clearly
+// outranks it (see TIER_BUMP). Momentum is the noisiest real signal here — it
+// reads five nights, which on a young club is often three, and one evening moves
+// it a long way.
+//
+// The final trim came from a measured case rather than a preference. On a team
+// that took 2 of 12, `night` alone puts everybody at about 4.7; a cold run then
+// pushed a player under `PLAYED_FLOOR`, where the floor flattened them together
+// with a teammate the organiser rates lower. **Form was being counted twice** —
+// a beaten team is usually made of players whose recent results are losses, so
+// `night` and `momentum` were both charging for the same fact.
+//
+// At ±0.25 the whole hot-to-cold swing is 0.5, which is exactly one rung on a
+// half-point scale: enough to be visible and to be argued about, not enough to
+// decide a mark on its own.
 const MOMENTUM_W = 0.65;
-const MOMENTUM_CAP = 0.55;
+const MOMENTUM_CAP = 0.25;
 
 /** How many nights back "recent form" looks, and the fewest it will answer on. */
 export const RECENT_NIGHTS = 5;

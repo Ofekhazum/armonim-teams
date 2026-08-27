@@ -3014,6 +3014,27 @@ marks about football is that `night` spans 5.0 plus a `WIN_BONUS`, so **a top-ti
 team still marks below a bottom-tier player on the winning one.** That ordering is the line, and
 `grades.test.ts` asserts it.
 
+**`MOMENTUM_CAP` 0.55 → 0.25 and `CAREER_W` 0.75 → 0.6 — form was being charged twice
+(2026-08-28).** Reported as "why is a 3 marking above a 3.5", and the diagnosis found two separate
+things, only one of which was about the rating.
+
+The first is that **`ratingTier` buckets at ≤2.5 / ≥4**, so 3 and 3.5 are the *same* bucket and
+moving a player between them changes nothing at all. The rating only bites when it crosses a
+boundary. This is working as designed — the bucketing is what bounds the §2.28 leak to "which third"
+— but it is not obvious from the roster screen, where the ratings look continuous.
+
+The second is the real defect. On a team that took 2 of 12, `night` alone puts everybody at about
+4.7, a hair above `PLAYED_FLOOR`. A cold run then pushed a player *under* the floor, where it
+flattened them together with a teammate rated lower — the same compression `WIN_BONUS` had just
+fixed at the top of the scale, appearing at the bottom. And the two terms doing it were largely
+restating each other: **a beaten team is mostly made of players whose recent results are losses**, so
+`night` and `momentum` were charging twice for one fact.
+
+At ±0.25 the whole hot-to-cold swing is 0.5 — exactly one rung on a half-point scale. Visible, and
+arguable, without deciding a mark on its own. Measured on the real night, the only marks that move
+are the two the complaint was about (a cold player up half a rung, off the floor) and one hot player
+down half a rung.
+
 **`lastMvpAgo` — a recent player-of-the-night is not in free fall (2026-08-28).** A player picked MVP
 a fortnight earlier had two poor nights after it, which is enough to set `trend: 'cold'`, and the
 banter called it "the free-fall of the last month". Every word was true of the last two nights and

@@ -467,6 +467,30 @@ describe('the tier shade', () => {
     expect(gradeOf(nightGrades([narrow], narrow.id), 'a').grade).toBeLessThan(10);
   });
 
+  it('does not charge a beaten player twice for the same losing run', () => {
+    // The case that produced the momentum trim. A team took 2 of 12, so `night`
+    // alone had everybody near the floor; a cold run then pushed a higher-rated
+    // player *under* it, where the floor flattened them together with a
+    // lower-rated teammate. `night` and `momentum` were charging for the same
+    // fact — a beaten team is mostly made of players whose recent results are
+    // losses.
+    //
+    // Ratings chosen to straddle a real `ratingTier` boundary (<=2.5 bottom,
+    // >=4 top): 4 and 3.5 are genuinely different buckets, where 3.5 and 3 are
+    // the same one and would prove nothing.
+    const past = Array.from({ length: 5 }, () =>
+      night(T(['cold'], ['w'], ['b']), { black: 1, white: 7, blue: 4 }),
+    );
+    const fx = night(T(['cold', 'lower'], ['w'], ['b']), { black: 2, white: 7, blue: 3 }, {
+      ratings: { cold: 4, lower: 3.5 },
+    });
+    const gs = nightGrades([...past, fx], fx.id)!;
+    expect(gradeOf(gs, 'cold').context.trend).toBe('cold'); // the drag is real
+    // and the higher-rated player still finishes above the lower-rated one,
+    // rather than being dragged under the floor to meet them
+    expect(gradeOf(gs, 'cold').grade).toBeGreaterThan(gradeOf(gs, 'lower').grade);
+  });
+
   it('still lets form move a mark in both directions, under the rating', () => {
     // The ordering here was deliberately inverted on 2026-08-28. It used to
     // assert that form outswung the tier; the organiser asked for the opposite,
