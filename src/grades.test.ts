@@ -60,7 +60,7 @@ describe('nightGrades', () => {
     // No history, and an identical (middle-tier) rating for both, so career,
     // momentum and tier are all exactly zero for everybody: the parts prove
     // mvp is the one genuine personal signal, precisely — checked on the
-    // components rather than the rounded total, because jitter (deliberately
+    // components rather than the rounded total, because rounding (deliberately
     // small, deliberately uncorrelated with anybody) can land close enough to
     // a rounding boundary that the *totals* are not reliably ordered, which is
     // the point of it being noise rather than a second signal.
@@ -264,17 +264,17 @@ describe('nightGrades', () => {
     expect(gradeOf(gs, 'p').context.lastMvpAgo).toBe(1); // their last night, not five ago
   });
 
-  it('sits an average night on the base mark, up to the jitter', () => {
+  it('sits an average night exactly on the base mark', () => {
     // Three teams level: nobody beat the night's own average, so night is
     // zero, and a middle-tier player with no history has career, momentum and
-    // tier all at zero too. The *football* is therefore exactly BASE — but
-    // jitter is permanent (see below), so the printed mark is BASE give or
-    // take it, which is what this can honestly assert.
+    // tier at zero too. Every term is zero, so the mark is BASE — *exactly*,
+    // now that the jitter is gone. It used to be "BASE give or take the
+    // jitter", which is the looser thing this could honestly assert while a
+    // hash was being added to every mark.
     const fx = night(T(['a'], ['b'], ['c']), { black: 3, white: 3, blue: 3 });
     const g = gradeOf(nightGrades([fx], fx.id), 'a');
     expect(g.parts).toMatchObject({ night: 0, mvp: 0, career: 0, momentum: 0, tier: 0 });
-    // ±jitter, then rounding to the nearest half on top of it.
-    expect(Math.abs(g.grade - BASE)).toBeLessThanOrEqual(gradeConstants.JITTER_SPAN + 0.5);
+    expect(g.grade).toBe(BASE);
   });
 
   it('is the same answer every time it is asked', () => {
@@ -313,14 +313,24 @@ describe('the tier shade', () => {
     expect(gradeOf(nightGrades([fx], fx.id), 'a').parts.tier).toBe(0);
   });
 
-  it('never lets jitter alone exceed its own bound', () => {
-    // Bounded by construction, but checked across enough ids that a mistake
-    // in the hash (e.g. an off-by-one in the normalisation) would show up as
-    // an occasional outlier rather than passing by luck on one sample.
-    for (let i = 0; i < 40; i++) {
+  it('gives two players the same mark when it knows nothing to separate them', () => {
+    // What removing the jitter buys, stated as the property it is: a mark is
+    // now a function of facts about the player, so identical facts give an
+    // identical mark. It used to be a function of facts *and their id*, which
+    // meant an unanswerable half-point between two debutants on one shirt.
+    const fx = night(T(['one', 'two'], ['x'], ['y']), { black: 4, white: 4, blue: 4 });
+    const gs = nightGrades([fx], fx.id)!;
+    expect(gradeOf(gs, 'one').grade).toBe(gradeOf(gs, 'two').grade);
+  });
+
+  it('does not vary a mark by who is asking or when', () => {
+    // The property the hash was providing for free and which now has to hold
+    // on its own: same history, same fixture, same answer.
+    for (let i = 0; i < 20; i++) {
       const fx = night(T([`p${i}`], ['x']), { black: 4, white: 2, blue: 0 });
-      const jitter = gradeOf(nightGrades([fx], fx.id), `p${i}`).parts.jitter;
-      expect(Math.abs(jitter)).toBeLessThanOrEqual(gradeConstants.JITTER_SPAN);
+      const first = gradeOf(nightGrades([fx], fx.id), `p${i}`).grade;
+      const again = gradeOf(nightGrades([fx], fx.id), `p${i}`).grade;
+      expect(again).toBe(first);
     }
   });
 
@@ -380,10 +390,23 @@ describe('the tier shade', () => {
     // terms that must keep outranking it: what a player has actually been
     // doing, and what their team did tonight.
     const span = Math.max(...Object.values(gradeConstants.TIER_BUMP));
-    expect(span).toBeLessThan(gradeConstants.MOMENTUM_CAP);
     expect(span).toBeLessThan(gradeConstants.NIGHT_CAP);
-    // and it must stay clear of the noise it was being drowned by
-    expect(span).toBeGreaterThan(gradeConstants.JITTER_SPAN);
+    // It now deliberately outranks form and record, on the organiser's
+    // instruction — the assertion is inverted from what it used to be.
+    expect(span).toBeGreaterThan(gradeConstants.MOMENTUM_CAP);
+    expect(span).toBeGreaterThan(gradeConstants.CAREER_CAP);
+  });
+
+  it('still cannot lift a beaten player above a winning one', () => {
+    // The line that actually bounds the rating now that its size does not.
+    // A top-tier player whose team was hammered must stay below a bottom-tier
+    // player whose team took the night, or these marks have stopped being
+    // about the football.
+    const fx = night(T(['star'], ['plodder'], ['z']), { black: 1, white: 7, blue: 4 }, {
+      ratings: { star: 5, plodder: 2.5 },
+    });
+    const gs = nightGrades([fx], fx.id)!;
+    expect(gradeOf(gs, 'star').grade).toBeLessThan(gradeOf(gs, 'plodder').grade);
   });
 
   it('lets the rating separate two teammates who are otherwise identical', () => {
@@ -406,10 +429,51 @@ describe('the tier shade', () => {
     expect(g.grade).toBeLessThanOrEqual(10);
   });
 
-  it('leaves momentum its full weight — the shade is an addition, not a replacement', () => {
-    // Guarding the thing that was explicitly asked to survive this change: a
-    // player's own recent form must still move their mark, and by more than
-    // their tier does.
+  it('reserves only the top two rungs for the player of the night', () => {
+    // 9 must stay an ordinary mark anybody can earn — the cap is inclusive.
+    // What it withholds is 9.5 and 10, so the two best marks of an evening say
+    // something a scoreline cannot.
+    const rout = night(T(['star'], ['x'], ['y']), { black: 9, white: 2, blue: 1 }, {
+      ratings: { star: 5 },
+    });
+    const unpicked = gradeOf(nightGrades([rout], rout.id), 'star');
+    expect(unpicked.grade).toBeLessThanOrEqual(gradeConstants.UNPICKED_CAP);
+    expect(unpicked.grade).toBe(gradeConstants.UNPICKED_CAP); // reachable, not withheld
+
+    const picked = night(T(['star'], ['x'], ['y']), { black: 9, white: 2, blue: 1 }, {
+      ratings: { star: 5 },
+      mvpId: 'star',
+    });
+    expect(gradeOf(nightGrades([picked], picked.id), 'star').grade).toBeGreaterThan(
+      gradeConstants.UNPICKED_CAP,
+    );
+  });
+
+  it('does not hand the pick the best mark of the night regardless', () => {
+    // The cap reserves the top rungs; it does not make the MVP win the sheet.
+    // A pick on a beaten team still marks below somebody who took the night,
+    // because `night` outweighs the MVP bonus by some distance.
+    const fx = night(T(['picked'], ['winner'], ['z']), { black: 1, white: 8, blue: 3 }, {
+      mvpId: 'picked',
+    });
+    const gs = nightGrades([fx], fx.id)!;
+    expect(gradeOf(gs, 'picked').grade).toBeLessThan(gradeOf(gs, 'winner').grade);
+  });
+
+  it('needs the night as well as the pick to reach the very top', () => {
+    // "10 needs a team domination plus an MVP pick" — a pick on a narrow win
+    // is a good mark, not a perfect one.
+    const narrow = night(T(['a'], ['b'], ['c']), { black: 5, white: 4, blue: 3 }, { mvpId: 'a' });
+    expect(gradeOf(nightGrades([narrow], narrow.id), 'a').grade).toBeLessThan(10);
+  });
+
+  it('still lets form move a mark in both directions, under the rating', () => {
+    // The ordering here was deliberately inverted on 2026-08-28. It used to
+    // assert that form outswung the tier; the organiser asked for the opposite,
+    // so what survives is the weaker and more important claim: a player's own
+    // recent form must still visibly move their mark *both ways*. A tier that
+    // outranks form is a judgement call; a form term that does nothing is a
+    // dead term, and that is what this now guards against.
     const build = (early: number, late: number) => {
       const old = Array.from({ length: 6 }, () =>
         night(T(['a'], ['x']), { black: early, white: 6 - early, blue: 0 }),
@@ -424,8 +488,7 @@ describe('the tier shade', () => {
     const cold = build(5, 1);
     expect(hot.parts.momentum).toBeGreaterThan(0);
     expect(cold.parts.momentum).toBeLessThan(0);
-    // and the swing form can produce is wider than the whole tier span
-    const tierSpan = Math.max(...Object.values(gradeConstants.TIER_BUMP)) * 2;
-    expect(hot.parts.momentum - cold.parts.momentum).toBeGreaterThan(tierSpan);
+    // enough of a swing to be worth at least one step on a half-point scale
+    expect(hot.parts.momentum - cold.parts.momentum).toBeGreaterThanOrEqual(0.5);
   });
 });

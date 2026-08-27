@@ -2788,6 +2788,28 @@ It is also a more honest split of what `night` was carrying. `night` measures th
 a night 5–4–3 and taking it 9–2–1 are both winning it and only one is a rout, so the fact of winning
 deserves its own term rather than being smuggled into the size of the win.
 
+**`UNPICKED_CAP = 9` — the top two rungs belong to the pick (2026-08-28).** Raising `TIER_BUMP` and
+adding `WIN_BONUS` in the same afternoon pushed the ceiling without anyone re-checking it: a top-tier
+player on a winning team started at **9.50** before any of their own history counted, and needed only
+`career + momentum ≥ +0.25` to reach a 10 — on a 7-of-12 night that was not even a rout, with no
+pick. The theoretical maximum without one was 11.10 raw, and the clamp was quietly absorbing 1.35 of
+it. When the ceiling is overshot by that much, the top of the scale has stopped discriminating and a
+10 means "good night on a good team".
+
+**The cap is inclusive, and that distinction is the whole design.** 9 stays an ordinary mark anybody
+can earn; what is withheld is 9.5 and 10. So the two best marks of an evening say something a
+scoreline cannot — which is the entire reason the MVP is in this formula (§2.39: the one genuinely
+personal signal a night produces).
+
+It does not hand the pick the best mark automatically: `night` outweighs `MVP_BONUS` by some
+distance, so a pick on a beaten team still marks below somebody who took the night, and a pick on a
+*narrow* win is a good mark rather than a perfect one. A 10 still needs the domination **and** the
+pick.
+
+Read together with `WIN_FLOOR`, a non-MVP winner now lives in **[8, 9]** — three rungs on a
+half-point scale, which is exactly enough for the three rating tiers to separate cleanly, as they do
+on the night this was measured against (9 / 9 / 8.5 / 8, with the pick alone at 10).
+
 **`PLAYED_FLOOR = 4` — and nobody who turned up goes below four.** The other half of the same
 decision: on that night the two teams that did not win were landing at 3 and 3.5, and the organiser
 raised both. It is the `BASE = 6` argument applied to the bottom of the scale rather than the middle
@@ -2966,6 +2988,31 @@ do not read the same number every week.
 player's residual recovers their tier; a wider bump makes that recovery both faster and sharper. It
 stays a three-way bucket rather than the raw 1–5 specifically to keep what is recoverable bounded to
 "which third of the club" — which is why it was widened rather than made continuous.
+
+**The jitter is gone, and `tier` now outranks `momentum` (2026-08-28).** Two follow-ups from the same
+conversation. The organiser wanted their rating to be more decisive than a player's recent form, so
+`TIER_BUMP` went to ±0.8 and `MOMENTUM_CAP` down to 0.55 — the rating is now the second-strongest
+term in the formula, behind only the night's result.
+
+The jitter was removed outright, and the case against it turned out to be threefold. It **never did
+its job**: the term it was hiding is recovered by *averaging* a residual, and a zero-mean hash is
+precisely what averaging removes, so it obscured one night at a time against an attack that reads
+many. It was **cancelling the signal it was meant to shade** — the 5-star/2.5-star collision above
+was two hash values pointing opposite ways. And since marks round to the nearest half, its whole
+remaining effect was to **flip players sitting near a rounding boundary, arbitrarily** — not variety,
+a coin toss on somebody's mark, and unanswerable when they ask why they got a 6 and their teammate a
+6.5.
+
+What replaces it is nothing, deliberately: **every difference between two marks now traces to a fact
+about the players.** Two teammates the app knows nothing to separate — two debutants on one shirt —
+read the same number, which is the honest answer rather than a manufactured one. The privacy note in
+`grades.ts` is updated to say plainly that the tier is now recoverable from a single night rather
+than by averaging a season.
+
+**What bounds the rating is no longer its size.** It has been raised three times; what keeps these
+marks about football is that `night` spans 5.0 plus a `WIN_BONUS`, so **a top-tier player on a beaten
+team still marks below a bottom-tier player on the winning one.** That ordering is the line, and
+`grades.test.ts` asserts it.
 
 **`lastMvpAgo` — a recent player-of-the-night is not in free fall (2026-08-28).** A player picked MVP
 a fortnight earlier had two poor nights after it, which is enough to set `trend: 'cold'`, and the
