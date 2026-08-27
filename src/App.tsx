@@ -9,6 +9,7 @@ import type {
   TeamWins,
 } from './types';
 import { ATTACK_DEFAULT, initialClock } from './types';
+import { kickoffLabel, useKickedOff } from './kickoff';
 import { emptySession, loadState, saveState } from './storage';
 import { mergePrivateFields, mergePublicRoster } from './rosterMerge';
 import { preserveMvp } from './mvp';
@@ -98,9 +99,19 @@ export default function App() {
   // shown less — it goes and gets them, in adoptLive just below.
   const runningLocally = isAdmin && state.session.fixtureStarted && state.session.teams !== null;
 
+  // Whether the fixture everyone is polling for has actually kicked off yet
+  // (§2.7.2) — `null` reads as kicked-off, matching how a fixture with no
+  // scheduling ever behaved. Drives the Live pill below; `LiveFixtureView` and
+  // the organiser's own `FixturePage` derive the same answer independently
+  // rather than reading it from here.
+  const liveKickedOff = useKickedOff(liveFixture ? liveFixture.startedAt : null);
+  const liveScheduled = liveFixture !== null && !liveKickedOff;
+
   // Land on the live fixture the first time we hear about one — on a match
   // night that is the only thing anyone opened the app for. Only ever done
-  // once, and never over a tab the user chose themselves.
+  // once, and never over a tab the user chose themselves. Fires just as
+  // readily for a fixture that is merely scheduled: seeing tonight's — or
+  // tomorrow's — teams the moment they're up is the point of doing this early.
   useEffect(() => {
     if (!liveFixture || offeredLive.current) return;
     offeredLive.current = true;
@@ -119,6 +130,12 @@ export default function App() {
   // phone, and that phone to be mid-selection, all at once. Weighed against
   // making every organiser learn an extra concept to get controls they already
   // had the right to, the button was the worse trade.
+  //
+  // A fixture may now sit scheduled for up to a week before kickoff (§2.7.2),
+  // which makes "all at once" a longer window to land in than it used to be —
+  // but the cost it can land on hasn't changed, and adoption fires the moment
+  // Live is opened whether the fixture is scheduled or already running, so the
+  // trade above still holds.
   //
   // Everything the fixture page needs is either in the live record (teams, who
   // is playing, the keeper, the clock) or already on this device (the roster,
@@ -430,29 +447,46 @@ export default function App() {
   // Only appears while a fixture is actually on, and leads with a pulsing dot
   // rather than the word "live" alone — on a phone in a car park the tab has
   // to read as "something is happening now" at a glance.
+  //
+  // A fixture that is merely *scheduled* is not that: nothing is happening yet,
+  // so the pill goes amber, drops the ping (there is no "now" to draw attention
+  // to), and names the kickoff time instead of the word "Live" — the same
+  // distinction `KickoffCountdown` draws for the page underneath it.
   const liveTabBtn = (
     <button
       key="live"
       onClick={() => setTab('live')}
       className={`flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-bold transition-colors ${
-        tab === 'live'
-          ? 'bg-red-600 text-amber-50 shadow-sm'
-          : 'text-red-700 hover:bg-red-500/10'
+        liveScheduled
+          ? tab === 'live'
+            ? 'bg-amber-500 text-amber-950 shadow-sm'
+            : 'text-amber-800 hover:bg-amber-500/10'
+          : tab === 'live'
+            ? 'bg-red-600 text-amber-50 shadow-sm'
+            : 'text-red-700 hover:bg-red-500/10'
       }`}
     >
       <span className="relative flex h-2 w-2">
-        <span
-          className={`absolute inline-flex h-full w-full animate-ping rounded-full opacity-75 ${
-            tab === 'live' ? 'bg-amber-100' : 'bg-red-500'
-          }`}
-        />
+        {!liveScheduled && (
+          <span
+            className={`absolute inline-flex h-full w-full animate-ping rounded-full opacity-75 ${
+              tab === 'live' ? 'bg-amber-100' : 'bg-red-500'
+            }`}
+          />
+        )}
         <span
           className={`relative inline-flex h-2 w-2 rounded-full ${
-            tab === 'live' ? 'bg-amber-50' : 'bg-red-600'
+            liveScheduled
+              ? tab === 'live'
+                ? 'bg-amber-900'
+                : 'bg-amber-500'
+              : tab === 'live'
+                ? 'bg-amber-50'
+                : 'bg-red-600'
           }`}
         />
       </span>
-      Live
+      {liveScheduled ? kickoffLabel(liveFixture!.startedAt) : 'Live'}
     </button>
   );
 

@@ -291,6 +291,26 @@ describe('isValidLive', () => {
   it('rejects a missing kickoff time', () => {
     expect(isValidLive(live({ startedAt: 'tonight' }))).toBe(false);
   });
+
+  // Scheduling (§2.7.2): a fixture may start in the future, up to a bound —
+  // without one, a mistyped year would park a record whose countdown reads
+  // "starts in 200 years".
+  const DAY_MS = 24 * 60 * 60 * 1000;
+
+  it('accepts a fixture scheduled up to a week ahead', () => {
+    const now = 1787156380422;
+    expect(isValidLive(live({ startedAt: now + 6 * DAY_MS }), now)).toBe(true);
+  });
+
+  it('rejects a fixture scheduled past the week-ahead bound', () => {
+    const now = 1787156380422;
+    expect(isValidLive(live({ startedAt: now + 8 * DAY_MS }), now)).toBe(false);
+  });
+
+  it('rejects a mistyped year that would schedule a fixture centuries out', () => {
+    const now = 1787156380422;
+    expect(isValidLive(live({ startedAt: now + 200 * 365 * DAY_MS }), now)).toBe(false);
+  });
 });
 
 // POST /live/clock is the one unauthenticated write in the Worker, so what it

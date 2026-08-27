@@ -56,7 +56,8 @@ point*, expected to be tuned by hand afterwards.
 | teams | the generated/edited assignment (`Record<'black'\|'white'\|'blue', string[]>`), or `null` before generation |
 | teamAlts | the top-N balanced variations generated alongside `teams`, for "re-roll" |
 | altIndex | which variation is currently shown |
-| fixtureStarted | true once **▶️ Start fixture** is clicked — switches from the editable teams board to the read-only fixture page (§2.7). Reversible: **← Back to teams** just flips it off, `teams`/`wins` are untouched |
+| fixtureStarted | true once **▶️ Start fixture** locks teams in, whether started now or scheduled for later (§2.7.2) — switches from the editable teams board to the read-only fixture page (§2.7). Reversible: **← Back to teams** (or, while scheduled, **✕ Cancel fixture**) just flips it off, `teams`/`wins` are untouched |
+| liveStartedAt | epoch ms of the kickoff this fixture locked in against — may be in the future while scheduled (§2.7.2). Doubles as the live fixture's stable identity (`liveFixtureId`); `null` when nothing is live |
 | wins | tonight's win tally per team as typed, before it's filed (§2.6) |
 | savedFixtureId | set once tonight is saved, so re-saving updates that record instead of adding another |
 
@@ -468,6 +469,69 @@ Filing happens **before** ending, because `onSaveResults` reads the session that
 about to clear. A non-admin sees why they cannot file rather than a missing button — the same rule
 the rest of the app follows about locks being visible.
 
+This holds regardless of whether the night is being played out or was scheduled ahead of time and
+cancelled instead (§2.7.2) — the guard is about the *result*, not about when the fixture started.
+
+### 2.7.2 Starting later: scheduled fixtures (`src/kickoff.ts`, `StartFixtureDialog.tsx`, `KickoffCountdown.tsx`)
+
+Teams are often picked a day or more before the fixture they're for. Until this, the only way to
+lock them in was **▶️ Start fixture**, which put the night live in front of the whole group
+immediately — a day early, if that's when teams happened to get picked. The alternative, leaving
+teams unlocked overnight, risks them being changed or the plan being forgotten. **▶️ Start fixture**
+now opens a small dialog instead of starting outright: **▶️ Start now**, which is byte-for-byte
+today's behaviour, or **🗓️ Schedule for later**, a `datetime-local` picker capped at
+`MAX_SCHEDULE_AHEAD_MS` (**one week**) and defaulting to the coming Thursday at 19:00
+(`nextThursday7pm`). Admin-only, like starting a fixture always was.
+
+**Scheduling locks the teams exactly like starting does** — same `fixtureStarted`, same publish to
+the group, same everything — because the whole point is to stop them drifting overnight. The one
+difference is `startedAt`: it may now be in the future.
+
+**"Kicked off" is derived, never stored**, as `startedAt <= now` (`hasKickedOff` in `kickoff.ts`).
+The alternative — an explicit `scheduled` flag that flips at the appointed time — needs a *writer*:
+some device has to perform that write, and the organiser's phone may be in a pocket, off Wi-Fi, or
+switched off entirely at 19:00 on the dot. A fixture stuck reading "starts in 0 min" while fifteen
+people stand on the pitch is a worse failure than anything deriving costs, and deriving has no such
+moment — every device reaches the same answer from `startedAt` on its own clock. Three things fall
+out of this for free, and are the reason the feature cost as little as it did:
+
+- `liveFixtureId(startedAt)` is **stable from scheduling through kickoff**, so `fixtureChanged()`
+  (§2.16) never fires and never wipes push subscriptions. An alerts opt-in made on Tuesday still
+  buzzes on Thursday.
+- The Durable Object's 12-hour expiry, measured from `startedAt` (§2.14), is correct with *zero*
+  code change: `Date.now() - startedAt` is negative until kickoff actually arrives, and a negative
+  number is never past the TTL.
+- Once the scheduled moment passes, the record is indistinguishable from one that started normally.
+  No transition, no second publish, nothing to get wrong.
+
+**What the group sees while scheduled** is the fixture and the teams, immediately — the Live tab
+still appears the moment one exists (§2.14), because seeing tomorrow's teams the moment they're up
+is the reason to schedule ahead in the first place. What's missing is anything that only makes
+sense once a match is actually happening: `KickoffCountdown` takes the sticky slot `ScoreBar`
+occupies once one is, the match clock and match log are hidden, and the Live tab's pill goes amber
+and names the kickoff time rather than pulsing "Live". `useKickedOff` is what flips all of it back,
+on every device, at the moment `startedAt` passes — no poll has to land first, though the poll rate
+itself follows the same signal (`pollDelay` in `live.ts`): a scheduled fixture polls at the *idle*
+rate, since 2s polling for a day on every phone in the group for a fixture nobody has reached yet
+would be exactly the cost §2.14 was written to avoid.
+
+**The organiser gets one exit while scheduled: ✕ Cancel fixture**, not the usual **⏹️ End fixture**.
+"That's the night?" (§2.7.1) has nothing to ask about a night that hasn't happened, so it is simply
+unreachable until kickoff — cancelling asks a plain yes/no `confirm()` instead, because unlike
+ending a played night the question really is binary, and because a scheduled fixture may have been
+showing on every phone in the group for up to a week before someone changes their mind.
+
+**No reschedule in v1.** Because the id is derived from `startedAt`, changing a scheduled time would
+mean minting a new id and silently dropping every alerts opt-in made against the old one. Changing
+your mind about the time is Cancel, then schedule again.
+
+**Two ticks, kept deliberately separate**, so a week-long wait costs almost nothing:
+`useKickedOff(startedAt)` sets exactly one `setTimeout` for the gap and fires once, rechecking on
+`visibilitychange` for a tab that was suspended past its own timer; `useCountdownTick(startedAt)`,
+used only inside `KickoffCountdown`, re-renders roughly once a minute above a minute to go and once
+a second below it — never a fixed-interval tick, which is how a naive version of this would have
+cost a 250ms re-render for days.
+
 ### 2.8 The match clock (and the rules of a match)
 
 **+30s** hands back half a minute for a stoppage the clock knew nothing about — a ball over the
@@ -824,7 +888,10 @@ organiser who closes the tab mid-night, the same reasoning as the live rooms' id
 
 A 🔴 **Live** tab appears in the top nav while one is on — pulsing dot rather than the word alone,
 because on a phone in a car park it has to read as *now* at a glance — and the app lands on it the
-first time it hears about a fixture, once, never over a tab the user picked themselves.
+first time it hears about a fixture, once, never over a tab the user picked themselves. A fixture
+that is merely **scheduled** (§2.7.2) is not that: the pill turns amber, drops the ping, and names
+the kickoff time in place of the word "Live" — `useKickedOff` flips it back the instant `startedAt`
+passes, on every device, without waiting on a poll.
 
 **For the organiser running tonight, that tab *is* the fixture page** — the same milestones, match
 log, result panel and End fixture they get from Match day, rendered by the same component rather
@@ -865,7 +932,10 @@ it.
 dragging players between teams, where lag is felt; this is a scoreboard. Polling needs no connection
 kept alive on fifteen backgrounded phones. Two rates — **2s while a fixture is on, 15s otherwise** —
 and none at all on a hidden tab, with an immediate poll when the tab comes back, which is both when
-the answer is most likely to have changed and when it is about to be looked at.
+the answer is most likely to have changed and when it is about to be looked at. "On" is decided by
+`pollDelay` (`live.ts`) reading `hasKickedOff`, not by whether a fixture merely exists — a fixture
+scheduled for tomorrow (§2.7.2) is nobody's clock to watch yet, and 2s polling for a day on every
+phone in the group is exactly the cost this section exists to avoid.
 
 **Where the record lives, and why it moved.** It was a KV key. KV is eventually consistent and its
 reads are edge-cached with a 60-second floor, which for a value rewritten every few minutes means a
@@ -1020,10 +1090,11 @@ pinned keys and salt, and the two agreed byte-for-byte. A `TTL` of 120 seconds i
 minute left" is worse than useless after the final whistle, so it expires rather than queues.
 
 **Opting in is per device, per fixture, and off by default** (`NotifyToggle`, rendered by
-`MatchClock` so the player's Live view and the organiser's fixture page get the identical control).
-Granting a browser permission once is not consent to be buzzed every Thursday forever, so the toggle
-— not the permission — is what decides, and turning it off drops the subscription server-side rather
-than just hiding a button.
+`MatchClock` so the player's Live view and the organiser's fixture page get the identical control —
+and by `KickoffCountdown` while a fixture is merely scheduled, §2.7.2, since the id it opts into is
+already fixed before the clock exists). Granting a browser permission once is not consent to be
+buzzed every Thursday forever, so the toggle — not the permission — is what decides, and turning it
+off drops the subscription server-side rather than just hiding a button.
 
 **And the yes expires with the night.** Every write to `/live` tells the notifier which fixture it
 now holds subscriptions for, and any *change* of id — ended, or replaced — drops all of them. The
@@ -1033,10 +1104,11 @@ a device that was switched off when the night ended is simply no longer there, a
 reach it. The local flag stores *which fixture* it said yes to rather than a bare yes, so that phone
 comes back to a toggle that already reads off, and the two ends agree without a handshake.
 
-This also settles where the toggle can live. It only renders beside a running clock, which for a
-player means only while a fixture is live — as a permanent setting that would be a discovery
-problem, since nobody could opt in during the week. As a per-night one it is exactly right: people
-open the app to see their team, tap 🔔, and pocket the phone. The cost is real and accepted —
+This also settles where the toggle can live. It only renders beside a running clock or a live
+fixture's countdown, which for a player means only from the moment a fixture — live or merely
+scheduled — actually exists, never as a permanent setting, which would be a discovery problem since
+nobody could opt in during the week. As a per-night one it is exactly right: people open the app to
+see their team, tap 🔔, and pocket the phone. The cost is real and accepted —
 someone who forgets to tap gets nothing and won't be told why. Subscribing needs no admin word, for the same reason running the clock
 doesn't: it is a thing any of the fifteen people at the pitch might do, and all a subscription can
 ever receive is those four fixed sentences. A push service answering 404/410 means that device is
@@ -3296,8 +3368,9 @@ the obvious reason — a badge that is secretly a button is not one anybody pres
      numbers update live. "Re-roll" cycles through the alternative generated results. A **Share**
      button copies WhatsApp-ready text (`shareText`/`copy` in `TeamsBoard.tsx`). Optionally,
      **🔴 Go live** turns this board into a shared live room others can join and drag in — see §2.5.
-   - **▶️ Start fixture** → `src/components/FixturePage.tsx`: locks tonight's teams in and shows
-     them read-only (§2.7), with **🎯 On the line tonight** and the bounty (§2.19), tonight's
+   - **▶️ Start fixture** → a small dialog, **start now** or **schedule for later** (§2.7.2), then
+     `src/components/FixturePage.tsx`: locks tonight's teams in and shows them read-only (§2.7), with
+     **🎯 On the line tonight** and the bounty (§2.19), tonight's
      milestones and duo records (§2.9, §2.10), the 8-minute
      match clock with **+30s** and **⛶ Pitch mode** (§2.8) and the **📋 match log** (§2.17). No
      tally to type in and no MVP picker: the night is filed when it ends (§2.7.1), and the MVP is
@@ -3306,7 +3379,8 @@ the obvious reason — a badge that is secretly a button is not one anybody pres
      **← Back to teams** returns to the editable board above without losing anything, in case the
      teams need another look; **⏹️ End fixture** asks what to do with the result and then wipes the
      night, the same action
-     as the board's 🆕 New Fixture.
+     as the board's 🆕 New Fixture. A **scheduled** fixture shows a countdown in place of the clock
+     and log until kickoff, and offers only **✕ Cancel fixture** in place of ending (§2.7.2).
 3. **History** (`src/components/History.tsx`) — open to everyone: past nights (expandable to the
    team sheets and each team's wins) and a standings table of nights / wins / fixture wins /
    wins-per-night (a shootout counts as half) / MVPs (§2.12), with achievement badges beside each
@@ -3315,10 +3389,11 @@ the obvious reason — a badge that is secretly a button is not one anybody pres
    with Apply/Dismiss, ✏️/🗑️ on a past night, and the **🌟 MVP** pick for a night (§2.12) — which
    lives only here. The recap share ends with the **Team of the Month** card (§2.20). Empty until
    the first night is saved.
-4. **🔴 Live** (`src/components/LiveFixtureView.tsx`) — only present while a fixture is on: tonight's
-   three teams (read-only, no ratings) and the shared match clock, which **anyone** can start,
-   pause, add 30 seconds to, or open in pitch mode — the same control the organiser has, since it is
-   the same component (§2.8). See §2.14.
+4. **🔴 Live** (`src/components/LiveFixtureView.tsx`) — present the moment a fixture exists, live or
+   merely scheduled (§2.7.2): tonight's three teams (read-only, no ratings) and, once it has actually
+   kicked off, the shared match clock, which **anyone** can start, pause, add 30 seconds to, or open
+   in pitch mode — the same control the organiser has, since it is the same component (§2.8). Before
+   kickoff, a countdown stands in its place. See §2.14.
 5. **Live room guest view** (`src/components/RoomGuest.tsx`) — what a shared room link opens
    instead of the app above; see §2.5.
 

@@ -16,6 +16,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ClockState, LiveFixture, MatchLogEntry } from './types';
+import { hasKickedOff } from './kickoff';
 import { REMOTE_URL, type PublishResult } from './remote';
 
 export interface RemoteLive {
@@ -24,12 +25,13 @@ export interface RemoteLive {
 }
 
 // How often to ask. Two rates rather than one because the cost is paid by
-// every phone with the app open: while a fixture is on, people are watching a
-// clock and want it to start when it starts; the rest of the week the only
-// question is "has anything begun yet". Polling stops entirely on a hidden tab
-// (see the hook) — a backgrounded phone in someone's pocket has nobody to show
-// it to — and resumes with an immediate poll when the tab comes back, which
-// covers the common case of someone *arriving* at the app on a match night.
+// every phone with the app open: while a match is actually on, people are
+// watching a clock and want it to start when it starts; the rest of the week
+// the only question is "has anything begun yet". Polling stops entirely on a
+// hidden tab (see the hook) — a backgrounded phone in someone's pocket has
+// nobody to show it to — and resumes with an immediate poll when the tab
+// comes back, which covers the common case of someone *arriving* at the app
+// on a match night.
 //
 // The idle rate was a minute at first, on the reasoning that nobody watches an
 // empty app. They do: the organiser starts the night with the tab already open
@@ -45,8 +47,22 @@ export interface RemoteLive {
 // of it. Two seconds while live is therefore worth what it costs: polling
 // stops entirely on a hidden tab, so this is paid by the handful of phones
 // actually looking at a clock, not by fifteen sitting in pockets.
+//
+// Which rate applies is decided by whether the fixture has *kicked off*
+// (§2.7.2), not merely whether one exists — a fixture scheduled for tomorrow
+// is not a clock anyone is watching yet, and 2s polling for a full day on
+// every phone in the group would be exactly the cost this was written to
+// avoid. `hasKickedOff` reading `startedAt` locally is also what keeps the
+// flip to the fast rate from waiting on a poll: the tick that flips the
+// countdown to the live view notices at the same instant.
 const POLL_LIVE_MS = 2_000;
 const POLL_IDLE_MS = 15_000;
+
+// Pure so it can be tested without a poll loop around it.
+export function pollDelay(fixture: LiveFixture | null): number {
+  if (!fixture || !hasKickedOff(fixture.startedAt)) return POLL_IDLE_MS;
+  return POLL_LIVE_MS;
+}
 
 export async function fetchLive(): Promise<RemoteLive | null> {
   if (!REMOTE_URL) return null;
@@ -180,7 +196,7 @@ export function useLiveFixture(enabled: boolean): LiveState {
     // there meant the first poll of a live fixture scheduled the idle rate —
     // the app dropped to one check a minute exactly when a clock was running,
     // and took a minute to notice the night had ended.
-    let live = false;
+    let delay = POLL_IDLE_MS;
 
     const poll = async () => {
       if (!document.hidden) {
@@ -190,10 +206,10 @@ export function useLiveFixture(enabled: boolean): LiveState {
           const fresh = Date.now() - pressedAt.current < LOCAL_CLOCK_GRACE_MS;
           // we ended the night a moment ago; this response predates that
           if (forgotten.current && fresh && remote.fixture) {
-            live = false;
+            delay = POLL_IDLE_MS;
           } else {
             forgotten.current = false;
-            live = remote.fixture !== null;
+            delay = pollDelay(remote.fixture);
             setFixture((prev) => {
               // keep a just-pressed clock and a just-written match, but take
               // everything else the poll brought — teams can still change under
@@ -207,7 +223,7 @@ export function useLiveFixture(enabled: boolean): LiveState {
           }
         }
       }
-      timer = setTimeout(poll, live ? POLL_LIVE_MS : POLL_IDLE_MS);
+      timer = setTimeout(poll, delay);
     };
     void poll();
 

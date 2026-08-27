@@ -224,6 +224,36 @@ describe('the live fixture', () => {
     expect((await read(obj)).fixture).toBeNull();
   });
 
+  describe('scheduled ahead of kickoff (§2.7.2)', () => {
+    const DAY = 24 * 60 * 60 * MIN;
+
+    it('reads back a fixture whose kickoff is still days away', async () => {
+      const { obj } = notifier();
+      await post(obj, '/live/put', { fixture: fixture({ startedAt: NOW + 3 * DAY }) });
+      expect((await read(obj)).fixture.startedAt).toBe(NOW + 3 * DAY);
+    });
+
+    it('expires twelve hours after kickoff, not twelve hours after scheduling', async () => {
+      const { obj } = notifier();
+      await post(obj, '/live/put', { fixture: fixture({ startedAt: NOW + 3 * DAY }) });
+
+      vi.setSystemTime(NOW + 3 * DAY + 11 * 60 * MIN);
+      expect((await read(obj)).fixture).not.toBeNull();
+
+      vi.setSystemTime(NOW + 3 * DAY + 13 * 60 * MIN);
+      expect((await read(obj)).fixture).toBeNull();
+    });
+
+    it('arms no announcements before kickoff', async () => {
+      // the clock hasn't started — schedule() is driven by clock.endsAt, which
+      // a freshly-scheduled fixture doesn't have, regardless of how far off
+      // startedAt is
+      const { obj, state } = notifier();
+      await post(obj, '/live/put', { fixture: fixture({ startedAt: NOW + 3 * DAY }) });
+      expect(state.alarmAt()).toBeNull();
+    });
+  });
+
   it('arms the announcements from the same call that stores the clock', async () => {
     // they used to be two best-effort trips, which could half-happen
     const { obj, state } = notifier();

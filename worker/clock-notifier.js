@@ -281,6 +281,13 @@ export class ClockNotifier {
   // The night as anyone watching sees it. Expiry is enforced here rather than
   // stored, so a stale record simply stops being live rather than needing
   // anything to have run.
+  //
+  // Measured from `startedAt`, which is also what makes a *scheduled* fixture
+  // (§2.7.2) correct here for free: `startedAt` may be up to a week in the
+  // future, `Date.now() - rec.fixture.startedAt` is then negative, and a
+  // negative number is never greater than `LIVE_TTL_MS` — so the clock this
+  // subtraction runs on doesn't start until kickoff actually arrives, exactly
+  // as if the record had never been scheduled at all.
   async live() {
     const rec = await this.state.storage.get('live');
     if (!rec?.fixture) return { version: 0, fixture: null };
