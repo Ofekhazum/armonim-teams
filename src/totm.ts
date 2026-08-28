@@ -31,6 +31,10 @@ export interface TotmPlayer {
   wins: number;
   nightsWon: number;
   mvps: number;
+  // What `nights` is measured against for the attendance bonus below —
+  // carried on the row (rather than looked up separately) so the score is
+  // always recomputable from the row alone.
+  monthLength: number;
 }
 
 // How many of the month's nights a player has to have turned up for before
@@ -50,16 +54,29 @@ export const totmEligible = (playerNights: number, monthNights: number): boolean
 // scale for the one human judgement the app records, without letting a single
 // pick outrank a month of winning football.
 //
+// ATTENDANCE_BONUS is not a new preference — the sort below already breaks a
+// tied score by whoever played more nights. This is that same rule made
+// continuous instead of needing an exact float tie to fire, so "played three
+// or four times" gets a little credit over "played twice" even when the two
+// scores were never going to land on the same number. Scaled by the same
+// nights/monthLength share `totmEligible` already gates on, so it only ever
+// ranges over [0.5, 1] — weight 1 puts a full-attendance player half a point
+// ahead of a half-attendance one, about 1.5x the median score gap near the
+// cut measured against a season of real play. Enough to flip a genuinely
+// close call, not enough to let attendance alone decide a month.
+//
 // Deliberately not shown to anyone. It is arithmetic that has to be defensible
 // rather than arithmetic that has to be read.
 const MATCH_WIN = 1;
 const NIGHT_WON = 2;
 const MVP_PICK = 3;
+const ATTENDANCE_BONUS = 1;
 
 export const totmScore = (p: Omit<TotmPlayer, 'id' | 'name' | 'score'>): number =>
-  p.nights === 0
+  p.nights === 0 || p.monthLength === 0
     ? 0
-    : (p.wins * MATCH_WIN + p.nightsWon * NIGHT_WON + p.mvps * MVP_PICK) / p.nights;
+    : (p.wins * MATCH_WIN + p.nightsWon * NIGHT_WON + p.mvps * MVP_PICK) / p.nights +
+      ATTENDANCE_BONUS * (p.nights / p.monthLength);
 
 export const TOTM_SIZE = 5;
 
@@ -113,6 +130,7 @@ export function teamOfMonth(history: FixtureRecord[], period: string): TotmPlaye
         wins: wins.get(id) ?? 0,
         nightsWon: nightsWon.get(id) ?? 0,
         mvps: mvpsById.get(id) ?? 0,
+        monthLength: played.length,
       };
       return { id, name: nameOf.get(id) ?? '?', score: totmScore(parts), ...parts };
     })

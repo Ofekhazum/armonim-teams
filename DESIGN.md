@@ -718,14 +718,16 @@ full year is a long wait for the first shareable moment; a month is close to the
 few weeks of Thursdays" and gives the picker something to show early. `wrappedPeriods` only lists
 months that actually have a recorded night, so the picker never offers an empty one.
 
-**Two images, not one long scroll.** `renderWrappedImages` always returns a "highlights" page (hero,
-MVP/match/fixture leaderboards, attendance, longest streak, best pair); a second "also happened" page
-— the banter side (§2.12) — only gets rendered when there's actually something to say
-(`hasAlsoHappened`), and both go out together as one multi-file share, same pattern as
-`shirtImage.ts`'s three team shirts. This is the split point the app already had for free: page 1 is
-everything already gated positive/neutral, page 2 is exactly the `buildNegativeTiles`/`worstDuo`
-content that used to live under an "😬 ALSO HAPPENED" divider on a single card. Splitting there means
-neither page needed new gating logic, just a second, lighter-headed canvas.
+**One highlights image, plus up to three more only when there's something to say.**
+`renderWrappedImages` always returns a "highlights" page (hero, MVP/match/fixture leaderboards,
+attendance, longest streak, best pair); an "also happened" page only gets rendered when there's
+actually something to say (`hasAlsoHappened`), and the same rule now gates two more pages of banter
+stats added later (`hasBanter`/`hasAchievements`, below). All of them go out together as one
+multi-file share, same pattern as `shirtImage.ts`'s three team shirts. Page 2 was the split point the
+app already had for free: page 1 is everything already gated positive/neutral, page 2 is exactly the
+`buildNegativeTiles`/`worstDuo` content that used to live under an "😬 ALSO HAPPENED" divider on a
+single card. Splitting there meant neither page needed new gating logic, just a second, lighter-headed
+canvas — the same move the later pages repeat.
 
 **Every card's height is measured, not guessed.** A tile grid, a leaderboard, the attendance list —
 each has a `*Height`/`leaderboardHeight`/`wrapNames`-driven size computed before the canvas exists, so
@@ -746,6 +748,57 @@ and gate on the same `MIN_WIN_STREAK`/`MIN_WINLESS_RUN` as tonight's own facts; 
 reuse `computeDuoRecords` (§2.10) with "everyone who played this month" as the relevant id set instead
 of "tonight's squad". `topMvps` is the one exception to "every line is a count, not a verdict" —
 see §2.12 for why that's fine.
+
+**A second wave of banter stats (2026-08), leaning on grades, the match log, the arcs engine, the
+derby-style head-to-head walk and a month-long replay of `tonightsMilestones`.** Twelve more fields on
+`WrappedStats`: Teacher's Pet / Punching Bag (`teachersPet`/`punchingBag`, the month's highest/lowest
+average grade — see the macro gate below), the Rollercoaster (`rollercoaster`, the widest high–low
+swing in a player's own grades — a plain range rather than a standard deviation, because "swung from
+4 to 9" reads as banter and a σ doesn't), the Benchwarmer (`benchwarmer`, total matches sat out under
+winner-stays-on, from `matchLog.ts`'s `playedCounts`), Out of Gas (`outOfGas`, a strong-early/weak-late
+lean from `playerArcs.ts` re-scoped to the month — most months this is `null`, since `playerArcs`'s own
+`MIN_HALF = 8` floor is left untouched rather than lowered to manufacture a result), Drama Queen
+(`dramaQueen`, most penalty shootouts, credited to both sides of each one), the Reservist (`reservist`,
+at most `MAX_RESERVIST_NIGHTS` nights *and* at least one outright win — glory measured only by the win
+tally, never a grade, so it stays computable the moment the win is banked), the Bully (`bully`, the
+same head-to-head walk `derby.ts` uses for tonight's rivalry banner, scoped to a month and picking the
+*widest* gap instead of the narrowest, gated at `MIN_BULLY_MATCHES`), the Cursed Shirt (`cursedShirt`,
+the colour with the fewest outright nights won this month, tie-broken by match-win share), Night of the
+Month and the Biggest Run (`nightOfMonth`/`longestRun`, a single pass over `nightStory` per fixture —
+the former ranked by lead changes and gated at `HALVES_MIN` matches so a three-match evening can't win
+by default, the latter ungated since a big run is the fact regardless of how short the rest of the
+night was), and Monthly Achievements (`monthlyAchievements`, every milestone crossed this month rather
+than career totals — `tonightsMilestones` replayed once per fixture against "history as of that night",
+each call still capped at its own `MAX_SHOWN` the way the fixture page would have shown it, only the
+month-level list left uncapped). The Toxic Duo the club asked for is not a new field — it already
+existed as `worstDuo`.
+
+One stat was designed and then **deliberately not built**: an "Overachiever"/"Fraud" pairing, a player
+whose grades ran well above or below what their private tier (§2.28) would predict. `grades.ts`'s own
+header spends a paragraph on what the bucketed `tier` term already costs even folded invisibly into a
+number; naming a tier outright in one shared image is a different and larger cost than that, and the
+call was to drop the stat rather than accept it.
+
+The grade-based three carry a **macro gate the others don't**. Averaging a player's own grades already
+required `MIN_GRADED_NIGHTS_FOR_RECAP`, but said nothing about how much of the *month* that average
+was speaking for — grades launched partway through the app's life, so an early month can have two
+graded nights out of twelve, and a "Teacher's Pet" built from a sixth of the month reads as a verdict
+on the whole thing when it isn't one. `teachersPet`/`punchingBag`/`rollercoaster` all return `null`
+unless strictly more than half of the month's own fixtures carry a published, non-empty grade sheet —
+checked once, ahead of the per-player loop, rather than per player.
+
+`buildWrapped` takes two more optional arguments, `players: Player[]` and `marks: AllMarks`, both
+defaulting to nothing so every existing caller keeps compiling unchanged. `players` is what lets
+`monthlyAchievements` tell a guest from a squad member (absent, nobody is treated as a guest, matching
+every other stat here); `marks` is `GET /grades/all`'s response, fetched by `History.tsx` the same way
+`PlayerPage.tsx` already fetches it for its own graph — admin-only, since the recap button itself is.
+
+**Two more images, each only drawn when there's something to say**, the same `hasAlsoHappened`-style
+gate the "also happened" page already used: a "banter" page (`hasBanter`) — a tile grid for every stat
+that fits the "one name, one line" shape, plus its own card each for the Bully (two names and a
+scoreline) and Night of the Month (`nightStory`'s own headline); and an "achievements" page
+(`hasAchievements`) — one dynamically-sized list card, a row per milestone, uncapped, since a month
+digest lists everything a single night's own panel would have throttled.
 
 **Repeat guests are one person (`src/guests.ts`).** A guest is created on the night they turn up with
 a fresh `uid()`, because at that moment there is nothing to match them against — they are a name
@@ -1575,11 +1628,23 @@ aspect ratio.
 - **Eligibility** — at least `ceil(month's nights ÷ 2)` nights played. Without it the team is whoever
   happened to be there on a good night: one appearance at a high rate would outrank a month of steady
   football, which is the opposite of what "of the month" means.
-- **The score**, a rate rather than a total: `(match wins + 2 × nights won + 3 × MVP picks) ÷ nights
-  played`. Match wins are the base currency at four or five a night. A night taken *outright* is worth
-  two more, which separates the player who kept edging nights from the one who banked a single
-  blowout. An MVP is worth three — a real thumb on the scale for the one human judgement the app
-  records, without letting a single pick outrank a month of winning.
+- **The score**, a rate plus a small attendance bonus: `(match wins + 2 × nights won + 3 × MVP picks)
+  ÷ nights played + 1 × (nights played ÷ month's nights)`. Match wins are the base currency at four or
+  five a night. A night taken *outright* is worth two more, which separates the player who kept
+  edging nights from the one who banked a single blowout. An MVP is worth three — a real thumb on the
+  scale for the one human judgement the app records, without letting a single pick outrank a month of
+  winning.
+
+**The attendance term (2026-08) isn't a new preference — it's an old one made continuous.** Ties were
+already broken by whoever played more nights; the bonus is that same rule no longer needing an exact
+float tie to fire, so "played three or four times" earns a little credit over "played twice" even
+when the two scores were never going to land on the same number. It's scaled by the same
+nights ÷ month's-nights share `totmEligible` already gates on, so it only ever ranges over `[0.5, 1]`
+— weight `1` puts a full-attendance player half a point ahead of a half-attendance one, calibrated
+against a season of the invented club's play (§2.32) to be about 1.5× the median score gap near the
+cut: enough to flip a genuinely close call, not enough to let attendance alone decide a month.
+`TotmPlayer` carries `monthLength` (the month's own night count) alongside the other parts precisely
+so this term, like every other, can be recomputed from the row and not just trusted.
 
 Ties break on the parts in the order they matter: more nights played, then more MVPs, then more
 nights won, then the name — so the fifth slot is decided by something rather than by whichever way

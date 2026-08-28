@@ -13,6 +13,8 @@ import { nightStory } from '../nightStory';
 import { buildWrapped, periodLabel, wrappedPeriods } from '../wrapped';
 import { announceMonth, clearMonth, fetchAwards, type Awards } from '../awards';
 import { shareWrappedImage } from '../wrappedImage';
+import { fetchAllMarks } from '../gradesApi';
+import type { AllMarks } from '../gradeHistory';
 import { mvpCandidates, mvpCounts, winningTeams } from '../mvp';
 import {
   getNightsShelfOpen,
@@ -229,6 +231,23 @@ export default function History({
     };
   }, [isAdmin]);
 
+  // Published grades for the whole club, the same call PlayerPage makes for
+  // its graph — the recap's grade-based banter stats (Teacher's Pet, Punching
+  // Bag, the Rollercoaster) read from this. Admin-only, same as the recap
+  // button itself; `{}` on any failure just means those three stats say
+  // nothing, same as a club that hasn't graded a month yet.
+  const [marks, setMarks] = useState<AllMarks>({});
+  useEffect(() => {
+    if (!isAdmin) return;
+    let live = true;
+    fetchAllMarks(history).then((all) => {
+      if (live) setMarks(all);
+    });
+    return () => {
+      live = false;
+    };
+  }, [isAdmin, history]);
+
   // Re-read rather than patch the copy in state. One extra request, and it is
   // the difference between the panel showing what is stored and the panel
   // showing what we believe we stored.
@@ -417,7 +436,7 @@ export default function History({
               // shirt numbers live on the roster, never in a fixture record —
               // the Team of the Month card wants them
               await shareWrappedImage(
-                buildWrapped(history, wrappedPeriod),
+                buildWrapped(history, wrappedPeriod, players, marks),
                 new Map(players.map((p) => [p.id, p.number])),
               );
               setSharingWrapped(false);
