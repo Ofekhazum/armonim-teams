@@ -655,6 +655,19 @@ describe('Monthly achievements', () => {
     const stats = buildWrapped(history, '2026-08');
     expect(stats.monthlyAchievements.some((a) => a.kind === 'debut' && a.name === 'g')).toBe(true);
   });
+
+  it('collapses a streak that fired on several of the month\'s nights down to its best showing', () => {
+    // 's' wins every night; the streak clears MIN_WIN_STREAK (3) on night 3
+    // and keeps firing on nights 4 and 5 too — "3 running", "4 running" and
+    // "5 running" would all show up without the dedupe, when the only one
+    // worth telling anybody about is the last
+    const history = Array.from({ length: 5 }, (_, i) =>
+      night(`2026-08-${String(i + 1).padStart(2, '0')}`, ['s'], ['y'], { black: 3, white: 1, blue: 0 }),
+    );
+    const stats = buildWrapped(history, '2026-08');
+    const streaks = stats.monthlyAchievements.filter((a) => a.kind === 'win-streak' && a.name === 's');
+    expect(streaks).toEqual([{ kind: 'win-streak', id: 's', name: 's', nights: 5 }]);
+  });
 });
 
 // The Team of the Month is the one leaderboard in the app whose rule is
