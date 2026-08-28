@@ -34,6 +34,7 @@ import { createUserColorTracker } from '../userColor';
 import LiveRoomBar from './LiveRoomBar';
 import TeamsBoard from './TeamsBoard';
 import FixturePage from './FixturePage';
+import StartFixtureDialog from './StartFixtureDialog';
 import { fmtRating, Name, RATING_STEPS, STYLE_META } from './ui';
 
 const ACTIVITY_MS = 750;
@@ -83,6 +84,10 @@ export default function MatchDay({
   onShareLog,
 }: Props) {
   const [step, setStep] = useState<'players' | 'gk'>('players');
+  // ▶️ Start fixture opens this rather than starting outright — "now" or "at a
+  // chosen time" (§2.7.2). Local UI state only; nothing about the night
+  // changes until one of its two actions is actually pressed.
+  const [showStartDialog, setShowStartDialog] = useState(false);
 
   // While a fixture is live the shared log is the record — someone else may
   // have written the last match down — so it outranks this device's copy, the
@@ -314,9 +319,14 @@ export default function MatchDay({
   // the night in front of everyone else. Reversible — "back to teams" flips it
   // off and takes the fixture back down with it, because a night that's being
   // re-picked is not one anyone should be reading their team off.
-  const startFixture = () => {
+  //
+  // `startedAt` may be in the future: that's the whole of what "schedule
+  // instead of starting now" means (§2.7.2). Nothing else about this changes
+  // — the same publish, the same lock, the same regret path — because
+  // "kicked off" is derived from `startedAt` everywhere else rather than
+  // stored, so a future value is simply a fixture nobody has reached yet.
+  const startFixture = (startedAt: number) => {
     if (!isAdmin || !session.teams) return;
-    const startedAt = Date.now();
     const clock = initialClock();
     setSession({ ...session, fixtureStarted: true, liveStartedAt: startedAt, clock });
     onShareLive(buildLive(session.teams, clock, startedAt), true);
@@ -495,6 +505,10 @@ export default function MatchDay({
         }}
         clock={liveClock ?? session.clock}
         onChangeClock={changeClock}
+        // the moment the night is scheduled to start — may be in the future
+        // (§2.7.2). Falls back to now only to satisfy the type; in practice
+        // this is always set by the time `fixtureStarted` is true.
+        kickOffAt={session.liveStartedAt ?? Date.now()}
         // derived locally rather than read off the poll, so the organiser's own
         // toggle appears the instant they press Start rather than a poll later
         liveFixtureId={session.liveStartedAt !== null ? liveFixtureId(session.liveStartedAt) : null}
@@ -562,8 +576,21 @@ export default function MatchDay({
             setStep('gk');
           }}
           onNewFixture={newFixture}
-          onStartFixture={startFixture}
+          onStartFixture={() => setShowStartDialog(true)}
         />
+        {showStartDialog && (
+          <StartFixtureDialog
+            onStartNow={() => {
+              setShowStartDialog(false);
+              startFixture(Date.now());
+            }}
+            onSchedule={(at) => {
+              setShowStartDialog(false);
+              startFixture(at);
+            }}
+            onCancel={() => setShowStartDialog(false)}
+          />
+        )}
       </div>
     );
   }

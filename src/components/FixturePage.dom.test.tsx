@@ -25,6 +25,7 @@ const players = [one('a', 'אופק'), one('b', 'ירין'), one('c', 'ניב')]
 const page = (over: Partial<Parameters<typeof FixturePage>[0]> = {}) => {
   const onSaveResults = vi.fn();
   const onEndFixture = vi.fn();
+  const onBack = vi.fn();
   render(
     <FixturePage
       teams={{ black: ['a'], white: ['b'], blue: ['c'] }}
@@ -36,17 +37,20 @@ const page = (over: Partial<Parameters<typeof FixturePage>[0]> = {}) => {
       onChangeLog={() => {}}
       clock={initialClock()}
       onChangeClock={() => {}}
+      // epoch 0: always already kicked off, so every existing test below is
+      // exercising the same "live" behaviour it always did
+      kickOffAt={0}
       liveFixtureId={null}
       onSaveResults={onSaveResults}
       saved={false}
       savedFixtureId={null}
       isAdmin
-      onBack={() => {}}
+      onBack={onBack}
       onEndFixture={onEndFixture}
       {...over}
     />,
   );
-  return { onSaveResults, onEndFixture };
+  return { onSaveResults, onEndFixture, onBack };
 };
 
 const click = (name: RegExp) => fireEvent.click(screen.getByRole('button', { name }));
@@ -157,14 +161,57 @@ describe('ending a night', () => {
     expect(screen.getByText(/Unlock admin to file tonight/)).toBeInTheDocument();
   });
 
-  it('still offers to file a night nobody wrote anything down for', () => {
-    // The regression the tally panel's removal would have caused: an unlogged
-    // night with no way into history at all. Filing keeps who played.
+  it('hides the save option entirely for a night nobody wrote anything down for', () => {
+    // Filing zero wins as a result pollutes standings, milestones and grades
+    // with a night that never really happened — so there is no route into
+    // history for one, live or scheduled (§2.7.2).
     const { onSaveResults } = page({ wins: emptyWins(), matchLog: [] });
     click(/End fixture/);
     expect(screen.getByText(/Nothing was written down tonight/)).toBeInTheDocument();
-    click(/Save to history/);
-    click(/Save to history/);
-    expect(onSaveResults).toHaveBeenCalled();
+    expect(screen.queryByRole('button', { name: /Save to history/ })).not.toBeInTheDocument();
+    click(/End without saving/);
+    expect(onSaveResults).not.toHaveBeenCalled();
+  });
+
+  it('brings the save option back the moment there is something to file', () => {
+    page({ wins: { ...emptyWins(), black: 1 }, matchLog: [] });
+    click(/End fixture/);
+    expect(screen.getByRole('button', { name: /Save to history/ })).toBeInTheDocument();
+  });
+});
+
+describe('scheduled, before kickoff (§2.7.2)', () => {
+  const future = () => Date.now() + 60 * 60 * 1000;
+
+  it('shows a countdown instead of the clock, with the teams still up', () => {
+    page({ kickOffAt: future() });
+    expect(screen.getByText(/Kicks off in/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Start match/ })).not.toBeInTheDocument();
+    expect(screen.getByText('אופק')).toBeInTheDocument(); // a team-card name
+  });
+
+  it('offers only Cancel — no End fixture, no way to reach "That\'s the night?"', () => {
+    page({ kickOffAt: future() });
+    expect(screen.queryByRole('button', { name: /End fixture/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Cancel fixture/ })).toBeInTheDocument();
+  });
+
+  it('asks for confirmation before cancelling, and only backs out on yes', () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    const { onBack } = page({ kickOffAt: future() });
+    click(/Cancel fixture/);
+    expect(confirmSpy).toHaveBeenCalled();
+    expect(onBack).not.toHaveBeenCalled();
+
+    confirmSpy.mockReturnValue(true);
+    click(/Cancel fixture/);
+    expect(onBack).toHaveBeenCalled();
+    confirmSpy.mockRestore();
+  });
+
+  it('restores the clock and the log once kickoff has passed', () => {
+    page({ kickOffAt: 0 });
+    expect(screen.queryByText(/Kicks off in/)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /End fixture/ })).toBeInTheDocument();
   });
 });

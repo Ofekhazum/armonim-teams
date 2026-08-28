@@ -11,6 +11,8 @@ import type {
 import { NOTE_MAX, roleBadge } from '../types';
 import { TEAM_COLORS, lineupOrder, teamStats } from '../balancer';
 import { STYLE_META } from './ui';
+import { useKickedOff } from '../kickoff';
+import KickoffCountdown from './KickoffCountdown';
 import MatchClock from './MatchClock';
 import TeamCards from './TeamCards';
 import TonightFacts from './TonightFacts';
@@ -34,6 +36,10 @@ interface Props {
   // watching sees (§2.14)
   clock: ClockState;
   onChangeClock: (clock: ClockState) => void;
+  // The moment this fixture is scheduled to start — may be in the future
+  // (§2.7.2). Everything below the header stays hidden behind a countdown
+  // until this passes.
+  kickOffAt: number;
   // the live fixture this page is running, if it has been published — what the
   // alerts toggle attaches an opt-in to
   liveFixtureId: string | null;
@@ -62,6 +68,7 @@ export default function FixturePage({
   onChangeLog,
   clock,
   onChangeClock,
+  kickOffAt,
   liveFixtureId,
   onSaveResults,
   saved,
@@ -99,25 +106,59 @@ export default function FixturePage({
     onEndFixture();
   };
 
+  // Derived, not stored (§2.7.2) — every device reaches kickoff on its own
+  // clock, with nothing needing to write a flag at the scheduled moment.
+  const kickedOff = useKickedOff(kickOffAt);
+
+  // A plain confirm, not a custom panel: unlike "That's the night?" below,
+  // this question really is binary. It may have been showing the teams on
+  // every phone in the group for up to a week.
+  const cancelScheduled = () => {
+    if (
+      confirm(
+        "Cancel this scheduled fixture?\n\nThe teams and countdown disappear from everyone's phones. You'll land back on the editable teams board.",
+      )
+    ) {
+      onBack();
+    }
+  };
+
   return (
     <div className="space-y-4">
       {/* Above everything, and stays there — see ScoreBar. */}
-      <ScoreBar clock={clock} log={matchLog} />
+      {kickedOff ? (
+        <ScoreBar clock={clock} log={matchLog} />
+      ) : (
+        <KickoffCountdown startedAt={kickOffAt} fixtureId={liveFixtureId} />
+      )}
 
       <div className="flex flex-wrap items-center gap-2">
-        <button
-          onClick={onBack}
-          className="rounded-xl border border-amber-900/30 px-4 py-2 text-sm font-semibold text-amber-900"
-        >
-          ← Back to teams
-        </button>
+        {kickedOff ? (
+          <button
+            onClick={onBack}
+            className="rounded-xl border border-amber-900/30 px-4 py-2 text-sm font-semibold text-amber-900"
+          >
+            ← Back to teams
+          </button>
+        ) : (
+          <button
+            onClick={cancelScheduled}
+            className="rounded-xl border border-amber-900/30 px-4 py-2 text-sm font-semibold text-amber-900"
+          >
+            ✕ Cancel fixture
+          </button>
+        )}
         <div className="flex-1" />
-        <button
-          onClick={() => setEnding(true)}
-          className="rounded-xl border border-red-500/60 px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-50"
-        >
-          ⏹️ End fixture
-        </button>
+        {/* Unreachable before kickoff — there is nothing yet for "That's the
+            night?" to ask about, and the only way out is the cancel above. */}
+        {kickedOff && (
+          <button
+            onClick={() => setEnding(true)}
+            className="rounded-xl border border-red-500/60 px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-50"
+          >
+            ⏹️ End fixture
+          </button>
+        )}
       </div>
 
       <TeamCards
@@ -140,10 +181,18 @@ export default function FixturePage({
           and the log are touched every few minutes for two hours, with wet
           hands, by somebody who is not looking for long. Ordering by how
           interesting a panel is put three panels of reading between the
-          organiser and the two controls they actually came for. */}
-      <MatchClock state={clock} onChange={onChangeClock} fixtureId={liveFixtureId} />
+          organiser and the two controls they actually came for.
 
-      <MatchLog log={matchLog} onChange={onChangeLog} canUndo={isAdmin} />
+          Neither exists to look at before the fixture has actually kicked
+          off — a clock and a log for a match that hasn't started yet have
+          nothing to show, and `KickoffCountdown` above already carries the
+          alerts opt-in that would otherwise live on the clock. */}
+      {kickedOff && (
+        <>
+          <MatchClock state={clock} onChange={onChangeClock} fixtureId={liveFixtureId} />
+          <MatchLog log={matchLog} onChange={onChangeLog} canUndo={isAdmin} />
+        </>
+      )}
 
       <TonightFacts
         players={players}
@@ -237,29 +286,35 @@ export default function FixturePage({
                   ? `The ${matchLog.length} matches written down tonight are not in history yet.`
                   : anyResult
                     ? "Tonight's tally is not in history yet."
-                    : 'Nothing was written down tonight. Filing it anyway keeps who played and which teams they were in, and the tally can be typed in afterwards on the History tab.'}
+                    : 'Nothing was written down tonight, so there is nothing to file — ending now keeps the night off the record entirely.'}
             </p>
             <div className="mt-4 flex flex-col gap-2">
-              {isAdmin ? (
-                <button
-                  onClick={() => {
-                    setEnding(false);
-                    setNoting(true);
-                  }}
-                  className="rounded-xl bg-orange-600 px-4 py-2.5 text-sm font-bold text-amber-50 shadow-sm transition-transform hover:scale-[1.02]"
-                >
-                  🗂️ {saved ? 'Update history & end' : 'Save to history & end'}
-                </button>
-              ) : (
-                <p className="rounded-xl bg-amber-900/[0.06] px-3 py-2 text-xs text-amber-900/60">
-                  🔒 Unlock admin to file tonight into history. Ending now keeps the night off the
-                  record entirely.
-                </p>
-              )}
+              {/* Filing an empty night pollutes standings, milestones and
+                  grades with a record of zero wins that was never really a
+                  result — so a night with nothing recorded drops the save
+                  option entirely rather than offer it as a choice, which also
+                  promotes ending to the primary action. */}
+              {anyResult &&
+                (isAdmin ? (
+                  <button
+                    onClick={() => {
+                      setEnding(false);
+                      setNoting(true);
+                    }}
+                    className="rounded-xl bg-orange-600 px-4 py-2.5 text-sm font-bold text-amber-50 shadow-sm transition-transform hover:scale-[1.02]"
+                  >
+                    🗂️ {saved ? 'Update history & end' : 'Save to history & end'}
+                  </button>
+                ) : (
+                  <p className="rounded-xl bg-amber-900/[0.06] px-3 py-2 text-xs text-amber-900/60">
+                    🔒 Unlock admin to file tonight into history. Ending now keeps the night off the
+                    record entirely.
+                  </p>
+                ))}
               <button
                 onClick={() => finish(false)}
                 className={
-                  isAdmin
+                  anyResult && isAdmin
                     ? 'rounded-xl border border-red-500/50 px-4 py-2 text-sm font-bold text-red-700 hover:bg-red-50'
                     : 'rounded-xl bg-orange-600 px-4 py-2.5 text-sm font-bold text-amber-50 shadow-sm transition-transform hover:scale-[1.02]'
                 }

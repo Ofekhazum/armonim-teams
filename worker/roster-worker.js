@@ -93,6 +93,10 @@ const MAX_ALIASES = 20;
 const MAX_NAME_CHARS = 60;
 const MAX_ID_CHARS = 64;
 const MAX_DATE_CHARS = 20;
+// How far ahead a fixture may be scheduled to start (§2.7.2). A mistyped year
+// would otherwise park a record whose countdown reads "starts in 200 years" —
+// matches `MAX_SCHEDULE_AHEAD_MS` in `src/kickoff.ts`.
+const MAX_SCHEDULE_AHEAD_MS = 7 * 24 * 60 * 60 * 1000;
 // The organiser's free-text note on a fixture. Generous against the app's own
 // 280, because a record filed by an older or newer build should not be the
 // thing that makes an entire season's publish bounce.
@@ -281,11 +285,15 @@ export function isValidClock(clock) {
   return true;
 }
 
-export function isValidLive(live) {
+// `now` is a parameter, like `withAddedTime` and `triggersFor`, rather than
+// read from `Date.now()` inside — that's what lets the future-schedule bound
+// below be tested without waiting on the clock.
+export function isValidLive(live, now = Date.now()) {
   if (live === null) return true; // clearing it
   if (!live || typeof live !== 'object') return false;
   if (!isStr(live.id, MAX_ID_CHARS)) return false;
   if (!Number.isFinite(live.startedAt)) return false;
+  if (live.startedAt - now > MAX_SCHEDULE_AHEAD_MS) return false;
   if (!Array.isArray(live.players) || live.players.length > MAX_FIXTURE_PLAYERS) return false;
   if (
     !live.players.every(
@@ -802,7 +810,7 @@ export default {
       // and a stale-version rejection mid-match would be the wrong answer.
       if (url.pathname === '/live') {
         const fixture = body.fixture ?? null;
-        if (!isValidLive(fixture)) {
+        if (!isValidLive(fixture, Date.now())) {
           return json({ error: 'bad live fixture' }, 400);
         }
         // One trip: stores it (or clears it), reschedules the announcements,

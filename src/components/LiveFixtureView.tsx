@@ -1,5 +1,7 @@
 import { useMemo } from 'react';
 import type { ClockState, FixtureRecord, LiveFixture, MatchLogEntry } from '../types';
+import { agoLabel, useKickedOff } from '../kickoff';
+import KickoffCountdown from './KickoffCountdown';
 import MatchClock from './MatchClock';
 import MatchLog from './MatchLog';
 import ScoreBar from './ScoreBar';
@@ -18,14 +20,6 @@ interface Props {
   // here on purpose — see the note above and `canUndo` in MatchLog.
   isAdmin?: boolean;
 }
-
-const agoLabel = (startedAt: number): string => {
-  const mins = Math.floor((Date.now() - startedAt) / 60000);
-  if (mins < 1) return 'just now';
-  if (mins < 60) return `${mins} min ago`;
-  const hours = Math.floor(mins / 60);
-  return `${hours}h ${mins % 60}m ago`;
-};
 
 // What the rest of the group sees while a fixture is on (§2.14). The teams
 // half is read-only by construction rather than by hiding buttons: the payload
@@ -61,17 +55,25 @@ export default function LiveFixtureView({
   // nothing written down rather than a broken one
   const matchLog = fixture.matchLog ?? [];
 
+  // Derived, not stored (§2.7.2) — every phone reaches kickoff on its own
+  // clock, and flips from the countdown below to the live scoreboard without
+  // anyone having to be told.
+  const kickedOff = useKickedOff(fixture.startedAt);
+
   // Tonight, excluded from its own arithmetic. The organiser's page has the
   // saved record's id to do this with; a viewer doesn't — the live fixture is
   // keyed by kick-off time and the history record by a uid — so the date does
-  // the job. It is the same date the record is filed under (both UTC, both from
-  // toISOString), and two fixtures on one date has never happened. Without it,
-  // a night whose result went in early would count itself: everyone's tenth
-  // night would silently become their eleventh while they were still playing.
+  // the job. Taken from the *fixture's* kickoff, not today: a fixture
+  // scheduled for tomorrow must not exclude a different, already-filed night
+  // from today's arithmetic. It is the same date the record is filed under
+  // (both UTC, both from toISOString), and two fixtures on one date has never
+  // happened. Without it, a night whose result went in early would count
+  // itself: everyone's tenth night would silently become their eleventh while
+  // they were still playing.
   const past = useMemo(() => {
-    const today = new Date().toISOString().slice(0, 10);
-    return history.filter((fx) => fx.date !== today);
-  }, [history]);
+    const fixtureDate = new Date(fixture.startedAt).toISOString().slice(0, 10);
+    return history.filter((fx) => fx.date !== fixtureDate);
+  }, [history, fixture.startedAt]);
 
   // Ending a night must never depend on which phone the organiser happens to
   // be holding — without this, an organiser whose browser was cleared could see
@@ -81,27 +83,40 @@ export default function LiveFixtureView({
   // organiser's page needs teams and ratings this view doesn't carry, but
   // *ending* needs nothing but the admin word.
   const end = () => {
-    if (
-      confirm(
-        "End tonight's fixture for everyone?\n\nThe live view disappears from the group's phones. Nothing already saved to history is affected.",
-      )
-    ) {
-      onEndFixture?.();
-    }
+    const msg = kickedOff
+      ? "End tonight's fixture for everyone?\n\nThe live view disappears from the group's phones. Nothing already saved to history is affected."
+      : "Cancel this scheduled fixture?\n\nThe teams and countdown disappear from everyone's phones.";
+    if (confirm(msg)) onEndFixture?.();
   };
 
   return (
     <div className="space-y-4">
-      <ScoreBar clock={fixture.clock} log={matchLog} />
+      {kickedOff ? (
+        <ScoreBar clock={fixture.clock} log={matchLog} />
+      ) : (
+        <KickoffCountdown startedAt={fixture.startedAt} fixtureId={fixture.id} />
+      )}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <h2 className="flex items-center gap-2 text-lg font-black text-amber-950">
           <span className="relative flex h-2.5 w-2.5">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-75" />
-            <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-red-600" />
+            {kickedOff && (
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-75" />
+            )}
+            <span
+              className={`relative inline-flex h-2.5 w-2.5 rounded-full ${kickedOff ? 'bg-red-600' : 'bg-amber-500'}`}
+            />
           </span>
-          Tonight's fixture
+          {kickedOff ? "Tonight's fixture" : "Tonight's teams"}
         </h2>
-        <span className="text-sm text-amber-900/55">kicked off {agoLabel(fixture.startedAt)}</span>
+        <span className="text-sm text-amber-900/55">
+          {kickedOff
+            ? `kicked off ${agoLabel(fixture.startedAt)}`
+            : `starts ${new Date(fixture.startedAt).toLocaleString([], {
+                weekday: 'short',
+                hour: '2-digit',
+                minute: '2-digit',
+              })}`}
+        </span>
         {onEndFixture && (
           <>
             <div className="flex-1" />
@@ -109,7 +124,7 @@ export default function LiveFixtureView({
               onClick={end}
               className="rounded-xl border border-red-500/60 px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-50"
             >
-              ⏹️ End fixture
+              {kickedOff ? '⏹️ End fixture' : '✕ Cancel fixture'}
             </button>
           </>
         )}
@@ -122,10 +137,14 @@ export default function LiveFixtureView({
 
       {/* Clock and log first, facts after — the same order the organiser's page
           uses, and for the same reason (§2.21). Anyone at the pitch with this
-          open is here to see the time and write down who won. */}
-      <MatchClock state={fixture.clock} onChange={onChangeClock} fixtureId={fixture.id} />
-
-      <MatchLog log={matchLog} onChange={onChangeLog} canUndo={isAdmin} />
+          open is here to see the time and write down who won. Neither has
+          anything to show before the fixture has actually kicked off. */}
+      {kickedOff && (
+        <>
+          <MatchClock state={fixture.clock} onChange={onChangeClock} fixtureId={fixture.id} />
+          <MatchLog log={matchLog} onChange={onChangeLog} canUndo={isAdmin} />
+        </>
+      )}
 
       <TonightFacts
         players={fixture.players}
