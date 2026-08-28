@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { TOTM_SIZE, buildWrapped, periodLabel, totmEligible, totmScore, wrappedPeriods } from './wrapped';
-import type { FixtureRecord } from './types';
+import type { AllMarks } from './gradeHistory';
+import { nextPairing, recordMatch, winsFromLog } from './matchLog';
+import { ATTACK_DEFAULT } from './types';
+import type { FixtureRecord, MatchLogEntry, Player, TeamColor } from './types';
 
 let seq = 0;
 
@@ -10,18 +13,52 @@ function night(
   white: string[],
   wins: { black: number; white: number; blue: number },
   mvpId?: string,
+  blue: string[] = [],
 ): FixtureRecord {
   const fx: FixtureRecord = {
     id: `f${seq}`,
     date,
-    teams: { black, white, blue: [] },
-    players: [...black, ...white].map((id) => ({ id, name: id, rating: 3 })),
+    teams: { black, white, blue },
+    players: [...black, ...white, ...blue].map((id) => ({ id, name: id, rating: 3 })),
     wins,
     mvpId,
   };
   seq++;
   return fx;
 }
+
+// A night logged match by match rather than tallied — `wins` is derived from
+// the log itself, the same as the real app does, so a test can never write a
+// log and a tally that quietly disagree.
+function loggedNight(
+  date: string,
+  black: string[],
+  white: string[],
+  blue: string[],
+  log: MatchLogEntry[],
+  mvpId?: string,
+): FixtureRecord {
+  const fx = night(date, black, white, winsFromLog(log), mvpId, blue);
+  fx.matchLog = log;
+  return fx;
+}
+
+const m = (a: TeamColor, b: TeamColor, winner: TeamColor, viaPenalties = false): MatchLogEntry => ({
+  a,
+  b,
+  winner,
+  viaPenalties,
+});
+
+const player = (id: string): Player => ({
+  id,
+  name: id,
+  rating: 3,
+  attack: ATTACK_DEFAULT,
+  chemistry: [],
+});
+
+const marksFor = (lines: Record<string, Record<string, number>>): AllMarks => lines;
 
 describe('wrappedPeriods', () => {
   it('lists months with a recorded result, newest first, and skips unrecorded ones', () => {
@@ -225,7 +262,342 @@ describe('buildWrapped', () => {
       longestWinless: null,
       bestDuo: null,
       worstDuo: null,
+      teachersPet: null,
+      punchingBag: null,
+      rollercoaster: null,
+      benchwarmer: null,
+      outOfGas: null,
+      dramaQueen: null,
+      reservist: null,
+      bully: null,
+      cursedShirt: null,
+      nightOfMonth: null,
+      longestRun: null,
+      monthlyAchievements: [],
     });
+  });
+});
+
+// --- Banter stats ------------------------------------------------------
+
+describe("Teacher's Pet, Punching Bag and the Rollercoaster", () => {
+  it("averages the month's published grades once there are at least 3 of them", () => {
+    const history = [
+      night('2026-08-01', ['a'], ['b'], { black: 3, white: 1, blue: 0 }),
+      night('2026-08-08', ['a'], ['b'], { black: 3, white: 1, blue: 0 }),
+      night('2026-08-15', ['a'], ['b'], { black: 3, white: 1, blue: 0 }),
+    ];
+    const marks = marksFor({
+      [history[0].id]: { a: 9, b: 5 },
+      [history[1].id]: { a: 8, b: 4 },
+      [history[2].id]: { a: 7, b: 3 },
+    });
+    const stats = buildWrapped(history, '2026-08', [], marks);
+    expect(stats.teachersPet).toEqual({ id: 'a', name: 'a', avg: 8, nights: 3 });
+    expect(stats.punchingBag).toEqual({ id: 'b', name: 'b', avg: 4, nights: 3 });
+  });
+
+  it('says nothing about a player with fewer than 3 graded nights', () => {
+    const history = [
+      night('2026-08-01', ['a'], ['b'], { black: 3, white: 1, blue: 0 }),
+      night('2026-08-08', ['a'], ['b'], { black: 3, white: 1, blue: 0 }),
+    ];
+    const marks = marksFor({
+      [history[0].id]: { a: 10, b: 1 },
+      [history[1].id]: { a: 10, b: 1 },
+    });
+    const stats = buildWrapped(history, '2026-08', [], marks);
+    expect(stats.teachersPet).toBeNull();
+    expect(stats.punchingBag).toBeNull();
+  });
+
+  it("ignores a night the organiser never published grades for", () => {
+    const history = [
+      night('2026-08-01', ['a'], ['b'], { black: 3, white: 1, blue: 0 }),
+      night('2026-08-08', ['a'], ['b'], { black: 3, white: 1, blue: 0 }),
+      night('2026-08-15', ['a'], ['b'], { black: 3, white: 1, blue: 0 }),
+    ];
+    // only two of the three nights were ever graded
+    const marks = marksFor({
+      [history[0].id]: { a: 7, b: 5 },
+      [history[1].id]: { a: 7, b: 5 },
+    });
+    const stats = buildWrapped(history, '2026-08', [], marks);
+    expect(stats.teachersPet).toBeNull();
+  });
+
+  it("reports the swing between a player's best and worst night as the Rollercoaster", () => {
+    const history = [
+      night('2026-08-01', ['a'], ['b'], { black: 3, white: 1, blue: 0 }),
+      night('2026-08-08', ['a'], ['b'], { black: 1, white: 3, blue: 0 }),
+      night('2026-08-15', ['a'], ['b'], { black: 3, white: 1, blue: 0 }),
+    ];
+    const marks = marksFor({
+      [history[0].id]: { a: 9, b: 6 },
+      [history[1].id]: { a: 4.5, b: 6 },
+      [history[2].id]: { a: 8.5, b: 6 },
+    });
+    const stats = buildWrapped(history, '2026-08', [], marks);
+    // a swings 9.0 -> 4.5 -> 8.5, a range of 4.5; b is flat at 6 every night
+    expect(stats.rollercoaster).toMatchObject({ id: 'a', high: 9, low: 4.5, range: 4.5 });
+  });
+});
+
+describe('The Benchwarmer', () => {
+  it('sums, across the month, every match a player sat out while their team was on the sheet', () => {
+    const history = [
+      loggedNight(
+        '2026-08-01',
+        ['a'],
+        ['b'],
+        ['z'],
+        [m('black', 'white', 'black'), m('black', 'white', 'white'), m('black', 'white', 'black')],
+      ),
+      loggedNight('2026-08-08', ['a'], ['b'], ['z'], [m('black', 'white', 'white'), m('black', 'white', 'black')]),
+    ];
+    // blue (z) never plays a single match across either night: benched 3, then 2
+    const stats = buildWrapped(history, '2026-08');
+    expect(stats.benchwarmer).toEqual({ id: 'z', name: 'z', matchesBenched: 5 });
+  });
+
+  it('says nothing about a month with no logged nights', () => {
+    const history = [night('2026-08-01', ['a'], ['b'], { black: 3, white: 1, blue: 0 })];
+    expect(buildWrapped(history, '2026-08').benchwarmer).toBeNull();
+  });
+});
+
+describe('Out of Gas', () => {
+  it('finds a player who wins early in a night and fades late, across the month', () => {
+    const strongEarlyFadeLate = [
+      m('black', 'white', 'black'),
+      m('black', 'white', 'black'),
+      m('black', 'white', 'black'),
+      m('black', 'white', 'white'),
+      m('black', 'white', 'white'),
+      m('black', 'white', 'white'),
+    ];
+    const history = [
+      loggedNight('2026-08-01', ['a'], ['b'], [], strongEarlyFadeLate),
+      loggedNight('2026-08-08', ['a'], ['b'], [], strongEarlyFadeLate),
+      loggedNight('2026-08-15', ['a'], ['b'], [], strongEarlyFadeLate),
+    ];
+    // a (black) wins their first 3 matches every night and loses the last 3 —
+    // 9 early, 9 late across the month, clearing MIN_HALF (8) on both sides
+    const stats = buildWrapped(history, '2026-08');
+    expect(stats.outOfGas).toEqual({ id: 'a', name: 'a', earlyRate: 1, lateRate: 0 });
+  });
+
+  it('says nothing on an ordinary month, the same way playerArcs does on a thin one', () => {
+    const history = [
+      loggedNight('2026-08-01', ['a'], ['b'], [], [m('black', 'white', 'black'), m('black', 'white', 'white')]),
+    ];
+    expect(buildWrapped(history, '2026-08').outOfGas).toBeNull();
+  });
+});
+
+describe('Drama Queen', () => {
+  it('credits both sides of every shootout, and sums across the month', () => {
+    const history = [
+      loggedNight('2026-08-01', ['a'], ['b'], ['z'], [m('black', 'white', 'black', true)]),
+      loggedNight(
+        '2026-08-08',
+        ['a'],
+        ['b'],
+        ['z'],
+        [m('black', 'white', 'black', true), m('black', 'blue', 'blue', true)],
+      ),
+    ];
+    // a: in all 3 shootouts; b: in 2 (both a-vs-b ones); z: in 1
+    const stats = buildWrapped(history, '2026-08');
+    expect(stats.dramaQueen).toEqual({ id: 'a', name: 'a', shootouts: 3 });
+  });
+});
+
+describe('The Reservist', () => {
+  it('picks the rarest attendee who still won outright, over one with more nights', () => {
+    const history = [
+      night('2026-08-01', ['r'], ['x'], { black: 3, white: 1, blue: 0 }), // r: 1 night, won
+      night('2026-08-03', ['w'], ['x'], { black: 3, white: 1, blue: 0 }), // w night 1 (won)
+      night('2026-08-05', ['w'], ['x'], { black: 1, white: 3, blue: 0 }), // w night 2 (lost)
+      night('2026-08-08', ['w'], ['x'], { black: 3, white: 1, blue: 0 }), // w night 3 (won) — 3 nights, too many
+      night('2026-08-10', ['q'], ['x'], { black: 1, white: 3, blue: 0 }), // q night 1 (lost)
+      night('2026-08-15', ['q'], ['x'], { black: 3, white: 1, blue: 0 }), // q night 2 (won) — a candidate too
+    ];
+    const stats = buildWrapped(history, '2026-08');
+    // r (1 night) beats q (2 nights) on rarity; w is excluded outright at 3 nights
+    expect(stats.reservist).toEqual({ id: 'r', name: 'r', nights: 1, wins: 3 });
+  });
+
+  it('excludes a player who never actually won outright, however rarely they played', () => {
+    const history = [
+      night('2026-08-01', ['n'], ['x'], { black: 0, white: 3, blue: 0 }),
+      night('2026-08-08', ['n'], ['x'], { black: 1, white: 2, blue: 0 }),
+    ];
+    // n loses both of their two nights; x wins both of theirs
+    const stats = buildWrapped(history, '2026-08');
+    expect(stats.reservist).toEqual({ id: 'x', name: 'x', nights: 2, wins: 5 });
+  });
+});
+
+describe('The Bully', () => {
+  it('finds the most lopsided individual head-to-head of the month', () => {
+    const history = [
+      loggedNight(
+        '2026-08-01',
+        ['a'],
+        ['b'],
+        [],
+        [m('black', 'white', 'black'), m('black', 'white', 'black'), m('black', 'white', 'black')],
+      ),
+      loggedNight(
+        '2026-08-08',
+        ['a'],
+        ['b'],
+        [],
+        [m('black', 'white', 'black'), m('black', 'white', 'black'), m('black', 'white', 'white')],
+      ),
+    ];
+    // a beats b 5 times to b's 1, over 6 matches — clears MIN_BULLY_MATCHES (5)
+    const stats = buildWrapped(history, '2026-08');
+    expect(stats.bully).toEqual({
+      aId: 'a',
+      aName: 'a',
+      aWon: 5,
+      bId: 'b',
+      bName: 'b',
+      bWon: 1,
+      faced: 6,
+    });
+  });
+
+  it('says nothing below the floor on matches faced', () => {
+    const history = [loggedNight('2026-08-01', ['a'], ['b'], [], [m('black', 'white', 'black')])];
+    expect(buildWrapped(history, '2026-08').bully).toBeNull();
+  });
+
+  it('says nothing about a record that is level, however much football is behind it', () => {
+    const history = [
+      loggedNight(
+        '2026-08-01',
+        ['a'],
+        ['b'],
+        [],
+        [
+          m('black', 'white', 'black'),
+          m('black', 'white', 'white'),
+          m('black', 'white', 'black'),
+          m('black', 'white', 'white'),
+          m('black', 'white', 'black'),
+          m('black', 'white', 'white'),
+        ],
+      ),
+    ];
+    expect(buildWrapped(history, '2026-08').bully).toBeNull();
+  });
+});
+
+describe('The Cursed Shirt', () => {
+  it('finds the colour with the worst record for the month', () => {
+    const history = [
+      night('2026-08-01', ['a'], ['b'], { black: 4, white: 1, blue: 0 }, undefined, ['z']),
+      night('2026-08-08', ['a'], ['b'], { black: 1, white: 3, blue: 0 }, undefined, ['z']),
+      night('2026-08-15', ['a'], ['b'], { black: 2, white: 1, blue: 1 }, undefined, ['z']),
+    ];
+    // black tops nights 1 and 3, white tops night 2, blue never tops a night
+    // and banks only 1 of the month's 13 match wins
+    const stats = buildWrapped(history, '2026-08');
+    expect(stats.cursedShirt).toMatchObject({ color: 'blue', nightsWon: 0, nightsPlayed: 3 });
+    expect(stats.cursedShirt?.matchWinShare).toBeCloseTo(1 / 13);
+  });
+});
+
+describe('Night of the Month and the longest run', () => {
+  // Same scripting approach nightStory.test.ts uses, and for the same reason:
+  // a hand-written log can describe a night that could not have happened
+  // (recordMatch enforces winner-stays-on), so the numbers below are read off
+  // real playback through the real pairing logic rather than guessed.
+  //   A = black wins the opener; W = the team already out there wins again;
+  //   N = the team that just came on wins it.
+  const scriptedLog = (script: string): MatchLogEntry[] => {
+    let log: MatchLogEntry[] = [];
+    for (const ch of script) {
+      let winner: TeamColor;
+      if (log.length === 0) {
+        winner = 'black';
+      } else {
+        const [staying, coming] = nextPairing(log)!;
+        winner = ch === 'W' ? staying : coming;
+      }
+      log = recordMatch(log, winner, false, ['black', 'white']);
+    }
+    return log;
+  };
+
+  it('picks the night with more lead changes over the more dominant one', () => {
+    // 'AWWWWW': black wins the opener and every match after it — one team,
+    // one evening, leadChanges = 0, longest run = 6
+    const dominant = scriptedLog('AWWWWW');
+    // 'ANWWWW': black leads after the opener, the incoming team (blue) takes
+    // it back on the next match and holds it — leadChanges = 1, longest run
+    // for blue = 5 (see the header comment on this describe block)
+    const chaotic = scriptedLog('ANWWWW');
+    const history = [
+      loggedNight('2026-08-01', ['a'], ['b'], ['c'], dominant),
+      loggedNight('2026-08-08', ['a'], ['b'], ['c'], chaotic),
+    ];
+    const stats = buildWrapped(history, '2026-08');
+    expect(stats.nightOfMonth?.fixtureId).toBe(history[1].id);
+    expect(stats.nightOfMonth?.leadChanges).toBe(1);
+    // the longest single-team run still goes to the dominant night, even
+    // though it lost the "most dramatic" pick — the two questions differ
+    expect(stats.longestRun).toEqual({
+      fixtureId: history[0].id,
+      date: '2026-08-01',
+      color: 'black',
+      length: 6,
+    });
+  });
+
+  it('never picks a night for drama below HALVES_MIN matches, however lopsided', () => {
+    const history = [loggedNight('2026-08-01', ['a'], ['b'], ['c'], scriptedLog('ANW'))];
+    expect(buildWrapped(history, '2026-08').nightOfMonth).toBeNull();
+  });
+});
+
+describe('Monthly achievements', () => {
+  it("replays tonightsMilestones across the month's own nights", () => {
+    const history = [
+      night('2026-08-01', ['s'], ['y'], { black: 3, white: 1, blue: 0 }),
+      night('2026-08-08', ['s'], ['y'], { black: 3, white: 1, blue: 0 }),
+      night('2026-08-15', ['s'], ['y'], { black: 3, white: 1, blue: 0 }),
+    ];
+    const stats = buildWrapped(history, '2026-08');
+    expect(
+      stats.monthlyAchievements.some((a) => a.kind === 'win-streak' && a.name === 's' && a.nights === 3),
+    ).toBe(true);
+  });
+
+  it('excludes a debutant guest once a roster says who is actually on it', () => {
+    const filler = Array.from({ length: 5 }, (_, i) =>
+      night(`2026-07-0${i + 1}`, ['x'], ['y'], { black: 3, white: 1, blue: 0 }),
+    );
+    const history = [
+      ...filler,
+      night('2026-08-01', ['x', 'r'], ['y', 'g'], { black: 3, white: 1, blue: 0 }),
+    ];
+    const roster = [player('x'), player('y'), player('r')]; // g is not on it
+    const stats = buildWrapped(history, '2026-08', roster);
+    expect(stats.monthlyAchievements.some((a) => a.kind === 'debut' && a.name === 'r')).toBe(true);
+    expect(stats.monthlyAchievements.some((a) => a.kind === 'debut' && a.name === 'g')).toBe(false);
+  });
+
+  it('treats nobody as a guest when no roster is given, same as every other stat here', () => {
+    const filler = Array.from({ length: 5 }, (_, i) =>
+      night(`2026-07-0${i + 1}`, ['x'], ['y'], { black: 3, white: 1, blue: 0 }),
+    );
+    const history = [...filler, night('2026-08-01', ['x', 'g'], ['y'], { black: 3, white: 1, blue: 0 })];
+    const stats = buildWrapped(history, '2026-08');
+    expect(stats.monthlyAchievements.some((a) => a.kind === 'debut' && a.name === 'g')).toBe(true);
   });
 });
 
