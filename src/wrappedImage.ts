@@ -15,8 +15,10 @@
 // go out together as a single multi-file share, the same pattern
 // shirtImage.ts already uses for the three team shirts.
 
-import type { WrappedStats } from './wrapped';
+import type { WrappedStats, Bully, NightOfMonth } from './wrapped';
 import type { ShareImageResult } from './shareImage';
+import type { Milestone } from './milestones';
+import type { Flavour } from './nightStory';
 import { renderShirtImage } from './shirtImage';
 
 const W = 720;
@@ -31,8 +33,12 @@ const PAGE2_HEADER_H = 108;
 const HERO_H = 200;
 const TILE_H = 188;
 const DUO_H = 168;
+const BULLY_H = 168;
+const NIGHT_CARD_H = 168;
 const LEADERBOARD_ROW_H = 52;
 const LEADERBOARD_TITLE_H = 58;
+const ACHIEVEMENT_ROW_H = 48;
+const ACHIEVEMENT_TITLE_H = 58;
 const GAP = 18;
 const FOOTER_H = 36;
 
@@ -125,6 +131,15 @@ function buildPositiveTiles(stats: WrappedStats): Tile[] {
   return tiles;
 }
 
+// Several of the banter counts land on 1 far more often than the older,
+// gated stats ever did (a reservist by definition shows up 1-2 times; a
+// single shootout is the whole of Drama Queen's floor) — "1 nights" reads as
+// a typo, so anywhere that can plausibly land there gets this instead. Takes
+// the plural form explicitly rather than guessing it (an "-es" word like
+// "match" would otherwise come out "matchs").
+const plural = (n: number, singular: string, pluralForm = `${singular}s`) =>
+  `${n} ${n === 1 ? singular : pluralForm}`;
+
 function buildNegativeTiles(stats: WrappedStats): Tile[] {
   const tiles: Tile[] = [];
   if (stats.bottomScorer) {
@@ -141,6 +156,89 @@ function buildNegativeTiles(stats: WrappedStats): Tile[] {
       value: stats.longestWinless.name,
       label: `${stats.longestWinless.nights} nights without a win`,
       colors: ['#fca5a5', '#991b1b'],
+    });
+  }
+  return tiles;
+}
+
+// One tile per banter stat that fits the "name, one-line label" shape —
+// the two that don't (a rivalry between two names, and a whole night's own
+// headline) get their own card functions below instead of being forced into
+// this grid.
+function buildBanterTiles(stats: WrappedStats): Tile[] {
+  const tiles: Tile[] = [];
+  if (stats.teachersPet) {
+    tiles.push({
+      emoji: '👑',
+      value: stats.teachersPet.name,
+      label: `Teacher's Pet — avg ${stats.teachersPet.avg.toFixed(1)}/10 over ${stats.teachersPet.nights} nights`,
+      colors: ['#fde68a', '#b45309'],
+    });
+  }
+  if (stats.punchingBag) {
+    tiles.push({
+      emoji: '🥊',
+      value: stats.punchingBag.name,
+      label: `Punching Bag — avg ${stats.punchingBag.avg.toFixed(1)}/10 over ${stats.punchingBag.nights} nights`,
+      colors: ['#fca5a5', '#7f1d1d'],
+    });
+  }
+  if (stats.rollercoaster) {
+    tiles.push({
+      emoji: '🎢',
+      value: stats.rollercoaster.name,
+      label: `The Rollercoaster — swung ${stats.rollercoaster.low.toFixed(1)} to ${stats.rollercoaster.high.toFixed(1)}`,
+      colors: ['#c4b5fd', '#5b21b6'],
+    });
+  }
+  if (stats.benchwarmer) {
+    tiles.push({
+      emoji: '🪑',
+      value: stats.benchwarmer.name,
+      label: `The Benchwarmer — sat out ${plural(stats.benchwarmer.matchesBenched, 'match', 'matches')}`,
+      colors: ['#cbd5e1', '#475569'],
+    });
+  }
+  if (stats.outOfGas) {
+    tiles.push({
+      emoji: '🔋',
+      value: stats.outOfGas.name,
+      label: `Out of Gas — ${Math.round(stats.outOfGas.earlyRate * 100)}% early → ${Math.round(stats.outOfGas.lateRate * 100)}% late`,
+      colors: ['#fdba74', '#c2410c'],
+    });
+  }
+  if (stats.dramaQueen) {
+    tiles.push({
+      emoji: '🎭',
+      value: stats.dramaQueen.name,
+      label: `Drama Queen — ${plural(stats.dramaQueen.shootouts, 'penalty shootout')}`,
+      colors: ['#f9a8d4', '#be185d'],
+    });
+  }
+  if (stats.reservist) {
+    tiles.push({
+      emoji: '🎖️',
+      value: stats.reservist.name,
+      label: `The Reservist — ${plural(stats.reservist.wins, 'win')} in just ${plural(stats.reservist.nights, 'night')}`,
+      colors: ['#5eead4', '#0f766e'],
+    });
+  }
+  if (stats.cursedShirt) {
+    const colorName = stats.cursedShirt.color[0].toUpperCase() + stats.cursedShirt.color.slice(1);
+    tiles.push({
+      emoji: '👕',
+      value: colorName,
+      label: `Cursed Shirt — won ${stats.cursedShirt.nightsWon} of ${stats.cursedShirt.nightsPlayed} nights`,
+      colors: ['#94a3b8', '#1e293b'],
+    });
+  }
+  if (stats.longestRun) {
+    const colorName = stats.longestRun.color[0].toUpperCase() + stats.longestRun.color.slice(1);
+    tiles.push({
+      emoji: '🔥',
+      value: colorName,
+      label: `Biggest Run — ${plural(stats.longestRun.length, 'match', 'matches')} on the spin, ${stats.longestRun.date}`,
+      colors: ['#fca5a5', '#b91c1c'],
     });
   }
   return tiles;
@@ -381,6 +479,143 @@ function drawDuoCard(
   ctx.fillText(`won ${duo.won} of their ${duo.together} nights together`, PAD + 24, y + 128);
 }
 
+// A two-name rivalry rather than a single stat — its own card, styled after
+// drawDuoCard but reading as a scoreline rather than a partnership.
+function drawBullyCard(ctx: CanvasRenderingContext2D, bully: Bully, y: number, cardW: number): number {
+  fillGradientRoundRect(ctx, PAD, y, cardW, BULLY_H, 24, ['#fdba74', '#9a3412']);
+  ctx.direction = 'ltr';
+  ctx.textAlign = 'left';
+  ctx.font = font(30, '700');
+  ctx.fillStyle = 'rgba(0,0,0,0.5)';
+  ctx.fillText('😤 The Bully', PAD + 24, y + 42);
+
+  ctx.direction = 'rtl';
+  ctx.textAlign = 'right';
+  ctx.font = font(30, '900');
+  ctx.fillStyle = '#fffaf0';
+  ctx.fillText(
+    `${bully.aName}  ${bully.aWon}–${bully.bWon}  ${bully.bName}`,
+    PAD + cardW - 24,
+    y + 92,
+  );
+
+  ctx.direction = 'ltr';
+  ctx.textAlign = 'left';
+  ctx.font = font(20, '700');
+  ctx.fillStyle = 'rgba(255,250,240,0.9)';
+  ctx.fillText(`head-to-head this month, ${bully.faced} matches faced`, PAD + 24, y + 128);
+
+  return BULLY_H;
+}
+
+const FLAVOUR_EMOJI: Record<Flavour, string> = {
+  dictatorship: '👑',
+  chaos: '🌀',
+  'tug-of-war': '🪢',
+  ordinary: '⚽',
+};
+
+// nightStory's own headline and lead-change count, lifted from the single
+// most dramatic fixture of the month rather than recomputed here.
+function drawNightOfMonthCard(
+  ctx: CanvasRenderingContext2D,
+  night: NightOfMonth,
+  y: number,
+  cardW: number,
+): number {
+  fillGradientRoundRect(ctx, PAD, y, cardW, NIGHT_CARD_H, 24, ['#93c5fd', '#1e3a8a']);
+  ctx.direction = 'ltr';
+  ctx.textAlign = 'left';
+  ctx.font = font(24, '800');
+  ctx.fillStyle = 'rgba(0,0,0,0.5)';
+  ctx.fillText(`${FLAVOUR_EMOJI[night.flavour]} Night of the month`, PAD + 24, y + 38);
+
+  ctx.font = font(16, '700');
+  ctx.fillStyle = 'rgba(0,0,0,0.4)';
+  ctx.fillText(night.date, PAD + 24, y + 60);
+
+  ctx.font = font(28, '900');
+  ctx.fillStyle = '#fffaf0';
+  const headline = fitName(ctx, night.headline, cardW - 48);
+  ctx.fillText(headline, PAD + 24, y + 100);
+
+  ctx.font = font(18, '700');
+  ctx.fillStyle = 'rgba(255,250,240,0.85)';
+  ctx.fillText(
+    `${plural(night.leadChanges, 'lead change')} across ${plural(night.matches, 'match', 'matches')}`,
+    PAD + 24,
+    y + 132,
+  );
+
+  return NIGHT_CARD_H;
+}
+
+function milestoneRow(m: Milestone): { emoji: string; desc: string; name?: string } {
+  switch (m.kind) {
+    case 'debut-group':
+      return { emoji: '✨', desc: `${m.count} first nights` };
+    case 'debut':
+      return { emoji: '✨', desc: 'First night', name: m.name };
+    case 'nth-night':
+      return { emoji: '🎉', desc: `${m.nights}th night`, name: m.name };
+    case 'nth-win':
+      return { emoji: '🏆', desc: `${m.wins}th win`, name: m.name };
+    case 'iron-man':
+      return { emoji: '🦾', desc: `${m.nights} nights running`, name: m.name };
+    case 'win-streak':
+      return { emoji: '📈', desc: `${m.nights} wins running`, name: m.name };
+    case 'winless':
+      return { emoji: '💤', desc: `${m.nights} nights winless`, name: m.name };
+  }
+}
+
+function achievementsHeight(count: number): number {
+  return ACHIEVEMENT_TITLE_H + count * ACHIEVEMENT_ROW_H;
+}
+
+// A full list, not a top-3 — a month digest says everything that happened
+// rather than throttling to what one night's own panel would show (the same
+// distinction `monthlyAchievements` itself draws in wrapped.ts).
+function drawAchievementsCard(
+  ctx: CanvasRenderingContext2D,
+  milestones: Milestone[],
+  y: number,
+  cardW: number,
+): number {
+  const rows = milestones.map(milestoneRow);
+  const h = achievementsHeight(rows.length);
+  fillGradientRoundRect(ctx, PAD, y, cardW, h, 24, ['#fde68a', '#b45309']);
+
+  ctx.direction = 'ltr';
+  ctx.textAlign = 'left';
+  ctx.font = font(26, '800');
+  ctx.fillStyle = 'rgba(0,0,0,0.6)';
+  ctx.fillText('🏅 Monthly achievements', PAD + 24, y + 38);
+
+  rows.forEach((row, i) => {
+    const rowY = y + ACHIEVEMENT_TITLE_H + i * ACHIEVEMENT_ROW_H + 30;
+
+    ctx.direction = 'ltr';
+    ctx.textAlign = 'left';
+    ctx.font = font(20, '800');
+    ctx.fillStyle = 'rgba(28,19,16,0.75)';
+    const maxDescW = row.name ? cardW * 0.5 - 24 : cardW - 48;
+    const desc = fitName(ctx, `${row.emoji}  ${row.desc}`, maxDescW);
+    ctx.fillText(desc, PAD + 24, rowY);
+
+    if (row.name) {
+      ctx.direction = 'rtl';
+      ctx.textAlign = 'right';
+      ctx.font = font(22, '900');
+      ctx.fillStyle = '#1c1310';
+      const name = fitName(ctx, row.name, cardW * 0.45 - 24);
+      ctx.fillText(name, PAD + cardW - 24, rowY);
+    }
+  });
+
+  return h;
+}
+
 function drawFooter(ctx: CanvasRenderingContext2D, y: number) {
   ctx.textAlign = 'center';
   ctx.direction = 'ltr';
@@ -585,10 +820,103 @@ function renderAlsoHappenedImage(stats: WrappedStats): HTMLCanvasElement {
 const hasAlsoHappened = (stats: WrappedStats): boolean =>
   buildNegativeTiles(stats).length > 0 || !!stats.worstDuo;
 
-// The public entry point: one image, or two when there's banter to show.
+// Page 3: the roast — grades, arcs, matchups. Same "only when there's
+// something to say" rule as page 2, checked by hasBanter below. A separate
+// page from "also happened" rather than folded into it: that page's tiles
+// are all `MIN_NIGHTS_FOR_ROAST`-gated career-shaped counts that exist every
+// month once there's any history at all, where this page's stats are the new
+// ones layered on top of grades/logs/arcs/derbies and can easily say nothing
+// for months at a time (a young grades feature, a quiet Out of Gas month) —
+// keeping them apart means one page going quiet doesn't take the other with it.
+function renderBanterImage(stats: WrappedStats): HTMLCanvasElement {
+  const tiles = buildBanterTiles(stats);
+  const cardW = W - PAD * 2;
+
+  const tilesH = tiles.length > 0 ? tileRows(tiles.length) * (TILE_H + GAP) : 0;
+  const bullyH = stats.bully ? BULLY_H + GAP : 0;
+  const nightH = stats.nightOfMonth ? NIGHT_CARD_H + GAP : 0;
+
+  const H = PAD + PAGE2_HEADER_H + tilesH + bullyH + nightH + FOOTER_H + PAD;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext('2d')!;
+
+  drawPageBackground(ctx, W, H);
+
+  ctx.direction = 'ltr';
+  ctx.textAlign = 'left';
+  ctx.fillStyle = 'rgba(253,250,243,0.85)';
+  ctx.font = font(26, '800');
+  ctx.fillText('🦁 Armonim FC', PAD, PAD + 26);
+
+  ctx.font = font(38, '900');
+  ctx.fillStyle = '#f59e0b';
+  ctx.fillText(`${stats.label} — the banter 🎭`, PAD, PAD + 74);
+
+  let y = PAD + PAGE2_HEADER_H;
+
+  y += drawTileGrid(ctx, tiles, y, cardW);
+
+  if (stats.bully) {
+    y += drawBullyCard(ctx, stats.bully, y, cardW) + GAP;
+  }
+  if (stats.nightOfMonth) {
+    y += drawNightOfMonthCard(ctx, stats.nightOfMonth, y, cardW) + GAP;
+  }
+
+  drawFooter(ctx, y);
+
+  return canvas;
+}
+
+const hasBanter = (stats: WrappedStats): boolean =>
+  buildBanterTiles(stats).length > 0 || !!stats.bully || !!stats.nightOfMonth;
+
+// Page 4: every milestone crossed this month, only when there was at least
+// one — unlike the tile pages, there's no fixed shape to check against, just
+// whether the list is empty.
+function renderAchievementsImage(stats: WrappedStats): HTMLCanvasElement {
+  const cardW = W - PAD * 2;
+  const cardH = achievementsHeight(stats.monthlyAchievements.length);
+
+  const H = PAD + PAGE2_HEADER_H + cardH + GAP + FOOTER_H + PAD;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext('2d')!;
+
+  drawPageBackground(ctx, W, H);
+
+  ctx.direction = 'ltr';
+  ctx.textAlign = 'left';
+  ctx.fillStyle = 'rgba(253,250,243,0.85)';
+  ctx.font = font(26, '800');
+  ctx.fillText('🦁 Armonim FC', PAD, PAD + 26);
+
+  ctx.font = font(38, '900');
+  ctx.fillStyle = '#f59e0b';
+  ctx.fillText(`${stats.label} — achievements 🏅`, PAD, PAD + 74);
+
+  let y = PAD + PAGE2_HEADER_H;
+  y += drawAchievementsCard(ctx, stats.monthlyAchievements, y, cardW) + GAP;
+
+  drawFooter(ctx, y);
+
+  return canvas;
+}
+
+const hasAchievements = (stats: WrappedStats): boolean => stats.monthlyAchievements.length > 0;
+
+// The public entry point: the highlights card, plus whichever of the banter
+// pages have anything to say this month.
 export function renderWrappedImages(stats: WrappedStats): HTMLCanvasElement[] {
   const images = [renderHighlightsImage(stats)];
   if (hasAlsoHappened(stats)) images.push(renderAlsoHappenedImage(stats));
+  if (hasBanter(stats)) images.push(renderBanterImage(stats));
+  if (hasAchievements(stats)) images.push(renderAchievementsImage(stats));
   return images;
 }
 
