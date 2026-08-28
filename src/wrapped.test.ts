@@ -341,6 +341,62 @@ describe("Teacher's Pet, Punching Bag and the Rollercoaster", () => {
     // a swings 9.0 -> 4.5 -> 8.5, a range of 4.5; b is flat at 6 every night
     expect(stats.rollercoaster).toMatchObject({ id: 'a', high: 9, low: 4.5, range: 4.5 });
   });
+
+  it('says nothing for the whole month if at most half its nights were ever graded, even when one player individually clears the 3-night floor', () => {
+    const history = [
+      night('2026-08-01', ['a'], ['b'], { black: 3, white: 1, blue: 0 }),
+      night('2026-08-03', ['a'], ['b'], { black: 3, white: 1, blue: 0 }),
+      night('2026-08-05', ['a'], ['b'], { black: 3, white: 1, blue: 0 }),
+      night('2026-08-08', ['a'], ['b'], { black: 3, white: 1, blue: 0 }),
+      night('2026-08-10', ['a'], ['b'], { black: 3, white: 1, blue: 0 }),
+      night('2026-08-12', ['a'], ['b'], { black: 3, white: 1, blue: 0 }),
+      night('2026-08-15', ['a'], ['b'], { black: 3, white: 1, blue: 0 }),
+    ];
+    // 3 of 7 nights graded — enough for 'a' to individually clear
+    // MIN_GRADED_NIGHTS_FOR_RECAP, but not more than half the month itself.
+    const marks = marksFor({
+      [history[0].id]: { a: 9, b: 5 },
+      [history[1].id]: { a: 8, b: 4 },
+      [history[2].id]: { a: 7, b: 3 },
+    });
+    const stats = buildWrapped(history, '2026-08', [], marks);
+    expect(stats.teachersPet).toBeNull();
+    expect(stats.punchingBag).toBeNull();
+    expect(stats.rollercoaster).toBeNull();
+  });
+
+  it('computes as normal once strictly more than half the month is graded', () => {
+    const history = [
+      night('2026-08-01', ['a'], ['b'], { black: 3, white: 1, blue: 0 }),
+      night('2026-08-03', ['a'], ['b'], { black: 3, white: 1, blue: 0 }),
+      night('2026-08-05', ['a'], ['b'], { black: 3, white: 1, blue: 0 }),
+      night('2026-08-08', ['a'], ['b'], { black: 3, white: 1, blue: 0 }),
+      night('2026-08-10', ['a'], ['b'], { black: 3, white: 1, blue: 0 }),
+    ];
+    // 3 of 5 nights graded — over half.
+    const marks = marksFor({
+      [history[0].id]: { a: 9, b: 5 },
+      [history[1].id]: { a: 8, b: 4 },
+      [history[2].id]: { a: 7, b: 3 },
+    });
+    const stats = buildWrapped(history, '2026-08', [], marks);
+    expect(stats.teachersPet).toEqual({ id: 'a', name: 'a', avg: 8, nights: 3 });
+    expect(stats.punchingBag).toEqual({ id: 'b', name: 'b', avg: 4, nights: 3 });
+  });
+
+  it('treats a fixture with an empty published grade sheet as ungraded for the macro gate', () => {
+    const history = [
+      night('2026-08-01', ['a'], ['b'], { black: 3, white: 1, blue: 0 }),
+      night('2026-08-08', ['a'], ['b'], { black: 3, white: 1, blue: 0 }),
+    ];
+    const marks = marksFor({
+      [history[0].id]: {}, // published, but graded nobody
+      [history[1].id]: { a: 8, b: 4 },
+    });
+    const stats = buildWrapped(history, '2026-08', [], marks);
+    // 1 of 2 nights actually graded — not strictly more than half.
+    expect(stats.teachersPet).toBeNull();
+  });
 });
 
 describe('The Benchwarmer', () => {

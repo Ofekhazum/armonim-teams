@@ -345,47 +345,65 @@ export function buildWrapped(
   // one night at a time. `marks[fx.id]` is only ever present for a fixture
   // whose grades were actually published, so a month the organiser never
   // graded simply contributes nothing here rather than a wrong number.
-  const gradesByPlayer = new Map<string, number[]>();
-  for (const fx of chronological) {
+  //
+  // A per-player average is only half the guard, though — it says nothing
+  // about how much of the *month* it's speaking for. Grades launched
+  // partway through, so an early month can have two graded nights out of
+  // twelve; a "Teacher's Pet" built from a sixth of the month would read as
+  // a verdict on the whole thing when it isn't one. So there's a macro gate
+  // ahead of the per-player one: strictly more than half of the month's own
+  // fixtures need published grades before any of these three even attempt a
+  // pick, not just the fixtures that happen to mention a given player.
+  const gradedFixtures = chronological.filter((fx) => {
     const lines = marks[fx.id];
-    if (!lines) continue;
-    for (const [id, grade] of Object.entries(lines)) {
-      if (!Number.isFinite(grade)) continue;
-      const list = gradesByPlayer.get(id);
-      if (list) list.push(grade);
-      else gradesByPlayer.set(id, [grade]);
-    }
-  }
+    return lines != null && Object.keys(lines).length > 0;
+  });
+  const monthIsGraded =
+    chronological.length > 0 && gradedFixtures.length > chronological.length / 2;
+
   let teachersPet: GradeExtreme | null = null;
   let punchingBag: GradeExtreme | null = null;
   let rollercoaster: Rollercoaster | null = null;
-  for (const [id, grades] of gradesByPlayer) {
-    if (grades.length < MIN_GRADED_NIGHTS_FOR_RECAP) continue;
-    const name = nameOf.get(id) ?? '?';
-    const avg = grades.reduce((s, g) => s + g, 0) / grades.length;
-    if (
-      !teachersPet ||
-      avg > teachersPet.avg ||
-      (avg === teachersPet.avg && grades.length > teachersPet.nights)
-    ) {
-      teachersPet = { id, name, avg, nights: grades.length };
+  if (monthIsGraded) {
+    const gradesByPlayer = new Map<string, number[]>();
+    for (const fx of chronological) {
+      const lines = marks[fx.id];
+      if (!lines) continue;
+      for (const [id, grade] of Object.entries(lines)) {
+        if (!Number.isFinite(grade)) continue;
+        const list = gradesByPlayer.get(id);
+        if (list) list.push(grade);
+        else gradesByPlayer.set(id, [grade]);
+      }
     }
-    if (
-      !punchingBag ||
-      avg < punchingBag.avg ||
-      (avg === punchingBag.avg && grades.length > punchingBag.nights)
-    ) {
-      punchingBag = { id, name, avg, nights: grades.length };
-    }
-    const high = Math.max(...grades);
-    const low = Math.min(...grades);
-    const range = high - low;
-    if (
-      !rollercoaster ||
-      range > rollercoaster.range ||
-      (range === rollercoaster.range && grades.length > rollercoaster.nights)
-    ) {
-      rollercoaster = { id, name, high, low, range, nights: grades.length };
+    for (const [id, grades] of gradesByPlayer) {
+      if (grades.length < MIN_GRADED_NIGHTS_FOR_RECAP) continue;
+      const name = nameOf.get(id) ?? '?';
+      const avg = grades.reduce((s, g) => s + g, 0) / grades.length;
+      if (
+        !teachersPet ||
+        avg > teachersPet.avg ||
+        (avg === teachersPet.avg && grades.length > teachersPet.nights)
+      ) {
+        teachersPet = { id, name, avg, nights: grades.length };
+      }
+      if (
+        !punchingBag ||
+        avg < punchingBag.avg ||
+        (avg === punchingBag.avg && grades.length > punchingBag.nights)
+      ) {
+        punchingBag = { id, name, avg, nights: grades.length };
+      }
+      const high = Math.max(...grades);
+      const low = Math.min(...grades);
+      const range = high - low;
+      if (
+        !rollercoaster ||
+        range > rollercoaster.range ||
+        (range === rollercoaster.range && grades.length > rollercoaster.nights)
+      ) {
+        rollercoaster = { id, name, high, low, range, nights: grades.length };
+      }
     }
   }
 
