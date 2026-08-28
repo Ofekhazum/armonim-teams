@@ -730,7 +730,32 @@ describe('team of the month', () => {
 
   it('keeps the parts that made the score, so the pick can be explained', () => {
     const history = [night(d(1), ['a'], ['z'], { black: 4, white: 1, blue: 0 }, 'a')];
-    expect(totm(history)[0]).toMatchObject({ nights: 1, wins: 4, nightsWon: 1, mvps: 1 });
+    expect(totm(history)[0]).toMatchObject({
+      nights: 1,
+      wins: 4,
+      nightsWon: 1,
+      mvps: 1,
+      monthLength: 1,
+    });
+  });
+
+  it('lets a full-attendance player overtake a higher-rate part-timer', () => {
+    // 'a' plays half the month (the eligibility floor) at a high rate; 'b'
+    // plays every night at a lower rate. On the rate alone 'a' would lead —
+    // the attendance bonus is what puts 'b' ahead instead.
+    const history = [
+      night(d(1), ['a', 'b'], ['z'], { black: 3, white: 0, blue: 0 }),
+      night(d(2), ['a', 'b'], ['z'], { black: 3, white: 0, blue: 0 }),
+      night(d(3), ['b'], ['z'], { black: 3, white: 0, blue: 0 }),
+      night(d(4), ['b'], ['z'], { black: 2, white: 0, blue: 0 }),
+    ];
+    const picked = totm(history);
+    // a: 6 wins / 2 nights = 3.0 base — the higher rate of the two
+    // b: 11 wins / 4 nights = 2.75 base — lower, but full attendance
+    expect(picked[0].name).toBe('b');
+    expect(picked.find((p) => p.name === 'a')!.score).toBeLessThan(
+      picked.find((p) => p.name === 'b')!.score,
+    );
   });
 });
 
@@ -743,18 +768,31 @@ describe('the team-of-the-month rule', () => {
   });
 
   it('weighs a night won and an MVP above a bare match win', () => {
-    const base = { nights: 1, wins: 1, nightsWon: 0, mvps: 0 };
-    expect(totmScore(base)).toBe(1);
-    expect(totmScore({ ...base, nightsWon: 1 })).toBe(3);
-    expect(totmScore({ ...base, mvps: 1 })).toBe(4);
+    // monthLength equal to nights (full attendance) throughout, so the
+    // attendance bonus is a constant +1 here and doesn't disturb the
+    // comparison this test is actually about.
+    const base = { nights: 1, wins: 1, nightsWon: 0, mvps: 0, monthLength: 1 };
+    expect(totmScore(base)).toBe(2);
+    expect(totmScore({ ...base, nightsWon: 1 })).toBe(4);
+    expect(totmScore({ ...base, mvps: 1 })).toBe(5);
   });
 
   it('is a rate, not a total — playing more nights does not inflate it', () => {
-    expect(totmScore({ nights: 2, wins: 8, nightsWon: 2, mvps: 0 })).toBe(6);
-    expect(totmScore({ nights: 4, wins: 16, nightsWon: 4, mvps: 0 })).toBe(6);
+    // both at full attendance for their own (different-length) month, so the
+    // bonus is +1 in both cases and the totals still land equal
+    expect(totmScore({ nights: 2, wins: 8, nightsWon: 2, mvps: 0, monthLength: 2 })).toBe(7);
+    expect(totmScore({ nights: 4, wins: 16, nightsWon: 4, mvps: 0, monthLength: 4 })).toBe(7);
+  });
+
+  it('gives proportionally more of the attendance bonus for a bigger share of the month', () => {
+    // same rate (0 from wins/nightsWon/mvps) so the whole score is the bonus
+    const zero = { wins: 0, nightsWon: 0, mvps: 0 };
+    expect(totmScore({ ...zero, nights: 2, monthLength: 4 })).toBe(0.5); // half the month
+    expect(totmScore({ ...zero, nights: 3, monthLength: 4 })).toBe(0.75); // three quarters
+    expect(totmScore({ ...zero, nights: 4, monthLength: 4 })).toBe(1); // every night
   });
 
   it('is zero rather than NaN for nobody', () => {
-    expect(totmScore({ nights: 0, wins: 0, nightsWon: 0, mvps: 0 })).toBe(0);
+    expect(totmScore({ nights: 0, wins: 0, nightsWon: 0, mvps: 0, monthLength: 0 })).toBe(0);
   });
 });

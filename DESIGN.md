@@ -1628,11 +1628,23 @@ aspect ratio.
 - **Eligibility** — at least `ceil(month's nights ÷ 2)` nights played. Without it the team is whoever
   happened to be there on a good night: one appearance at a high rate would outrank a month of steady
   football, which is the opposite of what "of the month" means.
-- **The score**, a rate rather than a total: `(match wins + 2 × nights won + 3 × MVP picks) ÷ nights
-  played`. Match wins are the base currency at four or five a night. A night taken *outright* is worth
-  two more, which separates the player who kept edging nights from the one who banked a single
-  blowout. An MVP is worth three — a real thumb on the scale for the one human judgement the app
-  records, without letting a single pick outrank a month of winning.
+- **The score**, a rate plus a small attendance bonus: `(match wins + 2 × nights won + 3 × MVP picks)
+  ÷ nights played + 1 × (nights played ÷ month's nights)`. Match wins are the base currency at four or
+  five a night. A night taken *outright* is worth two more, which separates the player who kept
+  edging nights from the one who banked a single blowout. An MVP is worth three — a real thumb on the
+  scale for the one human judgement the app records, without letting a single pick outrank a month of
+  winning.
+
+**The attendance term (2026-08) isn't a new preference — it's an old one made continuous.** Ties were
+already broken by whoever played more nights; the bonus is that same rule no longer needing an exact
+float tie to fire, so "played three or four times" earns a little credit over "played twice" even
+when the two scores were never going to land on the same number. It's scaled by the same
+nights ÷ month's-nights share `totmEligible` already gates on, so it only ever ranges over `[0.5, 1]`
+— weight `1` puts a full-attendance player half a point ahead of a half-attendance one, calibrated
+against a season of the invented club's play (§2.32) to be about 1.5× the median score gap near the
+cut: enough to flip a genuinely close call, not enough to let attendance alone decide a month.
+`TotmPlayer` carries `monthLength` (the month's own night count) alongside the other parts precisely
+so this term, like every other, can be recomputed from the row and not just trusted.
 
 Ties break on the parts in the order they matter: more nights played, then more MVPs, then more
 nights won, then the name — so the fifth slot is decided by something rather than by whichever way
