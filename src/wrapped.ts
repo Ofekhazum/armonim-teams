@@ -245,6 +245,38 @@ function longestRun(apps: { won: boolean }[], won: boolean): number {
   return best;
 }
 
+// iron-man/win-streak/winless fire every night a run is still active, not
+// just once — a player mid-streak turns up in `tonightsMilestones`' output on
+// each of the run's own nights, each time with a bigger number than last.
+// Replayed across a whole month, that means "7 nights running" and "8 nights
+// running" for the same player are not two achievements, they're one seen
+// twice. `nth-night`/`nth-win`/`debut`/`debut-group` don't have this problem
+// — each only fires at its own specific threshold — so only these three kinds
+// get filtered, keeping just the best (and, if two nights somehow tie, the
+// first) per player per kind.
+type RunningStreak = Extract<Milestone, { kind: 'iron-man' | 'win-streak' | 'winless' }>;
+
+const isRunningStreak = (m: Milestone): m is RunningStreak =>
+  m.kind === 'iron-man' || m.kind === 'win-streak' || m.kind === 'winless';
+
+function dedupeRunningStreaks(milestones: Milestone[]): Milestone[] {
+  const bestOf = new Map<string, number>();
+  for (const m of milestones) {
+    if (!isRunningStreak(m)) continue;
+    const key = `${m.kind}:${m.id}`;
+    if (m.nights > (bestOf.get(key) ?? -Infinity)) bestOf.set(key, m.nights);
+  }
+  const kept = new Set<string>();
+  return milestones.filter((m) => {
+    if (!isRunningStreak(m)) return true;
+    const key = `${m.kind}:${m.id}`;
+    if (m.nights !== bestOf.get(key)) return false;
+    if (kept.has(key)) return false;
+    kept.add(key);
+    return true;
+  });
+}
+
 // `players` and `marks` are both optional and both default to nothing, so
 // every existing caller — and every test in this file that predates the
 // banter stats — keeps working unchanged. Only the stats that genuinely need
@@ -616,9 +648,11 @@ export function buildWrapped(
   // fixtures, since a milestone like "10th night" depends on every night
   // before it, most of which are outside the period being recapped. Each
   // night's own MAX_SHOWN=5 cap still applies (it would have on the fixture
-  // page too); only the month-level list goes uncapped.
+  // page too); only the month-level list goes uncapped. `dedupeRunningStreaks`
+  // then collapses a streak that spanned several of the month's own nights
+  // down to its best showing — see that function for why.
   const rosterIds = players.length > 0 ? new Set(players.map((p) => p.id)) : null;
-  const monthlyAchievements: Milestone[] = [];
+  const rawAchievements: Milestone[] = [];
   for (const fx of chronological) {
     const todays: TonightPlayer[] = fx.players.map((p) => ({
       id: p.id,
@@ -626,8 +660,9 @@ export function buildWrapped(
       isGuest: rosterIds !== null && !rosterIds.has(p.id),
     }));
     const historySoFar = history.filter((f) => f.date <= fx.date);
-    monthlyAchievements.push(...tonightsMilestones(todays, historySoFar, fx.id));
+    rawAchievements.push(...tonightsMilestones(todays, historySoFar, fx.id));
   }
+  const monthlyAchievements = dedupeRunningStreaks(rawAchievements);
 
   return {
     period,
