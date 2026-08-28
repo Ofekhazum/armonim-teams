@@ -718,16 +718,57 @@ full year is a long wait for the first shareable moment; a month is close to the
 few weeks of Thursdays" and gives the picker something to show early. `wrappedPeriods` only lists
 months that actually have a recorded night, so the picker never offers an empty one.
 
-**One highlights image, plus up to three more only when there's something to say.**
-`renderWrappedImages` always returns a "highlights" page (hero, MVP/match/fixture leaderboards,
-attendance, longest streak, best pair); an "also happened" page only gets rendered when there's
-actually something to say (`hasAlsoHappened`), and the same rule now gates two more pages of banter
-stats added later (`hasBanter`/`hasAchievements`, below). All of them go out together as one
-multi-file share, same pattern as `shirtImage.ts`'s three team shirts. Page 2 was the split point the
-app already had for free: page 1 is everything already gated positive/neutral, page 2 is exactly the
-`buildNegativeTiles`/`worstDuo` content that used to live under an "😬 ALSO HAPPENED" divider on a
-single card. Splitting there meant neither page needed new gating logic, just a second, lighter-headed
-canvas — the same move the later pages repeat.
+**Five pages, and every one after the first is conditional** (redesigned 2026-08). `renderWrappedImages`
+always returns the **highlights** page (the hero count, the MVP/match/fixture leaderboards, perfect
+attendance); then, only when the month has anything to put on them, **the night of the month**, **the
+breakdown**, **achievements**, and finally the Team of the Month gold shirt (§2.20). All of them go
+out as one multi-file share, same pattern as `shirtImage.ts`'s three team shirts.
+
+An earlier version had a separate "😬 also happened" page holding the three roast-shaped stats
+(fewest wins, longest winless run, worst pair). That page is gone — not because those stats were
+dropped, but because once the breakdown had three card sizes there was room for them, and the split
+had never really been about the stats differing in kind, only about there being too many cards of one
+size to look at.
+
+**The look is broadcast graphics, not a dashboard.** The first version of these pages was a grid of
+identically sized rounded rectangles, which read as an iOS widget screen — a shopping list of stats
+with no sense of which ones mattered. What replaced it: heavy outlined "jersey" numerals
+(`jerseyText`, a `strokeText` pass under the fill so a number survives on a busy card), section
+headers that lead with a thick colour bar rather than centring a label, low-contrast diagonal stripe
+texture instead of flat corner-to-corner gradients, and — the actual fix for the shopping-list
+problem — **three card sizes on the breakdown page**.
+
+**The bento, and why it is packed rather than placed.** Cards declare a span in sixths — 6 for the
+full-width hero (the head-to-head, the one award about *two* people), 3 for a half (the marks card,
+the rollercoaster, the least-lucky pair), 2 for a third (everything else). `packTier` lays out one
+tier at a time so a row is always made of same-sized cards, and **a short final row stretches to fill
+the width** rather than leaving a gap. That last rule is the important one: every stat on this page
+is nullable, so the card count is whatever the month happened to produce, and a hand-placed layout
+would look broken in most months. `MAX_MINOR_CARDS` caps the small cards at two rows — past that the
+page stops being glanceable, which is the only thing it has to be, so the tail is dropped rather than
+shrunk.
+
+**It is "The breakdown", never "the banter".** The stats are the same ones, and the "it's a count,
+not a verdict" rule (§2.9) applies to the copy exactly as it does everywhere else — "fewest wins",
+never "worst player". Framing the page as a joke would have licensed copy the data cannot support,
+which is the thing that rule exists to prevent; and a page of the month's awards is a better thing to
+send to the group than a page of the month's insults. The eyebrow labels went the same way:
+"unluckiest shirt" rather than "cursed shirt", "benched most" rather than "the benchwarmer".
+
+**`src/canvasKit.ts`** holds the primitives — shapes, stripes, text fitting and wrapping, jersey
+numerals, chips, the packer, and the canvas team palette. Split out when the recap grew from a few
+stat tiles into five composed pages: `wrappedImage.ts` is now about *what goes where*, and nothing in
+`canvasKit` knows what a fixture is. The palette is there because `TEAM_META` (components/ui.tsx) is
+Tailwind class strings, which a canvas cannot use — `TEAM_CANVAS` is the same three shirts as real
+colour values, so the recap's squads look like the fixture page's squads rather than merely similar.
+
+**Mixed-script labels need explicit bidi isolation, and this was a real bug rather than a
+precaution.** A chip reading `דני · 10th` came out as `10 · דניth`: the Hebrew name makes the whole
+string an RTL paragraph, the digits and the trailing Latin resolve as separate runs, and the "th"
+gets flung to the far end. `iso()`/`isoPair()` wrap each half in a Unicode first-strong isolate
+(U+2068/U+2069) and the chip is drawn explicitly left-to-right, which keeps a mixed label in the
+order it was written whichever way round its halves happen to be. A bare Hebrew name is unaffected —
+it is one isolated RTL run either way.
 
 **Every card's height is measured, not guessed.** A tile grid, a leaderboard, the attendance list —
 each has a `*Height`/`leaderboardHeight`/`wrapNames`-driven size computed before the canvas exists, so
@@ -793,11 +834,20 @@ defaulting to nothing so every existing caller keeps compiling unchanged. `playe
 every other stat here); `marks` is `GET /grades/all`'s response, fetched by `History.tsx` the same way
 `PlayerPage.tsx` already fetches it for its own graph — admin-only, since the recap button itself is.
 
-**Two more images, each only drawn when there's something to say**, the same `hasAlsoHappened`-style
-gate the "also happened" page already used: a "banter" page (`hasBanter`) — a tile grid for every stat
-that fits the "one name, one line" shape, plus its own card each for the Bully (two names and a
-scoreline) and Night of the Month (`nightStory`'s own headline); and an "achievements" page
-(`hasAchievements`) — one dynamically-sized list card, a row per milestone, uncapped, since a month
+**The night of the month carries its own scoreboard.** `NightOfMonth` gained per-shirt
+`{played, won, points, squad}`, the night's `winner`, its `penalties` and its `mvpName` — the first
+three straight off `nightStory`'s `TeamNight`, so it is a pass-through rather than new arithmetic.
+`squad` is the one part `nightStory` does not have: the recap **redraws the three squads exactly as
+the fixture page shows them** (same colours, same wrapped name chips, same header), which needs names
+rather than counts. Redrawing from the record rather than embedding a photo keeps it truthful — it is
+always the squad that actually played — and the winning shirt takes a gold border and a 🏆 on both
+its squad card and its score column. `winner` is `winnerOf`, so a tie at the top is nobody rather
+than a coin toss, and the page simply shows no gold that month.
+
+**Achievements are grouped chips, not a list.** One row per milestone turned a busy month into a
+receipt — twenty near-identical lines of small text. They are now bucketed by kind (first nights,
+milestone nights, career wins, never missed, winning runs, longest waits) and each bucket flows its
+members as pills, which says the same thing in a fraction of the height. Still uncapped: a month
 digest lists everything a single night's own panel would have throttled.
 
 **Repeat guests are one person (`src/guests.ts`).** A guest is created on the night they turn up with

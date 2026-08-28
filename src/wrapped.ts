@@ -127,6 +127,17 @@ export interface CursedShirt {
   matchWinShare: number; // this colour's share of every match win banked this month
 }
 
+// One shirt's night, as the recap's scoreboard needs it. `nightStory` already
+// works all of this out from the match log (`TeamNight`); what it doesn't
+// carry is who actually wore the shirt, which the recap needs because it
+// redraws the three squads the way the fixture page shows them.
+export interface NightOfMonthTeam {
+  played: number;
+  won: number;
+  points: number; // half a win for a shootout, as the tally counts it
+  squad: string[]; // the names on that shirt, in the order the fixture kept them
+}
+
 export interface NightOfMonth {
   fixtureId: string;
   date: string;
@@ -136,6 +147,13 @@ export interface NightOfMonth {
   flavour: Flavour;
   headline: string;
   facts: NightFact[];
+  // The scoreboard half of the night's own page. `winner` is the strict top
+  // of the night — the same `winnerOf` reading used everywhere else, so a tie
+  // at the top is nobody rather than a coin toss.
+  teams: Record<TeamColor, NightOfMonthTeam>;
+  winner: TeamColor | null;
+  penalties: number;
+  mvpName: string | null;
 }
 
 export interface LongestRun {
@@ -620,6 +638,16 @@ export function buildWrapped(
           (story.alternation > nightOfMonth.alternation ||
             (story.alternation === nightOfMonth.alternation && story.matches > nightOfMonth.matches))))
     ) {
+      const nameIn = (id: string) => fx.players.find((p) => p.id === id)?.name ?? '?';
+      const teams = {} as Record<TeamColor, NightOfMonthTeam>;
+      for (const c of TEAM_COLORS) {
+        teams[c] = {
+          played: story.teams[c].played,
+          won: story.teams[c].won,
+          points: story.teams[c].points,
+          squad: fx.teams[c].map(nameIn),
+        };
+      }
       nightOfMonth = {
         fixtureId: fx.id,
         date: fx.date,
@@ -629,6 +657,10 @@ export function buildWrapped(
         flavour: story.flavour,
         headline: story.headline,
         facts: story.facts,
+        teams,
+        winner: winnerOf(fx),
+        penalties: story.penalties,
+        mvpName: fx.mvpId ? nameIn(fx.mvpId) : null,
       };
     }
     if (story.longest && (!biggestRun || story.longest.length > biggestRun.length)) {

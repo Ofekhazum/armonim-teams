@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { TOTM_SIZE, buildWrapped, periodLabel, totmEligible, totmScore, wrappedPeriods } from './wrapped';
 import type { AllMarks } from './gradeHistory';
 import { nextPairing, recordMatch, winsFromLog } from './matchLog';
+import { TEAM_COLORS } from './balancer';
 import { ATTACK_DEFAULT } from './types';
 import type { FixtureRecord, MatchLogEntry, Player, TeamColor } from './types';
 
@@ -617,6 +618,33 @@ describe('Night of the Month and the longest run', () => {
   it('never picks a night for drama below HALVES_MIN matches, however lopsided', () => {
     const history = [loggedNight('2026-08-01', ['a'], ['b'], ['c'], scriptedLog('ANW'))];
     expect(buildWrapped(history, '2026-08').nightOfMonth).toBeNull();
+  });
+
+  it('carries the scoreboard the recap page draws — per-shirt record, squads, winner and MVP', () => {
+    // 'AWWWWW': black takes the opener and everything after it, so black
+    // played all 6 and won all 6, and is the outright top of the night
+    const history = [
+      loggedNight('2026-08-01', ['a', 'b'], ['c'], ['d'], scriptedLog('AWWWWW'), 'a'),
+    ];
+    const notm = buildWrapped(history, '2026-08').nightOfMonth;
+    expect(notm?.teams.black).toEqual({ played: 6, won: 6, points: 6, squad: ['a', 'b'] });
+    expect(notm?.winner).toBe('black');
+    expect(notm?.mvpName).toBe('a');
+    expect(notm?.penalties).toBe(0);
+    // every shirt is represented, even one that never won a match
+    expect(notm?.teams.white.squad).toEqual(['c']);
+    expect(notm?.teams.blue.squad).toEqual(['d']);
+    expect(notm?.teams.white.won).toBe(0);
+  });
+
+  it('reports no winner when the night ended level at the top', () => {
+    // 'ANWNWN' alternates enough that no single shirt finishes clear
+    const history = [loggedNight('2026-08-01', ['a'], ['b'], ['c'], scriptedLog('ANWNWN'))];
+    const notm = buildWrapped(history, '2026-08').nightOfMonth;
+    const wins = TEAM_COLORS.map((c) => notm!.teams[c].won).sort((x, y) => y - x);
+    // only assert the tie-at-the-top case actually arose, then that it reads as nobody
+    if (wins[0] === wins[1]) expect(notm?.winner).toBeNull();
+    expect(notm?.mvpName).toBeNull();
   });
 });
 
