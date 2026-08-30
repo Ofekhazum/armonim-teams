@@ -270,7 +270,6 @@ describe('buildWrapped', () => {
       reservists: [],
       bully: null,
       cursedShirt: null,
-      nightOfMonth: null,
       longestRun: null,
       monthlyAchievements: [],
     });
@@ -536,45 +535,39 @@ describe('The Cursed Shirt', () => {
   });
 });
 
-describe('Night of the Month and the longest run', () => {
-  // Same scripting approach nightStory.test.ts uses, and for the same reason:
-  // a hand-written log can describe a night that could not have happened
-  // (recordMatch enforces winner-stays-on), so the numbers below are read off
-  // real playback through the real pairing logic rather than guessed.
-  //   A = black wins the opener; W = the team already out there wins again;
-  //   N = the team that just came on wins it.
-  const scriptedLog = (script: string): MatchLogEntry[] => {
-    let log: MatchLogEntry[] = [];
-    for (const ch of script) {
-      let winner: TeamColor;
-      if (log.length === 0) {
-        winner = 'black';
-      } else {
-        const [staying, coming] = nextPairing(log)!;
-        winner = ch === 'W' ? staying : coming;
+describe('the longest run within a night', () => {
+  it('finds the longest unbroken run of match wins, and names the shirt that ran it', () => {
+    // Same scripting approach nightStory.test.ts uses, and for the same
+    // reason: a hand-written log can describe a night that could not have
+    // happened (recordMatch enforces winner-stays-on), so the numbers below
+    // are read off real playback through the real pairing logic rather than
+    // guessed. A = black wins the opener; W = the team already out there
+    // wins again; N = the team that just came on wins it.
+    const scriptedLog = (script: string): MatchLogEntry[] => {
+      let log: MatchLogEntry[] = [];
+      for (const ch of script) {
+        let winner: TeamColor;
+        if (log.length === 0) {
+          winner = 'black';
+        } else {
+          const [staying, coming] = nextPairing(log)!;
+          winner = ch === 'W' ? staying : coming;
+        }
+        log = recordMatch(log, winner, false, ['black', 'white']);
       }
-      log = recordMatch(log, winner, false, ['black', 'white']);
-    }
-    return log;
-  };
-
-  it('picks the night with more lead changes over the more dominant one', () => {
-    // 'AWWWWW': black wins the opener and every match after it — one team,
-    // one evening, leadChanges = 0, longest run = 6
+      return log;
+    };
+    // 'AWWWWW': black wins the opener and every match after it, so its own
+    // run is the whole night — 6 matches, longer than the shorter night below
     const dominant = scriptedLog('AWWWWW');
-    // 'ANWWWW': black leads after the opener, the incoming team (blue) takes
-    // it back on the next match and holds it — leadChanges = 1, longest run
-    // for blue = 5 (see the header comment on this describe block)
+    // 'ANWWWW': black leads after the opener, then the incoming team (blue)
+    // takes it back and holds it — blue's run is 5, still short of the first
     const chaotic = scriptedLog('ANWWWW');
     const history = [
       loggedNight('2026-08-01', ['a'], ['b'], ['c'], dominant),
       loggedNight('2026-08-08', ['a'], ['b'], ['c'], chaotic),
     ];
     const stats = buildWrapped(history, '2026-08');
-    expect(stats.nightOfMonth?.fixtureId).toBe(history[1].id);
-    expect(stats.nightOfMonth?.leadChanges).toBe(1);
-    // the longest single-team run still goes to the dominant night, even
-    // though it lost the "most dramatic" pick — the two questions differ
     expect(stats.longestRun).toEqual({
       fixtureId: history[0].id,
       date: '2026-08-01',
@@ -584,38 +577,6 @@ describe('Night of the Month and the longest run', () => {
       // teams are redrawn every week, so the colour alone names nobody
       squad: ['a'],
     });
-  });
-
-  it('never picks a night for drama below HALVES_MIN matches, however lopsided', () => {
-    const history = [loggedNight('2026-08-01', ['a'], ['b'], ['c'], scriptedLog('ANW'))];
-    expect(buildWrapped(history, '2026-08').nightOfMonth).toBeNull();
-  });
-
-  it('carries the scoreboard the recap page draws — per-shirt record, squads, winner and MVP', () => {
-    // 'AWWWWW': black takes the opener and everything after it, so black
-    // played all 6 and won all 6, and is the outright top of the night
-    const history = [
-      loggedNight('2026-08-01', ['a', 'b'], ['c'], ['d'], scriptedLog('AWWWWW'), 'a'),
-    ];
-    const notm = buildWrapped(history, '2026-08').nightOfMonth;
-    expect(notm?.teams.black).toEqual({ played: 6, won: 6, points: 6, squad: ['a', 'b'] });
-    expect(notm?.winner).toBe('black');
-    expect(notm?.mvpName).toBe('a');
-    expect(notm?.penalties).toBe(0);
-    // every shirt is represented, even one that never won a match
-    expect(notm?.teams.white.squad).toEqual(['c']);
-    expect(notm?.teams.blue.squad).toEqual(['d']);
-    expect(notm?.teams.white.won).toBe(0);
-  });
-
-  it('reports no winner when the night ended level at the top', () => {
-    // 'ANWNWN' alternates enough that no single shirt finishes clear
-    const history = [loggedNight('2026-08-01', ['a'], ['b'], ['c'], scriptedLog('ANWNWN'))];
-    const notm = buildWrapped(history, '2026-08').nightOfMonth;
-    const wins = TEAM_COLORS.map((c) => notm!.teams[c].won).sort((x, y) => y - x);
-    // only assert the tie-at-the-top case actually arose, then that it reads as nobody
-    if (wins[0] === wins[1]) expect(notm?.winner).toBeNull();
-    expect(notm?.mvpName).toBeNull();
   });
 });
 

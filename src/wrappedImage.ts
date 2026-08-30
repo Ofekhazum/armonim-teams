@@ -34,15 +34,7 @@
 // about those stats differing in kind — only about there being too many cards
 // of one size to look at.
 
-import type {
-  Bully,
-  GradeExtreme,
-  LongestRun,
-  NightOfMonth,
-  Reservist,
-  WinningTeam,
-  WrappedStats,
-} from './wrapped';
+import type { Bully, GradeExtreme, LongestRun, Reservist, WinningTeam, WrappedStats } from './wrapped';
 import type { ShareImageResult } from './shareImage';
 import type { Milestone } from './milestones';
 import type { TeamColor } from './types';
@@ -438,176 +430,8 @@ function renderHighlights(stats: WrappedStats): HTMLCanvasElement {
   return canvas;
 }
 
-// --- Page 2: the night of the month ----------------------------------------
-//
-// The three squads exactly as the fixture page draws them — same colours, same
-// name chips, same header — above a scoreboard of how the night actually went.
-// Redrawn from the record rather than screenshotted, so it is always the squad
-// that really played.
 
-const SQUAD_HEADER_H = 48;
-const SQUAD_PAD = 12;
-const SCORE_H = 148;
-
-const squadHeight = (lines: string[][]) =>
-  SQUAD_HEADER_H + Math.max(lines.length, 1) * (CHIP_H + 6) + SQUAD_PAD;
-
-function drawSquadCard(
-  ctx: CanvasRenderingContext2D,
-  color: TeamColor,
-  lines: string[][],
-  s: Slot,
-  isWinner: boolean,
-) {
-  const t = TEAM_CANVAS[color];
-  fillRound(ctx, s.x, s.y, s.w, s.h, 18, t.bg);
-  strokeRound(ctx, s.x, s.y, s.w, s.h, 18, isWinner ? INK.gold : t.border, isWinner ? 3 : 1.5);
-
-  ctx.save();
-  ctx.direction = 'ltr';
-  ctx.textAlign = 'left';
-  ctx.font = font(16, '900');
-  ctx.fillStyle = t.text;
-  ctx.fillText(`${TEAM_EMOJI[color]} ${TEAM_LABEL[color]}`, s.x + SQUAD_PAD, s.y + 29);
-  ctx.restore();
-
-  lines.forEach((line, i) => {
-    let x = s.x + SQUAD_PAD;
-    const rowY = s.y + SQUAD_HEADER_H + i * (CHIP_H + 6);
-    for (const name of line) {
-      x +=
-        drawChip(ctx, name, x, rowY, {
-          size: 15,
-          fill: t.chip,
-          border: t.border,
-          color: t.text,
-        }) + CHIP_GAP;
-    }
-  });
-}
-
-function drawScoreRow(ctx: CanvasRenderingContext2D, night: NightOfMonth, y: number, cardW: number) {
-  const colW = (cardW - GAP * 2) / 3;
-  TEAM_COLORS.forEach((c, i) => {
-    const t = TEAM_CANVAS[c];
-    const x = PAD + i * (colW + GAP);
-    const won = night.winner === c;
-    fillRound(ctx, x, y, colW, SCORE_H, 18, won ? t.bg : 'rgba(253,250,243,0.05)');
-    strokeRound(ctx, x, y, colW, SCORE_H, 18, won ? INK.gold : 'rgba(253,250,243,0.12)', won ? 3 : 1.5);
-
-    // measure the caps so they can be centred in the column
-    const capsW = spacedCaps(measurer(), TEAM_LABEL[c], 0, -999, { size: 12, tracking: 1.6 });
-    spacedCaps(ctx, TEAM_LABEL[c], x + colW / 2 - capsW / 2, y + 30, {
-      size: 12,
-      color: won ? t.sub : INK.muted,
-      tracking: 1.6,
-    });
-
-    jerseyText(ctx, String(night.teams[c].won), x + colW / 2, y + 88, {
-      size: 52,
-      fill: won ? INK.bright : INK.body,
-      stroke: 'rgba(0,0,0,0.32)',
-      align: 'center',
-    });
-
-    ctx.save();
-    ctx.direction = 'ltr';
-    ctx.textAlign = 'center';
-    ctx.font = font(15, '900');
-    ctx.fillStyle = won ? INK.bright : INK.body;
-    ctx.fillText(night.teams[c].won === 1 ? 'WIN' : 'WINS', x + colW / 2, y + 110);
-    ctx.font = font(13, '700');
-    ctx.fillStyle = won ? t.sub : INK.muted;
-    ctx.fillText(`from ${night.teams[c].played} played`, x + colW / 2, y + 130);
-    ctx.restore();
-
-    if (won) {
-      ctx.save();
-      ctx.direction = 'ltr';
-      ctx.textAlign = 'center';
-      ctx.font = font(15, '900');
-      ctx.fillStyle = INK.gold;
-      ctx.fillText('🏆', x + colW - 22, y + 30);
-      ctx.restore();
-    }
-  });
-}
-
-function renderNightOfMonth(night: NightOfMonth): HTMLCanvasElement {
-  const cardW = W - PAD * 2;
-  const squadW = (cardW - GAP * 2) / 3;
-  const m = measurer();
-
-  // every squad card takes the height of the tallest, so the row stays level
-  const squadLines = TEAM_COLORS.map((c) =>
-    flowChips(m, night.teams[c].squad, squadW - SQUAD_PAD * 2, 15),
-  );
-  const squadH = Math.max(...squadLines.map(squadHeight));
-
-  const facts: string[] = [
-    `${night.matches} matches`,
-    `${night.leadChanges} lead change${night.leadChanges === 1 ? '' : 's'}`,
-  ];
-  if (night.penalties > 0) {
-    facts.push(`${night.penalties} shootout${night.penalties === 1 ? '' : 's'}`);
-  }
-  if (night.mvpName) facts.push(`🌟 ${iso(night.mvpName)}`);
-  const factLines = flowChips(m, facts, cardW, 16);
-
-  const H =
-    PAD +
-    PAGE_HEADER_H +
-    64 + // the headline line
-    squadH +
-    GAP +
-    SCORE_H +
-    GAP +
-    factLines.length * (CHIP_H + CHIP_GAP) +
-    GAP +
-    FOOTER_H +
-    PAD;
-
-  const [canvas, ctx] = canvasOf(H);
-  drawPageHeader(ctx, night.date, 'Night of the month');
-
-  let y = PAD + PAGE_HEADER_H;
-
-  // nightStory's own headline for the evening
-  ctx.save();
-  ctx.direction = 'ltr';
-  ctx.textAlign = 'left';
-  ctx.font = font(27, '900');
-  ctx.fillStyle = INK.bright;
-  ctx.fillText(fitText(ctx, `“${night.headline}”`, cardW), PAD, y + 24);
-  ctx.restore();
-  y += 64;
-
-  TEAM_COLORS.forEach((c, i) => {
-    drawSquadCard(
-      ctx,
-      c,
-      squadLines[i],
-      { x: PAD + i * (squadW + GAP), y, w: squadW, h: squadH },
-      night.winner === c,
-    );
-  });
-  y += squadH + GAP;
-
-  drawScoreRow(ctx, night, y, cardW);
-  y += SCORE_H + GAP;
-
-  factLines.forEach((line, i) => {
-    let x = PAD;
-    const rowY = y + i * (CHIP_H + CHIP_GAP);
-    for (const f of line) x += drawChip(ctx, f, x, rowY, { size: 16 }) + CHIP_GAP;
-  });
-  y += factLines.length * (CHIP_H + CHIP_GAP) + GAP;
-
-  drawFooter(ctx, y);
-  return canvas;
-}
-
-// --- Page 3: the month's winning teams -------------------------------------
+// --- Page 2: the month's winning teams -------------------------------------
 //
 // The same card the night page uses for a winning shirt — colour, crown, the
 // squad in name chips — one per night that had an outright winner, best night
@@ -845,7 +669,7 @@ function renderWinningTeams(stats: WrappedStats): HTMLCanvasElement {
     PAD;
 
   const [canvas, ctx] = canvasOf(H);
-  drawPageHeader(ctx, stats.label, 'Winning teams');
+  drawPageHeader(ctx, stats.label, 'Winning Teams');
 
   let y = PAD + PAGE_HEADER_H;
   for (const { night, colLines } of nights) {
@@ -874,7 +698,7 @@ function renderWinningTeams(stats: WrappedStats): HTMLCanvasElement {
   return canvas;
 }
 
-// --- Page 4: the breakdown -------------------------------------------------
+// --- Page 3: the breakdown -------------------------------------------------
 
 /** The two grade extremes share one card: they are the same question asked
  *  from both ends, and two separate boxes was the grid-of-identical-tiles
@@ -1188,7 +1012,7 @@ function renderBreakdown(stats: WrappedStats): HTMLCanvasElement {
   return canvas;
 }
 
-// --- Page 5: achievements --------------------------------------------------
+// --- Page 4: achievements --------------------------------------------------
 
 interface ChipGroup {
   title: string;
@@ -1292,7 +1116,6 @@ function renderAchievements(stats: WrappedStats): HTMLCanvasElement {
 
 export function renderWrappedImages(stats: WrappedStats): HTMLCanvasElement[] {
   const images = [renderHighlights(stats)];
-  if (stats.nightOfMonth) images.push(renderNightOfMonth(stats.nightOfMonth));
   if (stats.winningTeams.length > 0) images.push(renderWinningTeams(stats));
   if (hasBreakdown(stats)) images.push(renderBreakdown(stats));
   if (stats.monthlyAchievements.length > 0) images.push(renderAchievements(stats));

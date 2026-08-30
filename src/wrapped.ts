@@ -20,7 +20,7 @@ import { mvpCounts } from './mvp';
 import { TOTM_SIZE, teamOfMonth, totmEligible, totmScore, type TotmPlayer } from './totm';
 import { loserOf, playedCounts } from './matchLog';
 import { lean, playerArcs, rate as arcRate } from './playerArcs';
-import { nightStory, HALVES_MIN, type Flavour, type NightFact } from './nightStory';
+import { nightStory } from './nightStory';
 import type { AllMarks } from './gradeHistory';
 
 // The Team of the Month scoring lives in totm.ts, because the Worker's cron
@@ -112,35 +112,6 @@ export interface CursedShirt {
   matchWinShare: number; // this colour's share of every match win banked this month
 }
 
-// One shirt's night, as the recap's scoreboard needs it. `nightStory` already
-// works all of this out from the match log (`TeamNight`); what it doesn't
-// carry is who actually wore the shirt, which the recap needs because it
-// redraws the three squads the way the fixture page shows them.
-export interface NightOfMonthTeam {
-  played: number;
-  won: number;
-  points: number; // half a win for a shootout, as the tally counts it
-  squad: string[]; // the names on that shirt, in the order the fixture kept them
-}
-
-export interface NightOfMonth {
-  fixtureId: string;
-  date: string;
-  leadChanges: number;
-  alternation: number;
-  matches: number;
-  flavour: Flavour;
-  headline: string;
-  facts: NightFact[];
-  // The scoreboard half of the night's own page. `winner` is the strict top
-  // of the night — the same `winnerOf` reading used everywhere else, so a tie
-  // at the top is nobody rather than a coin toss.
-  teams: Record<TeamColor, NightOfMonthTeam>;
-  winner: TeamColor | null;
-  penalties: number;
-  mvpName: string | null;
-}
-
 export interface LongestRun {
   fixtureId: string;
   date: string;
@@ -219,7 +190,6 @@ export interface WrappedStats {
   reservists: Reservist[];
   bully: Bully | null;
   cursedShirt: CursedShirt | null;
-  nightOfMonth: NightOfMonth | null;
   longestRun: LongestRun | null;
   // Every milestone crossed on one of the month's own nights, replaying
   // `tonightsMilestones` fixture by fixture rather than capping at MAX_SHOWN —
@@ -619,52 +589,16 @@ export function buildWrapped(
   }
   winningTeams.sort((a, b) => b.wins - a.wins || a.date.localeCompare(b.date));
 
-  // --- Night of the Month, and the longest run within one ------------------
-  // Both fall out of the same pass over `nightStory`, which already reads a
-  // night's own match log for its shape — nothing here is new arithmetic, only
-  // a max held across the month. Night of the Month is gated at HALVES_MIN
-  // matches so a three-match evening can't win by having nothing else to
-  // compare against; the longest run isn't, since a big run is the fact
-  // regardless of how short the rest of the night was.
-  let nightOfMonth: NightOfMonth | null = null;
+  // --- The longest run within one night -------------------------------------
+  // A single pass over `nightStory`, which already reads a night's own match
+  // log for its shape — nothing here is new arithmetic, only a max held
+  // across the month. Ungated: a big run is the fact regardless of how short
+  // the rest of the night was.
   let biggestRun: LongestRun | null = null;
   for (const fx of chronological) {
     const story = nightStory(fx);
-    if (!story) continue;
-    if (
-      story.matches >= HALVES_MIN &&
-      (!nightOfMonth ||
-        story.leadChanges > nightOfMonth.leadChanges ||
-        (story.leadChanges === nightOfMonth.leadChanges &&
-          (story.alternation > nightOfMonth.alternation ||
-            (story.alternation === nightOfMonth.alternation && story.matches > nightOfMonth.matches))))
-    ) {
-      const nameIn = (id: string) => fx.players.find((p) => p.id === id)?.name ?? '?';
-      const teams = {} as Record<TeamColor, NightOfMonthTeam>;
-      for (const c of TEAM_COLORS) {
-        teams[c] = {
-          played: story.teams[c].played,
-          won: story.teams[c].won,
-          points: story.teams[c].points,
-          squad: squadNames(fx, c),
-        };
-      }
-      nightOfMonth = {
-        fixtureId: fx.id,
-        date: fx.date,
-        leadChanges: story.leadChanges,
-        alternation: story.alternation,
-        matches: story.matches,
-        flavour: story.flavour,
-        headline: story.headline,
-        facts: story.facts,
-        teams,
-        winner: winnerOf(fx),
-        penalties: story.penalties,
-        mvpName: fx.mvpId ? nameIn(fx.mvpId) : null,
-      };
-    }
-    if (story.longest && (!biggestRun || story.longest.length > biggestRun.length)) {
+    if (!story?.longest) continue;
+    if (!biggestRun || story.longest.length > biggestRun.length) {
       const runColor = story.longest.team;
       biggestRun = {
         fixtureId: fx.id,
@@ -728,7 +662,6 @@ export function buildWrapped(
     reservists,
     bully,
     cursedShirt,
-    nightOfMonth,
     longestRun: biggestRun,
     monthlyAchievements,
   };

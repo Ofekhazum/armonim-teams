@@ -718,12 +718,20 @@ full year is a long wait for the first shareable moment; a month is close to the
 few weeks of Thursdays" and gives the picker something to show early. `wrappedPeriods` only lists
 months that actually have a recorded night, so the picker never offers an empty one.
 
-**Five pages, and every one after the first is conditional** (redesigned 2026-08). `renderWrappedImages`
+**Four pages, and every one after the first is conditional** (redesigned 2026-08). `renderWrappedImages`
 always returns the **highlights** page (the hero count, the MVP/match/fixture leaderboards, perfect
-attendance); then, only when the month has anything to put on them, **the night of the month**,
-**winning teams**, **the breakdown**, **achievements**, and finally the Team of the Month gold shirt
-(§2.20). All of them go
-out as one multi-file share, same pattern as `shirtImage.ts`'s three team shirts.
+attendance); then, only when the month has anything to put on them, **winning teams**, **the
+breakdown**, **achievements**, and finally the Team of the Month gold shirt (§2.20). All of them go out
+as one multi-file share, same pattern as `shirtImage.ts`'s three team shirts.
+
+A fifth page, **the night of the month**, existed briefly in the same redesign and was cut. It
+redrew the three squads exactly as the fixture page shows them over a scoreboard of the month's most
+dramatic evening (most lead changes, gated at `HALVES_MIN` matches) — a real page, not a placeholder,
+but the club's own review after seeing it decided it didn't earn its slot once winning teams existed
+alongside it. `NightOfMonth`/`NightOfMonthTeam` and the `nightStory`-driven pick that fed them are gone
+from `wrapped.ts` entirely rather than left computed and unrendered — the same call the app already
+made for the rollercoaster and the drama queen (below): a stat nothing reads is pure cost, not a
+harmless surplus.
 
 An earlier version had a separate "😬 also happened" page holding the three roast-shaped stats
 (fewest wins, longest winless run, worst pair). That page is gone — not because those stats were
@@ -741,7 +749,7 @@ problem — **three card sizes on the breakdown page**.
 
 **The bento, and why it is packed rather than placed.** Cards declare a span in sixths — 6 for the
 full-width hero (the head-to-head, the one award about *two* people), 3 for a half (the marks card,
-the rollercoaster, the least-lucky pair), 2 for a third (everything else). `packTier` lays out one
+the biggest run, the least-lucky pair), 2 for a third (everything else). `packTier` lays out one
 tier at a time so a row is always made of same-sized cards, and **a short final row stretches to fill
 the width** rather than leaving a gap. That last rule is the important one: every stat on this page
 is nullable, so the card count is whatever the month happened to produce, and a hand-placed layout
@@ -869,16 +877,6 @@ card in half; three split it in thirds. `WrappedStats.winningTeams` stays a flat
 list of individual shirts — the grouping is purely a rendering decision — and **`MAX_WINNING_TEAMS = 4`**
 caps the number of *nights* shown, in the renderer, because how many cards fit before the page becomes
 a wall of names is a layout question, not a fact about the month.
-
-**The night of the month carries its own scoreboard.** `NightOfMonth` gained per-shirt
-`{played, won, points, squad}`, the night's `winner`, its `penalties` and its `mvpName` — the first
-three straight off `nightStory`'s `TeamNight`, so it is a pass-through rather than new arithmetic.
-`squad` is the one part `nightStory` does not have: the recap **redraws the three squads exactly as
-the fixture page shows them** (same colours, same wrapped name chips, same header), which needs names
-rather than counts. Redrawing from the record rather than embedding a photo keeps it truthful — it is
-always the squad that actually played — and the winning shirt takes a gold border and a 🏆 on both
-its squad card and its score column. `winner` is `winnerOf`, so a tie at the top is nobody rather
-than a coin toss, and the page simply shows no gold that month.
 
 **Achievements are grouped chips, not a list.** One row per milestone turned a busy month into a
 receipt — twenty near-identical lines of small text. They are now bucketed by kind (first nights,
