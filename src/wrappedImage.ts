@@ -828,11 +828,11 @@ function drawBiggestRunCard(ctx: CanvasRenderingContext2D, run: LongestRun, s: S
   ctx.save();
   ctx.direction = 'rtl';
   ctx.textAlign = 'right';
-  ctx.font = font(16, '800');
+  ctx.font = font(20, '800');
   ctx.fillStyle = 'rgba(255,255,255,0.92)';
   wrapText(ctx, run.squad.join(' · '), s.w - 40)
     .slice(0, 3)
-    .forEach((line, i) => ctx.fillText(line, s.x + s.w - 20, s.y + 148 + i * 23));
+    .forEach((line, i) => ctx.fillText(line, s.x + s.w - 20, s.y + 152 + i * 27));
   ctx.restore();
 }
 
