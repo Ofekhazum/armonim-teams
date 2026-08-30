@@ -152,6 +152,18 @@ export interface LongestRun {
   squad: string[];
 }
 
+// A shirt that topped one of the month's nights outright, with the squad that
+// wore it. Every night produces at most one of these (`winnerOf` is strict, so
+// a tie at the top is nobody), and the recap draws the best few as their own
+// page.
+export interface WinningTeam {
+  fixtureId: string;
+  date: string;
+  color: TeamColor;
+  wins: number; // match wins that shirt banked on the night
+  squad: string[];
+}
+
 export interface WrappedStats {
   period: string; // 'YYYY-MM'
   label: string; // e.g. 'August 2026'
@@ -183,6 +195,10 @@ export interface WrappedStats {
   longestWinless: { name: string; nights: number } | null;
   bestDuo: DuoFact | null;
   worstDuo: DuoFact | null;
+  // Every shirt that took a night outright this month, best night first. Not
+  // capped here — how many will fit on a page is the poster's business, and
+  // `wrappedImage.ts` takes the top few.
+  winningTeams: WinningTeam[];
   // The five who carried the month, drawn onto the gold shirt card (§2.21).
   // Ordered best first — the top of the pentagon is the top of the list.
   teamOfMonth: TotmPlayer[];
@@ -238,6 +254,10 @@ export function wrappedPeriods(history: FixtureRecord[]): string[] {
   }
   return [...periods].sort((a, b) => (a < b ? 1 : a > b ? -1 : 0));
 }
+
+/** The names on one shirt, in the order the fixture kept them. */
+const squadNames = (fx: FixtureRecord, color: TeamColor): string[] =>
+  fx.teams[color].map((id) => fx.players.find((p) => p.id === id)?.name ?? '?');
 
 function longestRun(apps: { won: boolean }[], won: boolean): number {
   let best = 0;
@@ -569,6 +589,26 @@ export function buildWrapped(
     }
   }
 
+  // --- The month's winning teams -------------------------------------------
+  // One entry per night that had a strict winner, ranked by how many matches
+  // that shirt actually banked — so the page leads with the most dominant
+  // evening rather than the most recent one. Ties fall back to date, oldest
+  // first, so the order is stable rather than however the sort happened to
+  // land.
+  const winningTeams: WinningTeam[] = [];
+  for (const fx of chronological) {
+    const champion = winnerOf(fx);
+    if (!champion) continue;
+    winningTeams.push({
+      fixtureId: fx.id,
+      date: fx.date,
+      color: champion,
+      wins: fx.wins[champion] ?? 0,
+      squad: squadNames(fx, champion),
+    });
+  }
+  winningTeams.sort((a, b) => b.wins - a.wins || a.date.localeCompare(b.date));
+
   // --- Night of the Month, and the longest run within one ------------------
   // Both fall out of the same pass over `nightStory`, which already reads a
   // night's own match log for its shape — nothing here is new arithmetic, only
@@ -596,7 +636,7 @@ export function buildWrapped(
           played: story.teams[c].played,
           won: story.teams[c].won,
           points: story.teams[c].points,
-          squad: fx.teams[c].map(nameIn),
+          squad: squadNames(fx, c),
         };
       }
       nightOfMonth = {
@@ -621,7 +661,7 @@ export function buildWrapped(
         date: fx.date,
         color: runColor,
         length: story.longest.length,
-        squad: fx.teams[runColor].map((id) => fx.players.find((p) => p.id === id)?.name ?? '?'),
+        squad: squadNames(fx, runColor),
       };
     }
   }
@@ -669,6 +709,7 @@ export function buildWrapped(
     longestWinless,
     bestDuo,
     worstDuo,
+    winningTeams,
     teamOfMonth: teamOfMonthPicks,
     teachersPet,
     punchingBag,

@@ -720,8 +720,9 @@ months that actually have a recorded night, so the picker never offers an empty 
 
 **Five pages, and every one after the first is conditional** (redesigned 2026-08). `renderWrappedImages`
 always returns the **highlights** page (the hero count, the MVP/match/fixture leaderboards, perfect
-attendance); then, only when the month has anything to put on them, **the night of the month**, **the
-breakdown**, **achievements**, and finally the Team of the Month gold shirt (§2.20). All of them go
+attendance); then, only when the month has anything to put on them, **the night of the month**,
+**winning teams**, **the breakdown**, **achievements**, and finally the Team of the Month gold shirt
+(§2.20). All of them go
 out as one multi-file share, same pattern as `shirtImage.ts`'s three team shirts.
 
 An earlier version had a separate "😬 also happened" page holding the three roast-shaped stats
@@ -843,6 +844,14 @@ number and names the players who were actually on that shirt, which is what `Lon
 for. `reservist` likewise became `reservists`: it used to report only the best story and silently
 drop everyone else who had the same kind of month, so it now names all of them on a full-width,
 adaptive-height card that cannot truncate.
+
+**Winning teams** is one card per night that had an outright winner, ranked by how many matches that
+shirt banked — so the page opens on the month's most dominant evening rather than its most recent.
+The card is the one the night page already uses for a winning team (shirt colour, 👑, the squad in
+name chips) with the win count enlarged to be the loudest thing on it. `winnerOf` is strict, so a
+night that finished level contributes nothing rather than crediting somebody. `WrappedStats.winningTeams`
+is uncapped and sorted; **`MAX_WINNING_TEAMS = 4`** lives in the renderer, because how many cards fit
+before a page becomes a wall of names is a layout question, not a fact about the month.
 
 **The night of the month carries its own scoreboard.** `NightOfMonth` gained per-shirt
 `{played, won, points, squad}`, the night's `winner`, its `penalties` and its `mvpName` — the first

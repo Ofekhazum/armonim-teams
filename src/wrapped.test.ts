@@ -619,6 +619,33 @@ describe('Night of the Month and the longest run', () => {
   });
 });
 
+describe("the month's winning teams", () => {
+  it('ranks every outright winner by the matches that shirt banked, and skips a level night', () => {
+    const history = [
+      night('2026-08-01', ['a', 'b'], ['c'], { black: 4, white: 1, blue: 0 }),
+      night('2026-08-08', ['d'], ['e', 'f'], { black: 2, white: 5, blue: 1 }),
+      night('2026-08-15', ['g'], ['h'], { black: 3, white: 3, blue: 0 }), // level at the top
+      night('2026-08-22', ['i'], ['j'], { black: 1, white: 0, blue: 2 }, undefined, ['k']),
+    ];
+    const teams = buildWrapped(history, '2026-08').winningTeams;
+    expect(teams.map((t) => [t.color, t.wins])).toEqual([
+      ['white', 5],
+      ['black', 4],
+      ['blue', 2],
+    ]);
+    // the squad travels with it — the page draws the names, not just a colour
+    expect(teams[1].squad).toEqual(['a', 'b']);
+    expect(teams[2].squad).toEqual(['k']);
+    // nobody topped the third night, so it is absent rather than credited
+    expect(teams.some((t) => t.date === '2026-08-15')).toBe(false);
+  });
+
+  it('is empty for a month where every night finished level', () => {
+    const history = [night('2026-08-01', ['a'], ['b'], { black: 2, white: 2, blue: 0 })];
+    expect(buildWrapped(history, '2026-08').winningTeams).toEqual([]);
+  });
+});
+
 describe('Monthly achievements', () => {
   it("replays tonightsMilestones across the month's own nights", () => {
     const history = [

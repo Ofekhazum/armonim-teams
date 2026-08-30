@@ -8,7 +8,7 @@
 // The primitives live in `canvasKit.ts`; this file is composition only — what
 // goes on which page, in what order, at what size.
 //
-// **Five pages, and every one after the first is conditional**, so the month's
+// **Six pages, and every one after the first is conditional**, so the month's
 // own data decides how many get drawn:
 //
 //   1. Highlights — the hero count, the leaderboards, perfect attendance.
@@ -16,21 +16,33 @@
 //      the recap about an *evening* rather than about a person. The three
 //      squads are redrawn exactly as the fixture page shows them (same
 //      colours, same name chips), over a scoreboard of how the night went.
-//   3. The breakdown — every per-player award, in a bento of three card sizes
+//   3. Winning teams — the shirts that took a night outright, best night
+//      first, drawn as the night page draws a winning team (colour, crown,
+//      squad chips) with the win count made loud. Capped at four: past that
+//      the page is a wall of names.
+//   4. The breakdown — every per-player award, in a bento of three card sizes
 //      so the page has a shape instead of being a grid of identical boxes.
 //      Deliberately **not** framed as a joke page: these are the month's
 //      awards, and the copy stays as factual as everywhere else in the app —
 //      "fewest wins", never "worst player" (§2.9).
-//   4. Achievements — every milestone crossed this month, as chips grouped by
+//   5. Achievements — every milestone crossed this month, as chips grouped by
 //      kind rather than one row per line.
-//   5. Team of the Month — the gold shirt card (§2.20).
+//   6. Team of the Month — the gold shirt card (§2.20).
 //
 // Page 3 absorbed what used to be a separate "also happened" page. Once there
 // were three card sizes there was room for it, and the split was never really
 // about those stats differing in kind — only about there being too many cards
 // of one size to look at.
 
-import type { Bully, GradeExtreme, LongestRun, NightOfMonth, Reservist, WrappedStats } from './wrapped';
+import type {
+  Bully,
+  GradeExtreme,
+  LongestRun,
+  NightOfMonth,
+  Reservist,
+  WinningTeam,
+  WrappedStats,
+} from './wrapped';
 import type { ShareImageResult } from './shareImage';
 import type { Milestone } from './milestones';
 import type { TeamColor } from './types';
@@ -45,6 +57,7 @@ import {
   drawChip,
   fillRound,
   fitText,
+  chipWidth,
   flowChips,
   flowSplitChips,
   drawSplitChip,
@@ -592,7 +605,105 @@ function renderNightOfMonth(night: NightOfMonth): HTMLCanvasElement {
   return canvas;
 }
 
-// --- Page 3: the breakdown -------------------------------------------------
+// --- Page 3: the month's winning teams -------------------------------------
+//
+// The same card the night page uses for a winning shirt — colour, crown, the
+// squad in name chips — one per night that had an outright winner, best night
+// first. Capped at MAX_WINNING_TEAMS: past four the page is a wall of names
+// and stops being something anybody reads.
+
+const MAX_WINNING_TEAMS = 4;
+const WT_HEADER_H = 78;
+const WT_PAD = 18;
+
+const winningTeamHeight = (lines: string[][]) =>
+  WT_HEADER_H + Math.max(lines.length, 1) * (CHIP_H + 8) + WT_PAD;
+
+function drawWinningTeamCard(
+  ctx: CanvasRenderingContext2D,
+  team: WinningTeam,
+  lines: string[][],
+  y: number,
+  cardW: number,
+) {
+  const t = TEAM_CANVAS[team.color];
+  const h = winningTeamHeight(lines);
+  fillRound(ctx, PAD, y, cardW, h, CARD_R, t.bg);
+  strokeRound(ctx, PAD, y, cardW, h, CARD_R, INK.gold, 2.5);
+
+  ctx.save();
+  ctx.direction = 'ltr';
+  ctx.textAlign = 'left';
+  ctx.font = font(26, '900');
+  ctx.fillStyle = t.text;
+  ctx.fillText(`${TEAM_EMOJI[team.color]} ${TEAM_LABEL[team.color]} 👑`, PAD + WT_PAD, y + 38);
+  ctx.font = font(14, '700');
+  ctx.fillStyle = t.sub;
+  ctx.fillText(team.date, PAD + WT_PAD, y + 60);
+  ctx.restore();
+
+  // the win count, as the loudest thing on the card
+  const label = team.wins === 1 ? 'WIN' : 'WINS';
+  const capsW = spacedCaps(measurer(), label, 0, -999, { size: 13, tracking: 1.8 });
+  spacedCaps(ctx, label, PAD + cardW - WT_PAD - capsW, y + 56, {
+    size: 13,
+    color: t.sub,
+    tracking: 1.8,
+  });
+  jerseyText(ctx, String(team.wins), PAD + cardW - WT_PAD - capsW - 14, y + 52, {
+    size: 46,
+    fill: t.text,
+    stroke: 'rgba(0,0,0,0.28)',
+    align: 'right',
+  });
+
+  // squad chips, right-anchored the way the fixture page lays them out
+  lines.forEach((line, i) => {
+    const rowW = line.reduce((w, n) => w + chipWidth(measurer(), n, 16) + CHIP_GAP, -CHIP_GAP);
+    let x = PAD + cardW - WT_PAD - rowW;
+    const rowY = y + WT_HEADER_H + i * (CHIP_H + 8);
+    for (const name of line) {
+      x += drawChip(ctx, name, x, rowY, {
+        size: 16,
+        fill: t.chip,
+        border: t.border,
+        color: t.text,
+      }) + CHIP_GAP;
+    }
+  });
+}
+
+const topWinningTeams = (stats: WrappedStats) => stats.winningTeams.slice(0, MAX_WINNING_TEAMS);
+
+function renderWinningTeams(stats: WrappedStats): HTMLCanvasElement {
+  const cardW = W - PAD * 2;
+  const m = measurer();
+  const teams = topWinningTeams(stats).map((t) => ({
+    team: t,
+    lines: flowChips(m, t.squad, cardW - WT_PAD * 2, 16),
+  }));
+
+  const H =
+    PAD +
+    PAGE_HEADER_H +
+    teams.reduce((s, t) => s + winningTeamHeight(t.lines) + GAP, 0) +
+    FOOTER_H +
+    PAD;
+
+  const [canvas, ctx] = canvasOf(H);
+  drawPageHeader(ctx, stats.label, 'Winning teams');
+
+  let y = PAD + PAGE_HEADER_H;
+  for (const t of teams) {
+    drawWinningTeamCard(ctx, t.team, t.lines, y, cardW);
+    y += winningTeamHeight(t.lines) + GAP;
+  }
+
+  drawFooter(ctx, y);
+  return canvas;
+}
+
+// --- Page 4: the breakdown -------------------------------------------------
 
 /** The two grade extremes share one card: they are the same question asked
  *  from both ends, and two separate boxes was the grid-of-identical-tiles
@@ -907,7 +1018,7 @@ function renderBreakdown(stats: WrappedStats): HTMLCanvasElement {
   return canvas;
 }
 
-// --- Page 4: achievements --------------------------------------------------
+// --- Page 5: achievements --------------------------------------------------
 
 interface ChipGroup {
   title: string;
@@ -1012,6 +1123,7 @@ function renderAchievements(stats: WrappedStats): HTMLCanvasElement {
 export function renderWrappedImages(stats: WrappedStats): HTMLCanvasElement[] {
   const images = [renderHighlights(stats)];
   if (stats.nightOfMonth) images.push(renderNightOfMonth(stats.nightOfMonth));
+  if (stats.winningTeams.length > 0) images.push(renderWinningTeams(stats));
   if (hasBreakdown(stats)) images.push(renderBreakdown(stats));
   if (stats.monthlyAchievements.length > 0) images.push(renderAchievements(stats));
   return images;
