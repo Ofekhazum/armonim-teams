@@ -17,7 +17,15 @@ import {
 } from './milestones';
 import { computeDuoRecords, type DuoFact } from './duos';
 import { mvpCounts } from './mvp';
-import { NEAR_TIE, TOTM_SIZE, teamOfMonth, totmEligible, totmScore, type TotmPlayer } from './totm';
+import {
+  NEAR_TIE,
+  TOTM_SIZE,
+  perfectAttendanceBonus,
+  teamOfMonth,
+  totmEligible,
+  totmScore,
+  type TotmPlayer,
+} from './totm';
 import { loserOf, playedCounts } from './matchLog';
 import { lean, playerArcs, rate as arcRate } from './playerArcs';
 import { nightStory } from './nightStory';
@@ -27,7 +35,7 @@ import type { AllMarks } from './gradeHistory';
 // scores the same month with the same rule and a second copy would drift
 // (§2.25). Re-exported here so everything that already imported it from
 // `wrapped` still can.
-export { NEAR_TIE, TOTM_SIZE, teamOfMonth, totmEligible, totmScore };
+export { NEAR_TIE, TOTM_SIZE, perfectAttendanceBonus, teamOfMonth, totmEligible, totmScore };
 export type { TotmPlayer };
 
 // A little banter alongside the honest counts — same "it's a count, not a

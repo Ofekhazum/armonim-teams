@@ -1744,23 +1744,42 @@ aspect ratio.
 - **Eligibility** — **more than** half the month's nights played, not half. Without it the team is
   whoever happened to be there on a good night: one appearance at a high rate would outrank a month
   of steady football, which is the opposite of what "of the month" means.
-- **The score**, a rate plus a small attendance bonus: `(match wins + 2 × nights won + 3 × MVP picks)
-  ÷ nights played + 1 × (nights played ÷ month's nights)`. Match wins are the base currency at four or
-  five a night. A night taken *outright* is worth two more, which separates the player who kept
-  edging nights from the one who banked a single blowout. An MVP is worth three — a real thumb on the
-  scale for the one human judgement the app records, without letting a single pick outrank a month of
-  winning.
+- **The score**, a rate plus a perfect-attendance bonus: `(match wins + 2 × nights won + 4 × MVP
+  picks) ÷ nights played`, plus `0.125 × month's nights` **only if you played every one of them**
+  (capped at 1). Match wins are the base currency at four or five a night. A night taken *outright*
+  is worth two more, which separates the player who kept edging nights from the one who banked a
+  single blowout.
 
-**The attendance term (2026-08) isn't a new preference — it's an old one made continuous.** Ties were
-already broken by whoever played more nights; the bonus is that same rule no longer needing an exact
-float tie to fire, so "played three or four times" earns a little credit over "played twice" even
-when the two scores were never going to land on the same number. It's scaled by the same
-nights ÷ month's-nights share `totmEligible` already gates on, so it only ever ranges over `[0.5, 1]`
-— weight `1` puts a full-attendance player half a point ahead of a half-attendance one, calibrated
-against a season of the invented club's play (§2.32) to be about 1.5× the median score gap near the
-cut: enough to flip a genuinely close call, not enough to let attendance alone decide a month.
-`TotmPlayer` carries `monthLength` (the month's own night count) alongside the other parts precisely
-so this term, like every other, can be recomputed from the row and not just trusted.
+**An MVP is worth four — exactly two nights taken outright**, raised from three in 2026-08. It is the
+only term in the formula that is *about a person rather than about a shirt*: match wins and nights
+won are team facts, banked identically by all five players who happened to wear that colour, so two
+teammates are separated by nothing else. At three, divided by nights, one MVP was worth `0.75` to a
+full-attendance player — less than the attendance bonus, which had the single human judgement in the
+app ranking below turning up. It is not higher because one outstanding night should not carry four
+bad ones, and an MVP already arrives on top of the wins and the night its holder's shirt took, so
+raising it further pays three times for one evening. Over the invented club's ten months (§2.32),
+five instead of four moves a single seat in a single month — the two are the same rule nine months in
+ten — while six starts turning the award into a record of who the organiser liked (§2.9). Given that,
+the tie went to the weight that explains itself.
+
+**The attendance bonus is all-or-nothing, and worth more in a busier month (2026-08).** It replaced a
+term proportional to `nights ÷ month's nights`, and both halves of the change come from raising the
+eligibility bar above half the month. Once you must play *more* than half to be eligible at all, a
+bonus that also scales with attendance pays twice for the same thing — and the sliding part had
+stopped doing any work regardless: on a four-night month the only values it could still take were
+`0.75` and `1.00`, every eligible player already inside a `0.25` band, so the slope was noise dressed
+up as a rule. All-or-nothing says the one thing left worth saying: you were here every week.
+
+Scaling it by the month's own size is the other half of the same thought — turning up to all five
+nights of a busy month is a harder thing to have done than turning up to both nights of a quiet one,
+and a flat bonus called those equal. `0.125` a night puts a four-night month at `0.5`, chosen after
+seeing the real club's numbers either side: above ~`0.73` the bonus decides the month outright,
+dragging a full-attendance player over somebody a clear stretch better per night, and at `0.25` it
+reproduces the old standings exactly and changes nothing. The cap at `1` is a guard rather than a
+rule anybody will meet — at a weekly fixture the month runs to 4 or 5 nights and 8 would be needed to
+reach it — so a freak month cannot turn the bonus into the whole score. `TotmPlayer` carries
+`monthLength` alongside the other parts precisely so this term, like every other, can be recomputed
+from the row and not just trusted.
 
 **The eligibility bar was `>= ceil(nights ÷ 2)` until 2026-08, and the difference is only visible on
 even-length months** — for an odd month, half rounded up already *is* more than half, so
@@ -1778,10 +1797,13 @@ months and a no-op everywhere else, which is why it was preferred to the ⅔ flo
 resort. This is a deliberate inversion of the score's own emphasis — the score is a rate, so it
 pointedly does not care how often you came; this list is what to do once the rate has stopped saying
 anything, and there the rarest thing wins (an MVP is one pick a night, a night won is one shirt in
-three, a match win is four or five an evening, an appearance is just a yes). `+0.083` — one extra
-night of attendance bonus on a four-night month — is not a reason to rank one player over another,
-but it is easily enough to decide the fifth slot, and the fifth slot is the one that gets argued
-about.
+three, a match win is four or five an evening, an appearance is just a yes).
+
+**`0.1` is calibrated against the smallest thing that can happen on the pitch.** The finest increment
+this club records is half a match win — a shootout — and over a four-night month that is worth
+`0.125` to a player's rate, a whole match win `0.25`. So a gap below `0.1` cannot be traced back to
+any single result: it is the division landing differently, not football. Deciding the fifth slot on
+it would be deciding it on rounding, and the fifth slot is the one that gets argued about.
 
 **It is a banding pass, not a comparator, and that is load-bearing.** The obvious version — "if the
 scores are within 0.1 compare by importance, else by score" — is not a valid sort comparator, because

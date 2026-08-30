@@ -3,6 +3,7 @@ import {
   NEAR_TIE,
   TOTM_SIZE,
   buildWrapped,
+  perfectAttendanceBonus,
   periodLabel,
   totmEligible,
   totmScore,
@@ -782,22 +783,23 @@ describe('team of the month', () => {
     expect(score('a')).toBeLessThan(score('b'));
   });
 
-  it('settles a level score on the human pick before anything else', () => {
+  it('settles a near-level score on the human pick before anything else', () => {
     // Four nights, every one level at the top so nobody takes a night outright.
-    // 'few' plays three and holds the month's only MVP; 'many' plays all four
-    // and banks more football. The two land on exactly the same score, and the
-    // MVP is what separates them.
+    // 'few' plays three and holds the month's only MVP; 'many' plays all four,
+    // banks more football and earns the attendance bonus. 'many' finishes
+    // *ahead* on the raw score — but inside NEAR_TIE, so the MVP decides it.
     const history = [
       night(d(1), ['few', 'many'], ['z'], { black: 3, white: 3, blue: 0 }),
       night(d(2), ['few', 'many'], ['z'], { black: 3, white: 3, blue: 0 }),
       night(d(3), ['few', 'many'], ['z'], { black: 3, white: 3, blue: 0 }, 'few'),
-      night(d(4), ['many'], ['z'], { black: 6, white: 6, blue: 0 }),
+      night(d(4), ['many'], ['z'], { black: 6.5, white: 6.5, blue: 0 }),
     ];
     const picked = totm(history);
     const row = (name: string) => picked.find((p) => p.name === name)!;
-    // few:  (9 wins + 3 MVP)/3 = 4.000 + 3/4 = 4.750
-    // many: 15 wins/4        = 3.750 + 4/4 = 4.750
-    expect(row('few').score).toBe(row('many').score);
+    // few:  (9 wins + 4 MVP)/3 = 4.333, no bonus (three of four nights) = 4.333
+    // many: 15.5 wins/4        = 3.875 + 0.5 perfect attendance         = 4.375
+    expect(row('many').score).toBeGreaterThan(row('few').score);
+    expect(row('many').score - row('few').score).toBeLessThan(NEAR_TIE);
     expect(row('few').mvps).toBe(1);
     expect(row('many').mvps).toBe(0);
     expect(picked[0].name).toBe('few');
@@ -810,14 +812,14 @@ describe('team of the month', () => {
     const history = [
       night(d(1), ['top'], ['low'], { black: 5, white: 3, blue: 0 }, 'low'),
       night(d(2), ['top'], ['low'], { black: 5, white: 3, blue: 0 }, 'low'),
-      night(d(3), ['top'], ['low'], { black: 5, white: 3, blue: 0 }, 'low'),
-      night(d(4), ['top'], ['low'], { black: 5, white: 3, blue: 0 }, 'low'),
+      night(d(3), ['top'], ['low'], { black: 5, white: 3, blue: 0 }),
+      night(d(4), ['top'], ['low'], { black: 5, white: 3, blue: 0 }),
     ];
     const picked = totm(history);
     const row = (name: string) => picked.find((p) => p.name === name)!;
-    // top: (20 wins + 8 for four nights taken)/4 = 7.000 + 1 = 8.000
-    // low: (12 wins + 12 for four MVPs)/4        = 6.000 + 1 = 7.000
-    expect(row('low').mvps).toBe(4);
+    // top: (20 wins + 8 for four nights taken)/4 = 7.000 + 0.5 = 7.500
+    // low: (12 wins + 8 for two MVPs)/4          = 5.000 + 0.5 = 5.500
+    expect(row('low').mvps).toBe(2);
     expect(row('top').mvps).toBe(0);
     expect(row('top').score - row('low').score).toBeGreaterThan(NEAR_TIE);
     expect(picked[0].name).toBe('top');
@@ -840,28 +842,45 @@ describe('the team-of-the-month rule', () => {
   });
 
   it('weighs a night won and an MVP above a bare match win', () => {
-    // monthLength equal to nights (full attendance) throughout, so the
-    // attendance bonus is a constant +1 here and doesn't disturb the
-    // comparison this test is actually about.
+    // stated as the *difference* each part makes, so the attendance bonus
+    // (identical across all three, full attendance throughout) stays out of a
+    // test that is about the weights
     const base = { nights: 1, wins: 1, nightsWon: 0, mvps: 0, monthLength: 1 };
-    expect(totmScore(base)).toBe(2);
-    expect(totmScore({ ...base, nightsWon: 1 })).toBe(4);
-    expect(totmScore({ ...base, mvps: 1 })).toBe(5);
+    expect(totmScore({ ...base, nightsWon: 1 }) - totmScore(base)).toBe(2);
+    expect(totmScore({ ...base, mvps: 1 }) - totmScore(base)).toBe(4);
+    // the human pick outweighs taking the night, which outweighs a match won —
+    // the same order the near-tie rule settles a level score in
+    expect(totmScore({ ...base, mvps: 1 })).toBeGreaterThan(totmScore({ ...base, nightsWon: 1 }));
   });
 
   it('is a rate, not a total — playing more nights does not inflate it', () => {
-    // both at full attendance for their own (different-length) month, so the
-    // bonus is +1 in both cases and the totals still land equal
-    expect(totmScore({ nights: 2, wins: 8, nightsWon: 2, mvps: 0, monthLength: 2 })).toBe(7);
-    expect(totmScore({ nights: 4, wins: 16, nightsWon: 4, mvps: 0, monthLength: 4 })).toBe(7);
+    // same month, same rate: 8 wins and 2 nights taken over 2 nights is the
+    // per-night equal of 16 and 4 over 4. The only thing between them is the
+    // perfect-attendance bonus the second one qualifies for.
+    const short = totmScore({ nights: 2, wins: 8, nightsWon: 2, mvps: 0, monthLength: 4 });
+    const full = totmScore({ nights: 4, wins: 16, nightsWon: 4, mvps: 0, monthLength: 4 });
+    expect(short).toBe(6);
+    expect(full - short).toBe(perfectAttendanceBonus(4));
   });
 
-  it('gives proportionally more of the attendance bonus for a bigger share of the month', () => {
-    // same rate (0 from wins/nightsWon/mvps) so the whole score is the bonus
+  it('pays the attendance bonus for every night of the month and for nothing less', () => {
+    // same rate (0 from wins/nightsWon/mvps) so the whole score is the bonus.
+    // Once eligibility needs *more* than half the month, a sliding bonus would
+    // be paying twice for attendance — so it is all-or-nothing (§2.20).
     const zero = { wins: 0, nightsWon: 0, mvps: 0 };
-    expect(totmScore({ ...zero, nights: 2, monthLength: 4 })).toBe(0.5); // half the month
-    expect(totmScore({ ...zero, nights: 3, monthLength: 4 })).toBe(0.75); // three quarters
-    expect(totmScore({ ...zero, nights: 4, monthLength: 4 })).toBe(1); // every night
+    expect(totmScore({ ...zero, nights: 3, monthLength: 4 })).toBe(0); // one night short
+    expect(totmScore({ ...zero, nights: 4, monthLength: 4 })).toBe(0.5); // every night
+    expect(totmScore({ ...zero, nights: 5, monthLength: 6 })).toBe(0);
+  });
+
+  it('is worth more in a busier month, because turning up to all of it was more', () => {
+    expect(perfectAttendanceBonus(2)).toBe(0.25);
+    expect(perfectAttendanceBonus(4)).toBe(0.5);
+    expect(perfectAttendanceBonus(5)).toBe(0.625);
+    expect(perfectAttendanceBonus(6)).toBe(0.75);
+    // and a freak month cannot turn the bonus into the whole score
+    expect(perfectAttendanceBonus(8)).toBe(1);
+    expect(perfectAttendanceBonus(30)).toBe(1);
   });
 
   it('is zero rather than NaN for nobody', () => {
