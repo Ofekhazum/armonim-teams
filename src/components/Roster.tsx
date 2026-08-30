@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import type { CSSProperties } from 'react';
 import type { FixtureRecord, Player } from '../types';
 import { ATTACK_DEFAULT, ATTACK_STEP, attackLabel, badgeForAttack, roleBadge } from '../types';
-import { uid } from '../storage';
+import { getSectionOpen, setSectionOpen, uid } from '../storage';
 import { publishRemoteRoster, setLocalRosterVersion } from '../remote';
 import PlayerPage from './PlayerPage';
 import type { PlayerTitle } from '../achievements';
@@ -12,6 +12,7 @@ import { guestKey, knownGuests } from '../guests';
 import { PLAIN_ROW, TITLE_THEME } from './titleTheme';
 import {
   fmtRating,
+  FoldHeader,
   Name,
   RATING_STEPS,
   SpectrumBar,
@@ -43,6 +44,9 @@ interface Draft {
   avoid: string[];
   number: string; // as typed, so the field can be empty; parsed on save
 }
+
+// Namespaced so it cannot collide with a History tab section id.
+const GUESTS_SECTION = 'roster-guests';
 
 const parseAliases = (raw: string): string[] =>
   [...new Set(raw.split(',').map((a) => a.trim()).filter(Boolean))];
@@ -221,6 +225,17 @@ export default function Roster({
       .filter((g) => g.nights > 0)
       .sort((a, b) => b.nights - a.nights || a.name.localeCompare(b.name, 'he'));
   }, [history, players]);
+
+  // Folded until asked for, and the choice is remembered per device the same
+  // way the History tab's sections are (§2.28) — `getSectionOpen`'s fallback is
+  // what "closed unless you say otherwise" is expressed with, so a reader who
+  // opens it once keeps it open.
+  const [guestsOpen, setGuestsOpen] = useState(() => getSectionOpen(GUESTS_SECTION, false));
+  const toggleGuests = () => {
+    const next = !guestsOpen;
+    setGuestsOpen(next);
+    setSectionOpen(GUESTS_SECTION, next);
+  };
 
   // Opens the ordinary add form with the name filled in, rather than creating
   // the player outright: a squad member needs a rating and a number, and the
@@ -549,31 +564,44 @@ export default function Roster({
 
       {isAdmin && !draft && guestRows.length > 0 && (
         <div className="mb-4 rounded-2xl border border-amber-900/15 bg-amber-50/60 p-4">
-          <h3 className="text-sm font-black tracking-wide text-amber-900">🚪 Guests</h3>
-          <p className="mt-0.5 text-xs text-amber-900/60">
-            Played but not on the roster. Promoting one keeps every night they’ve already
-            played — their nights follow the name.
-          </p>
-          <div className="mt-3 flex flex-wrap gap-2">
-            {guestRows.map((g) => (
-              <div
-                key={g.id}
-                className="flex items-center gap-2 rounded-full border border-amber-900/20 bg-white/80 py-1 pl-3 pr-1 shadow-sm"
-              >
-                <span className="text-sm font-bold text-amber-900">{g.name}</span>
-                <span className="text-[11px] font-semibold text-amber-900/50">
-                  {g.nights} {g.nights === 1 ? 'night' : 'nights'}
-                </span>
-                <button
-                  onClick={() => promoteGuest(g.name)}
-                  className="rounded-full bg-orange-600 px-2.5 py-1 text-[11px] font-bold text-amber-50 transition-transform hover:scale-105"
-                  title={`Add ${g.name} to the roster, keeping their ${g.nights} night${g.nights === 1 ? '' : 's'}`}
-                >
-                  + Add to roster
-                </button>
+          {/* Starts folded, the same call the History tab's admin tooling makes:
+              this is a job done once in a while, and the roster is what the tab
+              is for. The count rides on the header so a collapsed panel still
+              says there is something in it. */}
+          <FoldHeader
+            title={`🚪 Guests (${guestRows.length})`}
+            open={guestsOpen}
+            onToggle={toggleGuests}
+            className="text-amber-900"
+          />
+          {guestsOpen && (
+            <>
+              <p className="mt-1.5 text-xs text-amber-900/60">
+                Played but not on the roster. Promoting one keeps every night they’ve already
+                played — their nights follow the name.
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {guestRows.map((g) => (
+                  <div
+                    key={g.id}
+                    className="flex items-center gap-2 rounded-full border border-amber-900/20 bg-white/80 py-1 pl-3 pr-1 shadow-sm"
+                  >
+                    <span className="text-sm font-bold text-amber-900">{g.name}</span>
+                    <span className="text-[11px] font-semibold text-amber-900/50">
+                      {g.nights} {g.nights === 1 ? 'night' : 'nights'}
+                    </span>
+                    <button
+                      onClick={() => promoteGuest(g.name)}
+                      className="rounded-full bg-orange-600 px-2.5 py-1 text-[11px] font-bold text-amber-50 transition-transform hover:scale-105"
+                      title={`Add ${g.name} to the roster, keeping their ${g.nights} night${g.nights === 1 ? '' : 's'}`}
+                    >
+                      + Add to roster
+                    </button>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+            </>
+          )}
         </div>
       )}
 
