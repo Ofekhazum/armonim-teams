@@ -53,8 +53,8 @@ const MIN_NIGHTS_FOR_ROAST = 2;
 // different and much larger cost than that.
 
 // A mark "averaged" over one or two nights isn't an average anybody should
-// read anything into — this is the floor below which Teacher's Pet, Punching
-// Bag and the Rollercoaster all decline to speak.
+// read anything into — this is the floor below which the month's highest and
+// lowest average both decline to speak.
 const MIN_GRADED_NIGHTS_FOR_RECAP = 3;
 
 // How rare a month has to be before "snagged glory on barely any nights" is
@@ -75,15 +75,6 @@ export interface GradeExtreme {
   nights: number; // graded nights the average is over
 }
 
-export interface Rollercoaster {
-  id: string;
-  name: string;
-  high: number;
-  low: number;
-  range: number; // high − low — the swing, not the noise
-  nights: number;
-}
-
 export interface Benchwarmer {
   id: string;
   name: string;
@@ -95,12 +86,6 @@ export interface OutOfGas {
   name: string;
   earlyRate: number; // win rate in their own first half of matches, this month
   lateRate: number; // win rate in their own second half
-}
-
-export interface DramaQueen {
-  id: string;
-  name: string;
-  shootouts: number; // matches decided on penalties this player was on either side of
 }
 
 export interface Reservist {
@@ -161,6 +146,10 @@ export interface LongestRun {
   date: string;
   color: TeamColor;
   length: number; // consecutive matches that colour won, within that one night
+  // Who was actually wearing the shirt. The colour on its own says nothing —
+  // the teams are redrawn every week, so "black won 4 on the spin" describes
+  // a set of people that existed for one evening and never again.
+  squad: string[];
 }
 
 export interface WrappedStats {
@@ -201,11 +190,12 @@ export interface WrappedStats {
   // --- Banter stats ----------------------------------------------------
   teachersPet: GradeExtreme | null;
   punchingBag: GradeExtreme | null;
-  rollercoaster: Rollercoaster | null;
   benchwarmer: Benchwarmer | null;
   outOfGas: OutOfGas | null;
-  dramaQueen: DramaQueen | null;
-  reservist: Reservist | null;
+  // Everyone who qualified, not just the best story — on a month with several
+  // one-off appearances, naming one of them and silently dropping the rest
+  // reads as the app not having noticed the others.
+  reservists: Reservist[];
   bully: Bully | null;
   cursedShirt: CursedShirt | null;
   nightOfMonth: NightOfMonth | null;
@@ -413,7 +403,6 @@ export function buildWrapped(
 
   let teachersPet: GradeExtreme | null = null;
   let punchingBag: GradeExtreme | null = null;
-  let rollercoaster: Rollercoaster | null = null;
   if (monthIsGraded) {
     const gradesByPlayer = new Map<string, number[]>();
     for (const fx of chronological) {
@@ -443,16 +432,6 @@ export function buildWrapped(
         (avg === punchingBag.avg && grades.length > punchingBag.nights)
       ) {
         punchingBag = { id, name, avg, nights: grades.length };
-      }
-      const high = Math.max(...grades);
-      const low = Math.min(...grades);
-      const range = high - low;
-      if (
-        !rollercoaster ||
-        range > rollercoaster.range ||
-        (range === rollercoaster.range && grades.length > rollercoaster.nights)
-      ) {
-        rollercoaster = { id, name, high, low, range, nights: grades.length };
       }
     }
   }
@@ -500,48 +479,20 @@ export function buildWrapped(
     }
   }
 
-  // --- Drama Queen ---------------------------------------------------------
-  // Both sides of a shootout are "involved" in it — the nerve it takes is not
-  // only the winner's — so every player on either shirt is credited, not just
-  // whoever's team came out on top.
-  const shootoutsByPlayer = new Map<string, number>();
-  for (const fx of chronological) {
-    const log = fx.matchLog;
-    if (!log?.length) continue;
-    for (const m of log) {
-      if (!m.viaPenalties) continue;
-      for (const id of [...fx.teams[m.a], ...fx.teams[m.b]]) {
-        shootoutsByPlayer.set(id, (shootoutsByPlayer.get(id) ?? 0) + 1);
-      }
-    }
-  }
-  let dramaQueen: DramaQueen | null = null;
-  for (const [id, shootouts] of shootoutsByPlayer) {
-    if (!dramaQueen || shootouts > dramaQueen.shootouts) {
-      dramaQueen = { id, name: nameOf.get(id) ?? '?', shootouts };
-    }
-  }
-
   // --- The Reservist -----------------------------------------------------
   // Minimum effort, maximum glory: at most MAX_RESERVIST_NIGHTS nights, and
   // their team took at least one of them outright (`appearances` already
   // carries that flag per night). Ranked by fewest nights first — the rarer
   // the appearance, the better the story — then by wins banked, then by name.
-  let reservist: Reservist | null = null;
+  const reservists: Reservist[] = [];
   for (const [id, n] of nights) {
     if (n > MAX_RESERVIST_NIGHTS) continue;
     if (!appearances(id, chronological).some((a) => a.won)) continue;
-    const w = wins.get(id) ?? 0;
-    const name = nameOf.get(id) ?? '?';
-    if (
-      !reservist ||
-      n < reservist.nights ||
-      (n === reservist.nights && w > reservist.wins) ||
-      (n === reservist.nights && w === reservist.wins && name.localeCompare(reservist.name, 'he') < 0)
-    ) {
-      reservist = { id, name, nights: n, wins: w };
-    }
+    reservists.push({ id, name: nameOf.get(id) ?? '?', nights: n, wins: wins.get(id) ?? 0 });
   }
+  reservists.sort(
+    (a, b) => a.nights - b.nights || b.wins - a.wins || a.name.localeCompare(b.name, 'he'),
+  );
 
   // --- The Bully -----------------------------------------------------------
   // The same head-to-head walk derby.ts uses for tonight's rivalry banner,
@@ -664,11 +615,13 @@ export function buildWrapped(
       };
     }
     if (story.longest && (!biggestRun || story.longest.length > biggestRun.length)) {
+      const runColor = story.longest.team;
       biggestRun = {
         fixtureId: fx.id,
         date: fx.date,
-        color: story.longest.team,
+        color: runColor,
         length: story.longest.length,
+        squad: fx.teams[runColor].map((id) => fx.players.find((p) => p.id === id)?.name ?? '?'),
       };
     }
   }
@@ -719,11 +672,9 @@ export function buildWrapped(
     teamOfMonth: teamOfMonthPicks,
     teachersPet,
     punchingBag,
-    rollercoaster,
     benchwarmer,
     outOfGas,
-    dramaQueen,
-    reservist,
+    reservists,
     bully,
     cursedShirt,
     nightOfMonth,

@@ -834,6 +834,16 @@ defaulting to nothing so every existing caller keeps compiling unchanged. `playe
 every other stat here); `marks` is `GET /grades/all`'s response, fetched by `History.tsx` the same way
 `PlayerPage.tsx` already fetches it for its own graph — admin-only, since the recap button itself is.
 
+**Two stats were cut and one was rewritten, all for the same reason: a line has to mean something to
+a person.** The rollercoaster (widest grade swing) and the drama queen (most shootouts) went because
+neither earned its place once the page had a hierarchy. The biggest run was worse than surplus — it
+read *"Biggest run: Black, 4 matches on the spin"*, and **the teams are redrawn every week**, so
+"Black" names a set of people that existed for one evening and never again. It now leads with the
+number and names the players who were actually on that shirt, which is what `LongestRun.squad` is
+for. `reservist` likewise became `reservists`: it used to report only the best story and silently
+drop everyone else who had the same kind of month, so it now names all of them on a full-width,
+adaptive-height card that cannot truncate.
+
 **The night of the month carries its own scoreboard.** `NightOfMonth` gained per-shirt
 `{played, won, points, squad}`, the night's `winner`, its `penalties` and its `mvpName` — the first
 three straight off `nightStory`'s `TeamNight`, so it is a pass-through rather than new arithmetic.
@@ -849,6 +859,12 @@ receipt — twenty near-identical lines of small text. They are now bucketed by 
 milestone nights, career wins, never missed, winning runs, longest waits) and each bucket flows its
 members as pills, which says the same thing in a fraction of the height. Still uncapped: a month
 digest lists everything a single night's own panel would have throttled.
+
+Each pill is **two-tone** (`drawSplitChip`) — the name at full brightness, the achievement in the
+section's own accent — and **carries its own unit**: "10th night", "12 weeks in a row". A single
+colour with a bare number (`דני · 10`) made the reader work out which half was the person, and left
+the unit leaning on a heading several rows above; a pill that can be read on its own does not.
+Section titles are verb phrases for the same reason ("Turned up every week", not "Never missed").
 
 **Repeat guests are one person (`src/guests.ts`).** A guest is created on the night they turn up with
 a fresh `uid()`, because at that moment there is nothing to match them against — they are a name

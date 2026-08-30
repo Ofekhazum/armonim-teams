@@ -397,6 +397,93 @@ export function drawChip(
   return w;
 }
 
+// --- Two-tone chips --------------------------------------------------------
+//
+// A name and what they did, in one pill but not in one voice: the name in full
+// brightness, the achievement in the section's own accent. A single-colour
+// `name · 12 nights` made the reader work out which half was the person and
+// which was the count, and left the unit ("12" of what?) leaning on a heading
+// several lines up.
+
+const SPLIT_GAP = 9;
+
+export interface SplitChip {
+  name: string;
+  detail?: string;
+}
+
+export function splitChipWidth(
+  ctx: CanvasRenderingContext2D,
+  c: SplitChip,
+  size = 17,
+): number {
+  ctx.save();
+  ctx.direction = 'ltr';
+  ctx.font = font(size, '900');
+  let w = ctx.measureText(c.name).width;
+  if (c.detail) {
+    ctx.font = font(size - 1, '700');
+    w += SPLIT_GAP + ctx.measureText(c.detail).width;
+  }
+  ctx.restore();
+  return w + CHIP_PAD_X * 2;
+}
+
+export function flowSplitChips(
+  ctx: CanvasRenderingContext2D,
+  chips: SplitChip[],
+  maxWidth: number,
+  size = 17,
+): SplitChip[][] {
+  const lines: SplitChip[][] = [];
+  let line: SplitChip[] = [];
+  let used = 0;
+  for (const c of chips) {
+    const w = splitChipWidth(ctx, c, size);
+    if (line.length > 0 && used + CHIP_GAP + w > maxWidth) {
+      lines.push(line);
+      line = [c];
+      used = w;
+    } else {
+      used += (line.length ? CHIP_GAP : 0) + w;
+      line.push(c);
+    }
+  }
+  if (line.length) lines.push(line);
+  return lines;
+}
+
+export function drawSplitChip(
+  ctx: CanvasRenderingContext2D,
+  c: SplitChip,
+  x: number,
+  y: number,
+  opts: { size?: number; fill?: string; border?: string; accent?: string } = {},
+): number {
+  const size = opts.size ?? 17;
+  const w = splitChipWidth(ctx, c, size);
+  fillRound(ctx, x, y, w, CHIP_H, CHIP_H / 2, opts.fill ?? 'rgba(253,250,243,0.08)');
+  strokeRound(ctx, x, y, w, CHIP_H, CHIP_H / 2, opts.border ?? 'rgba(253,250,243,0.18)', 1.5);
+
+  const baseline = y + CHIP_H / 2 + size * 0.36;
+  ctx.save();
+  // Each run is placed at a measured x, so the context stays left-to-right and
+  // the name carries its own isolate — see `iso` for why that matters.
+  ctx.direction = 'ltr';
+  ctx.textAlign = 'left';
+  ctx.font = font(size, '900');
+  ctx.fillStyle = INK.bright;
+  ctx.fillText(iso(c.name), x + CHIP_PAD_X, baseline);
+  if (c.detail) {
+    const nameW = ctx.measureText(c.name).width;
+    ctx.font = font(size - 1, '700');
+    ctx.fillStyle = opts.accent ?? INK.muted;
+    ctx.fillText(c.detail, x + CHIP_PAD_X + nameW + SPLIT_GAP, baseline);
+  }
+  ctx.restore();
+  return w;
+}
+
 // --- The bento packer ------------------------------------------------------
 //
 // Cards declare a span in sixths (6 = full width, 3 = half, 2 = a third) and

@@ -30,7 +30,7 @@
 // about those stats differing in kind — only about there being too many cards
 // of one size to look at.
 
-import type { Bully, GradeExtreme, NightOfMonth, Rollercoaster, WrappedStats } from './wrapped';
+import type { Bully, GradeExtreme, LongestRun, NightOfMonth, Reservist, WrappedStats } from './wrapped';
 import type { ShareImageResult } from './shareImage';
 import type { Milestone } from './milestones';
 import type { TeamColor } from './types';
@@ -46,8 +46,11 @@ import {
   fillRound,
   fitText,
   flowChips,
+  flowSplitChips,
+  drawSplitChip,
   iso,
   isoPair,
+  type SplitChip,
   font,
   glow,
   jerseyText,
@@ -429,7 +432,7 @@ function renderHighlights(stats: WrappedStats): HTMLCanvasElement {
 
 const SQUAD_HEADER_H = 48;
 const SQUAD_PAD = 12;
-const SCORE_H = 138;
+const SCORE_H = 148;
 
 const squadHeight = (lines: string[][]) =>
   SQUAD_HEADER_H + Math.max(lines.length, 1) * (CHIP_H + 6) + SQUAD_PAD;
@@ -437,7 +440,6 @@ const squadHeight = (lines: string[][]) =>
 function drawSquadCard(
   ctx: CanvasRenderingContext2D,
   color: TeamColor,
-  squad: string[],
   lines: string[][],
   s: Slot,
   isWinner: boolean,
@@ -452,10 +454,6 @@ function drawSquadCard(
   ctx.font = font(16, '900');
   ctx.fillStyle = t.text;
   ctx.fillText(`${TEAM_EMOJI[color]} ${TEAM_LABEL[color]}`, s.x + SQUAD_PAD, s.y + 29);
-  ctx.textAlign = 'right';
-  ctx.font = font(13, '800');
-  ctx.fillStyle = t.sub;
-  ctx.fillText(String(squad.length), s.x + s.w - SQUAD_PAD, s.y + 29);
   ctx.restore();
 
   lines.forEach((line, i) => {
@@ -490,8 +488,8 @@ function drawScoreRow(ctx: CanvasRenderingContext2D, night: NightOfMonth, y: num
       tracking: 1.6,
     });
 
-    jerseyText(ctx, String(night.teams[c].won), x + colW / 2, y + 92, {
-      size: 54,
+    jerseyText(ctx, String(night.teams[c].won), x + colW / 2, y + 88, {
+      size: 52,
       fill: won ? INK.bright : INK.body,
       stroke: 'rgba(0,0,0,0.32)',
       align: 'center',
@@ -500,9 +498,12 @@ function drawScoreRow(ctx: CanvasRenderingContext2D, night: NightOfMonth, y: num
     ctx.save();
     ctx.direction = 'ltr';
     ctx.textAlign = 'center';
+    ctx.font = font(15, '900');
+    ctx.fillStyle = won ? INK.bright : INK.body;
+    ctx.fillText(night.teams[c].won === 1 ? 'WIN' : 'WINS', x + colW / 2, y + 110);
     ctx.font = font(13, '700');
     ctx.fillStyle = won ? t.sub : INK.muted;
-    ctx.fillText(`of ${night.teams[c].played} played`, x + colW / 2, y + 118);
+    ctx.fillText(`from ${night.teams[c].played} played`, x + colW / 2, y + 130);
     ctx.restore();
 
     if (won) {
@@ -570,7 +571,6 @@ function renderNightOfMonth(night: NightOfMonth): HTMLCanvasElement {
     drawSquadCard(
       ctx,
       c,
-      night.teams[c].squad,
       squadLines[i],
       { x: PAD + i * (squadW + GAP), y, w: squadW, h: squadH },
       night.winner === c,
@@ -606,13 +606,13 @@ function drawMarksCard(
   fillRound(ctx, s.x, s.y, s.w, s.h, CARD_R, vGradient(ctx, s.x, s.y, s.w, s.h, '#292524', '#171412'));
   stripes(ctx, s.x, s.y, s.w, s.h, CARD_R, 'rgba(255,255,255,0.03)', 20, 8);
   strokeRound(ctx, s.x, s.y, s.w, s.h, CARD_R, 'rgba(255,255,255,0.12)', 1.5);
-  sectionHeader(ctx, '📋 The marks', s.x + 20, s.y + 38, INK.gold, 17);
+  sectionHeader(ctx, '📋 Average mark', s.x + 20, s.y + 38, INK.gold, 17);
 
   const rowH = (s.h - 62) / 2;
   (
     [
-      { p: best, tag: "Teacher's pet", color: '#4ade80' },
-      { p: worst, tag: 'Punching bag', color: '#f87171' },
+      { p: best, tag: 'Highest average', color: '#4ade80' },
+      { p: worst, tag: 'Lowest average', color: '#f87171' },
     ] as const
   ).forEach((row, i) => {
     const rowY = s.y + 62 + i * rowH;
@@ -625,44 +625,6 @@ function drawMarksCard(
       align: 'right',
     });
   });
-}
-
-/** The one award that is inherently a shape rather than a number: a bar from
- *  their worst mark to their best, on the full 0–10 scale so the swing reads
- *  against what was available rather than against itself. */
-function drawRollercoaster(ctx: CanvasRenderingContext2D, r: Rollercoaster, s: Slot) {
-  fillRound(ctx, s.x, s.y, s.w, s.h, CARD_R, vGradient(ctx, s.x, s.y, s.w, s.h, '#6d28d9', '#2e1065'));
-  stripes(ctx, s.x, s.y, s.w, s.h, CARD_R, 'rgba(255,255,255,0.05)', 20, 8);
-  strokeRound(ctx, s.x, s.y, s.w, s.h, CARD_R, 'rgba(196,181,253,0.32)', 1.5);
-  sectionHeader(ctx, '🎢 The rollercoaster', s.x + 20, s.y + 38, '#c4b5fd', 17);
-
-  drawName(ctx, r.name, s.x + 20, s.y + 96, 30, s.w - 40, 'left');
-
-  const barX = s.x + 20;
-  const barW = s.w - 40;
-  const barY = s.y + s.h - 66;
-  fillRound(ctx, barX, barY, barW, 12, 6, 'rgba(0,0,0,0.38)');
-  const lo = (r.low / 10) * barW;
-  const hi = (r.high / 10) * barW;
-  const grad = ctx.createLinearGradient(barX + lo, 0, barX + hi, 0);
-  grad.addColorStop(0, '#f87171');
-  grad.addColorStop(1, '#4ade80');
-  fillRound(ctx, barX + lo, barY, Math.max(hi - lo, 8), 12, 6, grad);
-
-  ctx.save();
-  ctx.direction = 'ltr';
-  ctx.font = font(15, '800');
-  ctx.textAlign = 'left';
-  ctx.fillStyle = '#fca5a5';
-  ctx.fillText(r.low.toFixed(1), barX, barY + 36);
-  ctx.textAlign = 'right';
-  ctx.fillStyle = '#86efac';
-  ctx.fillText(r.high.toFixed(1), barX + barW, barY + 36);
-  ctx.textAlign = 'center';
-  ctx.font = font(14, '700');
-  ctx.fillStyle = 'rgba(233,213,255,0.85)';
-  ctx.fillText(`swing of ${r.range.toFixed(1)}`, barX + barW / 2, barY + 36);
-  ctx.restore();
 }
 
 /** The head-to-head, as a scoreline — the one award about two people, which is
@@ -721,9 +683,56 @@ function drawDuoCard(
   ctx.restore();
 }
 
+/**
+ * The longest unbroken run of match wins inside one night.
+ *
+ * Deliberately **does not lead with the shirt colour**. The teams are redrawn
+ * every week, so "Black won four on the spin" names a set of people that
+ * existed for one evening and never again — it reads as a claim about a
+ * standing team and there is no such thing here. The run belongs to the
+ * players who were on that shirt that night, so they are who it names.
+ */
+function drawBiggestRunCard(ctx: CanvasRenderingContext2D, run: LongestRun, s: Slot) {
+  fillRound(ctx, s.x, s.y, s.w, s.h, CARD_R, vGradient(ctx, s.x, s.y, s.w, s.h, '#b91c1c', '#5c0f0f'));
+  stripes(ctx, s.x, s.y, s.w, s.h, CARD_R, 'rgba(255,255,255,0.05)', 20, 8);
+  strokeRound(ctx, s.x, s.y, s.w, s.h, CARD_R, 'rgba(252,165,165,0.32)', 1.5);
+  sectionHeader(ctx, '🔥 Biggest run', s.x + 20, s.y + 38, '#fca5a5', 17);
+
+  jerseyText(ctx, String(run.length), s.x + 20, s.y + 104, {
+    size: 54,
+    fill: INK.bright,
+    stroke: 'rgba(0,0,0,0.3)',
+  });
+  const m = measurer();
+  m.font = font(54, '900');
+  const numW = m.measureText(String(run.length)).width;
+
+  ctx.save();
+  ctx.direction = 'ltr';
+  ctx.textAlign = 'left';
+  ctx.font = font(17, '800');
+  ctx.fillStyle = 'rgba(255,240,240,0.92)';
+  ctx.fillText('matches in a row', s.x + 30 + numW, s.y + 90);
+  ctx.font = font(13, '700');
+  ctx.fillStyle = 'rgba(254,202,202,0.75)';
+  ctx.fillText(run.date, s.x + 30 + numW, s.y + 110);
+  ctx.restore();
+
+  // who was wearing that shirt — the run belongs to them, not to a colour
+  ctx.save();
+  ctx.direction = 'rtl';
+  ctx.textAlign = 'right';
+  ctx.font = font(16, '800');
+  ctx.fillStyle = 'rgba(255,255,255,0.92)';
+  wrapText(ctx, run.squad.join(' · '), s.w - 40)
+    .slice(0, 3)
+    .forEach((line, i) => ctx.fillText(line, s.x + s.w - 20, s.y + 148 + i * 23));
+  ctx.restore();
+}
+
 type Major =
   | { kind: 'marks'; best: GradeExtreme; worst: GradeExtreme }
-  | { kind: 'coaster'; r: Rollercoaster }
+  | { kind: 'run'; run: LongestRun }
   | { kind: 'duo'; duo: { aName: string; bName: string; won: number; together: number } };
 
 function buildMajors(stats: WrappedStats): Major[] {
@@ -731,10 +740,52 @@ function buildMajors(stats: WrappedStats): Major[] {
   if (stats.teachersPet && stats.punchingBag) {
     out.push({ kind: 'marks', best: stats.teachersPet, worst: stats.punchingBag });
   }
-  if (stats.rollercoaster) out.push({ kind: 'coaster', r: stats.rollercoaster });
+  if (stats.longestRun) out.push({ kind: 'run', run: stats.longestRun });
   if (stats.worstDuo) out.push({ kind: 'duo', duo: stats.worstDuo });
   return out;
 }
+
+// The reservists get a full-width card of their own with an adaptive height,
+// the same shape the attendance card on page 1 uses. **Everyone who qualified
+// is named** — on a month with several one-off appearances, picking the best
+// story and silently dropping the rest reads as the app not having noticed
+// them, and a fixed-height card would eventually have to truncate.
+const RESERVIST_TITLE_H = 88;
+const reservistsHeight = (lines: string[][]) =>
+  RESERVIST_TITLE_H + lines.length * (CHIP_H + CHIP_GAP) + 10;
+
+function drawReservistsCard(
+  ctx: CanvasRenderingContext2D,
+  lines: string[][],
+  y: number,
+  cardW: number,
+) {
+  const h = reservistsHeight(lines);
+  fillRound(ctx, PAD, y, cardW, h, CARD_R, vGradient(ctx, PAD, y, cardW, h, '#0f766e', '#0b3330'));
+  stripes(ctx, PAD, y, cardW, h, CARD_R, 'rgba(255,255,255,0.045)', 20, 8);
+  strokeRound(ctx, PAD, y, cardW, h, CARD_R, 'rgba(94,234,212,0.3)', 1.5);
+  sectionHeader(ctx, '🎖️ The reservists', PAD + 20, y + 38, '#5eead4', 20);
+  spacedCaps(ctx, 'played once or twice, and still took a night', PAD + 20, y + 64, {
+    size: 12,
+    color: 'rgba(153,246,228,0.8)',
+    tracking: 1.4,
+  });
+
+  lines.forEach((line, i) => {
+    let x = PAD + 20;
+    const rowY = y + RESERVIST_TITLE_H + i * (CHIP_H + CHIP_GAP);
+    for (const text of line) {
+      x +=
+        drawChip(ctx, text, x, rowY, {
+          fill: 'rgba(255,255,255,0.14)',
+          border: 'rgba(153,246,228,0.4)',
+        }) + CHIP_GAP;
+    }
+  });
+}
+
+const reservistChips = (rs: Reservist[]) =>
+  rs.map((r) => isoPair(r.name, `${r.wins} win${r.wins === 1 ? '' : 's'}`));
 
 /** Ordered by how much anybody wants to read it — the tail past
  *  MAX_MINOR_CARDS is dropped rather than shrunk. */
@@ -742,36 +793,6 @@ function buildMinors(stats: WrappedStats): Award[] {
   const out: Award[] = [];
   const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
-  if (stats.dramaQueen) {
-    out.push({
-      eyebrow: 'Drama queen',
-      value: stats.dramaQueen.name,
-      detail: plural(stats.dramaQueen.shootouts, 'penalty shootout'),
-      emoji: '🎭',
-      accent: '#f9a8d4',
-      tint: ['#be185d', '#701a3c'],
-    });
-  }
-  if (stats.reservist) {
-    out.push({
-      eyebrow: 'The reservist',
-      value: stats.reservist.name,
-      detail: `${plural(stats.reservist.wins, 'win')} in ${plural(stats.reservist.nights, 'night')}`,
-      emoji: '🎖️',
-      accent: '#5eead4',
-      tint: ['#0f766e', '#0d3d3a'],
-    });
-  }
-  if (stats.longestRun) {
-    out.push({
-      eyebrow: 'Biggest run',
-      value: TEAM_LABEL[stats.longestRun.color],
-      detail: `${plural(stats.longestRun.length, 'match', 'matches')} on the spin`,
-      emoji: '🔥',
-      accent: '#fca5a5',
-      tint: ['#b91c1c', '#69100f'],
-    });
-  }
   if (stats.benchwarmer) {
     out.push({
       eyebrow: 'Benched most',
@@ -826,19 +847,33 @@ function buildMinors(stats: WrappedStats): Award[] {
 }
 
 const hasBreakdown = (stats: WrappedStats): boolean =>
-  !!stats.bully || buildMajors(stats).length > 0 || buildMinors(stats).length > 0;
+  !!stats.bully ||
+  stats.reservists.length > 0 ||
+  buildMajors(stats).length > 0 ||
+  buildMinors(stats).length > 0;
 
 function renderBreakdown(stats: WrappedStats): HTMLCanvasElement {
   const cardW = W - PAD * 2;
   const majors = buildMajors(stats);
   const minors = buildMinors(stats);
 
+  const resLines =
+    stats.reservists.length > 0
+      ? flowChips(measurer(), reservistChips(stats.reservists), cardW - 40)
+      : [];
   const heroPack = packTier(stats.bully ? 1 : 0, 6, PAD, 0, cardW, TIER_HERO_H, GAP);
   const majorPack = packTier(majors.length, 3, PAD, 0, cardW, TIER_MAJOR_H, GAP);
   const minorPack = packTier(minors.length, 2, PAD, 0, cardW, TIER_MINOR_H, GAP);
 
   const H =
-    PAD + PAGE_HEADER_H + heroPack.height + majorPack.height + minorPack.height + FOOTER_H + PAD;
+    PAD +
+    PAGE_HEADER_H +
+    heroPack.height +
+    (resLines.length > 0 ? reservistsHeight(resLines) + GAP : 0) +
+    majorPack.height +
+    minorPack.height +
+    FOOTER_H +
+    PAD;
 
   const [canvas, ctx] = canvasOf(H);
   drawPageHeader(ctx, stats.label, 'The breakdown');
@@ -850,10 +885,15 @@ function renderBreakdown(stats: WrappedStats): HTMLCanvasElement {
     y += heroPack.height;
   }
 
+  if (resLines.length > 0) {
+    drawReservistsCard(ctx, resLines, y, cardW);
+    y += reservistsHeight(resLines) + GAP;
+  }
+
   majors.forEach((mj, i) => {
     const s = { ...majorPack.slots[i], y: y + majorPack.slots[i].y };
     if (mj.kind === 'marks') drawMarksCard(ctx, mj.best, mj.worst, s);
-    else if (mj.kind === 'coaster') drawRollercoaster(ctx, mj.r, s);
+    else if (mj.kind === 'run') drawBiggestRunCard(ctx, mj.run, s);
     else drawDuoCard(ctx, mj.duo, s);
   });
   y += majorPack.height;
@@ -872,55 +912,55 @@ function renderBreakdown(stats: WrappedStats): HTMLCanvasElement {
 interface ChipGroup {
   title: string;
   accent: string;
-  chips: string[];
+  chips: SplitChip[];
 }
 
 function groupAchievements(milestones: Milestone[]): ChipGroup[] {
-  const debuts: string[] = [];
-  const nights: string[] = [];
-  const wins: string[] = [];
-  const ironman: string[] = [];
-  const streaks: string[] = [];
-  const droughts: string[] = [];
+  const debuts: SplitChip[] = [];
+  const nights: SplitChip[] = [];
+  const wins: SplitChip[] = [];
+  const ironman: SplitChip[] = [];
+  const streaks: SplitChip[] = [];
+  const droughts: SplitChip[] = [];
 
   for (const m of milestones) {
     switch (m.kind) {
       case 'debut-group':
-        debuts.push(`${m.count} first nights`);
+        debuts.push({ name: `${m.count} new faces` });
         break;
       case 'debut':
-        debuts.push(m.name);
+        debuts.push({ name: m.name });
         break;
       case 'nth-night':
-        nights.push(isoPair(m.name, `${m.nights}th`));
+        nights.push({ name: m.name, detail: `${m.nights}th night` });
         break;
       case 'nth-win':
-        wins.push(isoPair(m.name, `${m.wins}th`));
+        wins.push({ name: m.name, detail: `${m.wins}th win` });
         break;
       case 'iron-man':
-        ironman.push(isoPair(m.name, `${m.nights} nights`));
+        ironman.push({ name: m.name, detail: `${m.nights} weeks in a row` });
         break;
       case 'win-streak':
-        streaks.push(isoPair(m.name, `${m.nights} nights`));
+        streaks.push({ name: m.name, detail: `${m.nights} nights running` });
         break;
       case 'winless':
-        droughts.push(isoPair(m.name, `${m.nights} nights`));
+        droughts.push({ name: m.name, detail: `${m.nights} nights so far` });
         break;
     }
   }
 
   return [
-    { title: '✨ First nights', accent: '#fde68a', chips: debuts },
-    { title: '🎉 Milestone nights', accent: '#f0abfc', chips: nights },
-    { title: '🏆 Career wins', accent: INK.gold, chips: wins },
-    { title: '🦾 Never missed', accent: '#7dd3fc', chips: ironman },
-    { title: '📈 Winning runs', accent: '#86efac', chips: streaks },
-    { title: '💤 Longest waits', accent: '#fca5a5', chips: droughts },
+    { title: '✨ First night at the club', accent: '#fde68a', chips: debuts },
+    { title: '🎉 Hit a milestone night', accent: '#f0abfc', chips: nights },
+    { title: '🏆 Hit a milestone win', accent: INK.gold, chips: wins },
+    { title: '🦾 Turned up every week', accent: '#7dd3fc', chips: ironman },
+    { title: '📈 On a winning run', accent: '#86efac', chips: streaks },
+    { title: '💤 Still waiting for a win', accent: '#fca5a5', chips: droughts },
   ].filter((g) => g.chips.length > 0);
 }
 
 const GROUP_TITLE_H = 50;
-const groupHeight = (lines: string[][]) =>
+const groupHeight = (lines: SplitChip[][]) =>
   GROUP_TITLE_H + lines.length * (CHIP_H + CHIP_GAP) + 12;
 
 function renderAchievements(stats: WrappedStats): HTMLCanvasElement {
@@ -928,7 +968,7 @@ function renderAchievements(stats: WrappedStats): HTMLCanvasElement {
   const m = measurer();
   const groups = groupAchievements(stats.monthlyAchievements).map((g) => ({
     ...g,
-    lines: flowChips(m, g.chips, cardW - 40),
+    lines: flowSplitChips(m, g.chips, cardW - 40),
   }));
 
   const H =
@@ -951,11 +991,12 @@ function renderAchievements(stats: WrappedStats): HTMLCanvasElement {
     g.lines.forEach((line, i) => {
       let x = PAD + 20;
       const rowY = y + GROUP_TITLE_H + i * (CHIP_H + CHIP_GAP);
-      for (const text of line) {
+      for (const chip of line) {
         x +=
-          drawChip(ctx, text, x, rowY, {
+          drawSplitChip(ctx, chip, x, rowY, {
             fill: 'rgba(253,250,243,0.09)',
             border: 'rgba(253,250,243,0.2)',
+            accent: g.accent,
           }) + CHIP_GAP;
       }
     });
