@@ -23,6 +23,42 @@ import { TEAM_COLORS } from './balancer';
 export const guestKey = (name: string): string =>
   name.trim().replace(/\s+/g, ' ').toLocaleLowerCase('he');
 
+// A roster player who has the same name as a guest absorbs that guest's past
+// nights — which is what promoting a guest to the roster has to mean. Without
+// it, promotion would *split* somebody rather than settle them: the id they are
+// given is on the roster and so is skipped below, while their earlier guest ids
+// carry on merging with each other into a second, separate person.
+//
+// Two roster players sharing a name make the answer ambiguous, so that name
+// absorbs nothing and the guests under it stay guests. Silence is the right
+// failure here — welding a guest onto the wrong member is invisible and
+// permanent-looking, where an unabsorbed guest is a visible row somebody can
+// act on.
+const AMBIGUOUS = Symbol('two roster players share this name');
+
+export interface GuestAbsorber {
+  id: string;
+  name: string;
+  aliases?: string[];
+}
+
+/** `guestKey(name)` → the roster id that name should count as. */
+export function guestAbsorbers(players: GuestAbsorber[]): Map<string, string> {
+  const claimed = new Map<string, string | typeof AMBIGUOUS>();
+  for (const p of players) {
+    for (const name of [p.name, ...(p.aliases ?? [])]) {
+      const key = guestKey(name);
+      if (!key) continue;
+      const held = claimed.get(key);
+      // the same player listing a name twice (name and alias) is not a clash
+      claimed.set(key, held === undefined || held === p.id ? p.id : AMBIGUOUS);
+    }
+  }
+  const out = new Map<string, string>();
+  for (const [key, id] of claimed) if (typeof id === 'string') out.set(key, id);
+  return out;
+}
+
 /**
  * id → the id that id should be counted as.
  *
@@ -30,13 +66,16 @@ export const guestKey = (name: string): string =>
  * already has one identity and keeps it, which is what stops two squad members
  * who happen to share a first name being welded together.
  *
- * The earliest night wins, so the canonical id is stable as history grows —
- * picking the most recent would silently renumber a guest every time they
- * played again.
+ * A guest whose name matches a roster player is counted as that player
+ * (`absorbers`, above) — the promotion path. Otherwise repeat guests collapse
+ * onto each other, earliest night first, so the canonical id is stable as
+ * history grows: picking the most recent would silently renumber a guest every
+ * time they played again.
  */
 export function guestIdentities(
   history: FixtureRecord[],
   rosterIds: Set<string>,
+  absorbers: Map<string, string> = new Map(),
 ): Map<string, string> {
   const firstSeen = new Map<string, string>();
   const canonical = new Map<string, string>();
@@ -46,6 +85,11 @@ export function guestIdentities(
       if (rosterIds.has(p.id)) continue;
       const key = guestKey(p.name);
       if (!key) continue;
+      const owner = absorbers.get(key);
+      if (owner !== undefined) {
+        canonical.set(p.id, owner);
+        continue;
+      }
       const first = firstSeen.get(key);
       if (first === undefined) firstSeen.set(key, p.id);
       else if (first !== p.id) canonical.set(p.id, first);
@@ -64,21 +108,29 @@ export function guestIdentities(
 export function mergeGuestIdentities(
   history: FixtureRecord[],
   rosterIds: Set<string>,
+  absorbers: Map<string, string> = new Map(),
 ): FixtureRecord[] {
-  const canonical = guestIdentities(history, rosterIds);
+  const canonical = guestIdentities(history, rosterIds, absorbers);
   if (canonical.size === 0) return history;
   const idOf = (id: string) => canonical.get(id) ?? id;
 
   return history.map((fx) => {
     const players: FixtureRecord['players'] = [];
-    const seen = new Set<string>();
+    const at = new Map<string, number>();
     for (const p of fx.players) {
       const id = idOf(p.id);
-      // the same guest can only appear once on a night; keep the first entry,
-      // which carries the name and rating that night was actually played under
-      if (seen.has(id)) continue;
-      seen.add(id);
-      players.push(id === p.id ? p : { ...p, id });
+      const already = at.get(id);
+      if (already === undefined) {
+        at.set(id, players.length);
+        players.push(id === p.id ? p : { ...p, id });
+        continue;
+      }
+      // The same person can only appear once on a night. Position is the first
+      // entry's, so the order a night was filed in survives — but if one of the
+      // colliding rows *is* the canonical player (a promoted guest who also
+      // played under their roster id), that row's name and rating win, since
+      // they are the ones the player carries now.
+      if (p.id === id) players[already] = p;
     }
     return {
       ...fx,

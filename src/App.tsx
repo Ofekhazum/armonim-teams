@@ -13,7 +13,7 @@ import { kickoffLabel, useKickedOff } from './kickoff';
 import { emptySession, loadState, saveState } from './storage';
 import { mergePrivateFields, mergePublicRoster } from './rosterMerge';
 import { preserveMvp } from './mvp';
-import { mergeGuestIdentities } from './guests';
+import { guestAbsorbers, mergeGuestIdentities } from './guests';
 import { publishLive, useLiveFixture } from './live';
 import LiveFixtureView from './components/LiveFixtureView';
 import {
@@ -333,8 +333,16 @@ export default function App() {
   // keeps the ids it was filed with, so saving, editing and publishing all
   // still work on the untouched records, and a merge that turns out wrong is
   // undone by changing a function rather than by repairing data.
+  // A guest promoted to the roster keeps the nights they played as a guest,
+  // because a roster player absorbs same-named guests (§2.6). Without that,
+  // promoting somebody would split them in two rather than settle them.
   const readHistory = useMemo(
-    () => mergeGuestIdentities(state.history, new Set(state.players.map((p) => p.id))),
+    () =>
+      mergeGuestIdentities(
+        state.history,
+        new Set(state.players.map((p) => p.id)),
+        guestAbsorbers(state.players),
+      ),
     [state.history, state.players],
   );
 

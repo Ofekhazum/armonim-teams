@@ -908,6 +908,32 @@ repairing a database.
 Matching is exact after trimming and case-folding — no fuzzy matching, because quietly merging two
 genuinely different people is a far worse failure than leaving a duplicate row on screen.
 
+**A roster player absorbs guests who share their name (`guestAbsorbers`), which is what promotion is
+built on.** 🚪 **Guests** on the Roster tab lists everybody who has played without a roster entry,
+with their night count and **+ Add to roster**; it opens the ordinary add form with the name filled
+in, so a promoted guest gets a rating and a number the same way any player does and there is no
+second route into the squad. **Nothing in history is rewritten** — the new player carries the guest's
+name, the name is what the merge keys on, and every night already played comes with them. That also
+makes it undoable: removing the player hands those nights straight back to being a guest's.
+
+Without absorption, promotion would *split* somebody rather than settle them. The id the new player
+is given is on the roster, so the merge skips it, while their earlier guest ids carry on collapsing
+onto each other into a second, separate person — strictly worse than before. **A name held by two
+roster players absorbs nothing**, since the answer is ambiguous and welding a guest onto the wrong
+member is invisible and looks permanent, where an unabsorbed guest is a visible row somebody can act
+on. When both a roster id and a guest id it absorbs appear on one night, the position is the first
+row's — so the order a night was filed in survives — but the roster row's name and rating win.
+
+**The Worker merges too, and that it did not was a real bug.** `src/totm.ts` guarantees the cron and
+the app score by the same *rule*; nothing guaranteed the same *input*. History is stored unmerged, so
+`worker/awards.js` was scoring an archive in which a guest who played three nights was three
+strangers with one night each — none of whom clear the eligibility bar (§2.20). On the real club's
+August the app showed a guest fifth in the Team of the Month and the cron would have registered
+somebody else, permanently, since `registerAwards` never overwrites. Its `readHistory` now reads the
+roster alongside the archive and merges before returning. A missing or unreadable roster yields an
+empty id set, which makes every id look like a guest — the safe direction, since the merge only ever
+joins ids that already share a name.
+
 **The career-numbers table has no floor** (`MIN_STANDINGS_NIGHTS = 1`): everybody who has played a
 night with a result is in it. It started at two, on the reasoning that a per-night number derived
 from a single result sorts to the top and means nothing. That is true and it was still the wrong

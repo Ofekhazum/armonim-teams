@@ -25,7 +25,7 @@
 // prevent, arriving through the input instead of through the rule.
 
 import { teamOfMonth, totmPeriods } from '../src/totm';
-import { mergeGuestIdentities } from '../src/guests';
+import { guestAbsorbers, mergeGuestIdentities } from '../src/guests';
 
 export const AWARDS_KEY = 'totm';
 
@@ -67,10 +67,11 @@ const readJson = async (env, key) => {
 const readHistory = async (env) => {
   const [history, roster] = await Promise.all([readJson(env, 'history'), readJson(env, 'roster')]);
   const fixtures = Array.isArray(history?.fixtures) ? history.fixtures : [];
-  const rosterIds = new Set(
-    (Array.isArray(roster?.players) ? roster.players : []).map((p) => p?.id).filter(Boolean),
+  const players = (Array.isArray(roster?.players) ? roster.players : []).filter(
+    (p) => p && typeof p.id === 'string' && typeof p.name === 'string',
   );
-  return mergeGuestIdentities(fixtures, rosterIds);
+  const rosterIds = new Set(players.map((p) => p.id));
+  return mergeGuestIdentities(fixtures, rosterIds, guestAbsorbers(players));
 };
 
 /**
