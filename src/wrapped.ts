@@ -20,7 +20,7 @@ import { mvpCounts } from './mvp';
 import { TOTM_SIZE, teamOfMonth, totmEligible, totmScore, type TotmPlayer } from './totm';
 import { loserOf, playedCounts } from './matchLog';
 import { lean, playerArcs, rate as arcRate } from './playerArcs';
-import { nightStory, HALVES_MIN, type Flavour, type NightFact } from './nightStory';
+import { nightStory } from './nightStory';
 import type { AllMarks } from './gradeHistory';
 
 // The Team of the Month scoring lives in totm.ts, because the Worker's cron
@@ -53,8 +53,8 @@ const MIN_NIGHTS_FOR_ROAST = 2;
 // different and much larger cost than that.
 
 // A mark "averaged" over one or two nights isn't an average anybody should
-// read anything into — this is the floor below which Teacher's Pet, Punching
-// Bag and the Rollercoaster all decline to speak.
+// read anything into — this is the floor below which the month's highest and
+// lowest average both decline to speak.
 const MIN_GRADED_NIGHTS_FOR_RECAP = 3;
 
 // How rare a month has to be before "snagged glory on barely any nights" is
@@ -75,15 +75,6 @@ export interface GradeExtreme {
   nights: number; // graded nights the average is over
 }
 
-export interface Rollercoaster {
-  id: string;
-  name: string;
-  high: number;
-  low: number;
-  range: number; // high − low — the swing, not the noise
-  nights: number;
-}
-
 export interface Benchwarmer {
   id: string;
   name: string;
@@ -95,12 +86,6 @@ export interface OutOfGas {
   name: string;
   earlyRate: number; // win rate in their own first half of matches, this month
   lateRate: number; // win rate in their own second half
-}
-
-export interface DramaQueen {
-  id: string;
-  name: string;
-  shootouts: number; // matches decided on penalties this player was on either side of
 }
 
 export interface Reservist {
@@ -127,22 +112,32 @@ export interface CursedShirt {
   matchWinShare: number; // this colour's share of every match win banked this month
 }
 
-export interface NightOfMonth {
-  fixtureId: string;
-  date: string;
-  leadChanges: number;
-  alternation: number;
-  matches: number;
-  flavour: Flavour;
-  headline: string;
-  facts: NightFact[];
-}
-
 export interface LongestRun {
   fixtureId: string;
   date: string;
   color: TeamColor;
   length: number; // consecutive matches that colour won, within that one night
+  // Who was actually wearing the shirt. The colour on its own says nothing —
+  // the teams are redrawn every week, so "black won 4 on the spin" describes
+  // a set of people that existed for one evening and never again.
+  squad: string[];
+}
+
+// A shirt that topped one of the month's nights, with the squad that wore it.
+// Usually one entry per night, but a night that finished level at the top
+// produces one entry *per* tied shirt rather than none — unlike `winnerOf`
+// (used everywhere else a night needs a single champion or nobody), this page
+// is enumerating nights rather than aggregating them, so silently dropping a
+// tied one would be a visibly missing card for a result that genuinely
+// happened. `shared` is what lets the card say so rather than claiming an
+// outright win it didn't have.
+export interface WinningTeam {
+  fixtureId: string;
+  date: string;
+  color: TeamColor;
+  wins: number; // match wins that shirt banked on the night
+  squad: string[];
+  shared: boolean; // true when another shirt tied it for the top that night
 }
 
 export interface WrappedStats {
@@ -176,6 +171,10 @@ export interface WrappedStats {
   longestWinless: { name: string; nights: number } | null;
   bestDuo: DuoFact | null;
   worstDuo: DuoFact | null;
+  // Every shirt that took a night outright this month, best night first. Not
+  // capped here — how many will fit on a page is the poster's business, and
+  // `wrappedImage.ts` takes the top few.
+  winningTeams: WinningTeam[];
   // The five who carried the month, drawn onto the gold shirt card (§2.21).
   // Ordered best first — the top of the pentagon is the top of the list.
   teamOfMonth: TotmPlayer[];
@@ -183,14 +182,14 @@ export interface WrappedStats {
   // --- Banter stats ----------------------------------------------------
   teachersPet: GradeExtreme | null;
   punchingBag: GradeExtreme | null;
-  rollercoaster: Rollercoaster | null;
   benchwarmer: Benchwarmer | null;
   outOfGas: OutOfGas | null;
-  dramaQueen: DramaQueen | null;
-  reservist: Reservist | null;
+  // Everyone who qualified, not just the best story — on a month with several
+  // one-off appearances, naming one of them and silently dropping the rest
+  // reads as the app not having noticed the others.
+  reservists: Reservist[];
   bully: Bully | null;
   cursedShirt: CursedShirt | null;
-  nightOfMonth: NightOfMonth | null;
   longestRun: LongestRun | null;
   // Every milestone crossed on one of the month's own nights, replaying
   // `tonightsMilestones` fixture by fixture rather than capping at MAX_SHOWN —
@@ -230,6 +229,10 @@ export function wrappedPeriods(history: FixtureRecord[]): string[] {
   }
   return [...periods].sort((a, b) => (a < b ? 1 : a > b ? -1 : 0));
 }
+
+/** The names on one shirt, in the order the fixture kept them. */
+const squadNames = (fx: FixtureRecord, color: TeamColor): string[] =>
+  fx.teams[color].map((id) => fx.players.find((p) => p.id === id)?.name ?? '?');
 
 function longestRun(apps: { won: boolean }[], won: boolean): number {
   let best = 0;
@@ -395,7 +398,6 @@ export function buildWrapped(
 
   let teachersPet: GradeExtreme | null = null;
   let punchingBag: GradeExtreme | null = null;
-  let rollercoaster: Rollercoaster | null = null;
   if (monthIsGraded) {
     const gradesByPlayer = new Map<string, number[]>();
     for (const fx of chronological) {
@@ -425,16 +427,6 @@ export function buildWrapped(
         (avg === punchingBag.avg && grades.length > punchingBag.nights)
       ) {
         punchingBag = { id, name, avg, nights: grades.length };
-      }
-      const high = Math.max(...grades);
-      const low = Math.min(...grades);
-      const range = high - low;
-      if (
-        !rollercoaster ||
-        range > rollercoaster.range ||
-        (range === rollercoaster.range && grades.length > rollercoaster.nights)
-      ) {
-        rollercoaster = { id, name, high, low, range, nights: grades.length };
       }
     }
   }
@@ -482,48 +474,20 @@ export function buildWrapped(
     }
   }
 
-  // --- Drama Queen ---------------------------------------------------------
-  // Both sides of a shootout are "involved" in it — the nerve it takes is not
-  // only the winner's — so every player on either shirt is credited, not just
-  // whoever's team came out on top.
-  const shootoutsByPlayer = new Map<string, number>();
-  for (const fx of chronological) {
-    const log = fx.matchLog;
-    if (!log?.length) continue;
-    for (const m of log) {
-      if (!m.viaPenalties) continue;
-      for (const id of [...fx.teams[m.a], ...fx.teams[m.b]]) {
-        shootoutsByPlayer.set(id, (shootoutsByPlayer.get(id) ?? 0) + 1);
-      }
-    }
-  }
-  let dramaQueen: DramaQueen | null = null;
-  for (const [id, shootouts] of shootoutsByPlayer) {
-    if (!dramaQueen || shootouts > dramaQueen.shootouts) {
-      dramaQueen = { id, name: nameOf.get(id) ?? '?', shootouts };
-    }
-  }
-
   // --- The Reservist -----------------------------------------------------
   // Minimum effort, maximum glory: at most MAX_RESERVIST_NIGHTS nights, and
   // their team took at least one of them outright (`appearances` already
   // carries that flag per night). Ranked by fewest nights first — the rarer
   // the appearance, the better the story — then by wins banked, then by name.
-  let reservist: Reservist | null = null;
+  const reservists: Reservist[] = [];
   for (const [id, n] of nights) {
     if (n > MAX_RESERVIST_NIGHTS) continue;
     if (!appearances(id, chronological).some((a) => a.won)) continue;
-    const w = wins.get(id) ?? 0;
-    const name = nameOf.get(id) ?? '?';
-    if (
-      !reservist ||
-      n < reservist.nights ||
-      (n === reservist.nights && w > reservist.wins) ||
-      (n === reservist.nights && w === reservist.wins && name.localeCompare(reservist.name, 'he') < 0)
-    ) {
-      reservist = { id, name, nights: n, wins: w };
-    }
+    reservists.push({ id, name: nameOf.get(id) ?? '?', nights: n, wins: wins.get(id) ?? 0 });
   }
+  reservists.sort(
+    (a, b) => a.nights - b.nights || b.wins - a.wins || a.name.localeCompare(b.name, 'he'),
+  );
 
   // --- The Bully -----------------------------------------------------------
   // The same head-to-head walk derby.ts uses for tonight's rivalry banner,
@@ -600,43 +564,48 @@ export function buildWrapped(
     }
   }
 
-  // --- Night of the Month, and the longest run within one ------------------
-  // Both fall out of the same pass over `nightStory`, which already reads a
-  // night's own match log for its shape — nothing here is new arithmetic, only
-  // a max held across the month. Night of the Month is gated at HALVES_MIN
-  // matches so a three-match evening can't win by having nothing else to
-  // compare against; the longest run isn't, since a big run is the fact
-  // regardless of how short the rest of the night was.
-  let nightOfMonth: NightOfMonth | null = null;
+  // --- The month's winning teams -------------------------------------------
+  // Ranked by how many matches the shirt actually banked, so the page leads
+  // with the most dominant evening rather than the most recent one. Every
+  // shirt that topped the night's tally is credited — on the (~10% of
+  // nights, going by a season of the invented club) that finish level, that's
+  // more than one shirt from the same fixture. Ties in the sort fall back to
+  // date, oldest first, so the order is stable rather than however the sort
+  // happened to land.
+  const winningTeams: WinningTeam[] = [];
+  for (const fx of chronological) {
+    const topWins = Math.max(...TEAM_COLORS.map((c) => fx.wins[c] ?? 0));
+    const topColors = TEAM_COLORS.filter((c) => (fx.wins[c] ?? 0) === topWins);
+    for (const color of topColors) {
+      winningTeams.push({
+        fixtureId: fx.id,
+        date: fx.date,
+        color,
+        wins: topWins,
+        squad: squadNames(fx, color),
+        shared: topColors.length > 1,
+      });
+    }
+  }
+  winningTeams.sort((a, b) => b.wins - a.wins || a.date.localeCompare(b.date));
+
+  // --- The longest run within one night -------------------------------------
+  // A single pass over `nightStory`, which already reads a night's own match
+  // log for its shape — nothing here is new arithmetic, only a max held
+  // across the month. Ungated: a big run is the fact regardless of how short
+  // the rest of the night was.
   let biggestRun: LongestRun | null = null;
   for (const fx of chronological) {
     const story = nightStory(fx);
-    if (!story) continue;
-    if (
-      story.matches >= HALVES_MIN &&
-      (!nightOfMonth ||
-        story.leadChanges > nightOfMonth.leadChanges ||
-        (story.leadChanges === nightOfMonth.leadChanges &&
-          (story.alternation > nightOfMonth.alternation ||
-            (story.alternation === nightOfMonth.alternation && story.matches > nightOfMonth.matches))))
-    ) {
-      nightOfMonth = {
-        fixtureId: fx.id,
-        date: fx.date,
-        leadChanges: story.leadChanges,
-        alternation: story.alternation,
-        matches: story.matches,
-        flavour: story.flavour,
-        headline: story.headline,
-        facts: story.facts,
-      };
-    }
-    if (story.longest && (!biggestRun || story.longest.length > biggestRun.length)) {
+    if (!story?.longest) continue;
+    if (!biggestRun || story.longest.length > biggestRun.length) {
+      const runColor = story.longest.team;
       biggestRun = {
         fixtureId: fx.id,
         date: fx.date,
-        color: story.longest.team,
+        color: runColor,
         length: story.longest.length,
+        squad: squadNames(fx, runColor),
       };
     }
   }
@@ -684,17 +653,15 @@ export function buildWrapped(
     longestWinless,
     bestDuo,
     worstDuo,
+    winningTeams,
     teamOfMonth: teamOfMonthPicks,
     teachersPet,
     punchingBag,
-    rollercoaster,
     benchwarmer,
     outOfGas,
-    dramaQueen,
-    reservist,
+    reservists,
     bully,
     cursedShirt,
-    nightOfMonth,
     longestRun: biggestRun,
     monthlyAchievements,
   };

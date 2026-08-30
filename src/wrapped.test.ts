@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { TOTM_SIZE, buildWrapped, periodLabel, totmEligible, totmScore, wrappedPeriods } from './wrapped';
 import type { AllMarks } from './gradeHistory';
 import { nextPairing, recordMatch, winsFromLog } from './matchLog';
+import { TEAM_COLORS } from './balancer';
 import { ATTACK_DEFAULT } from './types';
 import type { FixtureRecord, MatchLogEntry, Player, TeamColor } from './types';
 
@@ -264,14 +265,11 @@ describe('buildWrapped', () => {
       worstDuo: null,
       teachersPet: null,
       punchingBag: null,
-      rollercoaster: null,
       benchwarmer: null,
       outOfGas: null,
-      dramaQueen: null,
-      reservist: null,
+      reservists: [],
       bully: null,
       cursedShirt: null,
-      nightOfMonth: null,
       longestRun: null,
       monthlyAchievements: [],
     });
@@ -326,22 +324,6 @@ describe("Teacher's Pet, Punching Bag and the Rollercoaster", () => {
     expect(stats.teachersPet).toBeNull();
   });
 
-  it("reports the swing between a player's best and worst night as the Rollercoaster", () => {
-    const history = [
-      night('2026-08-01', ['a'], ['b'], { black: 3, white: 1, blue: 0 }),
-      night('2026-08-08', ['a'], ['b'], { black: 1, white: 3, blue: 0 }),
-      night('2026-08-15', ['a'], ['b'], { black: 3, white: 1, blue: 0 }),
-    ];
-    const marks = marksFor({
-      [history[0].id]: { a: 9, b: 6 },
-      [history[1].id]: { a: 4.5, b: 6 },
-      [history[2].id]: { a: 8.5, b: 6 },
-    });
-    const stats = buildWrapped(history, '2026-08', [], marks);
-    // a swings 9.0 -> 4.5 -> 8.5, a range of 4.5; b is flat at 6 every night
-    expect(stats.rollercoaster).toMatchObject({ id: 'a', high: 9, low: 4.5, range: 4.5 });
-  });
-
   it('says nothing for the whole month if at most half its nights were ever graded, even when one player individually clears the 3-night floor', () => {
     const history = [
       night('2026-08-01', ['a'], ['b'], { black: 3, white: 1, blue: 0 }),
@@ -362,7 +344,6 @@ describe("Teacher's Pet, Punching Bag and the Rollercoaster", () => {
     const stats = buildWrapped(history, '2026-08', [], marks);
     expect(stats.teachersPet).toBeNull();
     expect(stats.punchingBag).toBeNull();
-    expect(stats.rollercoaster).toBeNull();
   });
 
   it('computes as normal once strictly more than half the month is graded', () => {
@@ -451,26 +432,8 @@ describe('Out of Gas', () => {
   });
 });
 
-describe('Drama Queen', () => {
-  it('credits both sides of every shootout, and sums across the month', () => {
-    const history = [
-      loggedNight('2026-08-01', ['a'], ['b'], ['z'], [m('black', 'white', 'black', true)]),
-      loggedNight(
-        '2026-08-08',
-        ['a'],
-        ['b'],
-        ['z'],
-        [m('black', 'white', 'black', true), m('black', 'blue', 'blue', true)],
-      ),
-    ];
-    // a: in all 3 shootouts; b: in 2 (both a-vs-b ones); z: in 1
-    const stats = buildWrapped(history, '2026-08');
-    expect(stats.dramaQueen).toEqual({ id: 'a', name: 'a', shootouts: 3 });
-  });
-});
-
-describe('The Reservist', () => {
-  it('picks the rarest attendee who still won outright, over one with more nights', () => {
+describe('The Reservists', () => {
+  it('names everyone who qualified, rarest first, not just the best story', () => {
     const history = [
       night('2026-08-01', ['r'], ['x'], { black: 3, white: 1, blue: 0 }), // r: 1 night, won
       night('2026-08-03', ['w'], ['x'], { black: 3, white: 1, blue: 0 }), // w night 1 (won)
@@ -480,8 +443,13 @@ describe('The Reservist', () => {
       night('2026-08-15', ['q'], ['x'], { black: 3, white: 1, blue: 0 }), // q night 2 (won) — a candidate too
     ];
     const stats = buildWrapped(history, '2026-08');
-    // r (1 night) beats q (2 nights) on rarity; w is excluded outright at 3 nights
-    expect(stats.reservist).toEqual({ id: 'r', name: 'r', nights: 1, wins: 3 });
+    // r (1 night) sorts above q (2 nights) on rarity; w is excluded at 3 nights.
+    // Both r and q are named — an earlier version reported only the top one,
+    // which silently dropped everybody else who had the same kind of month.
+    expect(stats.reservists).toEqual([
+      { id: 'r', name: 'r', nights: 1, wins: 3 },
+      { id: 'q', name: 'q', nights: 2, wins: 4 }, // 1 on their losing night, 3 on their winning one
+    ]);
   });
 
   it('excludes a player who never actually won outright, however rarely they played', () => {
@@ -491,7 +459,7 @@ describe('The Reservist', () => {
     ];
     // n loses both of their two nights; x wins both of theirs
     const stats = buildWrapped(history, '2026-08');
-    expect(stats.reservist).toEqual({ id: 'x', name: 'x', nights: 2, wins: 5 });
+    expect(stats.reservists).toEqual([{ id: 'x', name: 'x', nights: 2, wins: 5 }]);
   });
 });
 
@@ -567,56 +535,86 @@ describe('The Cursed Shirt', () => {
   });
 });
 
-describe('Night of the Month and the longest run', () => {
-  // Same scripting approach nightStory.test.ts uses, and for the same reason:
-  // a hand-written log can describe a night that could not have happened
-  // (recordMatch enforces winner-stays-on), so the numbers below are read off
-  // real playback through the real pairing logic rather than guessed.
-  //   A = black wins the opener; W = the team already out there wins again;
-  //   N = the team that just came on wins it.
-  const scriptedLog = (script: string): MatchLogEntry[] => {
-    let log: MatchLogEntry[] = [];
-    for (const ch of script) {
-      let winner: TeamColor;
-      if (log.length === 0) {
-        winner = 'black';
-      } else {
-        const [staying, coming] = nextPairing(log)!;
-        winner = ch === 'W' ? staying : coming;
+describe('the longest run within a night', () => {
+  it('finds the longest unbroken run of match wins, and names the shirt that ran it', () => {
+    // Same scripting approach nightStory.test.ts uses, and for the same
+    // reason: a hand-written log can describe a night that could not have
+    // happened (recordMatch enforces winner-stays-on), so the numbers below
+    // are read off real playback through the real pairing logic rather than
+    // guessed. A = black wins the opener; W = the team already out there
+    // wins again; N = the team that just came on wins it.
+    const scriptedLog = (script: string): MatchLogEntry[] => {
+      let log: MatchLogEntry[] = [];
+      for (const ch of script) {
+        let winner: TeamColor;
+        if (log.length === 0) {
+          winner = 'black';
+        } else {
+          const [staying, coming] = nextPairing(log)!;
+          winner = ch === 'W' ? staying : coming;
+        }
+        log = recordMatch(log, winner, false, ['black', 'white']);
       }
-      log = recordMatch(log, winner, false, ['black', 'white']);
-    }
-    return log;
-  };
-
-  it('picks the night with more lead changes over the more dominant one', () => {
-    // 'AWWWWW': black wins the opener and every match after it — one team,
-    // one evening, leadChanges = 0, longest run = 6
+      return log;
+    };
+    // 'AWWWWW': black wins the opener and every match after it, so its own
+    // run is the whole night — 6 matches, longer than the shorter night below
     const dominant = scriptedLog('AWWWWW');
-    // 'ANWWWW': black leads after the opener, the incoming team (blue) takes
-    // it back on the next match and holds it — leadChanges = 1, longest run
-    // for blue = 5 (see the header comment on this describe block)
+    // 'ANWWWW': black leads after the opener, then the incoming team (blue)
+    // takes it back and holds it — blue's run is 5, still short of the first
     const chaotic = scriptedLog('ANWWWW');
     const history = [
       loggedNight('2026-08-01', ['a'], ['b'], ['c'], dominant),
       loggedNight('2026-08-08', ['a'], ['b'], ['c'], chaotic),
     ];
     const stats = buildWrapped(history, '2026-08');
-    expect(stats.nightOfMonth?.fixtureId).toBe(history[1].id);
-    expect(stats.nightOfMonth?.leadChanges).toBe(1);
-    // the longest single-team run still goes to the dominant night, even
-    // though it lost the "most dramatic" pick — the two questions differ
     expect(stats.longestRun).toEqual({
       fixtureId: history[0].id,
       date: '2026-08-01',
       color: 'black',
       length: 6,
+      // the run belongs to whoever wore the shirt, not to the colour — the
+      // teams are redrawn every week, so the colour alone names nobody
+      squad: ['a'],
     });
   });
+});
 
-  it('never picks a night for drama below HALVES_MIN matches, however lopsided', () => {
-    const history = [loggedNight('2026-08-01', ['a'], ['b'], ['c'], scriptedLog('ANW'))];
-    expect(buildWrapped(history, '2026-08').nightOfMonth).toBeNull();
+describe("the month's winning teams", () => {
+  it('ranks every outright winner by the matches that shirt banked', () => {
+    const history = [
+      night('2026-08-01', ['a', 'b'], ['c'], { black: 4, white: 1, blue: 0 }),
+      night('2026-08-08', ['d'], ['e', 'f'], { black: 2, white: 5, blue: 1 }),
+      night('2026-08-22', ['i'], ['j'], { black: 1, white: 0, blue: 2 }, undefined, ['k']),
+    ];
+    const teams = buildWrapped(history, '2026-08').winningTeams;
+    expect(teams.map((t) => [t.color, t.wins, t.shared])).toEqual([
+      ['white', 5, false],
+      ['black', 4, false],
+      ['blue', 2, false],
+    ]);
+    // the squad travels with it — the page draws the names, not just a colour
+    expect(teams[1].squad).toEqual(['a', 'b']);
+    expect(teams[2].squad).toEqual(['k']);
+  });
+
+  it('credits every shirt that tied for the top, marked shared, rather than crediting nobody', () => {
+    // black and white both bank 3 — neither one "won" alone, but the night
+    // still had two shirts that topped its tally, and both deserve a card
+    const history = [night('2026-08-15', ['g'], ['h'], { black: 3, white: 3, blue: 0 }, undefined, ['k'])];
+    const teams = buildWrapped(history, '2026-08').winningTeams;
+    expect(teams).toHaveLength(2);
+    expect(teams.every((t) => t.wins === 3 && t.shared)).toBe(true);
+    expect(teams.map((t) => t.color).sort()).toEqual(['black', 'white']);
+    // blue never reached 3, so it gets no card even though it's a third shirt
+    expect(teams.some((t) => t.color === 'blue')).toBe(false);
+  });
+
+  it('credits all three shirts when the whole night finishes level', () => {
+    const history = [night('2026-08-01', ['a'], ['b'], { black: 2, white: 2, blue: 2 })];
+    const teams = buildWrapped(history, '2026-08').winningTeams;
+    expect(teams).toHaveLength(3);
+    expect(teams.every((t) => t.shared)).toBe(true);
   });
 });
 
