@@ -14,8 +14,18 @@
 // That import is the whole point of `src/totm.ts` existing: the shirt image the
 // organiser posts and the award this file writes have to be the same five
 // people, and the only way to guarantee that is for there to be one rule.
+//
+// **One rule is not enough on its own — it also has to be given the same
+// input.** History as the app reads it has repeat guests merged into one person
+// (§2.6); history as it is *stored* does not, because the merge is applied on
+// read and never written down. Scoring the stored copy therefore counted a
+// guest who played three nights as three strangers with one night each, and the
+// cron picked a different fifth player from the one the organiser could see on
+// their own screen. That is exactly the disagreement `src/totm.ts` exists to
+// prevent, arriving through the input instead of through the rule.
 
 import { teamOfMonth, totmPeriods } from '../src/totm';
+import { mergeGuestIdentities } from '../src/guests';
 
 export const AWARDS_KEY = 'totm';
 
@@ -35,15 +45,32 @@ export async function readAwards(env) {
   }
 }
 
-const readHistory = async (env) => {
-  const raw = await env.ROSTER_KV.get('history');
-  if (!raw) return [];
+const readJson = async (env, key) => {
+  const raw = await env.ROSTER_KV.get(key);
+  if (!raw) return null;
   try {
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed?.fixtures) ? parsed.fixtures : [];
+    return JSON.parse(raw);
   } catch {
-    return [];
+    return null;
   }
+};
+
+/**
+ * The archive **as the app reads it**, which is the only version worth scoring.
+ *
+ * The guest merge needs the roster to know who is a guest at all — an id absent
+ * from the roster is one — so this reads both records. A missing or unreadable
+ * roster yields an empty id set, which makes every id look like a guest; that is
+ * the safe direction, since the merge only ever joins ids that share a name and
+ * a roster read has to fail completely for it to matter.
+ */
+const readHistory = async (env) => {
+  const [history, roster] = await Promise.all([readJson(env, 'history'), readJson(env, 'roster')]);
+  const fixtures = Array.isArray(history?.fixtures) ? history.fixtures : [];
+  const rosterIds = new Set(
+    (Array.isArray(roster?.players) ? roster.players : []).map((p) => p?.id).filter(Boolean),
+  );
+  return mergeGuestIdentities(fixtures, rosterIds);
 };
 
 /**
