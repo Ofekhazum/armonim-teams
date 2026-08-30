@@ -1715,9 +1715,9 @@ aspect ratio.
 
 **Two gates, and they do different jobs.**
 
-- **Eligibility** — at least `ceil(month's nights ÷ 2)` nights played. Without it the team is whoever
-  happened to be there on a good night: one appearance at a high rate would outrank a month of steady
-  football, which is the opposite of what "of the month" means.
+- **Eligibility** — **more than** half the month's nights played, not half. Without it the team is
+  whoever happened to be there on a good night: one appearance at a high rate would outrank a month
+  of steady football, which is the opposite of what "of the month" means.
 - **The score**, a rate plus a small attendance bonus: `(match wins + 2 × nights won + 3 × MVP picks)
   ÷ nights played + 1 × (nights played ÷ month's nights)`. Match wins are the base currency at four or
   five a night. A night taken *outright* is worth two more, which separates the player who kept
@@ -1736,9 +1736,36 @@ cut: enough to flip a genuinely close call, not enough to let attendance alone d
 `TotmPlayer` carries `monthLength` (the month's own night count) alongside the other parts precisely
 so this term, like every other, can be recomputed from the row and not just trusted.
 
-Ties break on the parts in the order they matter: more nights played, then more MVPs, then more
-nights won, then the name — so the fifth slot is decided by something rather than by whichever way
-the sort fell.
+**The eligibility bar was `>= ceil(nights ÷ 2)` until 2026-08, and the difference is only visible on
+even-length months** — for an odd month, half rounded up already *is* more than half, so
+three-of-five was the bar before and after. On a four-night month it meant two, and two nights is not
+enough football for the score to mean anything: the rate divides by `nights`, so a single lucky shirt
+out of two produces a number the formula cannot tell apart from a month of real form. The club found
+it the first time a four-night month picked somebody who played twice — two match wins on one of
+those nights, seven on the other. Raising the bar to *more than* half is a targeted fix for even
+months and a no-op everywhere else, which is why it was preferred to the ⅔ floor also considered
+(that one would have demanded four-of-five and changed months that were never wrong).
+
+**Near-level scores are settled by importance, not by the third decimal place.** Scores within
+`NEAR_TIE` (0.1) of each other are treated as level, and ordered by what the club actually weighs:
+**MVPs, then nights taken outright, then match wins, then appearances**, with the name as the last
+resort. This is a deliberate inversion of the score's own emphasis — the score is a rate, so it
+pointedly does not care how often you came; this list is what to do once the rate has stopped saying
+anything, and there the rarest thing wins (an MVP is one pick a night, a night won is one shirt in
+three, a match win is four or five an evening, an appearance is just a yes). `+0.083` — one extra
+night of attendance bonus on a four-night month — is not a reason to rank one player over another,
+but it is easily enough to decide the fifth slot, and the fifth slot is the one that gets argued
+about.
+
+**It is a banding pass, not a comparator, and that is load-bearing.** The obvious version — "if the
+scores are within 0.1 compare by importance, else by score" — is not a valid sort comparator, because
+it is not transitive: with 5.09, 5.00 and 4.91 the first two are level and the last two are level but
+the outer pair is not, and `Array.prototype.sort` given an inconsistent comparator may return any
+order at all. That would make the fifth slot depend on the JS engine. So the bands are cut first off
+a plain score sort, each anchored on its own top scorer — which bounds a band at strictly less than
+`NEAR_TIE` and makes the cut deterministic — and only then is each band reordered. The banding
+reorders *within* a band and is not a trump card: a player a full point back with every MVP going
+still finishes behind.
 
 **The formula is deliberately not shown.** Everywhere else this app prints the rule beside the
 number, and the reasoning holds there; here it would turn a card people want to send to each other
@@ -2164,7 +2191,8 @@ record is `{ ids, names, at }`.
 
 **`src/totm.ts` exists so the rule cannot drift.** Two things ask who was in a month's team — the
 shirt image the organiser posts, and the cron. If they ever disagreed the feature would be worse than
-not having it. So `totmEligible`, `totmScore`, `TOTM_SIZE` and `teamOfMonth` live in one file that
+not having it. So `totmEligible`, `totmScore`, `TOTM_SIZE`, `NEAR_TIE` and `teamOfMonth` live in one
+file that
 `wrapped.ts` imports and the Worker bundles directly; esbuild follows the import and tree-shakes the
 rest of `milestones`/`calibration` away (verified: the scoring is in the Worker bundle,
 `buildWrapped` and the ridge solver are not). A copy in the Worker would agree on the day it was
@@ -2182,8 +2210,8 @@ admin word and takes `{ period }` to register one, `{ period, clear }` to forget
 recomputed, so it can say *when*. **Absent at zero, deliberately**: most players will never make a
 five-man team, and a permanent empty trophy cabinet is a page telling them so every time they open
 it. Absent reads as neutral where "×0" reads as a verdict (§2.9). The chip's tooltip carries the one
-thing that otherwise looks like a bug — `totmEligible` wants half the month's nights, so somebody can
-play brilliantly in a month they mostly missed and not be eligible.
+thing that otherwise looks like a bug — `totmEligible` wants more than half the month's nights, so
+somebody can play brilliantly in a month they mostly missed and not be eligible.
 
 **👕 Team of the Month** is its own admin panel on the History tab, one row per month: who is
 registered and when, or *not registered*, with **Register** / **Re-register** and **Remove**. Not a

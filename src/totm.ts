@@ -38,12 +38,22 @@ export interface TotmPlayer {
 }
 
 // How many of the month's nights a player has to have turned up for before
-// they can be picked. Half, rounded up: three nights out of five, two out of
-// four. Without it the team is whoever happened to be there on a good night —
-// a single appearance at a high rate would top a month of steady football,
-// which is the opposite of what "of the month" means.
+// they can be picked: **more than half**, not half. Three nights out of four,
+// two out of three, three out of five. Without a floor at all the team is
+// whoever happened to be there on a good night — a single appearance at a high
+// rate would top a month of steady football, which is the opposite of what "of
+// the month" means.
+//
+// It was `>= ceil(monthNights / 2)` until 2026-08, which is a different rule
+// only on **even-length months**: for an odd month, half rounded up is already
+// more than half, so three-of-five was the bar before and after. On a
+// four-night month it meant two, and two nights is not enough football to
+// carry a month — one lucky shirt out of two turns into a "rate" the score
+// cannot tell apart from a real one. The club found this the first time a
+// four-night month picked somebody who played twice, won two matches on one of
+// those nights and seven on the other.
 export const totmEligible = (playerNights: number, monthNights: number): boolean =>
-  monthNights > 0 && playerNights >= Math.ceil(monthNights / 2);
+  monthNights > 0 && playerNights > monthNights / 2;
 
 // A night's worth of credit, per night played.
 //
@@ -80,6 +90,61 @@ export const totmScore = (p: Omit<TotmPlayer, 'id' | 'name' | 'score'>): number 
 
 export const TOTM_SIZE = 5;
 
+// Two scores this close are not really a ranking, they are the arithmetic
+// landing somewhere. `+0.083` — which is what one extra night of attendance
+// bonus looks like on a four-night month — is not a reason to put one player
+// above another, but it is enough to decide the fifth seat, and the fifth seat
+// is the one that gets argued about.
+//
+// So scores within NEAR_TIE of each other are treated as level and the order
+// comes from what the club actually thinks is important, below.
+export const NEAR_TIE = 0.1;
+
+/**
+ * The order to settle a near-tie in, most important first: the human pick,
+ * then nights taken outright, then match wins, then turning up.
+ *
+ * This is a deliberate inversion of the score's own emphasis. The score is a
+ * *rate*, so it deliberately doesn't care how often you came; this list is what
+ * to do when the rate has stopped saying anything, and at that point the rarest
+ * thing wins — an MVP is one pick a night, a night won is one shirt in three,
+ * a match win is four or five an evening, and an appearance is just a yes.
+ */
+const byImportance = (a: TotmPlayer, b: TotmPlayer): number =>
+  b.mvps - a.mvps ||
+  b.nightsWon - a.nightsWon ||
+  b.wins - a.wins ||
+  b.nights - a.nights ||
+  a.name.localeCompare(b.name, 'he');
+
+/**
+ * Rank by score, but re-order each band of near-level scores by `byImportance`.
+ *
+ * **Why this is a banding pass and not just a comparator.** The obvious
+ * implementation — "if `|a.score - b.score| < NEAR_TIE` compare by importance,
+ * else by score" — is not a valid sort comparator, because it is not
+ * transitive: with scores 5.09, 5.00 and 4.91 the first two are level and the
+ * last two are level, but the outer pair is not, and `Array.prototype.sort`
+ * given an inconsistent comparator may produce any order at all. That is a real
+ * bug and not a theoretical one: it would make the fifth seat depend on the
+ * engine's sort implementation.
+ *
+ * So the bands are cut first, off a plain score sort, each anchored on its own
+ * top scorer — which makes a band strictly narrower than NEAR_TIE, and makes
+ * the whole thing deterministic — and only then is each band reordered.
+ */
+function rankByScoreThenImportance(rows: TotmPlayer[]): TotmPlayer[] {
+  const byScore = [...rows].sort((a, b) => b.score - a.score || byImportance(a, b));
+  const ranked: TotmPlayer[] = [];
+  for (let i = 0; i < byScore.length; ) {
+    let end = i + 1;
+    while (end < byScore.length && byScore[i].score - byScore[end].score < NEAR_TIE) end++;
+    ranked.push(...byScore.slice(i, end).sort(byImportance));
+    i = end;
+  }
+  return ranked;
+}
+
 /** The month's played nights with a result, oldest first. `period` is `YYYY-MM`. */
 export const monthNights = (history: FixtureRecord[], period: string): FixtureRecord[] =>
   history
@@ -90,12 +155,10 @@ export const monthNights = (history: FixtureRecord[], period: string): FixtureRe
  * The five who carried the month, best first. Fewer than five if the month is
  * thin, and empty if nothing was played.
  *
- * Ties are broken by the parts of the score in the order they matter — more
- * football played, then more of the human pick, then more nights taken
- * outright — so the fifth slot is decided by something rather than by
- * whichever way the sort happened to fall. That matters more here than it
- * looks: the fifth slot is the one that gets argued about, and "the sort was
- * unstable" is not an answer anybody accepts.
+ * Near-level scores are settled by `byImportance` rather than by the last
+ * decimal place — see `rankByScoreThenImportance`. That matters more here than
+ * it looks: the fifth slot is the one that gets argued about, and neither "the
+ * sort was unstable" nor "he was 0.08 ahead" is an answer anybody accepts.
  */
 export function teamOfMonth(history: FixtureRecord[], period: string): TotmPlayer[] {
   const played = monthNights(history, period);
@@ -122,7 +185,7 @@ export function teamOfMonth(history: FixtureRecord[], period: string): TotmPlaye
 
   const mvpsById = new Map(mvpCounts(played).map((m) => [m.id, m.count]));
 
-  return [...nights.entries()]
+  const eligible = [...nights.entries()]
     .filter(([, n]) => totmEligible(n, played.length))
     .map(([id, n]) => {
       const parts = {
@@ -133,16 +196,9 @@ export function teamOfMonth(history: FixtureRecord[], period: string): TotmPlaye
         monthLength: played.length,
       };
       return { id, name: nameOf.get(id) ?? '?', score: totmScore(parts), ...parts };
-    })
-    .sort(
-      (a, b) =>
-        b.score - a.score ||
-        b.nights - a.nights ||
-        b.mvps - a.mvps ||
-        b.nightsWon - a.nightsWon ||
-        a.name.localeCompare(b.name, 'he'),
-    )
-    .slice(0, TOTM_SIZE);
+    });
+
+  return rankByScoreThenImportance(eligible).slice(0, TOTM_SIZE);
 }
 
 /** Which months have at least one night with a result, newest first. */
