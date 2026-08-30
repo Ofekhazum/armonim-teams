@@ -395,11 +395,12 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
               {totm.map((period) => (
                 <span
                   key={period}
-                  // `totmEligible` wants half the month's nights, so somebody
-                  // can play brilliantly in a month they mostly missed and not
-                  // be eligible. Correct for "of the month", and it looks like
-                  // a bug to the player it happens to without this sentence.
-                  title="Picked in the five for this month. Needs at least half the month's nights to be eligible."
+                  // `totmEligible` wants more than half the month's nights, so
+                  // somebody can play brilliantly in a month they mostly missed
+                  // and not be eligible. Correct for "of the month", and it
+                  // looks like a bug to the player it happens to without this
+                  // sentence.
+                  title="Picked in the five for this month. Needs more than half the month's nights to be eligible."
                   className="rounded-full border border-amber-600/30 bg-white/70 px-2.5 py-1 text-xs font-bold text-amber-900 shadow-sm"
                 >
                   {periodLabel(period)}

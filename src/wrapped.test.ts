@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { TOTM_SIZE, buildWrapped, periodLabel, totmEligible, totmScore, wrappedPeriods } from './wrapped';
+import {
+  NEAR_TIE,
+  TOTM_SIZE,
+  buildWrapped,
+  periodLabel,
+  totmEligible,
+  totmScore,
+  wrappedPeriods,
+} from './wrapped';
 import type { AllMarks } from './gradeHistory';
 import { nextPairing, recordMatch, winsFromLog } from './matchLog';
 import { TEAM_COLORS } from './balancer';
@@ -684,7 +692,7 @@ describe('team of the month', () => {
     expect(totm(history)).toHaveLength(TOTM_SIZE);
   });
 
-  it('leaves out anybody short of half the month’s nights', () => {
+  it('leaves out anybody short of more than half the month’s nights', () => {
     // five nights, so three clears the bar and two does not
     const history = [
       night(d(1), ['a', 'b'], ['z'], { black: 4, white: 1, blue: 0 }),
@@ -707,9 +715,11 @@ describe('team of the month', () => {
       night(d(3), ['steady'], ['z'], { black: 5, white: 4, blue: 0 }),
       night(d(4), ['steady'], ['z'], { black: 5, white: 4, blue: 0 }),
     ];
-    // both are eligible; the point is only that the pick is the score, and the
-    // eligibility gate is what stops a single night deciding the month
-    expect(totm(history).map((p) => p.name)).toContain('steady');
+    // 'flash' played two of four, which is no longer more than half, so the
+    // gate is what stops a pair of blowouts deciding the month
+    const names = totm(history).map((p) => p.name);
+    expect(names).toContain('steady');
+    expect(names).not.toContain('flash');
   });
 
   it('ranks a night taken outright above the same wins spread thinner', () => {
@@ -751,30 +761,81 @@ describe('team of the month', () => {
   });
 
   it('lets a full-attendance player overtake a higher-rate part-timer', () => {
-    // 'a' plays half the month (the eligibility floor) at a high rate; 'b'
-    // plays every night at a lower rate. On the rate alone 'a' would lead —
-    // the attendance bonus is what puts 'b' ahead instead.
+    // Six nights, so four clears the bar. 'a' plays four of them at the better
+    // rate; 'b' plays all six at a worse one. On the rate alone 'a' leads — the
+    // attendance bonus is what puts 'b' ahead instead. Every night is level at
+    // the top, so nobody takes one outright and `nightsWon` stays out of it.
     const history = [
-      night(d(1), ['a', 'b'], ['z'], { black: 3, white: 0, blue: 0 }),
-      night(d(2), ['a', 'b'], ['z'], { black: 3, white: 0, blue: 0 }),
-      night(d(3), ['b'], ['z'], { black: 3, white: 0, blue: 0 }),
-      night(d(4), ['b'], ['z'], { black: 2, white: 0, blue: 0 }),
+      night(d(1), ['a', 'b'], ['z'], { black: 3, white: 3, blue: 0 }),
+      night(d(2), ['a', 'b'], ['z'], { black: 3, white: 3, blue: 0 }),
+      night(d(3), ['a', 'b'], ['z'], { black: 3, white: 3, blue: 0 }),
+      night(d(4), ['a', 'b'], ['z'], { black: 3, white: 3, blue: 0 }),
+      night(d(5), ['b'], ['z'], { black: 3, white: 3, blue: 0 }),
+      night(d(6), ['b'], ['z'], { black: 2, white: 2, blue: 0 }),
     ];
     const picked = totm(history);
-    // a: 6 wins / 2 nights = 3.0 base — the higher rate of the two
-    // b: 11 wins / 4 nights = 2.75 base — lower, but full attendance
-    expect(picked[0].name).toBe('b');
-    expect(picked.find((p) => p.name === 'a')!.score).toBeLessThan(
-      picked.find((p) => p.name === 'b')!.score,
-    );
+    const score = (name: string) => picked.find((p) => p.name === name)!.score;
+    // a: 12 wins / 4 nights = 3.000 base + 4/6 bonus = 3.667
+    // b: 17 wins / 6 nights = 2.833 base + 6/6 bonus = 3.833
+    // 0.167 apart, so this is a genuine win on score and not a near-tie
+    expect(score('b') - score('a')).toBeGreaterThan(NEAR_TIE);
+    expect(score('a')).toBeLessThan(score('b'));
+  });
+
+  it('settles a level score on the human pick before anything else', () => {
+    // Four nights, every one level at the top so nobody takes a night outright.
+    // 'few' plays three and holds the month's only MVP; 'many' plays all four
+    // and banks more football. The two land on exactly the same score, and the
+    // MVP is what separates them.
+    const history = [
+      night(d(1), ['few', 'many'], ['z'], { black: 3, white: 3, blue: 0 }),
+      night(d(2), ['few', 'many'], ['z'], { black: 3, white: 3, blue: 0 }),
+      night(d(3), ['few', 'many'], ['z'], { black: 3, white: 3, blue: 0 }, 'few'),
+      night(d(4), ['many'], ['z'], { black: 6, white: 6, blue: 0 }),
+    ];
+    const picked = totm(history);
+    const row = (name: string) => picked.find((p) => p.name === name)!;
+    // few:  (9 wins + 3 MVP)/3 = 4.000 + 3/4 = 4.750
+    // many: 15 wins/4        = 3.750 + 4/4 = 4.750
+    expect(row('few').score).toBe(row('many').score);
+    expect(row('few').mvps).toBe(1);
+    expect(row('many').mvps).toBe(0);
+    expect(picked[0].name).toBe('few');
+  });
+
+  it('does not let the MVP tie-break override a real gap in score', () => {
+    // The near-tie rule reorders *within* a band; it is not a trump card. 'low'
+    // takes every MVP going and still finishes behind, because the two are a
+    // full point apart and never share a band.
+    const history = [
+      night(d(1), ['top'], ['low'], { black: 5, white: 3, blue: 0 }, 'low'),
+      night(d(2), ['top'], ['low'], { black: 5, white: 3, blue: 0 }, 'low'),
+      night(d(3), ['top'], ['low'], { black: 5, white: 3, blue: 0 }, 'low'),
+      night(d(4), ['top'], ['low'], { black: 5, white: 3, blue: 0 }, 'low'),
+    ];
+    const picked = totm(history);
+    const row = (name: string) => picked.find((p) => p.name === name)!;
+    // top: (20 wins + 8 for four nights taken)/4 = 7.000 + 1 = 8.000
+    // low: (12 wins + 12 for four MVPs)/4        = 6.000 + 1 = 7.000
+    expect(row('low').mvps).toBe(4);
+    expect(row('top').mvps).toBe(0);
+    expect(row('top').score - row('low').score).toBeGreaterThan(NEAR_TIE);
+    expect(picked[0].name).toBe('top');
   });
 });
 
 describe('the team-of-the-month rule', () => {
-  it('needs half a month’s nights, rounded up', () => {
+  it('needs more than half a month’s nights, not half', () => {
+    // odd months are unchanged by the "more than" — half rounded up already is
     expect(totmEligible(3, 5)).toBe(true);
     expect(totmEligible(2, 5)).toBe(false);
-    expect(totmEligible(2, 4)).toBe(true);
+    expect(totmEligible(2, 3)).toBe(true);
+    // even months are where it bites: two of four used to clear the bar
+    expect(totmEligible(3, 4)).toBe(true);
+    expect(totmEligible(2, 4)).toBe(false);
+    expect(totmEligible(1, 2)).toBe(false);
+    expect(totmEligible(2, 2)).toBe(true);
+    expect(totmEligible(1, 1)).toBe(true);
     expect(totmEligible(0, 0)).toBe(false);
   });
 
