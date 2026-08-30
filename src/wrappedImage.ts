@@ -613,11 +613,15 @@ function renderNightOfMonth(night: NightOfMonth): HTMLCanvasElement {
 // and stops being something anybody reads.
 
 const MAX_WINNING_TEAMS = 4;
-const WT_HEADER_H = 78;
+const WT_HEADER_H = 72;
 const WT_PAD = 18;
+// Bigger than the chips elsewhere: on this page the squad *is* the content,
+// where on the night page it sits under a scoreboard and has to stay quieter.
+const WT_CHIP_SIZE = 19;
+const WT_CHIP_H = 40;
 
 const winningTeamHeight = (lines: string[][]) =>
-  WT_HEADER_H + Math.max(lines.length, 1) * (CHIP_H + 8) + WT_PAD;
+  WT_HEADER_H + Math.max(lines.length, 1) * (WT_CHIP_H + 8) + WT_PAD;
 
 function drawWinningTeamCard(
   ctx: CanvasRenderingContext2D,
@@ -631,27 +635,27 @@ function drawWinningTeamCard(
   fillRound(ctx, PAD, y, cardW, h, CARD_R, t.bg);
   strokeRound(ctx, PAD, y, cardW, h, CARD_R, INK.gold, 2.5);
 
+  // No colour name: the card *is* the colour, so the words only repeated what
+  // the background already says. The date is what actually identifies which
+  // night this was, so it takes the slot and the weight.
   ctx.save();
   ctx.direction = 'ltr';
   ctx.textAlign = 'left';
-  ctx.font = font(26, '900');
+  ctx.font = font(23, '900');
   ctx.fillStyle = t.text;
-  ctx.fillText(`${TEAM_EMOJI[team.color]} ${TEAM_LABEL[team.color]} 👑`, PAD + WT_PAD, y + 38);
-  ctx.font = font(14, '700');
-  ctx.fillStyle = t.sub;
-  ctx.fillText(team.date, PAD + WT_PAD, y + 60);
+  ctx.fillText(`👑 ${team.date}`, PAD + WT_PAD, y + 44);
   ctx.restore();
 
   // the win count, as the loudest thing on the card
   const label = team.wins === 1 ? 'WIN' : 'WINS';
   const capsW = spacedCaps(measurer(), label, 0, -999, { size: 13, tracking: 1.8 });
-  spacedCaps(ctx, label, PAD + cardW - WT_PAD - capsW, y + 56, {
+  spacedCaps(ctx, label, PAD + cardW - WT_PAD - capsW, y + 48, {
     size: 13,
     color: t.sub,
     tracking: 1.8,
   });
-  jerseyText(ctx, String(team.wins), PAD + cardW - WT_PAD - capsW - 14, y + 52, {
-    size: 46,
+  jerseyText(ctx, String(team.wins), PAD + cardW - WT_PAD - capsW - 14, y + 50, {
+    size: 48,
     fill: t.text,
     stroke: 'rgba(0,0,0,0.28)',
     align: 'right',
@@ -659,12 +663,16 @@ function drawWinningTeamCard(
 
   // squad chips, right-anchored the way the fixture page lays them out
   lines.forEach((line, i) => {
-    const rowW = line.reduce((w, n) => w + chipWidth(measurer(), n, 16) + CHIP_GAP, -CHIP_GAP);
+    const rowW = line.reduce(
+      (w, n) => w + chipWidth(measurer(), n, WT_CHIP_SIZE) + CHIP_GAP,
+      -CHIP_GAP,
+    );
     let x = PAD + cardW - WT_PAD - rowW;
-    const rowY = y + WT_HEADER_H + i * (CHIP_H + 8);
+    const rowY = y + WT_HEADER_H + i * (WT_CHIP_H + 8);
     for (const name of line) {
       x += drawChip(ctx, name, x, rowY, {
-        size: 16,
+        size: WT_CHIP_SIZE,
+        height: WT_CHIP_H,
         fill: t.chip,
         border: t.border,
         color: t.text,
@@ -680,7 +688,7 @@ function renderWinningTeams(stats: WrappedStats): HTMLCanvasElement {
   const m = measurer();
   const teams = topWinningTeams(stats).map((t) => ({
     team: t,
-    lines: flowChips(m, t.squad, cardW - WT_PAD * 2, 16),
+    lines: flowChips(m, t.squad, cardW - WT_PAD * 2, WT_CHIP_SIZE),
   }));
 
   const H =

@@ -848,7 +848,11 @@ adaptive-height card that cannot truncate.
 **Winning teams** is one card per night that had an outright winner, ranked by how many matches that
 shirt banked — so the page opens on the month's most dominant evening rather than its most recent.
 The card is the one the night page already uses for a winning team (shirt colour, 👑, the squad in
-name chips) with the win count enlarged to be the loudest thing on it. `winnerOf` is strict, so a
+name chips) with the win count enlarged to be the loudest thing on it. It carries **no colour name** —
+the card *is* the colour, so the word only repeated what the background already said; the date takes
+that slot instead, since it is what actually identifies which night this was. The squad chips are
+larger here than anywhere else, because on this page the squad is the content rather than a caption
+under a scoreboard. `winnerOf` is strict, so a
 night that finished level contributes nothing rather than crediting somebody. `WrappedStats.winningTeams`
 is uncapped and sorted; **`MAX_WINNING_TEAMS = 4`** lives in the renderer, because how many cards fit
 before a page becomes a wall of names is a layout question, not a fact about the month.

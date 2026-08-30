@@ -377,12 +377,13 @@ export function drawChip(
   text: string,
   x: number,
   y: number,
-  opts: { size?: number; fill?: string; border?: string; color?: string } = {},
+  opts: { size?: number; fill?: string; border?: string; color?: string; height?: number } = {},
 ): number {
   const size = opts.size ?? 17;
+  const h = opts.height ?? CHIP_H;
   const w = chipWidth(ctx, text, size);
-  fillRound(ctx, x, y, w, CHIP_H, CHIP_H / 2, opts.fill ?? 'rgba(253,250,243,0.07)');
-  strokeRound(ctx, x, y, w, CHIP_H, CHIP_H / 2, opts.border ?? 'rgba(253,250,243,0.16)', 1.5);
+  fillRound(ctx, x, y, w, h, h / 2, opts.fill ?? 'rgba(253,250,243,0.07)');
+  strokeRound(ctx, x, y, w, h, h / 2, opts.border ?? 'rgba(253,250,243,0.16)', 1.5);
 
   ctx.save();
   ctx.font = font(size, '800');
@@ -392,7 +393,7 @@ export function drawChip(
   ctx.direction = 'ltr';
   ctx.textAlign = 'center';
   ctx.fillStyle = opts.color ?? INK.bright;
-  ctx.fillText(text, x + w / 2, y + CHIP_H / 2 + size * 0.36);
+  ctx.fillText(text, x + w / 2, y + h / 2 + size * 0.36);
   ctx.restore();
   return w;
 }
