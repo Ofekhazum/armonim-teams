@@ -152,16 +152,21 @@ export interface LongestRun {
   squad: string[];
 }
 
-// A shirt that topped one of the month's nights outright, with the squad that
-// wore it. Every night produces at most one of these (`winnerOf` is strict, so
-// a tie at the top is nobody), and the recap draws the best few as their own
-// page.
+// A shirt that topped one of the month's nights, with the squad that wore it.
+// Usually one entry per night, but a night that finished level at the top
+// produces one entry *per* tied shirt rather than none — unlike `winnerOf`
+// (used everywhere else a night needs a single champion or nobody), this page
+// is enumerating nights rather than aggregating them, so silently dropping a
+// tied one would be a visibly missing card for a result that genuinely
+// happened. `shared` is what lets the card say so rather than claiming an
+// outright win it didn't have.
 export interface WinningTeam {
   fixtureId: string;
   date: string;
   color: TeamColor;
   wins: number; // match wins that shirt banked on the night
   squad: string[];
+  shared: boolean; // true when another shirt tied it for the top that night
 }
 
 export interface WrappedStats {
@@ -590,22 +595,27 @@ export function buildWrapped(
   }
 
   // --- The month's winning teams -------------------------------------------
-  // One entry per night that had a strict winner, ranked by how many matches
-  // that shirt actually banked — so the page leads with the most dominant
-  // evening rather than the most recent one. Ties fall back to date, oldest
-  // first, so the order is stable rather than however the sort happened to
-  // land.
+  // Ranked by how many matches the shirt actually banked, so the page leads
+  // with the most dominant evening rather than the most recent one. Every
+  // shirt that topped the night's tally is credited — on the (~10% of
+  // nights, going by a season of the invented club) that finish level, that's
+  // more than one shirt from the same fixture. Ties in the sort fall back to
+  // date, oldest first, so the order is stable rather than however the sort
+  // happened to land.
   const winningTeams: WinningTeam[] = [];
   for (const fx of chronological) {
-    const champion = winnerOf(fx);
-    if (!champion) continue;
-    winningTeams.push({
-      fixtureId: fx.id,
-      date: fx.date,
-      color: champion,
-      wins: fx.wins[champion] ?? 0,
-      squad: squadNames(fx, champion),
-    });
+    const topWins = Math.max(...TEAM_COLORS.map((c) => fx.wins[c] ?? 0));
+    const topColors = TEAM_COLORS.filter((c) => (fx.wins[c] ?? 0) === topWins);
+    for (const color of topColors) {
+      winningTeams.push({
+        fixtureId: fx.id,
+        date: fx.date,
+        color,
+        wins: topWins,
+        squad: squadNames(fx, color),
+        shared: topColors.length > 1,
+      });
+    }
   }
   winningTeams.sort((a, b) => b.wins - a.wins || a.date.localeCompare(b.date));
 

@@ -620,29 +620,40 @@ describe('Night of the Month and the longest run', () => {
 });
 
 describe("the month's winning teams", () => {
-  it('ranks every outright winner by the matches that shirt banked, and skips a level night', () => {
+  it('ranks every outright winner by the matches that shirt banked', () => {
     const history = [
       night('2026-08-01', ['a', 'b'], ['c'], { black: 4, white: 1, blue: 0 }),
       night('2026-08-08', ['d'], ['e', 'f'], { black: 2, white: 5, blue: 1 }),
-      night('2026-08-15', ['g'], ['h'], { black: 3, white: 3, blue: 0 }), // level at the top
       night('2026-08-22', ['i'], ['j'], { black: 1, white: 0, blue: 2 }, undefined, ['k']),
     ];
     const teams = buildWrapped(history, '2026-08').winningTeams;
-    expect(teams.map((t) => [t.color, t.wins])).toEqual([
-      ['white', 5],
-      ['black', 4],
-      ['blue', 2],
+    expect(teams.map((t) => [t.color, t.wins, t.shared])).toEqual([
+      ['white', 5, false],
+      ['black', 4, false],
+      ['blue', 2, false],
     ]);
     // the squad travels with it — the page draws the names, not just a colour
     expect(teams[1].squad).toEqual(['a', 'b']);
     expect(teams[2].squad).toEqual(['k']);
-    // nobody topped the third night, so it is absent rather than credited
-    expect(teams.some((t) => t.date === '2026-08-15')).toBe(false);
   });
 
-  it('is empty for a month where every night finished level', () => {
-    const history = [night('2026-08-01', ['a'], ['b'], { black: 2, white: 2, blue: 0 })];
-    expect(buildWrapped(history, '2026-08').winningTeams).toEqual([]);
+  it('credits every shirt that tied for the top, marked shared, rather than crediting nobody', () => {
+    // black and white both bank 3 — neither one "won" alone, but the night
+    // still had two shirts that topped its tally, and both deserve a card
+    const history = [night('2026-08-15', ['g'], ['h'], { black: 3, white: 3, blue: 0 }, undefined, ['k'])];
+    const teams = buildWrapped(history, '2026-08').winningTeams;
+    expect(teams).toHaveLength(2);
+    expect(teams.every((t) => t.wins === 3 && t.shared)).toBe(true);
+    expect(teams.map((t) => t.color).sort()).toEqual(['black', 'white']);
+    // blue never reached 3, so it gets no card even though it's a third shirt
+    expect(teams.some((t) => t.color === 'blue')).toBe(false);
+  });
+
+  it('credits all three shirts when the whole night finishes level', () => {
+    const history = [night('2026-08-01', ['a'], ['b'], { black: 2, white: 2, blue: 2 })];
+    const teams = buildWrapped(history, '2026-08').winningTeams;
+    expect(teams).toHaveLength(3);
+    expect(teams.every((t) => t.shared)).toBe(true);
   });
 });
 

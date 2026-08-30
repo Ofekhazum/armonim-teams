@@ -637,13 +637,15 @@ function drawWinningTeamCard(
 
   // No colour name: the card *is* the colour, so the words only repeated what
   // the background already says. The date is what actually identifies which
-  // night this was, so it takes the slot and the weight.
+  // night this was, so it takes the slot and the weight. A shared night gets
+  // a handshake rather than a crown — it says outright that this shirt didn't
+  // win the night alone, without needing a caption to explain it.
   ctx.save();
   ctx.direction = 'ltr';
   ctx.textAlign = 'left';
   ctx.font = font(23, '900');
   ctx.fillStyle = t.text;
-  ctx.fillText(`👑 ${team.date}`, PAD + WT_PAD, y + 44);
+  ctx.fillText(`${team.shared ? '🤝' : '👑'} ${team.date}`, PAD + WT_PAD, y + 44);
   ctx.restore();
 
   // the win count, as the loudest thing on the card

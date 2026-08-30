@@ -845,17 +845,27 @@ for. `reservist` likewise became `reservists`: it used to report only the best s
 drop everyone else who had the same kind of month, so it now names all of them on a full-width,
 adaptive-height card that cannot truncate.
 
-**Winning teams** is one card per night that had an outright winner, ranked by how many matches that
-shirt banked — so the page opens on the month's most dominant evening rather than its most recent.
-The card is the one the night page already uses for a winning team (shirt colour, 👑, the squad in
-name chips) with the win count enlarged to be the loudest thing on it. It carries **no colour name** —
-the card *is* the colour, so the word only repeated what the background already said; the date takes
-that slot instead, since it is what actually identifies which night this was. The squad chips are
-larger here than anywhere else, because on this page the squad is the content rather than a caption
-under a scoreboard. `winnerOf` is strict, so a
-night that finished level contributes nothing rather than crediting somebody. `WrappedStats.winningTeams`
-is uncapped and sorted; **`MAX_WINNING_TEAMS = 4`** lives in the renderer, because how many cards fit
-before a page becomes a wall of names is a layout question, not a fact about the month.
+**Winning teams** is one card per shirt that topped a night's tally, ranked by how many matches it
+banked — so the page opens on the month's most dominant evening rather than its most recent. The card
+is the one the night page already uses for a winning team (shirt colour, a crown, the squad in name
+chips) with the win count enlarged to be the loudest thing on it. It carries **no colour name** — the
+card *is* the colour, so the word only repeated what the background already said; the date takes that
+slot instead, since it is what actually identifies which night this was. The squad chips are larger
+here than anywhere else, because on this page the squad is the content rather than a caption under a
+scoreboard.
+
+**A night that finished level gets a card per tied shirt, not zero cards.** Everywhere else a night
+needs a single champion or nobody — `winnerOf`'s tie is deliberately strict, and this page still calls
+it that way for its *own* single-winner cases. But this page is *enumerating* nights rather than
+*aggregating* them the way milestones, duos and Team of the Month do, so applying the same strictness
+here would make an ordinary result (going by a season of the invented club, roughly one night in ten)
+disappear from a page whose only job is to list nights — an empty seat where a real result belongs.
+`WinningTeam.shared` marks it instead: every shirt that tied for the top gets its own card, at the
+tied win count, with a 🤝 in place of the crown — visible on its own, and doubly so since the tied
+cards land adjacent in the ranking (same wins, same date). `WrappedStats.winningTeams` is uncapped
+and sorted; **`MAX_WINNING_TEAMS = 4`** lives in the renderer, because how many cards fit before a
+page becomes a wall of names is a layout question, not a fact about the month — a fully shared night
+can use two or three of those four slots by itself, and that is simply what the night was.
 
 **The night of the month carries its own scoreboard.** `NightOfMonth` gained per-shirt
 `{played, won, points, squad}`, the night's `winner`, its `penalties` and its `mvpName` — the first
