@@ -39,9 +39,10 @@ const fakeEnv = (seed = {}) => {
   };
 };
 
-const withHistory = (fixtures, awards) =>
+const withHistory = (fixtures, awards, players) =>
   fakeEnv({
     history: JSON.stringify({ version: 1, fixtures }),
+    ...(players ? { roster: JSON.stringify({ version: 1, players }) } : {}),
     ...(awards ? { totm: JSON.stringify(awards) } : {}),
   });
 
@@ -107,6 +108,64 @@ describe('registerAwards', () => {
     expect((await registerAwards(fakeEnv(), SEP_1)).added).toBe(0);
     const broken = fakeEnv({ history: '{oh no', totm: 'not json' });
     expect((await registerAwards(broken, SEP_1)).added).toBe(0);
+  });
+
+  // The rule is shared with the app (src/totm.ts); the *input* has to be shared
+  // too. History is stored unmerged and the app merges repeat guests on read
+  // (§2.6), so scoring the stored copy counted one guest as three strangers and
+  // the cron picked a different five from the one on the organiser's screen.
+  it('scores a returning guest as one person, the way the app reads them', async () => {
+    // 'Guest' turns up on all three nights under a fresh id each time, which is
+    // what the app does with somebody who is not on the roster
+    const roster = [
+      { id: 'a', name: 'Aviv' },
+      { id: 'b', name: 'Ben' },
+      { id: 'c', name: 'Chen' },
+      { id: 'd', name: 'Dan' },
+      { id: 'e', name: 'Eli' },
+    ];
+    const guestNight = (date, guestId) =>
+      fixture(date, {
+        teams: { black: ['a', 'b', guestId], white: ['c', 'd'], blue: ['e'] },
+        players: [
+          { id: 'a', name: 'Aviv', rating: 4 },
+          { id: 'b', name: 'Ben', rating: 4 },
+          { id: 'c', name: 'Chen', rating: 4 },
+          { id: 'd', name: 'Dan', rating: 4 },
+          { id: 'e', name: 'Eli', rating: 4 },
+          { id: guestId, name: 'Guest', rating: 4 },
+        ],
+      });
+    const nights = [
+      guestNight('2026-08-06', 'g1'),
+      guestNight('2026-08-13', 'g2'),
+      guestNight('2026-08-20', 'g3'),
+    ];
+
+    const { awards } = await registerAwards(withHistory(nights, null, roster), SEP_1);
+    // three of three nights, so the guest clears the bar and is named once
+    expect(awards['2026-08'].names.filter((n) => n === 'Guest')).toHaveLength(1);
+    // and under the id of the night they first appeared, not a fourth one
+    expect(awards['2026-08'].ids).toContain('g1');
+    expect(awards['2026-08'].ids).not.toContain('g2');
+    expect(awards['2026-08'].ids).not.toContain('g3');
+  });
+
+  it('counts a roster player with a guest’s name as themselves, not as the guest', async () => {
+    // the merge only ever joins ids that are absent from the roster, so two
+    // squad members sharing a name are never welded together
+    const roster = [
+      { id: 'a', name: 'Aviv' },
+      { id: 'b', name: 'Aviv' },
+      { id: 'c', name: 'Chen' },
+      { id: 'd', name: 'Dan' },
+      { id: 'e', name: 'Eli' },
+      { id: 'f', name: 'Fadi' },
+    ];
+    const env = withHistory([fixture('2026-08-06'), fixture('2026-08-13')], null, roster);
+    const { awards } = await registerAwards(env, SEP_1);
+    expect(awards['2026-08'].ids).toContain('a');
+    expect(awards['2026-08'].ids).toContain('b');
   });
 });
 

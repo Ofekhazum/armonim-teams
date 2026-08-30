@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import type { FixtureRecord } from './types';
-import { guestIdentities, guestKey, knownGuests, mergeGuestIdentities } from './guests';
+import {
+  guestAbsorbers,
+  guestIdentities,
+  guestKey,
+  knownGuests,
+  mergeGuestIdentities,
+} from './guests';
 
 // A guest is created with a fresh id on the night they turn up, because at
 // that moment there is nothing to match them against. Across a season that
@@ -143,5 +149,90 @@ describe('knownGuests', () => {
   it('does not offer roster players as guests', () => {
     const history = [night(['r1'], ['r2'], { r1: 'ניב', r2: 'ירין' })];
     expect(knownGuests(history, roster('r1', 'r2'))).toEqual([]);
+  });
+});
+
+// Promoting a guest to the roster is a roster insert and nothing else — no
+// stored record is touched. What makes that work is that a roster player
+// absorbs guests who share their name, so the nights already played come with
+// them. Without it, promotion would split somebody in two rather than settle
+// them: the id they are given is on the roster and skipped, while their older
+// guest ids carry on merging into a second, separate person.
+describe('guestAbsorbers', () => {
+  it('claims a roster player’s own name and their aliases', () => {
+    const abs = guestAbsorbers([{ id: 'r1', name: 'זרקא', aliases: ['Zarka'] }]);
+    expect(abs.get(guestKey('זרקא'))).toBe('r1');
+    expect(abs.get(guestKey('zarka'))).toBe('r1');
+  });
+
+  it('claims nothing for a name two roster players share', () => {
+    // welding a guest onto the wrong member is invisible and looks permanent;
+    // an unabsorbed guest is a visible row somebody can act on
+    const abs = guestAbsorbers([
+      { id: 'r1', name: 'אופק' },
+      { id: 'r2', name: 'אופק' },
+    ]);
+    expect(abs.has(guestKey('אופק'))).toBe(false);
+  });
+
+  it('is not confused by one player listing a name as both name and alias', () => {
+    const abs = guestAbsorbers([{ id: 'r1', name: 'זרקא', aliases: ['זרקא', ' זרקא '] }]);
+    expect(abs.get(guestKey('זרקא'))).toBe('r1');
+  });
+});
+
+describe('promoting a guest onto the roster', () => {
+  it('carries every night the guest already played onto the new roster id', () => {
+    const history = [
+      night(['g1', 'a'], ['b'], { g1: 'זרקא' }),
+      night(['g2', 'a'], ['b'], { g2: 'זרקא' }),
+      night(['g3', 'a'], ['b'], { g3: 'זרקא' }),
+    ];
+    // before: three guest ids collapse onto the earliest, g1
+    const before = mergeGuestIdentities(history, roster('a', 'b'));
+    expect(before.every((fx) => fx.teams.black.includes('g1'))).toBe(true);
+
+    // after: 'זרקא' is on the roster as r1, and all three nights are theirs
+    const players = [{ id: 'r1', name: 'זרקא' }];
+    const after = mergeGuestIdentities(history, roster('a', 'b', 'r1'), guestAbsorbers(players));
+    expect(after.every((fx) => fx.teams.black.includes('r1'))).toBe(true);
+    expect(after.some((fx) => fx.teams.black.some((id) => id.startsWith('g')))).toBe(false);
+  });
+
+  it('does not split a guest who is promoted under one of their own old ids', () => {
+    // the trap: g1 is now a roster id, so it is skipped by the merge — without
+    // absorption g2 and g3 would collapse onto each other as a second person
+    const history = [
+      night(['g1', 'a'], ['b'], { g1: 'זרקא' }),
+      night(['g2', 'a'], ['b'], { g2: 'זרקא' }),
+      night(['g3', 'a'], ['b'], { g3: 'זרקא' }),
+    ];
+    const players = [{ id: 'g1', name: 'זרקא' }];
+    const after = mergeGuestIdentities(history, roster('a', 'b', 'g1'), guestAbsorbers(players));
+    expect(after.every((fx) => fx.teams.black.includes('g1'))).toBe(true);
+    expect(after.some((fx) => fx.teams.black.includes('g2'))).toBe(false);
+    expect(after.some((fx) => fx.teams.black.includes('g3'))).toBe(false);
+  });
+
+  it('leaves a guest alone when two roster players share their name', () => {
+    const history = [night(['g1', 'a'], ['b'], { g1: 'אופק' }), night(['g2', 'a'], ['b'], { g2: 'אופק' })];
+    const players = [
+      { id: 'r1', name: 'אופק' },
+      { id: 'r2', name: 'אופק' },
+    ];
+    const after = mergeGuestIdentities(history, roster('a', 'b', 'r1', 'r2'), guestAbsorbers(players));
+    // still merged with each other, but attached to neither member
+    expect(after.every((fx) => fx.teams.black.includes('g1'))).toBe(true);
+    expect(after.some((fx) => fx.teams.black.includes('r1'))).toBe(false);
+  });
+
+  it('keeps the promoted player’s roster row rather than the guest’s on a night', () => {
+    // both ids land on one night only after absorption; the roster entry must
+    // be the survivor, so the night reads under the name they now carry
+    const history = [night(['r1', 'g1'], ['b'], { r1: 'זרקא', g1: 'זרקא' })];
+    const players = [{ id: 'r1', name: 'זרקא' }];
+    const after = mergeGuestIdentities(history, roster('r1', 'b'), guestAbsorbers(players));
+    expect(after[0].teams.black).toEqual(['r1', 'r1']);
+    expect(after[0].players.filter((p) => p.id === 'r1')).toHaveLength(1);
   });
 });

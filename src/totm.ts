@@ -60,41 +60,91 @@ export const totmEligible = (playerNights: number, monthNights: number): boolean
 // Match wins are the base currency — about four or five a night, per
 // isWinMilestone's calibration. A night the team took *outright* is worth two
 // more, which is what separates the player who kept edging nights from the one
-// who banked a single blowout. An MVP is worth three: a real thumb on the
-// scale for the one human judgement the app records, without letting a single
-// pick outrank a month of winning football.
+// who banked a single blowout.
 //
-// ATTENDANCE_BONUS is not a new preference — the sort below already breaks a
-// tied score by whoever played more nights. This is that same rule made
-// continuous instead of needing an exact float tie to fire, so "played three
-// or four times" gets a little credit over "played twice" even when the two
-// scores were never going to land on the same number. Scaled by the same
-// nights/monthLength share `totmEligible` already gates on, so it only ever
-// ranges over [0.5, 1] — weight 1 puts a full-attendance player half a point
-// ahead of a half-attendance one, about 1.5x the median score gap near the
-// cut measured against a season of real play. Enough to flip a genuinely
-// close call, not enough to let attendance alone decide a month.
+// An MVP is worth four, raised from three in 2026-08, which makes it **exactly
+// two nights taken outright** — the one ratio here anybody can say out loud.
+//
+// Raised because it is the only term in this formula that is *about a person
+// rather than about a shirt*: match wins and nights won are team facts, banked
+// identically by all five players who happened to wear that colour, so two
+// teammates are separated by nothing else. At three, divided by nights, one MVP
+// was worth 0.75 to a full-attendance player — less than the perfect-attendance
+// bonus, which had the single human judgement in the app ranking below turning
+// up.
+//
+// Not higher, and the reason is the shape of a month rather than a number: one
+// outstanding night should not be able to carry four bad ones. An MVP already
+// arrives on top of the wins and the night its holder's shirt took, so raising
+// it further pays three times for one evening. Measured over the invented
+// club's ten months (§2.32), five instead of four moves a single seat in a
+// single month — the two are the same rule nine months in ten — while six
+// starts turning the award into a record of who the organiser liked, which is
+// the one thing §2.9 exists to keep this app away from. Given that, the tie
+// goes to the weight that explains itself.
+//
+// The attendance bonus is paid for playing **every** night of the month, for
+// nothing less, and it is **worth more in a busier month**.
+//
+// It replaced a bonus proportional to `nights / monthLength` in 2026-08, on the
+// back of raising the eligibility bar above half the month (`totmEligible`):
+// once you must play more than half to be eligible at all, a bonus that also
+// scales with attendance is paying twice for the same thing, and the sliding
+// part had stopped doing any work anyway. On a four-night month the only values
+// it could still take were 0.75 and 1.00 — every eligible player already inside
+// a 0.25 band — so the slope was noise dressed up as a rule. All-or-nothing
+// says the one thing left worth saying: you were here every week.
+//
+// Scaling it by `monthLength` is the other half of the same thought. Turning up
+// to all five nights of a busy month is a harder thing to have done than
+// turning up to both nights of a quiet one, and a flat bonus called those
+// equal. PERFECT_NIGHT is what each night of the month adds, so the bonus is
+// the month's own size — five nights is worth more than three because it *was*
+// more.
+//
+// 0.125 a night puts a four-night month at 0.5, which is where the club landed
+// after seeing the real numbers either side: above ~0.73 the bonus decides the
+// month outright, dragging a full-attendance player over somebody a clear
+// stretch better per night, and at 0.25 it reproduces the old standings and
+// changes nothing. Half a point is worth about half a match win a night —
+// enough that turning up every week breaks a close call, not enough to outrank
+// a genuinely better record.
+//
+// The cap is a guard rather than a rule anybody will meet: at a weekly fixture
+// the month's size runs 4 or 5, and 8 nights would be needed to reach it. It
+// stops a freak month (a tournament week, a fixture backlog cleared at once)
+// turning the bonus into the whole score.
 //
 // Deliberately not shown to anyone. It is arithmetic that has to be defensible
 // rather than arithmetic that has to be read.
 const MATCH_WIN = 1;
 const NIGHT_WON = 2;
-const MVP_PICK = 3;
-const ATTENDANCE_BONUS = 1;
+const MVP_PICK = 4;
+const PERFECT_NIGHT = 0.125;
+const PERFECT_MAX = 1;
+
+/** What playing every night of an `n`-night month is worth. */
+export const perfectAttendanceBonus = (monthLength: number): number =>
+  Math.min(PERFECT_MAX, PERFECT_NIGHT * monthLength);
 
 export const totmScore = (p: Omit<TotmPlayer, 'id' | 'name' | 'score'>): number =>
   p.nights === 0 || p.monthLength === 0
     ? 0
     : (p.wins * MATCH_WIN + p.nightsWon * NIGHT_WON + p.mvps * MVP_PICK) / p.nights +
-      ATTENDANCE_BONUS * (p.nights / p.monthLength);
+      (p.nights >= p.monthLength ? perfectAttendanceBonus(p.monthLength) : 0);
 
 export const TOTM_SIZE = 5;
 
 // Two scores this close are not really a ranking, they are the arithmetic
-// landing somewhere. `+0.083` — which is what one extra night of attendance
-// bonus looks like on a four-night month — is not a reason to put one player
-// above another, but it is enough to decide the fifth seat, and the fifth seat
-// is the one that gets argued about.
+// landing somewhere.
+//
+// 0.1 is calibrated against the smallest thing that can actually happen on the
+// pitch. The finest increment this club records is half a match win — a
+// shootout — and over a four-night month that is worth 0.125 to a player's
+// rate, with a whole match win worth 0.25. So a gap below 0.1 cannot be traced
+// back to a single result: it is the division landing differently, not football.
+// Deciding the fifth seat on it would be deciding it on rounding, and the fifth
+// seat is the one that gets argued about.
 //
 // So scores within NEAR_TIE of each other are treated as level and the order
 // comes from what the club actually thinks is important, below.

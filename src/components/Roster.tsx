@@ -8,6 +8,7 @@ import PlayerPage from './PlayerPage';
 import type { PlayerTitle } from '../achievements';
 import { playerAchievements, titleBadgeFor } from '../achievements';
 import { hasResult } from '../calibration';
+import { guestKey, knownGuests } from '../guests';
 import { PLAIN_ROW, TITLE_THEME } from './titleTheme';
 import {
   fmtRating,
@@ -192,6 +193,59 @@ export default function Roster({
       }),
     );
     cancel();
+  };
+
+  // --- Guests who keep coming back ------------------------------------------
+  // A guest is a name typed into a box on the night, with a fresh id every time
+  // (§2.6). The read-time merge already counts a returning guest as one person,
+  // so what is missing is not arithmetic — it is membership: a rating, a shirt
+  // number, a place in the balancer, an eligible line on the Team of the Month.
+  //
+  // Promotion is deliberately *only* a roster insert. Nothing in history is
+  // rewritten: the new player carries the guest's name, and a roster player
+  // absorbs same-named guests, so every night they already played comes with
+  // them. That also makes it undoable — removing the player hands those nights
+  // straight back to being a guest's.
+  const guestRows = useMemo(() => {
+    const rosterIds = new Set(players.map((p) => p.id));
+    const nights = new Map<string, number>();
+    for (const fx of history) {
+      if (!hasResult(fx.wins)) continue;
+      for (const id of [...fx.teams.black, ...fx.teams.white, ...fx.teams.blue]) {
+        if (rosterIds.has(id)) continue;
+        nights.set(id, (nights.get(id) ?? 0) + 1);
+      }
+    }
+    return knownGuests(history, rosterIds)
+      .map((g) => ({ ...g, nights: nights.get(g.id) ?? 0 }))
+      .filter((g) => g.nights > 0)
+      .sort((a, b) => b.nights - a.nights || a.name.localeCompare(b.name, 'he'));
+  }, [history, players]);
+
+  // Opens the ordinary add form with the name filled in, rather than creating
+  // the player outright: a squad member needs a rating and a number, and the
+  // organiser is the only one who knows them. Same save path as any other add,
+  // so there is no second way for a player to enter the roster.
+  const promoteGuest = (name: string) => {
+    const clash = players.find((p) => guestKey(p.name) === guestKey(name));
+    if (clash) {
+      alert(
+        `${clash.name} is already on the roster, so nights played by a guest called ` +
+          `“${name}” are already counted as theirs. Nothing to promote.`,
+      );
+      return;
+    }
+    setEditingId(null);
+    setDraft({
+      name,
+      aliases: '',
+      rating: 3,
+      isGk: false,
+      attack: ATTACK_DEFAULT,
+      chemistry: [],
+      avoid: [],
+      number: '',
+    });
   };
 
   const remove = (p: Player) => {
@@ -492,6 +546,36 @@ export default function Roster({
       </div>
 
       {draft && editingId === null && draftForm}
+
+      {isAdmin && !draft && guestRows.length > 0 && (
+        <div className="mb-4 rounded-2xl border border-amber-900/15 bg-amber-50/60 p-4">
+          <h3 className="text-sm font-black tracking-wide text-amber-900">🚪 Guests</h3>
+          <p className="mt-0.5 text-xs text-amber-900/60">
+            Played but not on the roster. Promoting one keeps every night they’ve already
+            played — their nights follow the name.
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {guestRows.map((g) => (
+              <div
+                key={g.id}
+                className="flex items-center gap-2 rounded-full border border-amber-900/20 bg-white/80 py-1 pl-3 pr-1 shadow-sm"
+              >
+                <span className="text-sm font-bold text-amber-900">{g.name}</span>
+                <span className="text-[11px] font-semibold text-amber-900/50">
+                  {g.nights} {g.nights === 1 ? 'night' : 'nights'}
+                </span>
+                <button
+                  onClick={() => promoteGuest(g.name)}
+                  className="rounded-full bg-orange-600 px-2.5 py-1 text-[11px] font-bold text-amber-50 transition-transform hover:scale-105"
+                  title={`Add ${g.name} to the roster, keeping their ${g.nights} night${g.nights === 1 ? '' : 's'}`}
+                >
+                  + Add to roster
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {sorted.length === 0 && !draft ? (
         <div className="rounded-2xl border border-dashed border-amber-900/30 p-10 text-center text-amber-900/70">
