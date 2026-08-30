@@ -854,18 +854,21 @@ slot instead, since it is what actually identifies which night this was. The squ
 here than anywhere else, because on this page the squad is the content rather than a caption under a
 scoreboard.
 
-**A night that finished level gets a card per tied shirt, not zero cards.** Everywhere else a night
-needs a single champion or nobody — `winnerOf`'s tie is deliberately strict, and this page still calls
-it that way for its *own* single-winner cases. But this page is *enumerating* nights rather than
-*aggregating* them the way milestones, duos and Team of the Month do, so applying the same strictness
-here would make an ordinary result (going by a season of the invented club, roughly one night in ten)
-disappear from a page whose only job is to list nights — an empty seat where a real result belongs.
-`WinningTeam.shared` marks it instead: every shirt that tied for the top gets its own card, at the
-tied win count, with a 🤝 in place of the crown — visible on its own, and doubly so since the tied
-cards land adjacent in the ranking (same wins, same date). `WrappedStats.winningTeams` is uncapped
-and sorted; **`MAX_WINNING_TEAMS = 4`** lives in the renderer, because how many cards fit before a
-page becomes a wall of names is a layout question, not a fact about the month — a fully shared night
-can use two or three of those four slots by itself, and that is simply what the night was.
+**A night that finished level gets one card, split, not zero cards.** Everywhere else a night needs a
+single champion or nobody — `winnerOf`'s tie is deliberately strict, and this page still reads a night
+that way to decide whether it needs the shared treatment at all. But this page is *enumerating* nights
+rather than *aggregating* them the way milestones, duos and Team of the Month do, so applying the same
+strictness here would make an ordinary result (going by a season of the invented club, roughly one
+night in ten) disappear from a page whose only job is to list nights. `WinningTeam.shared` marks it
+instead, and `wrappedImage.ts`'s `groupWinningTeams` collects every tied shirt from the same fixture
+back into one card: the background splits into a column per shirt (clipped to one rounded rectangle,
+so the seam reads as one card, not two glued together), and a single dark badge straddles the seam
+with the date and the win count — said once, in a pill that has to stay legible over whichever colours
+happen to be tied, rather than repeated per side in each shirt's own ink. Two tied shirts split the
+card in half; three split it in thirds. `WrappedStats.winningTeams` stays a flat, uncapped, sorted
+list of individual shirts — the grouping is purely a rendering decision — and **`MAX_WINNING_TEAMS = 4`**
+caps the number of *nights* shown, in the renderer, because how many cards fit before the page becomes
+a wall of names is a layout question, not a fact about the month.
 
 **The night of the month carries its own scoreboard.** `NightOfMonth` gained per-shirt
 `{played, won, points, squad}`, the night's `winner`, its `penalties` and its `mvpName` — the first

@@ -102,6 +102,8 @@ const MAX_MINOR_CARDS = 6;
 
 const TEAM_EMOJI: Record<TeamColor, string> = { black: '⚫', white: '⚪', blue: '🔵' };
 
+const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+
 // --- Page furniture --------------------------------------------------------
 
 function drawPageBackground(ctx: CanvasRenderingContext2D, w: number, h: number) {
@@ -609,19 +611,51 @@ function renderNightOfMonth(night: NightOfMonth): HTMLCanvasElement {
 //
 // The same card the night page uses for a winning shirt — colour, crown, the
 // squad in name chips — one per night that had an outright winner, best night
-// first. Capped at MAX_WINNING_TEAMS: past four the page is a wall of names
-// and stops being something anybody reads.
+// first. A shared night (see WinningTeam.shared in wrapped.ts) draws as one
+// card split into a column per tied shirt, rather than as separate cards —
+// they are one event, not several. Capped at MAX_WINNING_TEAMS *nights*: past
+// four the page is a wall of names and stops being something anybody reads.
 
 const MAX_WINNING_TEAMS = 4;
 const WT_HEADER_H = 72;
 const WT_PAD = 18;
 // Bigger than the chips elsewhere: on this page the squad *is* the content,
 // where on the night page it sits under a scoreboard and has to stay quieter.
-const WT_CHIP_SIZE = 19;
-const WT_CHIP_H = 40;
+const WT_CHIP_SIZE = 23;
+const WT_CHIP_H = 48;
 
 const winningTeamHeight = (lines: string[][]) =>
   WT_HEADER_H + Math.max(lines.length, 1) * (WT_CHIP_H + 8) + WT_PAD;
+
+/** One night, with every shirt that topped its tally — one entry for an
+ *  outright win, two or three for a shared one. Grouping by fixture (rather
+ *  than trusting the sort to keep tied entries adjacent) is what lets a
+ *  shared night become one card instead of several. */
+interface WinningNight {
+  fixtureId: string;
+  date: string;
+  wins: number;
+  shared: boolean;
+  teams: { color: TeamColor; squad: string[] }[];
+}
+
+function groupWinningTeams(teams: WinningTeam[]): WinningNight[] {
+  const byFixture = new Map<string, WinningTeam[]>();
+  for (const t of teams) {
+    const group = byFixture.get(t.fixtureId);
+    if (group) group.push(t);
+    else byFixture.set(t.fixtureId, [t]);
+  }
+  return [...byFixture.values()]
+    .map((group) => ({
+      fixtureId: group[0].fixtureId,
+      date: group[0].date,
+      wins: group[0].wins,
+      shared: group[0].shared,
+      teams: group.map((t) => ({ color: t.color, squad: t.squad })),
+    }))
+    .sort((a, b) => b.wins - a.wins || a.date.localeCompare(b.date));
+}
 
 function drawWinningTeamCard(
   ctx: CanvasRenderingContext2D,
@@ -683,20 +717,130 @@ function drawWinningTeamCard(
   });
 }
 
-const topWinningTeams = (stats: WrappedStats) => stats.winningTeams.slice(0, MAX_WINNING_TEAMS);
+// The shared-win card: one rounded rectangle, its background split into a
+// column per tied shirt so "who tied" is legible at a glance without a label
+// per side. A single badge straddles the seam for the date and the win count
+// (the same number for every column, so it is said once, not repeated) — a
+// dark pill rather than either shirt's own ink, because it has to sit
+// legibly on top of whichever colours happen to be tied that night, and one
+// of the three is always a near-white background.
+const WT_SHARED_BADGE_TOP = 16;
+const WT_SHARED_BADGE_H = 38;
+const WT_SHARED_HEADER_H = WT_SHARED_BADGE_TOP + WT_SHARED_BADGE_H + 16;
+const WT_SEAM_INSET = 10;
+const WT_COL_PAD = 14;
+
+const sharedWinHeight = (colLines: string[][][]) =>
+  WT_SHARED_HEADER_H +
+  Math.max(...colLines.map((l) => Math.max(l.length, 1))) * (WT_CHIP_H + 8) +
+  WT_PAD;
+
+function drawSharedWinCard(
+  ctx: CanvasRenderingContext2D,
+  night: WinningNight,
+  colLines: string[][][],
+  y: number,
+  cardW: number,
+) {
+  const h = sharedWinHeight(colLines);
+  const n = night.teams.length;
+  const colW = cardW / n;
+
+  ctx.save();
+  roundRect(ctx, PAD, y, cardW, h, CARD_R);
+  ctx.clip();
+  night.teams.forEach((team, i) => {
+    ctx.fillStyle = TEAM_CANVAS[team.color].bg;
+    ctx.fillRect(PAD + i * colW, y, colW, h);
+  });
+  ctx.restore();
+  strokeRound(ctx, PAD, y, cardW, h, CARD_R, INK.gold, 2.5);
+
+  ctx.save();
+  ctx.strokeStyle = 'rgba(0,0,0,0.4)';
+  ctx.lineWidth = 2;
+  for (let i = 1; i < n; i++) {
+    ctx.beginPath();
+    ctx.moveTo(PAD + i * colW, y + WT_SEAM_INSET);
+    ctx.lineTo(PAD + i * colW, y + h - WT_SEAM_INSET);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  const badgeLabel = `🤝 ${night.date} · ${plural(night.wins, 'win')} each`;
+  const bm = measurer();
+  bm.font = font(17, '900');
+  const badgeW = bm.measureText(badgeLabel).width + 32;
+  const badgeX = PAD + cardW / 2 - badgeW / 2;
+  const badgeY = y + WT_SHARED_BADGE_TOP;
+  fillRound(ctx, badgeX, badgeY, badgeW, WT_SHARED_BADGE_H, WT_SHARED_BADGE_H / 2, 'rgba(0,0,0,0.6)');
+  strokeRound(
+    ctx,
+    badgeX,
+    badgeY,
+    badgeW,
+    WT_SHARED_BADGE_H,
+    WT_SHARED_BADGE_H / 2,
+    'rgba(245,158,11,0.65)',
+    1.5,
+  );
+  ctx.save();
+  ctx.direction = 'ltr';
+  ctx.textAlign = 'center';
+  ctx.font = font(17, '900');
+  ctx.fillStyle = INK.bright;
+  ctx.fillText(badgeLabel, PAD + cardW / 2, badgeY + WT_SHARED_BADGE_H / 2 + 6);
+  ctx.restore();
+
+  // squad chips, centred within each shirt's own column
+  night.teams.forEach((team, colIdx) => {
+    const t = TEAM_CANVAS[team.color];
+    const colX = PAD + colIdx * colW;
+    colLines[colIdx].forEach((line, i) => {
+      const rowW = line.reduce(
+        (w, name) => w + chipWidth(measurer(), name, WT_CHIP_SIZE) + CHIP_GAP,
+        -CHIP_GAP,
+      );
+      let x = colX + colW / 2 - rowW / 2;
+      const rowY = y + WT_SHARED_HEADER_H + i * (WT_CHIP_H + 8);
+      for (const name of line) {
+        x +=
+          drawChip(ctx, name, x, rowY, {
+            size: WT_CHIP_SIZE,
+            height: WT_CHIP_H,
+            fill: t.chip,
+            border: t.border,
+            color: t.text,
+          }) + CHIP_GAP;
+      }
+    });
+  });
+}
 
 function renderWinningTeams(stats: WrappedStats): HTMLCanvasElement {
   const cardW = W - PAD * 2;
   const m = measurer();
-  const teams = topWinningTeams(stats).map((t) => ({
-    team: t,
-    lines: flowChips(m, t.squad, cardW - WT_PAD * 2, WT_CHIP_SIZE),
-  }));
+  const nights = groupWinningTeams(stats.winningTeams)
+    .slice(0, MAX_WINNING_TEAMS)
+    .map((night) => ({
+      night,
+      colLines: night.teams.map((team) =>
+        flowChips(
+          m,
+          team.squad,
+          night.teams.length > 1 ? cardW / night.teams.length - WT_COL_PAD * 2 : cardW - WT_PAD * 2,
+          WT_CHIP_SIZE,
+        ),
+      ),
+    }));
+
+  const heightOf = (n: (typeof nights)[number]) =>
+    n.night.teams.length > 1 ? sharedWinHeight(n.colLines) : winningTeamHeight(n.colLines[0]);
 
   const H =
     PAD +
     PAGE_HEADER_H +
-    teams.reduce((s, t) => s + winningTeamHeight(t.lines) + GAP, 0) +
+    nights.reduce((s, n) => s + heightOf(n) + GAP, 0) +
     FOOTER_H +
     PAD;
 
@@ -704,9 +848,26 @@ function renderWinningTeams(stats: WrappedStats): HTMLCanvasElement {
   drawPageHeader(ctx, stats.label, 'Winning teams');
 
   let y = PAD + PAGE_HEADER_H;
-  for (const t of teams) {
-    drawWinningTeamCard(ctx, t.team, t.lines, y, cardW);
-    y += winningTeamHeight(t.lines) + GAP;
+  for (const { night, colLines } of nights) {
+    if (night.teams.length > 1) {
+      drawSharedWinCard(ctx, night, colLines, y, cardW);
+    } else {
+      drawWinningTeamCard(
+        ctx,
+        {
+          fixtureId: night.fixtureId,
+          date: night.date,
+          color: night.teams[0].color,
+          wins: night.wins,
+          squad: night.teams[0].squad,
+          shared: false,
+        },
+        colLines[0],
+        y,
+        cardW,
+      );
+    }
+    y += heightOf({ night, colLines }) + GAP;
   }
 
   drawFooter(ctx, y);
@@ -912,7 +1073,6 @@ const reservistChips = (rs: Reservist[]) =>
  *  MAX_MINOR_CARDS is dropped rather than shrunk. */
 function buildMinors(stats: WrappedStats): Award[] {
   const out: Award[] = [];
-  const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
   if (stats.benchwarmer) {
     out.push({
