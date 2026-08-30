@@ -909,7 +909,9 @@ Matching is exact after trimming and case-folding — no fuzzy matching, because
 genuinely different people is a far worse failure than leaving a duplicate row on screen.
 
 **A roster player absorbs guests who share their name (`guestAbsorbers`), which is what promotion is
-built on.** 🚪 **Guests** on the Roster tab lists everybody who has played without a roster entry,
+built on.** 🚪 **Guests** on the Roster tab — **folded by default**, the same call the History tab's
+admin tooling makes (§2.28), with the count on the header so a closed panel still says there is
+something in it — lists everybody who has played without a roster entry,
 with their night count and **+ Add to roster**; it opens the ordinary add form with the name filled
 in, so a promoted guest gets a rating and a number the same way any player does and there is no
 second route into the squad. **Nothing in history is rewritten** — the new player carries the guest's
