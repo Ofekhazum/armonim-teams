@@ -3514,7 +3514,7 @@ of the two ids so a night reads the same every time it is opened.
 
 ### 2.41 The Roster edit form's relationship section, and themed confirmations (`Roster.tsx`, `ui.tsx`)
 
-Two changes from an `/impeccable critique` pass on the admin Add/Edit form (full report:
+Four changes from an `/impeccable critique` pass on the admin Add/Edit form (full report:
 `.impeccable/critique/2026-09-02T12-34-33Z__src-components-roster-tsx.md`, gitignored — a local
 archive, not something the team needs on every checkout).
 
@@ -3538,6 +3538,27 @@ omit it for a single-button acknowledgement standing in for the old `alert()` ca
 `publish()` now only decides whether to show the confirm gate; the actual network call moved to
 `doPublish()` so both the gated and ungated paths share one place that turns a `publishRemoteRoster`
 result into dialog content.
+
+**A saved row pulses.** Editing or adding a player used to just close the form — the common action
+was unrewarded while Publish (the rare one) got a whole dialog. `save()` now records the touched
+id (`savedId`), and the matching row picks up `.flash-ring` (`index.css`, built for the live room's
+per-player highlight — §2.5) for `SAVE_HIGHLIGHT_MS` (1200ms) with `--flash-color` set to the app's
+own amber-900 rather than a per-user identity color — this is a local single-organiser action, not
+a live-room event, so it borrows the animation, not the multi-user meaning.
+
+**The build-version tag moved out of the first visual slot.** `v{__GIT_HASH__}` (the only place in
+the app that renders it — a deploy-verification affordance for the organiser) used to be the very
+first thing on the tab, ahead of the squad itself. It's now a footer line at the bottom, after the
+roster list.
+
+**The row's title tooltip is a shortcut, not the only path — left as-is.** The critique flagged
+`title={titles.get(p.id)?.title}` as touch-inert. It's true the tooltip itself doesn't fire on tap,
+but the row is already a tap target that opens `PlayerPage`, which writes the same title out as
+plain text under the player's name (§2.18) — so touch never actually dead-ends here, it just takes
+one more tap than a desktop hover does. Adding the title text directly to the roster row was tried
+before and deliberately reverted (`titleTheme.ts`'s file comment): a name, a role icon, an aka line
+and a title is more than the row can carry at once. Re-adding it to fix a finding that turned out
+not to hold up would have undone that decision for no real gain.
 
 ## 3. Team generation algorithm
 

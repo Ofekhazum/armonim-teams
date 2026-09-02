@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { CSSProperties } from 'react';
 import type { FixtureRecord, Player } from '../types';
 import { ATTACK_DEFAULT, ATTACK_STEP, attackLabel, badgeForAttack, roleBadge } from '../types';
@@ -49,6 +49,11 @@ interface Draft {
 // Namespaced so it cannot collide with a History tab section id.
 const GUESTS_SECTION = 'roster-guests';
 
+// How long a just-saved row keeps its flash-ring pulse (§2.41 update) —
+// matches the live room's activity highlight (MatchDay.tsx) in spirit, not
+// duration: that one has a toast to fade with it, this one is just the ring.
+const SAVE_HIGHLIGHT_MS = 1200;
+
 // One themed dialog replaces every alert()/confirm() the tab used to reach
 // for (§2.41) — native dialogs can't render Hebrew names with correct bidi
 // and broke the amber theme exactly at the highest-stakes moments (remove,
@@ -82,6 +87,12 @@ export default function Roster({
   // doesn't hide the very thing being edited.
   const [relOpen, setRelOpen] = useState(false);
   const [relFilter, setRelFilter] = useState('');
+  const [savedId, setSavedId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!savedId) return;
+    const t = setTimeout(() => setSavedId(null), SAVE_HIGHLIGHT_MS);
+    return () => clearTimeout(t);
+  }, [savedId]);
   // whose page is open, if any — no router in this app, so the panel is state
   // and an overlay, the same shape as pitch mode
   const [openId, setOpenId] = useState<string | null>(null);
@@ -247,6 +258,11 @@ export default function Roster({
         return { ...p, chemistry, avoid: newAvoid };
       }),
     );
+    // The routine action deserved feedback of its own (§2.41 update) — it
+    // used to just close the form, while Publish (the rare action) got a
+    // whole dialog. A brief pulse on the row that was actually touched is
+    // the smallest fix that isn't silence.
+    setSavedId(id);
     cancel();
   };
 
@@ -611,15 +627,6 @@ export default function Roster({
 
   return (
     <div className="space-y-4">
-      <div className="text-right">
-        <span
-          className="font-mono text-[10px] uppercase tracking-wide text-amber-900/40"
-          title="Build version — changes on every deploy"
-        >
-          v{__GIT_HASH__}
-        </span>
-      </div>
-
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-amber-900/70">
           The permanent squad. Guests are added on match day.
@@ -717,14 +724,20 @@ export default function Roster({
                 onClick={() => setOpenId(p.id)}
                 // Named in the tooltip as well as worn: a coloured card nobody
                 // can decode is the mystery-emoji problem the badge key exists
-                // to avoid (§2.16).
+                // to avoid (§2.18). The tooltip is a desktop-hover shortcut,
+                // not the only path — the row is a tap target (below), and
+                // PlayerPage writes the same title out as plain text under
+                // the name, so touch never actually dead-ends on it.
                 title={titles.get(p.id)?.title}
                 // the whole row, not a small "view" link: on a phone the row
                 // is the target your thumb is already aimed at. It lifts on
                 // hover, which is the cheapest way to say "this is a door".
                 className={`group relative flex cursor-pointer items-center gap-3 overflow-hidden rounded-2xl border px-4 py-3 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-orange-500/60 hover:shadow-md ${
-                  theme(p.id)
-                }`}
+                  p.id === savedId ? 'flash-ring' : ''
+                } ${theme(p.id)}`}
+                style={
+                  p.id === savedId ? ({ '--flash-color': '#78350f' } as CSSProperties) : undefined
+                }
               >
                 {/* The badge's own emoji, set large and nearly transparent at
                     the far edge — a watermark rather than an icon, so it reads
@@ -810,6 +823,18 @@ export default function Roster({
           )}
         </ul>
       )}
+
+      {/* Deploy-verification only, for the organiser (§2.41 update) — was the
+          first thing on the tab, ahead of the squad itself; a footer is where
+          build info belongs, not the top of the task. */}
+      <div className="text-right">
+        <span
+          className="font-mono text-[10px] uppercase tracking-wide text-amber-900/40"
+          title="Build version — changes on every deploy"
+        >
+          v{__GIT_HASH__}
+        </span>
+      </div>
 
       {open && (
         <PlayerPage
