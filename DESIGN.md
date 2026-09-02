@@ -3512,6 +3512,33 @@ invented — there is no model to ask — drawn from four pools split by grade b
 "carried the whole team" line under a 3.5 reads as broken rather than as invented, and picked by a hash
 of the two ids so a night reads the same every time it is opened.
 
+### 2.41 The Roster edit form's relationship section, and themed confirmations (`Roster.tsx`, `ui.tsx`)
+
+Two changes from an `/impeccable critique` pass on the admin Add/Edit form (full report:
+`.impeccable/critique/2026-09-02T12-34-33Z__src-components-roster-tsx.md`, gitignored — a local
+archive, not something the team needs on every checkout).
+
+**Chemistry and avoid fold behind one disclosure, "🤝↔️ Relationships".** Both chip clouds used to
+render unconditionally on every add/edit — two full-roster lists to scan for a form that's opened
+often. It now starts closed for a new player or one with no relationships yet, and open by default
+for a player who already has some (editing shouldn't hide the very thing being edited). Past 8
+eligible players a filter input appears above both clouds, matching on name or alias; the two chip
+clouds share one filtered list (`eligibleForRelationships`/`filteredForRelationships` in
+`Roster.tsx`) rather than each filtering independently, so chemistry and avoid never drift out of
+sync with each other's view of "everyone but the player being edited".
+
+**`ConfirmDialog` (`ui.tsx`) replaces every `alert()`/`confirm()` in the tab.** Native dialogs
+can't render Hebrew names with correct bidi and broke the amber visual language exactly at the
+highest-stakes moments — removing a player, and every outcome of Publish (success, wrong password,
+rate-limited, stale roster, generic failure). Same `fixed inset-0` / `bg-amber-950/40` backdrop and
+rounded card as `StartFixtureDialog` (§2.7.2), so every full-screen confirmation in the app reads as
+one family. One component covers two shapes: pass `onConfirm` for a yes/no gate (Remove, and the
+pre-publish warning when `rosterHydrated` is false — see §2.28 for why that guard exists at all),
+omit it for a single-button acknowledgement standing in for the old `alert()` calls. `Roster.tsx`'s
+`publish()` now only decides whether to show the confirm gate; the actual network call moved to
+`doPublish()` so both the gated and ungated paths share one place that turns a `publishRemoteRoster`
+result into dialog content.
+
 ## 3. Team generation algorithm
 
 Balancing is a small constrained optimization. With ≤15 players, brute force is too big

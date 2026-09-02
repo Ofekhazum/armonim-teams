@@ -11,6 +11,7 @@ import { hasResult } from '../calibration';
 import { guestKey, knownGuests } from '../guests';
 import { PLAIN_ROW, TITLE_THEME } from './titleTheme';
 import {
+  ConfirmDialog,
   fmtRating,
   FoldHeader,
   Name,
@@ -48,6 +49,17 @@ interface Draft {
 // Namespaced so it cannot collide with a History tab section id.
 const GUESTS_SECTION = 'roster-guests';
 
+// One themed dialog replaces every alert()/confirm() the tab used to reach
+// for (§2.41) — native dialogs can't render Hebrew names with correct bidi
+// and broke the amber theme exactly at the highest-stakes moments (remove,
+// publish). 'publish-result' covers every alert the old publish flow ended
+// on (success and every failure branch); only 'remove-confirm' and
+// 'publish-confirm' are actual yes/no gates.
+type DialogState =
+  | { kind: 'remove-confirm'; player: Player }
+  | { kind: 'publish-confirm' }
+  | { kind: 'publish-result'; title: string; body: string; tone: 'default' | 'danger' | 'success' };
+
 const parseAliases = (raw: string): string[] =>
   [...new Set(raw.split(',').map((a) => a.trim()).filter(Boolean))];
 
@@ -62,6 +74,14 @@ export default function Roster({
   const [draft, setDraft] = useState<Draft | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [publishing, setPublishing] = useState(false);
+  const [dialog, setDialog] = useState<DialogState | null>(null);
+  // Chemistry/avoid start folded for a form that doesn't already carry any —
+  // the common case, and the one the mega-form critique flagged (§2.41): two
+  // full-roster chip clouds rendering unconditionally on every add/edit. An
+  // existing player's relationships stay visible by default so editing one
+  // doesn't hide the very thing being edited.
+  const [relOpen, setRelOpen] = useState(false);
+  const [relFilter, setRelFilter] = useState('');
   // whose page is open, if any — no router in this app, so the panel is state
   // and an overlay, the same shape as pitch mode
   const [openId, setOpenId] = useState<string | null>(null);
@@ -83,43 +103,68 @@ export default function Roster({
     return out;
   }, [history, players]);
 
+  // The actual network publish, once any confirmation gate is cleared.
+  const doPublish = async () => {
+    if (adminWord == null) return;
+    setDialog(null);
+    setPublishing(true);
+    const { result, version } = await publishRemoteRoster(players, adminWord);
+    setPublishing(false);
+    if (result === 'ok') {
+      if (version) setLocalRosterVersion(version); // don't re-pull our own change
+      setDialog({
+        kind: 'publish-result',
+        title: 'Roster published',
+        body: '✅ Everyone gets it next time they open the app.',
+        tone: 'success',
+      });
+    } else if (result === 'wrong-word') {
+      // password was changed on the server since we unlocked — drop back to normal
+      setDialog({
+        kind: 'publish-result',
+        title: 'Publish failed',
+        body: '❌ The password is no longer valid. Please unlock admin again.',
+        tone: 'danger',
+      });
+      setAdminWord(null);
+    } else if (result === 'rate-limited') {
+      setDialog({
+        kind: 'publish-result',
+        title: 'Publish failed',
+        body: '❌ Too many failed attempts. Please wait a few minutes and try again.',
+        tone: 'danger',
+      });
+    } else if (result === 'stale') {
+      setDialog({
+        kind: 'publish-result',
+        title: 'Roster changed elsewhere',
+        body:
+          '⚠️ The shared roster has changed since this device last loaded it — publishing now would undo those changes.\nReload the page to pull the current roster first, then re-apply your edits.',
+        tone: 'danger',
+      });
+    } else {
+      setDialog({
+        kind: 'publish-result',
+        title: 'Publish failed',
+        body: 'Could not publish — check your connection and try again.',
+        tone: 'danger',
+      });
+    }
+  };
+
   // Push the current roster to everyone, using the already-unlocked word.
-  const publish = async () => {
+  const publish = () => {
     if (adminWord == null) return;
     // A publish sends the whole player list, private fields included. If this
     // device never managed to read those back from the server, the empty lists
     // it is holding are "we don't know", not "there aren't any" — and sending
     // them would erase everyone's keep-apart lists. Happens if the worker is
     // older than this build, or the fetch simply failed.
-    if (
-      !rosterHydrated &&
-      !confirm(
-        "⚠️ Couldn't confirm the chemistry and keep-apart lists with the server.\n\n" +
-          'Publishing now would replace them with whatever is on this device — possibly nothing. ' +
-          'Reload and unlock admin again first if you want them kept.\n\nPublish anyway?',
-      )
-    ) {
+    if (!rosterHydrated) {
+      setDialog({ kind: 'publish-confirm' });
       return;
     }
-    setPublishing(true);
-    const { result, version } = await publishRemoteRoster(players, adminWord);
-    setPublishing(false);
-    if (result === 'ok') {
-      if (version) setLocalRosterVersion(version); // don't re-pull our own change
-      alert('✅ Roster published — everyone gets it next time they open the app.');
-    } else if (result === 'wrong-word') {
-      // password was changed on the server since we unlocked — drop back to normal
-      alert('❌ The password is no longer valid. Please unlock admin again.');
-      setAdminWord(null);
-    } else if (result === 'rate-limited') {
-      alert('❌ Too many failed attempts. Please wait a few minutes and try again.');
-    } else if (result === 'stale') {
-      alert(
-        '⚠️ The shared roster has changed since this device last loaded it — publishing now would undo those changes.\n\nReload the page to pull the current roster first, then re-apply your edits.',
-      );
-    } else {
-      alert('Could not publish — check your connection and try again.');
-    }
+    doPublish();
   };
 
   // A titled player wears their theme; everyone else keeps the plain surface.
@@ -142,6 +187,8 @@ export default function Roster({
       avoid: [],
       number: '',
     });
+    setRelOpen(false);
+    setRelFilter('');
   };
 
   const startEdit = (p: Player) => {
@@ -156,6 +203,10 @@ export default function Roster({
       avoid: [...(p.avoid ?? [])],
       number: p.number != null ? String(p.number) : '',
     });
+    // Already-set relationships stay visible — editing a player shouldn't
+    // hide the very thing being edited behind an extra tap.
+    setRelOpen(p.chemistry.length > 0 || (p.avoid ?? []).length > 0);
+    setRelFilter('');
   };
 
   const cancel = () => {
@@ -261,13 +312,16 @@ export default function Roster({
       avoid: [],
       number: '',
     });
+    setRelOpen(false);
+    setRelFilter('');
   };
 
-  const remove = (p: Player) => {
-    if (confirm(`Remove ${p.name} from the roster?`)) {
-      onChange(players.filter((x) => x.id !== p.id));
-      if (editingId === p.id) cancel();
-    }
+  const remove = (p: Player) => setDialog({ kind: 'remove-confirm', player: p });
+
+  const confirmRemove = (p: Player) => {
+    onChange(players.filter((x) => x.id !== p.id));
+    if (editingId === p.id) cancel();
+    setDialog(null);
   };
 
   // a player can't be in both lists — adding to one removes from the other
@@ -295,6 +349,19 @@ export default function Roster({
 
   const sorted = [...players].sort((a, b) => a.name.localeCompare(b.name, 'he'));
   const byId = new Map(players.map((p) => [p.id, p]));
+
+  // Shared by the chemistry and avoid chip clouds below — one filter, one
+  // eligible-players list, so the two stay in sync rather than each
+  // recomputing its own view of "everyone but the player being edited".
+  const eligibleForRelationships = sorted.filter((p) => p.id !== editingId);
+  const relQuery = relFilter.trim().toLowerCase();
+  const filteredForRelationships = relQuery
+    ? eligibleForRelationships.filter(
+        (p) =>
+          p.name.toLowerCase().includes(relQuery) ||
+          (p.aliases ?? []).some((a) => a.toLowerCase().includes(relQuery)),
+      )
+    : eligibleForRelationships;
 
   // Rendered either up top (adding a new player, nothing to anchor to yet)
   // or inline in place of the player's own row (editing one) — so editing
@@ -437,62 +504,89 @@ export default function Roster({
         )}
       </div>
 
-      {players.filter((p) => p.id !== editingId).length > 0 && (
-        <>
-          <div>
-            <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-amber-900/60">
-              🤝 Plays well with (chemistry)
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              {sorted
-                .filter((p) => p.id !== editingId)
-                .map((p) => (
-                  <button
-                    key={p.id}
-                    onClick={() => toggleChem(p.id)}
-                    className={`rounded-full border px-3 py-2 text-sm transition-colors ${
-                      draft.chemistry.includes(p.id)
-                        ? 'border-pink-500 bg-pink-500/15 text-pink-700'
-                        : 'border-amber-900/25 bg-white text-amber-900/70 hover:border-pink-500/60'
-                    }`}
-                  >
-                    <Name>{p.name}</Name>
-                  </button>
-                ))}
-            </div>
-          </div>
+      {eligibleForRelationships.length > 0 && (
+        <div className="rounded-lg border border-amber-900/15 bg-white/60 px-3 py-2.5">
+          <FoldHeader
+            title={`🤝↔️ Relationships${
+              draft.chemistry.length + draft.avoid.length > 0
+                ? ` (${draft.chemistry.length + draft.avoid.length})`
+                : ''
+            }`}
+            open={relOpen}
+            onToggle={() => setRelOpen(!relOpen)}
+            className="text-amber-900"
+          />
+          {relOpen && (
+            <div className="mt-3 space-y-4">
+              {eligibleForRelationships.length > 8 && (
+                <input
+                  dir="auto"
+                  value={relFilter}
+                  onChange={(e) => setRelFilter(e.target.value)}
+                  placeholder="Filter by name…"
+                  aria-label="Filter players for chemistry and avoid"
+                  className="w-full rounded-lg border border-amber-900/25 bg-white px-3 py-1.5 text-sm text-amber-950 outline-none focus:border-orange-500"
+                />
+              )}
 
-          {/* deliberately admin-only: who'd rather not be paired up is
-              sensitive, so it isn't shown or editable in normal mode */}
-          {isAdmin && (
-            <div>
-              <div className="text-xs font-semibold uppercase tracking-wide text-amber-900/60">
-                ↔️ Prefer on separate teams
-              </div>
-              <p className="mb-1.5 text-xs text-amber-900/50">
-                A nudge, not a rule — the balancer splits them when it can, but won't
-                wreck the balance to do it. Only visible in admin mode.
-              </p>
-              <div className="flex flex-wrap gap-1.5">
-                {sorted
-                  .filter((p) => p.id !== editingId)
-                  .map((p) => (
+              <div>
+                <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-amber-900/60">
+                  🤝 Plays well with (chemistry)
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {filteredForRelationships.map((p) => (
                     <button
                       key={p.id}
-                      onClick={() => toggleAvoid(p.id)}
+                      onClick={() => toggleChem(p.id)}
                       className={`rounded-full border px-3 py-2 text-sm transition-colors ${
-                        draft.avoid.includes(p.id)
-                          ? 'border-sky-600 bg-sky-600/15 text-sky-800'
-                          : 'border-amber-900/25 bg-white text-amber-900/70 hover:border-sky-600/60'
+                        draft.chemistry.includes(p.id)
+                          ? 'border-pink-500 bg-pink-500/15 text-pink-700'
+                          : 'border-amber-900/25 bg-white text-amber-900/70 hover:border-pink-500/60'
                       }`}
                     >
                       <Name>{p.name}</Name>
                     </button>
                   ))}
+                  {filteredForRelationships.length === 0 && (
+                    <p className="text-xs text-amber-900/50">No players match “{relFilter}”.</p>
+                  )}
+                </div>
               </div>
+
+              {/* deliberately admin-only: who'd rather not be paired up is
+                  sensitive, so it isn't shown or editable in normal mode */}
+              {isAdmin && (
+                <div>
+                  <div className="text-xs font-semibold uppercase tracking-wide text-amber-900/60">
+                    ↔️ Prefer on separate teams
+                  </div>
+                  <p className="mb-1.5 text-xs text-amber-900/50">
+                    A nudge, not a rule — the balancer splits them when it can, but won't
+                    wreck the balance to do it. Only visible in admin mode.
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {filteredForRelationships.map((p) => (
+                      <button
+                        key={p.id}
+                        onClick={() => toggleAvoid(p.id)}
+                        className={`rounded-full border px-3 py-2 text-sm transition-colors ${
+                          draft.avoid.includes(p.id)
+                            ? 'border-sky-600 bg-sky-600/15 text-sky-800'
+                            : 'border-amber-900/25 bg-white text-amber-900/70 hover:border-sky-600/60'
+                        }`}
+                      >
+                        <Name>{p.name}</Name>
+                      </button>
+                    ))}
+                    {filteredForRelationships.length === 0 && (
+                      <p className="text-xs text-amber-900/50">No players match “{relFilter}”.</p>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           )}
-        </>
+        </div>
       )}
 
       {/* sticky on mobile so Save stays reachable without scrolling back
@@ -731,6 +825,37 @@ export default function Roster({
             startEdit(open);
           }}
           onClose={() => setOpenId(null)}
+        />
+      )}
+
+      {dialog?.kind === 'remove-confirm' && (
+        <ConfirmDialog
+          title="Remove player?"
+          body={`This removes ${dialog.player.name} from the permanent squad.\nYou can always add them back later.`}
+          confirmLabel="Remove"
+          tone="danger"
+          onConfirm={() => confirmRemove(dialog.player)}
+          onClose={() => setDialog(null)}
+        />
+      )}
+      {dialog?.kind === 'publish-confirm' && (
+        <ConfirmDialog
+          title="Publish without confirming private lists?"
+          body={
+            "Publishing now would replace the chemistry and keep-apart lists with whatever is on this device — possibly nothing.\nReload and unlock admin again first if you want them kept."
+          }
+          confirmLabel="Publish anyway"
+          tone="danger"
+          onConfirm={doPublish}
+          onClose={() => setDialog(null)}
+        />
+      )}
+      {dialog?.kind === 'publish-result' && (
+        <ConfirmDialog
+          title={dialog.title}
+          body={dialog.body}
+          tone={dialog.tone}
+          onClose={() => setDialog(null)}
         />
       )}
     </div>

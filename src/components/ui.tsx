@@ -1,4 +1,6 @@
+import { useEffect } from 'react';
 import type { RoleBadge, TeamColor } from '../types';
+import { useScrollLock } from '../scrollLock';
 
 // Gold, silver, bronze — for a team's place on a night and, in exactly the
 // same colours, for a rank on a club podium (§2.36). Shared here because they
@@ -78,6 +80,94 @@ export function Name({ children, className = '' }: { children: string; className
     <bdi dir="auto" className={className}>
       {children}
     </bdi>
+  );
+}
+
+const CONFIRM_TONE = {
+  default: 'bg-orange-600',
+  danger: 'bg-red-700',
+  success: 'bg-green-700',
+} as const;
+
+/**
+ * Themed replacement for `alert()`/`confirm()` (§2.41) — native dialogs
+ * can't render Hebrew names with correct bidi and break the app's own visual
+ * language right at its highest-stakes moments (remove, publish). Same
+ * `fixed inset-0` / amber-950 backdrop / rounded-2xl card as
+ * `StartFixtureDialog`, so every full-screen confirmation in the app reads as
+ * one family.
+ *
+ * Two shapes in one component: pass `onConfirm` for a yes/no gate (renders a
+ * primary action plus Cancel); omit it for a single-button acknowledgement
+ * (an `alert()` replacement, closed by that one button, Escape, or the
+ * backdrop).
+ */
+export function ConfirmDialog({
+  title,
+  body,
+  onClose,
+  confirmLabel,
+  onConfirm,
+  tone = 'default',
+}: {
+  title: string;
+  body: string;
+  onClose: () => void;
+  confirmLabel?: string;
+  onConfirm?: () => void;
+  tone?: keyof typeof CONFIRM_TONE;
+}) {
+  useScrollLock();
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  const primaryCls = `rounded-xl px-4 py-2.5 text-sm font-bold text-amber-50 shadow-sm transition-transform hover:scale-[1.02] ${CONFIRM_TONE[tone]}`;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 grid place-items-center bg-amber-950/40 p-4"
+      onClick={onClose}
+    >
+      <div
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="confirm-dialog-title"
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-md rounded-2xl border border-amber-900/20 bg-[#fffdf4] p-5 shadow-xl"
+      >
+        <h3 id="confirm-dialog-title" dir="auto" className="text-lg font-black text-amber-950">
+          {title}
+        </h3>
+        {body.split('\n').filter(Boolean).map((line, i) => (
+          <p key={i} dir="auto" className="mt-2 text-sm text-amber-900/70">
+            {line}
+          </p>
+        ))}
+        {onConfirm ? (
+          <div className="mt-4 flex flex-col gap-2 sm:flex-row-reverse">
+            <button onClick={onConfirm} className={`flex-1 ${primaryCls}`}>
+              {confirmLabel}
+            </button>
+            <button
+              onClick={onClose}
+              className="flex-1 rounded-xl border border-amber-900/25 px-4 py-2 text-sm font-bold text-amber-900 hover:border-orange-500"
+            >
+              Cancel
+            </button>
+          </div>
+        ) : (
+          <div className="mt-4">
+            <button onClick={onClose} className={`w-full ${primaryCls}`}>
+              {confirmLabel ?? 'OK'}
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
