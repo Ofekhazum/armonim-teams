@@ -5,3 +5,6 @@ dist
 worker/.dev.vars
 .wrangler
 .impeccable/
+
+# Playwright MCP session artifacts (snapshots, console logs) — local only
+.playwright-mcp/

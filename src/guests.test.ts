@@ -110,6 +110,28 @@ describe('mergeGuestIdentities', () => {
     expect(mergeGuestIdentities(history, roster('r1'))[1].mvpId).toBe('g1');
   });
 
+  it('follows the vote sheet to the merged id too', () => {
+    const history = [
+      night(['g1'], ['r1'], { g1: 'זרקא', r1: 'ניב' }),
+      night(['g2'], ['r1'], { g2: 'זרקא', r1: 'ניב' }, { mvpVotes: { g2: 3, r1: 1 } }),
+    ];
+    expect(mergeGuestIdentities(history, roster('r1'))[1].mvpVotes).toEqual({ g1: 3, r1: 1 });
+  });
+
+  it('adds the votes up when two ids collapse into one person', () => {
+    // The one field on a fixture where merging is not picking a winner. Both
+    // ids on one sheet is malformed, but a merge is exactly what creates it,
+    // and keeping only the first would delete votes that were really cast —
+    // here, quietly handing the night to ניב.
+    const history = [
+      night(['g1'], ['r1'], { g1: 'זרקא', r1: 'ניב' }),
+      night(['g1', 'g2'], ['r1'], { g1: 'זרקא', g2: 'זרקא', r1: 'ניב' }, {
+        mvpVotes: { g1: 2, g2: 2, r1: 3 },
+      }),
+    ];
+    expect(mergeGuestIdentities(history, roster('r1'))[1].mvpVotes).toEqual({ g1: 4, r1: 3 });
+  });
+
   it('never lists the same person twice on one night', () => {
     // both ids on one sheet is malformed, but it is exactly what a merge can
     // create, and a duplicate would double-count that night

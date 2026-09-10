@@ -117,11 +117,16 @@ describe('publicFixture', () => {
   });
 
   it('leaves everything else about the night alone', () => {
-    const fx = fixture({ mvpId: 'p1', note: 'over the fence' });
+    const fx = fixture({ mvpId: 'p1', mvpVotes: { p1: 3, p2: 2 }, note: 'over the fence' });
     const clean = publicFixture(fx);
     expect(clean.wins).toEqual(fx.wins);
     expect(clean.teams).toEqual(fx.teams);
     expect(clean.mvpId).toBe('p1');
+    // The vote is the room's own and rides out with the pick it produced
+    // (§2.46) — unlike the rating, which is the organiser's private read and is
+    // the reason this function exists. A viewer's device needs it to show the
+    // tally beside a mark.
+    expect(clean.mvpVotes).toEqual({ p1: 3, p2: 2 });
     expect(clean.players.map((p) => p.name)).toEqual(fx.players.map((p) => p.name));
   });
 
@@ -153,6 +158,31 @@ describe('isValidFixtures', () => {
 
   it('rejects an mvpId that is not a string', () => {
     expect(isValidFixtures([fixture({ mvpId: 7 })])).toBe(false);
+  });
+
+  it('lets the night’s vote sheet through, absent or filled in', () => {
+    // §2.46. Absent is the shape of every night filed before the sheet
+    // existed, so rejecting it would bounce an entire season's publish.
+    expect(isValidFixtures([fixture()])).toBe(true);
+    expect(isValidFixtures([fixture({ mvpVotes: {} })])).toBe(true);
+    expect(isValidFixtures([fixture({ mvpVotes: { p1: 3, p2: 2 } })])).toBe(true);
+  });
+
+  it('refuses a vote count that is not a whole, positive number', () => {
+    // `grades.ts` divides by the total to get a share. A negative or a
+    // fraction arriving here would make that something other than a share,
+    // and it would do it silently, inside somebody's mark out of ten.
+    expect(isValidFixtures([fixture({ mvpVotes: { p1: -1 } })])).toBe(false);
+    expect(isValidFixtures([fixture({ mvpVotes: { p1: 1.5 } })])).toBe(false);
+    expect(isValidFixtures([fixture({ mvpVotes: { p1: 'three' } })])).toBe(false);
+    expect(isValidFixtures([fixture({ mvpVotes: { p1: Infinity } })])).toBe(false);
+    expect(isValidFixtures([fixture({ mvpVotes: { p1: 100000 } })])).toBe(false);
+  });
+
+  it('refuses a vote sheet that is not a dictionary of ids', () => {
+    expect(isValidFixtures([fixture({ mvpVotes: [1, 2] })])).toBe(false);
+    expect(isValidFixtures([fixture({ mvpVotes: 'p1' })])).toBe(false);
+    expect(isValidFixtures([fixture({ mvpVotes: { ['x'.repeat(200)]: 1 } })])).toBe(false);
   });
 
   it('lets the organiser’s note through, and refuses a wall of text', () => {

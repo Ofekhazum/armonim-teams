@@ -106,6 +106,9 @@ const MAX_NOTE_CHARS = 400;
 // left roomier because a person rewriting a joke they did not like should not
 // be fighting a limit set for a model that ignored its brief.
 const MAX_GRADE_LINE_CHARS = 400;
+// One player's vote count on a night (§2.46). Generous against the app's own
+// `VOTES_MAX` of 99, for the same reason `MAX_NOTE_CHARS` is.
+const MAX_VOTES = 999;
 const TEAM_COLORS = ['black', 'white', 'blue'];
 
 // Whatever a publish stores here is served back to every device in the club,
@@ -328,6 +331,27 @@ export function isValidMatchLog(log) {
   });
 }
 
+// The night's player-of-the-night vote (§2.46): id → how many votes.
+//
+// Bounded on the count as well as the shape, and generously against the app's
+// own `VOTES_MAX` for the same reason `MAX_NOTE_CHARS` is generous — a record
+// filed by an older or newer build should never be the thing that bounces an
+// entire season's publish. What it will not accept is a negative, a fraction or
+// a non-finite count: those are not a vote, and one of them landing here would
+// make `votes ÷ votes cast` in `grades.ts` something other than a share.
+export function isValidVotes(votes) {
+  if (!votes || typeof votes !== 'object' || Array.isArray(votes)) return false;
+  const ids = Object.keys(votes);
+  if (ids.length > MAX_FIXTURE_PLAYERS) return false;
+  return ids.every(
+    (id) =>
+      isStr(id, MAX_ID_CHARS) &&
+      Number.isInteger(votes[id]) &&
+      votes[id] >= 0 &&
+      votes[id] <= MAX_VOTES,
+  );
+}
+
 // A set of grade lines being stored rather than generated — an organiser saving
 // what they just read, or an edit of one line that landed badly (§2.39).
 //
@@ -380,6 +404,11 @@ export function isValidFixtures(fixtures) {
     if (!fx.wins || typeof fx.wins !== 'object') return false;
     if (!TEAM_COLORS.every((c) => Number.isFinite(fx.wins[c]))) return false;
     if (fx.mvpId !== undefined && !isStr(fx.mvpId, MAX_ID_CHARS)) return false;
+    // The night's vote (§2.46). An object of id → count, bounded on both the
+    // number of names and the size of a count so a malformed record cannot
+    // arrive as a dictionary with ten thousand keys in it. Absent on every
+    // night filed before the sheet existed, which is why undefined passes.
+    if (fx.mvpVotes !== undefined && !isValidVotes(fx.mvpVotes)) return false;
     // The organiser's note (§2.27). Never rendered anywhere — it exists to be
     // handed to the reporter — but it rides in the fixture record, so it has
     // to be allowed through here or publishing a night that has one would fail

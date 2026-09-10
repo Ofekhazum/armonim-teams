@@ -99,6 +99,28 @@ export function guestIdentities(
 }
 
 /**
+ * The vote sheet, re-keyed onto canonical ids (§2.46).
+ *
+ * Votes **add** where two ids collapse into one, which is the one place this
+ * merge is not a straight rename. Every other field on a fixture holds at most
+ * one value per person — a name, a shirt, the pick — so merging is picking a
+ * winner. A tally is a count, and the same person's counts under two ids are
+ * two parts of one number: keeping only the first would quietly delete votes
+ * that were genuinely cast, and change who won the night.
+ */
+function remapVotes(
+  votes: Record<string, number>,
+  idOf: (id: string) => string,
+): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const [id, n] of Object.entries(votes)) {
+    const key = idOf(id);
+    out[key] = (out[key] ?? 0) + n;
+  }
+  return out;
+}
+
+/**
  * The same history with repeat guests counted as one person.
  *
  * Returns the original array when nothing needed merging, so the common case
@@ -141,6 +163,7 @@ export function mergeGuestIdentities(
         blue: fx.teams.blue.map(idOf),
       },
       ...(fx.mvpId ? { mvpId: idOf(fx.mvpId) } : {}),
+      ...(fx.mvpVotes ? { mvpVotes: remapVotes(fx.mvpVotes, idOf) } : {}),
     };
   });
 }

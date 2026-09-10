@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { mvpCandidates, mvpCounts, preserveMvp, winningTeams } from './mvp';
+import {
+  mvpCandidates,
+  mvpCounts,
+  mvpFromVotes,
+  preserveMvp,
+  totalVotes,
+  voteLeaders,
+  voteTally,
+  winningTeams,
+} from './mvp';
 import type { FixtureRecord } from './types';
 
 let seq = 0;
@@ -136,5 +145,103 @@ describe('preserveMvp', () => {
   it('lets an incoming pick win, so History can correct one', () => {
     const filed = night('a', ['a', 'b']);
     expect(preserveMvp(filed, { ...filed, mvpId: 'b' }).mvpId).toBe('b');
+  });
+
+  it('keeps the vote sheet too, which the fixture page also knows nothing about', () => {
+    const filed = { ...night('a', ['a', 'b']), mvpVotes: { a: 3, b: 2 } };
+    const resaved = { ...filed, mvpId: undefined, mvpVotes: undefined };
+    expect(preserveMvp(filed, resaved).mvpVotes).toEqual({ a: 3, b: 2 });
+  });
+
+  it('lets an incoming sheet win, so History can correct a tally', () => {
+    const filed = { ...night('a', ['a', 'b']), mvpVotes: { a: 3, b: 2 } };
+    const corrected = { ...filed, mvpVotes: { a: 3, b: 4 }, mvpId: 'b' };
+    expect(preserveMvp(filed, corrected).mvpVotes).toEqual({ a: 3, b: 4 });
+  });
+});
+
+// --- The vote (§2.46) ------------------------------------------------------
+
+describe('totalVotes', () => {
+  it('adds up what was cast', () => {
+    expect(totalVotes({ a: 3, b: 2, c: 1 })).toBe(6);
+  });
+
+  it('is zero for a night with no sheet, which is how grades.ts spots one', () => {
+    expect(totalVotes(undefined)).toBe(0);
+    expect(totalVotes({})).toBe(0);
+  });
+
+  it('ignores a stray non-positive count rather than subtracting it', () => {
+    // nothing should be able to write one, but a total that could go *down*
+    // would make `votes / votesCast` something other than a share
+    expect(totalVotes({ a: 3, b: -2 })).toBe(3);
+  });
+});
+
+describe('voteTally', () => {
+  const sheet = (votes: Record<string, number>): FixtureRecord => ({
+    ...night('a', ['a', 'b', 'c']),
+    mvpVotes: votes,
+  });
+
+  it('ranks the sheet most votes first, with the names the night recorded', () => {
+    expect(voteTally(sheet({ a: 2, b: 5, c: 1 }))).toEqual([
+      { id: 'b', name: 'b', votes: 5 },
+      { id: 'a', name: 'a', votes: 2 },
+      { id: 'c', name: 'c', votes: 1 },
+    ]);
+  });
+
+  it('leaves out anyone nobody voted for', () => {
+    expect(voteTally(sheet({ a: 3, b: 0 })).map((r) => r.id)).toEqual(['a']);
+  });
+
+  it('is empty on a night with no sheet', () => {
+    expect(voteTally(night('a', ['a', 'b']))).toEqual([]);
+  });
+});
+
+describe('voteLeaders', () => {
+  it('names the one player on top', () => {
+    expect(voteLeaders({ a: 4, b: 2 })).toEqual(['a']);
+  });
+
+  it('names everyone level at the top rather than picking one', () => {
+    expect(voteLeaders({ a: 3, b: 3, c: 1 }).sort()).toEqual(['a', 'b']);
+  });
+
+  it('is empty when nothing was cast', () => {
+    expect(voteLeaders(undefined)).toEqual([]);
+    expect(voteLeaders({})).toEqual([]);
+    expect(voteLeaders({ a: 0 })).toEqual([]);
+  });
+});
+
+describe('mvpFromVotes', () => {
+  it('gives it to whoever the room named most, which is the whole feature', () => {
+    expect(mvpFromVotes({ a: 3, b: 2 }, null)).toBe('a');
+  });
+
+  it('moves the pick when a correction changes who leads', () => {
+    expect(mvpFromVotes({ a: 3, b: 4 }, 'a')).toBe('b');
+  });
+
+  it('picks nobody on a level sheet rather than crowning a sort order', () => {
+    // the app must not invent the one judgement it exists to record
+    expect(mvpFromVotes({ a: 3, b: 3 }, null)).toBeNull();
+  });
+
+  it('leaves a standing pick alone when a correction levels the sheet under them', () => {
+    expect(mvpFromVotes({ a: 3, b: 3 }, 'a')).toBe('a');
+  });
+
+  it('drops a standing pick who is no longer among the tied leaders', () => {
+    expect(mvpFromVotes({ a: 3, b: 3 }, 'c')).toBeNull();
+  });
+
+  it('keeps a pick made before the sheet existed, since no vote contradicts it', () => {
+    expect(mvpFromVotes(undefined, 'a')).toBe('a');
+    expect(mvpFromVotes({}, 'a')).toBe('a');
   });
 });

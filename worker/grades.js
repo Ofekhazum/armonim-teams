@@ -92,11 +92,24 @@ export async function readAllMarks(env) {
  * Everything here is a count. There is no rating anywhere in it, and there is a
  * test asserting that stays true.
  */
-function describe(p) {
+function describe(p, votesCast) {
   const bits = [`ציון ${p.grade}`, he(p.team), `הקבוצה לקחה ${p.teamWins} משחקים`];
   if (p.place === 1 && p.wonNight) bits.push('לקחו את המחזור');
   if (p.place === 3) bits.push('סיימו אחרונים');
-  if (p.isMvp) bits.push('נבחר לשחקן המחזור');
+  // The vote, where there was one (§2.46). Two different facts share this
+  // slot: winning the vote, and polling well without winning it. The second is
+  // new — before the sheet, a player two votes short of the pick was recorded
+  // as having had an ordinary night, and the line written about them said so.
+  const tallied = typeof votesCast === 'number' && votesCast > 0 && typeof p.votes === 'number';
+  if (p.isMvp) {
+    bits.push(
+      tallied
+        ? `נבחר לשחקן המחזור עם ${p.votes} מתוך ${votesCast} קולות`
+        : 'נבחר לשחקן המחזור',
+    );
+  } else if (tallied && p.votes > 0) {
+    bits.push(`קיבל ${p.votes} מתוך ${votesCast} קולות לשחקן המחזור, אבל לא נבחר`);
+  }
   if (p.nightsBefore === 0) bits.push('מחזור ראשון במועדון');
   else {
     if (p.trend === 'hot') bits.push('בכושר עולה בחודש האחרון');
@@ -179,7 +192,7 @@ This belongs to ${d.aKey} and ${d.bKey} and to nobody else on the sheet. Both of
  * the model is not allowed to make up.
  */
 export function buildGradesPrompt(facts) {
-  const players = facts.players.map(describe).join('\n');
+  const players = facts.players.map((p) => describe(p, facts.votesCast)).join('\n');
   const winners = facts.winners?.length
     ? facts.winners.map(he).join(' and ')
     : 'nobody — the top was level';
@@ -195,6 +208,8 @@ THE SHIRTS ARE DRAWN FRESH EVERY WEEK, AND NO LINE MAY POINT PAST TONIGHT. A col
 A player's own luck in a colour is different, and is fair game, because it is about the person: somebody who keeps winning whenever they are handed a white shirt is cursed or blessed, and that follows them into whatever they wear next.
 
 A RECENT PLAYER-OF-THE-NIGHT IS NOT IN FREE FALL. Being picked player of the night is the one genuinely personal honour this club hands out, and two ordinary nights after it do not cancel it. If a player's line says they were picked recently, that outranks a cold spell sitting next to it: you may absolutely rib them for the nights since — "one good night and he has been dining out on it ever since" is exactly right — but you may NOT write them off as declining, finished, in a slump or in free fall. The joke is the gap between the badge and the last two weeks, not a career obituary for somebody the room voted best on the pitch a fortnight ago.
+
+THE VOTE IS A MARGIN, AND THE MARGIN IS THE JOKE. Some nights list how many votes a player got out of how many were cast. Read both numbers. Winning it 5 of 5 and shading it 3 of 5 are opposite nights wearing the same badge: one is a coronation and you may lay the flattery on as thick as you like, the other is a player who got in by one vote and can be teased for exactly that — "won it by a single hand going up" is the sentence. A player who polled well and LOST is the genuinely new figure here, and their line will say so: they are not a footnote and they are not a loser, they are the man the room nearly chose, and the joke is the near-miss — robbed, one short, the eternal runner-up — never a dig about not being good enough. Nobody's line may claim they were picked when it does not say they were. If a line carries no votes at all, that night was never counted: say NOTHING about voting, and do not describe anyone as unanimous, robbed, or overlooked.
 
 WHAT SOMEBODY ARRIVED WITH IS NOT WHAT HAPPENED TONIGHT. Some lines below say what a player brought into the evening — a winning run, a drought, a rising or falling month. Those describe the road in, and the line you write has to square them with how tonight actually went. A run that "ended tonight" is not a run to congratulate somebody on; it is the thing that just got taken away from them, and that is the joke. A drought that finally broke is not still a drought. Read the whole of a player's line before you decide what tone to take, because the last clause on it often reverses the first.
 
@@ -254,7 +269,9 @@ Each sentence: ONE sentence in Hebrew. One. Not two, not a sentence plus a fragm
 THE NIGHT — ${facts.date}
 Matches played: ${facts.matches}
 Winner of the night: ${winners}
-Player of the night: ${facts.mvp ?? 'not chosen'}
+Player of the night: ${facts.mvp ?? 'not chosen'}${
+    facts.votesCast > 0 ? ` (the room cast ${facts.votesCast} votes)` : ''
+  }
 
 THE PLAYERS, AND WHY THEY GOT WHAT THEY GOT
 ${players}
@@ -299,6 +316,10 @@ export function isValidGradeFacts(facts) {
   if (!Array.isArray(facts.winners) || facts.winners.length > 3) return false;
   if (!facts.winners.every((c) => TEAMS.includes(c))) return false;
   if (facts.mvp !== null && !isStr(facts.mvp, 80)) return false;
+  // Null on any night nobody tallied, which is every night before §2.46.
+  if (facts.votesCast !== null && facts.votesCast !== undefined && !isNum(facts.votesCast)) {
+    return false;
+  }
   if (facts.said !== null && facts.said !== undefined && !isStr(facts.said, 400)) return false;
   if (!Array.isArray(facts.milestones) || facts.milestones.length > 30) return false;
   if (!facts.milestones.every((s) => isStr(s, 300))) return false;
@@ -317,6 +338,7 @@ export function isValidGradeFacts(facts) {
     if (![p.teamWins, p.nightsBefore, p.runBefore, p.droughtBefore].every(isNum)) return false;
     if (![1, 2, 3].includes(p.place)) return false;
     if (typeof p.wonNight !== 'boolean' || typeof p.isMvp !== 'boolean') return false;
+    if (p.votes !== null && p.votes !== undefined && !isNum(p.votes)) return false;
     if (p.trend !== null && !TRENDS.includes(p.trend)) return false;
   }
 
