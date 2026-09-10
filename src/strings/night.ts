@@ -150,4 +150,26 @@ export const night = {
     en: 'That is a dozen reports in an hour. The reporter has gone for a lie down — try again later.',
   },
   'np.report.err.unreachable': { he: 'לא הצלחנו להגיע לכתב.', en: 'Could not reach the reporter.' },
+
+  // --- Night headlines (nightStory.ts) -------------------------------------
+  //
+  // Four per flavour, picked by the fixture's own id so a night reads the same
+  // every time and differently from the one before it. Both languages keep
+  // four, because the pick is an index into the bank.
+  'story.dictatorship.1': { he: 'דיקטטורה', en: 'A dictatorship' },
+  'story.dictatorship.2': { he: 'קבוצה אחת, ערב אחד', en: 'One team, one evening' },
+  'story.dictatorship.3': { he: 'מישהו השתלט', en: 'Somebody took over' },
+  'story.dictatorship.4': { he: 'שלטון יחיד', en: 'A reign' },
+  'story.chaos.1': { he: 'כאוס מוחלט', en: 'Complete chaos' },
+  'story.chaos.2': { he: 'אף אחד לא הצליח להחזיק את המגרש', en: 'Nobody could hold the pitch' },
+  'story.chaos.3': { he: 'חילופים בכל משחק', en: 'All change, every match' },
+  'story.chaos.4': { he: 'אנרכיה', en: 'Anarchy' },
+  'story.tugOfWar.1': { he: 'משיכת חבל', en: 'A tug of war' },
+  'story.tugOfWar.2': { he: 'צמוד עד הסוף', en: 'Nothing in it' },
+  'story.tugOfWar.3': { he: 'החליפו הובלה כל הערב', en: 'Traded all night' },
+  'story.tugOfWar.4': { he: 'אחד מול השני', en: 'Toe to toe' },
+  'story.ordinary.1': { he: 'עוד יום שלישי רגיל', en: 'An ordinary Tuesday' },
+  'story.ordinary.2': { he: 'ערב של כדורגל', en: 'A night of football' },
+  'story.ordinary.3': { he: 'עסקים כרגיל', en: 'Business as usual' },
+  'story.ordinary.4': { he: 'פשוט כדורגל', en: 'Just football' },
 } as const satisfies Record<string, Entry>;

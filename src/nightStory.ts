@@ -20,6 +20,7 @@
 import type { FixtureRecord, MatchLogEntry, TeamColor } from './types';
 import { TEAM_COLORS } from './balancer';
 import { loserOf, pointsFor } from './matchLog';
+import type { Key } from './i18n';
 
 // --- Thresholds --------------------------------------------------------------
 //
@@ -88,7 +89,14 @@ export interface NightStory {
   teams: Record<TeamColor, TeamNight>;
   longest: { team: TeamColor; length: number } | null;
   flavour: Flavour;
-  headline: string;
+  /**
+   * Which headline, not the headline itself.
+   *
+   * `NightPage` memoises the whole story on the fixture, so a resolved string
+   * would still be in last language after a switch. The key survives that: the
+   * view translates it as it renders.
+   */
+  headlineKey: Key;
   facts: NightFact[];
 }
 
@@ -96,11 +104,16 @@ export interface NightStory {
 // stable for a given night and different from the night before it. The cheapest
 // possible defence against a page that reads identically every week; the real
 // one is that the numbers underneath differ.
-const HEADLINES: Record<Flavour, string[]> = {
-  dictatorship: ['A dictatorship', 'One team, one evening', 'Somebody took over', 'A reign'],
-  chaos: ['Complete chaos', 'Nobody could hold the pitch', 'All change, every match', 'Anarchy'],
-  'tug-of-war': ['A tug of war', 'Nothing in it', 'Traded all night', 'Toe to toe'],
-  ordinary: ['An ordinary Tuesday', 'A night of football', 'Business as usual', 'Just football'],
+const HEADLINES: Record<Flavour, Key[]> = {
+  dictatorship: [
+    'story.dictatorship.1',
+    'story.dictatorship.2',
+    'story.dictatorship.3',
+    'story.dictatorship.4',
+  ],
+  chaos: ['story.chaos.1', 'story.chaos.2', 'story.chaos.3', 'story.chaos.4'],
+  'tug-of-war': ['story.tugOfWar.1', 'story.tugOfWar.2', 'story.tugOfWar.3', 'story.tugOfWar.4'],
+  ordinary: ['story.ordinary.1', 'story.ordinary.2', 'story.ordinary.3', 'story.ordinary.4'],
 };
 
 const seedOf = (id: string): number => {
@@ -254,7 +267,7 @@ export function nightStory(fx: FixtureRecord): NightStory | null {
     teams,
     longest: longestTeam ? { team: longestTeam, length: longestLen } : null,
     flavour,
-    headline: bank[seedOf(fx.id) % bank.length],
+    headlineKey: bank[seedOf(fx.id) % bank.length],
     facts: detect(log),
   };
 }

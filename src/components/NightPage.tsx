@@ -269,7 +269,7 @@ export default function NightPage({
             {fixture.date}
           </div>
           <h2 className="text-2xl font-black tracking-tight text-amber-950">
-            {story ? story.headline : t('np.headline')}
+            {story ? t(story.headlineKey) : t('np.headline')}
           </h2>
           <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
             {winners.length > 0 && (

@@ -627,7 +627,7 @@ export default function History({
                           in the first cut was the card admitting it had nothing
                           else to say, when the headline could simply be bigger. */}
                       <div className="mt-1.5 line-clamp-4 flex-1 text-center text-base font-black leading-[1.15] text-amber-950">
-                        {summary?.headline ??
+                        {(summary && t(summary.headlineKey)) ??
                           (hasResult(fx.wins)
                             ? t('hist.shelf.onTheBooks')
                             : t('hist.shelf.noResultRecorded'))}

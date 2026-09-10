@@ -128,13 +128,13 @@ describe('the flavour of a night', () => {
     const a = nightStory(night('AWWWW', { id: 'aaa' }))!;
     const b = nightStory(night('AWWWW', { id: 'zzz' }))!;
     expect(a.flavour).toBe(b.flavour);
-    expect(a.headline).not.toBe(b.headline);
+    expect(a.headlineKey).not.toBe(b.headlineKey);
   });
 
   it('gives the same night the same headline every time it is read', () => {
     const once = nightStory(night('ANNN'))!;
     const twice = nightStory(night('ANNN'))!;
-    expect(once.headline).toBe(twice.headline);
+    expect(once.headlineKey).toBe(twice.headlineKey);
   });
 });
 
