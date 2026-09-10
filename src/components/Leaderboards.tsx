@@ -1,5 +1,6 @@
 import type { Leaderboard } from '../leaderboards';
 import { MEDAL, Name, fmtWins } from './ui';
+import { t } from '../i18n';
 
 // The club's podiums (§2.36). The ranking, the tie rule and which counts are
 // eligible all live in `leaderboards.ts`; this file only draws what it is
@@ -15,13 +16,11 @@ import { MEDAL, Name, fmtWins } from './ui';
 // of two genuinely level players to print and one to hide, and there is no
 // honest rule for choosing.
 
-const plural = (n: number, unit: string) => (n === 1 ? unit : `${unit}s`);
-
 function Board({ board }: { board: Leaderboard }) {
   return (
     <section className="rounded-2xl border border-amber-900/10 bg-white/70 p-3.5 shadow-sm ring-1 ring-white/60">
       <h4 className="mb-2 text-[11px] font-black uppercase tracking-wide text-amber-900/60">
-        {board.icon} {board.title}
+        {board.icon} {t(board.titleKey)}
       </h4>
       <ol className="space-y-1.5">
         {board.entries.map((e) => (
@@ -42,7 +41,7 @@ function Board({ board }: { board: Leaderboard }) {
             <span className="shrink-0 font-mono text-sm font-black tabular-nums text-amber-950">
               {board.half ? fmtWins(e.value) : e.value}
               <span className="ms-1 font-sans text-[10px] font-semibold text-amber-900/45">
-                {plural(e.value, board.unit)}
+                {t(board.unitKey, { n: e.value })}
               </span>
             </span>
           </li>

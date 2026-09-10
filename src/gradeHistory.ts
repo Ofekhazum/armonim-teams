@@ -8,6 +8,7 @@
 
 import type { FixtureRecord, TeamColor } from './types';
 import { profileNights, type Place } from './playerProfile';
+import type { Key } from './i18n';
 
 /** `{ fixtureId: { playerId: grade } }` — what `GET /grades/all` returns. */
 export type AllMarks = Record<string, Record<string, number>>;
@@ -49,12 +50,12 @@ export type GradeRange = '1M' | '3M' | '6M' | '1Y' | 'ALL';
  * anybody will do arithmetic against, and a 30-day window that is always the
  * same width beats one that silently changes size in February.
  */
-export const RANGES: { id: GradeRange; label: string; days: number | null }[] = [
-  { id: '1M', label: '1M', days: 30 },
-  { id: '3M', label: '3M', days: 91 },
-  { id: '6M', label: '6M', days: 182 },
-  { id: '1Y', label: '1Y', days: 365 },
-  { id: 'ALL', label: 'All', days: null },
+export const RANGES: { id: GradeRange; labelKey: Key; days: number | null }[] = [
+  { id: '1M', labelKey: 'form.range.1M', days: 30 },
+  { id: '3M', labelKey: 'form.range.3M', days: 91 },
+  { id: '6M', labelKey: 'form.range.6M', days: 182 },
+  { id: '1Y', labelKey: 'form.range.1Y', days: 365 },
+  { id: 'ALL', labelKey: 'form.range.ALL', days: null },
 ];
 
 /**

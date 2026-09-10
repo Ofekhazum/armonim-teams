@@ -11,6 +11,7 @@ import {
   type GradeRange,
 } from '../gradeHistory';
 import { fmtRating, fmtWins, MEDAL, Name, TEAM_META, teamLabel } from './ui';
+import { t } from '../i18n';
 
 // A player's recent form (§2.40), in the shape every football screen uses for
 // it: a row of coloured squares, a summary of the last few, and a table with a
@@ -88,15 +89,15 @@ export default function GradeForm({ points }: { points: GradePoint[] }) {
                   : 'text-amber-900/70 hover:text-orange-700'
             }`}
           >
-            {r.label}
+            {t(r.labelKey)}
           </button>
         ))}
       </div>
 
       {shown.length === 0 ? (
         <p className="rounded-xl bg-amber-900/[0.04] px-3 py-6 text-center text-xs text-amber-900/50">
-          No graded nights in this window.
-          {counts.ALL > 0 && ' Try a longer one.'}
+          {t('form.noneInWindow')}
+          {counts.ALL > 0 && t('form.tryLonger')}
         </p>
       ) : (
         <>
@@ -128,7 +129,7 @@ export default function GradeForm({ points }: { points: GradePoint[] }) {
                   {fmtRating(Math.round(stripMean * 100) / 100)}
                 </span>
                 <div className="mt-0.5 text-[10px] text-amber-900/45">
-                  last {strip.length} night{strip.length === 1 ? '' : 's'}
+                  {t('form.lastNights', { n: strip.length })}
                 </div>
               </div>
             )}
@@ -137,10 +138,10 @@ export default function GradeForm({ points }: { points: GradePoint[] }) {
           <table className="mt-1 w-full text-[12px]">
             <thead>
               <tr className="text-[10px] font-bold uppercase tracking-wide text-amber-900/40">
-                <th className="py-1 text-start font-bold">Date</th>
-                <th className="py-1 text-start font-bold">Night</th>
-                <th className="py-1 text-end font-bold">Wins</th>
-                <th className="py-1 text-end font-bold">Mark</th>
+                <th className="py-1 text-start font-bold">{t('form.col.date')}</th>
+                <th className="py-1 text-start font-bold">{t('form.col.night')}</th>
+                <th className="py-1 text-end font-bold">{t('form.col.wins')}</th>
+                <th className="py-1 text-end font-bold">{t('form.col.mark')}</th>
               </tr>
             </thead>
             <tbody>

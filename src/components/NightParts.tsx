@@ -1,5 +1,6 @@
 import type { Arcs } from '../playerArcs';
 import { rate } from '../playerArcs';
+import { t } from '../i18n';
 
 // When in the evening somebody's wins happen (§2.23), redrawn.
 //
@@ -34,7 +35,7 @@ import { rate } from '../playerArcs';
 // keeps every bucket closer to four matches, which is still thin but at least
 // consistently so.
 
-const LABELS = ['Beginning', 'Middle', 'End'];
+const LABEL_KEYS = ['parts.beginning', 'parts.middle', 'parts.end'] as const;
 
 // Bars are drawn against a full-height track, so a 100% part fills it. The
 // alternative — scaling to the player's best part — makes every profile use a
@@ -47,9 +48,9 @@ export default function NightParts({ arcs }: { arcs: Arcs }) {
   return (
     <div>
       <p className="mb-2.5 text-xs leading-4 text-amber-900/55">
-        How often they won, by when in the evening the match was played. The dashed line is their{' '}
-        <b className="font-bold text-amber-900/75">{pct(overall)}</b> across the whole night — a bar
-        above it is a part of the evening they win more of.
+        {t('parts.intro')}{' '}
+        <b className="font-bold text-amber-900/75">{pct(overall)}</b>{' '}
+        {t('parts.overallTail')}
       </p>
 
       <div className="relative h-24 overflow-hidden rounded-xl bg-amber-900/[0.05]">
@@ -59,7 +60,11 @@ export default function NightParts({ arcs }: { arcs: Arcs }) {
             return (
               <div
                 key={i}
-                title={`${p.won} of ${p.played} matches won in the ${LABELS[i].toLowerCase()} of the night`}
+                title={t('parts.barTitle', {
+                  won: p.won,
+                  played: p.played,
+                  part: t(LABEL_KEYS[i]),
+                })}
                 className={`flex-1 rounded-t-md ${
                   r === null
                     ? ''
@@ -102,10 +107,12 @@ export default function NightParts({ arcs }: { arcs: Arcs }) {
               {/* The evidence under the claim: a percentage off three matches
                   and one off forty look identical without it. */}
               <div className="text-[10px] font-semibold leading-tight text-amber-900/40">
-                {LABELS[i]}
+                {t(LABEL_KEYS[i])}
               </div>
               <div className="font-mono text-[10px] leading-tight text-amber-900/35">
-                {p.played ? `${p.won} of ${p.played}` : 'none played'}
+                {p.played
+                  ? t('parts.wonOf', { won: p.won, played: p.played })
+                  : t('parts.nonePlayed')}
               </div>
             </div>
           );

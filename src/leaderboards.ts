@@ -24,6 +24,7 @@
 // alphabet.
 
 import type { FixtureRecord } from './types';
+import type { Key } from './i18n';
 import { hasResult, playerStandings } from './calibration';
 import { MIN_NIGHTS_FOR_TITLES, activeWinRun, longestWinRun } from './achievements';
 import { appearances } from './milestones';
@@ -81,9 +82,16 @@ export interface Leaderboard {
   key: BoardKey;
   icon: string;
   /** What was counted, said as the count it is — never as what it proves. */
-  title: string;
-  /** The unit, for the line under each number. Singular; the UI pluralises. */
-  unit: string;
+  titleKey: Key;
+  /**
+   * The unit beside each number, as a dictionary key rather than a word.
+   *
+   * It used to be a singular noun the UI pluralised by adding an "s", which
+   * Hebrew has no equivalent of — "ערב"/"ערבים" is not a suffix. The entry
+   * behind this key carries both forms in both languages, and `t` picks by
+   * the count (§2.45).
+   */
+  unitKey: Key;
   /** Wins carry halves (§2.8); everything else is whole. */
   half: boolean;
   entries: LeaderEntry[];
@@ -150,16 +158,16 @@ export function leaderboards(history: FixtureRecord[]): Leaderboard[] {
   const board = (
     key: BoardKey,
     icon: string,
-    title: string,
-    unit: string,
+    titleKey: Key,
+    unitKey: Key,
     half: boolean,
     value: (s: (typeof standings)[number]) => number,
     min = 0,
   ): Leaderboard => ({
     key,
     icon,
-    title,
-    unit,
+    titleKey,
+    unitKey,
     half,
     entries: podium(
       standings.map((s) => ({ id: s.id, name: s.name, value: value(s) })),
@@ -170,22 +178,22 @@ export function leaderboards(history: FixtureRecord[]): Leaderboard[] {
   // The last argument is the floor — see MIN_FOR_RUN for which boards take one
   // and why the counting boards do not.
   return [
-    board('wins', '🥇', 'Most match wins', 'win', true, (s) => s.wins),
+    board('wins', '🥇', 'lb.wins', 'ui.win', true, (s) => s.wins),
     board(
       'nights-won',
       '🏅',
-      'Most nights won outright',
-      'night',
+      'lb.nightsWon',
+      'ui.night',
       false,
       (s) => of(s.id).filter((a) => a.won).length,
       MIN_FOR_RUN,
     ),
-    board('nights', '🎽', 'Most nights played', 'night', false, (s) => s.nights),
-    board('mvp', '🌟', 'Most MVP picks', 'pick', false, (s) => mvps.get(s.id) ?? 0),
-    board('win-run', '📈', 'Longest winning run', 'night', false, (s) => longestWinRun(of(s.id)), MIN_FOR_RUN),
+    board('nights', '🎽', 'lb.nights', 'ui.night', false, (s) => s.nights),
+    board('mvp', '🌟', 'lb.mvp', 'lb.unit.pick', false, (s) => mvps.get(s.id) ?? 0),
+    board('win-run', '📈', 'lb.winRun', 'ui.night', false, (s) => longestWinRun(of(s.id)), MIN_FOR_RUN),
     // The only board that is about *right now* rather than about a career, so
     // it is the only one that can empty out from one bad Thursday. That is the
     // point of it: a run nobody is on is a run nobody should be wearing.
-    board('active-run', '🔥', 'On a run right now', 'night', false, (s) => activeWinRun(of(s.id)), MIN_FOR_RUN),
+    board('active-run', '🔥', 'lb.activeRun', 'ui.night', false, (s) => activeWinRun(of(s.id)), MIN_FOR_RUN),
   ].filter((b) => b.entries.length > 0);
 }
