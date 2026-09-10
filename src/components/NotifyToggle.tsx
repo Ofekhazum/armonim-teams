@@ -6,6 +6,7 @@ import {
   notifyEnabled,
   pushSupport,
 } from '../push';
+import { t } from '../i18n';
 
 // Per-device opt-in for the match-clock announcements (§2.17). Off by default,
 // and off means off: granting a browser permission once, months ago, is not
@@ -49,9 +50,9 @@ export default function NotifyToggle({ fixtureId }: { fixtureId: string | null }
     return (
       <span
         className="text-[11px] leading-tight text-amber-900/50"
-        title="Apple only allows notifications for web apps installed to the Home Screen"
+        title={t('notify.needsInstall.title')}
       >
-        🔔 For match alerts: Share → <b>Add to Home Screen</b>, then open it from there
+        {t('notify.needsInstall')}
       </span>
     );
   }
@@ -71,12 +72,12 @@ export default function NotifyToggle({ fixtureId }: { fixtureId: string | null }
         setOn(false);
         setNote(
           result === 'denied'
-            ? 'Blocked in your browser settings'
+            ? t('notify.denied')
             : result === 'not-configured'
-              ? 'Not set up on the server yet'
+              ? t('notify.notConfigured')
               : // the browser's own words, because "try again" is advice that
                 // has never once fixed this
-                (message ?? "Couldn't turn on — try again"),
+                (message ?? t('notify.failed')),
         );
       }
     }
@@ -91,8 +92,8 @@ export default function NotifyToggle({ fixtureId }: { fixtureId: string | null }
         aria-pressed={on}
         title={
           on
-            ? 'Stop this device buzzing at one minute left and full time'
-            : 'Buzz this device at one minute left and full time, even with the screen off'
+            ? t('notify.on.title')
+            : t('notify.off.title')
         }
         className={`rounded-lg border px-3 py-1.5 text-xs font-bold transition-colors disabled:opacity-50 ${
           on
@@ -100,7 +101,7 @@ export default function NotifyToggle({ fixtureId }: { fixtureId: string | null }
             : 'border-amber-900/25 text-amber-900 hover:border-orange-500'
         }`}
       >
-        {busy ? '…' : on ? '🔔 Alerts on' : '🔕 Alerts off'}
+        {busy ? '…' : on ? t('notify.on') : t('notify.off')}
       </button>
       {note && (
         <span className="max-w-[16rem] text-right text-[10px] leading-tight text-red-700">

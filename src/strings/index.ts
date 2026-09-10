@@ -1,4 +1,5 @@
 import { app } from './app';
+import { clock } from './clock';
 import { common } from './common';
 import { fixture } from './fixture';
 import { matchday } from './matchday';
@@ -21,4 +22,5 @@ export const STRINGS = {
   ...fixture,
   ...roster,
   ...matchday,
+  ...clock,
 } as const;
