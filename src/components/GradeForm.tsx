@@ -10,7 +10,8 @@ import {
   type GradePoint,
   type GradeRange,
 } from '../gradeHistory';
-import { MEDAL, Name, TEAM_META, fmtRating, fmtWins } from './ui';
+import { fmtRating, fmtWins, MEDAL, Name, TEAM_META, teamLabel } from './ui';
+import { t } from '../i18n';
 
 // A player's recent form (§2.40), in the shape every football screen uses for
 // it: a row of coloured squares, a summary of the last few, and a table with a
@@ -88,15 +89,15 @@ export default function GradeForm({ points }: { points: GradePoint[] }) {
                   : 'text-amber-900/70 hover:text-orange-700'
             }`}
           >
-            {r.label}
+            {t(r.labelKey)}
           </button>
         ))}
       </div>
 
       {shown.length === 0 ? (
         <p className="rounded-xl bg-amber-900/[0.04] px-3 py-6 text-center text-xs text-amber-900/50">
-          No graded nights in this window.
-          {counts.ALL > 0 && ' Try a longer one.'}
+          {t('form.noneInWindow')}
+          {counts.ALL > 0 && t('form.tryLonger')}
         </p>
       ) : (
         <>
@@ -128,7 +129,7 @@ export default function GradeForm({ points }: { points: GradePoint[] }) {
                   {fmtRating(Math.round(stripMean * 100) / 100)}
                 </span>
                 <div className="mt-0.5 text-[10px] text-amber-900/45">
-                  last {strip.length} night{strip.length === 1 ? '' : 's'}
+                  {t('form.lastNights', { n: strip.length })}
                 </div>
               </div>
             )}
@@ -137,10 +138,10 @@ export default function GradeForm({ points }: { points: GradePoint[] }) {
           <table className="mt-1 w-full text-[12px]">
             <thead>
               <tr className="text-[10px] font-bold uppercase tracking-wide text-amber-900/40">
-                <th className="py-1 text-start font-bold">Date</th>
-                <th className="py-1 text-start font-bold">Night</th>
-                <th className="py-1 text-end font-bold">Wins</th>
-                <th className="py-1 text-end font-bold">Mark</th>
+                <th className="py-1 text-start font-bold">{t('form.col.date')}</th>
+                <th className="py-1 text-start font-bold">{t('form.col.night')}</th>
+                <th className="py-1 text-end font-bold">{t('form.col.wins')}</th>
+                <th className="py-1 text-end font-bold">{t('form.col.mark')}</th>
               </tr>
             </thead>
             <tbody>
@@ -160,16 +161,19 @@ export default function GradeForm({ points }: { points: GradePoint[] }) {
                           the badge. */}
                       {p.place !== null && (
                         <span
-                          title={p.shared ? `Level on ${p.place}` : `Finished ${p.place}`}
+                          title={t(
+                            p.shared ? 'form.place.shared' : 'form.place.finished',
+                            { n: p.place },
+                          )}
                           className={`grid h-4 w-4 shrink-0 place-items-center rounded font-mono text-[9px] font-black ${MEDAL[p.place]}`}
                         >
                           {p.place}
                         </span>
                       )}
                       <span className={`rounded px-1.5 py-0.5 text-[11px] font-semibold ${TEAM_META[p.shirt].tile}`}>
-                        <Name>{TEAM_META[p.shirt].label}</Name>
+                        <Name>{teamLabel(p.shirt)}</Name>
                       </span>
-                      {p.isMvp && <span title="Player of the night">🌟</span>}
+                      {p.isMvp && <span title={t('marks.mvpTitle')}>🌟</span>}
                     </span>
                   </td>
                   <td className="py-1.5 text-end tabular-nums text-amber-900/70">

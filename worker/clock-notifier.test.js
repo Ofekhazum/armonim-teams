@@ -66,53 +66,58 @@ describe('triggersFor', () => {
 });
 
 describe('messageFor', () => {
+  // Every property below has to hold in *both* languages (§2.45) — a Hebrew
+  // title that truncates on a lock screen is exactly as useless as an English
+  // one, and these are the only four sentences this Worker ever says.
+  const LANGS = ['he', 'en'];
+  const MOMENTS = [
+    ['one-minute', 'regulation'],
+    ['one-minute', 'added'],
+    ['time-up', 'regulation'],
+    ['time-up', 'added'],
+  ];
+  const everyMessage = () => LANGS.flatMap((l) => MOMENTS.map(([k, p]) => messageFor(k, p, l)));
+
   it('names the moment and never who is playing', () => {
     // these land on lock screens anyone standing nearby can read
-    const all = [
-      messageFor('one-minute', 'regulation'),
-      messageFor('one-minute', 'added'),
-      messageFor('time-up', 'regulation'),
-      messageFor('time-up', 'added'),
-    ];
-    for (const m of all) {
+    for (const m of everyMessage()) {
       expect(m.title).toBeTruthy();
       expect(m.body).toBeTruthy();
-      expect(`${m.title} ${m.body}`).not.toMatch(/black|white|blue/i);
+      expect(`${m.title} ${m.body}`).not.toMatch(/black|white|blue|שחור|לבן|כחול/i);
     }
   });
 
   it('distinguishes full time from the end of added time', () => {
-    expect(messageFor('time-up', 'regulation').title).toContain('Full time');
-    expect(messageFor('time-up', 'added').body).toMatch(/penalties/i);
+    expect(messageFor('time-up', 'regulation', 'en').title).toContain('Full time');
+    expect(messageFor('time-up', 'added', 'en').body).toMatch(/penalties/i);
+    expect(messageFor('time-up', 'regulation', 'he').title).toContain('סיום');
+    expect(messageFor('time-up', 'added', 'he').body).toContain('פנדלים');
+  });
+
+  it('speaks Hebrew unless the device asked otherwise', () => {
+    // the app's own default, and what a subscription with no language stored
+    // against it — one made before this shipped — falls back to
+    const he = messageFor('time-up', 'regulation', 'he');
+    expect(messageFor('time-up', 'regulation')).toEqual(he);
+    expect(messageFor('time-up', 'regulation', 'klingon')).toEqual(he);
   });
 
   it('keeps every title short enough to survive a banner', () => {
     // the title is the half that identifies which of the four moments this is;
     // if it truncates, the notification has told you nothing
-    for (const [kind, period] of [
-      ['one-minute', 'regulation'],
-      ['one-minute', 'added'],
-      ['time-up', 'regulation'],
-      ['time-up', 'added'],
-    ]) {
-      expect(messageFor(kind, period).title.length).toBeLessThanOrEqual(24);
+    for (const m of everyMessage()) {
+      expect(m.title.length).toBeLessThanOrEqual(24);
     }
   });
 
   it('never repeats the title back in the body', () => {
     // a body that restates the moment is a line nobody needs to read twice —
     // it has to be an instruction or a branch, or it should not be there
-    for (const [kind, period] of [
-      ['one-minute', 'regulation'],
-      ['one-minute', 'added'],
-      ['time-up', 'regulation'],
-      ['time-up', 'added'],
-    ]) {
-      const { title, body } = messageFor(kind, period);
-      // only words long enough to carry meaning — "of" and "one" turning up in
-      // both halves is English, not repetition
+    for (const { title, body } of everyMessage()) {
+      // Unicode-aware, so the Hebrew half is genuinely checked rather than
+      // stripped to nothing by a `\w` class that only knows ASCII.
       const words = title
-        .replace(/[^\w\s]/g, '')
+        .replace(/[^\p{L}\p{N}\s]/gu, '')
         .toLowerCase()
         .split(/\s+/)
         .filter((w) => w.length > 3);
@@ -121,9 +126,12 @@ describe('messageFor', () => {
   });
 
   it('states both branches at full time, since the app never learns the score', () => {
-    const body = messageFor('time-up', 'regulation').body;
-    expect(body).toMatch(/ahead/i); // someone won it
-    expect(body).toMatch(/level/i); // nobody did
+    const en = messageFor('time-up', 'regulation', 'en').body;
+    expect(en).toMatch(/ahead/i); // someone won it
+    expect(en).toMatch(/level/i); // nobody did
+    const he = messageFor('time-up', 'regulation', 'he').body;
+    expect(he).toContain('מובילים');
+    expect(he).toContain('שוויון');
   });
 
   it('says the same thing at one minute in either period, with different advice', () => {

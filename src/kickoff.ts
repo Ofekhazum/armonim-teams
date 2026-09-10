@@ -8,6 +8,7 @@
 // to miss.
 
 import { useEffect, useState } from 'react';
+import { t } from './i18n';
 
 // `setTimeout` silently clamps to firing immediately above this (2^31 - 1 ms,
 // ~24.8 days). A week-long schedule window is nowhere near it, but a stray
@@ -72,15 +73,15 @@ export function nextThursday7pm(now: number = Date.now()): Date {
 // someone is actually watching the number.
 export function kickoffLabel(startedAt: number, now: number = Date.now()): string {
   const ms = untilKickOff(startedAt, now);
-  if (ms <= 0) return 'kicking off any moment';
+  if (ms <= 0) return t('kick.anyMoment');
   const days = Math.floor(ms / 86_400_000);
   const hours = Math.floor(ms / 3_600_000) % 24;
   const mins = Math.floor(ms / 60_000) % 60;
-  if (days > 0) return `in ${days}d ${hours}h`;
-  if (hours > 0) return `in ${hours}h ${mins}m`;
-  if (mins > 0) return `in ${mins}m`;
+  if (days > 0) return t('kick.in.days', { d: days, h: hours });
+  if (hours > 0) return t('kick.in.hours', { h: hours, m: mins });
+  if (mins > 0) return t('kick.in.mins', { m: mins });
   const secs = Math.ceil(ms / 1000);
-  return `in 0:${String(secs).padStart(2, '0')}`;
+  return t('kick.in.secs', { s: String(secs).padStart(2, '0') });
 }
 
 // "kicked off just now" / "42 min ago" / "3h 12m ago" — moved here from
@@ -90,10 +91,10 @@ export function kickoffLabel(startedAt: number, now: number = Date.now()): strin
 // just the honest answer for a fixture that kicked off a moment ago.
 export function agoLabel(startedAt: number, now: number = Date.now()): string {
   const mins = Math.floor((now - startedAt) / 60_000);
-  if (mins < 1) return 'just now';
-  if (mins < 60) return `${mins} min ago`;
+  if (mins < 1) return t('kick.ago.justNow');
+  if (mins < 60) return t('kick.ago.mins', { m: mins });
   const hours = Math.floor(mins / 60);
-  return `${hours}h ${mins % 60}m ago`;
+  return t('kick.ago.hours', { h: hours, m: mins % 60 });
 }
 
 // Fires once, at the moment a scheduled fixture kicks off — not a repeating

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { testPush, type PushReport } from '../push';
+import { t } from '../i18n';
 
 // NOT CURRENTLY RENDERED. It found the bug it was built for (Apple was
 // rejecting the VAPID token) and was taken out of the header once alerts
@@ -36,20 +37,20 @@ function Report({ report }: { report: PushReport }) {
     : null;
 
   return (
-    <div className="mt-1 space-y-0.5 text-left text-[10px] leading-tight">
+    <div className="mt-1 space-y-0.5 text-start text-[10px] leading-tight">
       <Line ok={report.configured}>
-        {report.configured ? 'server can send' : 'server has no VAPID key'}
+        {report.configured ? t('alerts.configured') : t('alerts.noVapid')}
       </Line>
       <Line ok={!report.noEndpoint && report.known}>
         {report.noEndpoint
-          ? 'this device never subscribed — turn 🔔 Alerts on'
+          ? t('alerts.neverSubscribed')
           : report.known
-            ? `subscribed (${report.subscribers} device${report.subscribers === 1 ? '' : 's'} total)`
-            : 'subscribed here, but the server has never heard of it'}
+            ? t('alerts.subscribed', { n: report.subscribers })
+            : t('alerts.unknownHere')}
       </Line>
       {push && (
         <Line ok={push.status >= 200 && push.status < 300}>
-          {push.host} answered {push.status}
+          {t('alerts.answered', { host: push.host, status: push.status })}
           {push.detail ? ` — ${push.detail}` : ''}
         </Line>
       )}
@@ -60,30 +61,28 @@ function Report({ report }: { report: PushReport }) {
       {push && (push.status < 200 || push.status > 299) && (
         <>
           <Line ok={report.keyOk}>
-            {report.keyOk
-              ? 'signing key is self-consistent'
-              : 'the VAPID secret is corrupt — its public and private halves disagree'}
+            {report.keyOk ? t('alerts.keyOk') : t('alerts.keyBad')}
           </Line>
           <Line ok={/^(mailto:\S+@\S+|https:\/\/\S+)$/.test(report.subject)}>
-            subject: {report.subject}
+            {t('alerts.subject', { subject: report.subject })}
           </Line>
           <Line ok={report.keyMatchesSubscription !== false}>
             {report.keyMatchesSubscription === false
-              ? 'this subscription was made against a different key — turn 🔔 off, then on'
+              ? t('alerts.keyMismatch')
               : report.keyMatchesSubscription === null
-                ? 'could not compare this subscription to the current key'
-                : 'subscription matches the current key'}
+                ? t('alerts.keyUnknown')
+                : t('alerts.keyMatches')}
           </Line>
         </>
       )}
       <Line ok={next !== null}>
         {next
-          ? `next alert: ${next.kind} in ${seconds(next.at - report.now)}`
-          : 'nothing scheduled — start the clock, then press this again'}
+          ? t('alerts.next', { kind: next.kind, in: seconds(next.at - report.now) })
+          : t('alerts.nothingScheduled')}
       </Line>
       {push && push.status >= 200 && push.status < 300 && (
         <div className="text-amber-900/50">
-          Sent. No banner within a few seconds → the phone refused it, not the server.
+          {t('alerts.sent')}
         </div>
       )}
     </div>
@@ -109,12 +108,14 @@ export default function AlertsCheck({ adminWord }: { adminWord: string }) {
       <button
         onClick={run}
         disabled={busy}
-        title="Buzz this phone now and report what each step answered"
+        title={t('alerts.test.title')}
         className="rounded-lg border border-amber-900/25 px-2.5 py-1 text-[11px] font-bold text-amber-900 transition-colors hover:border-orange-500 disabled:opacity-50"
       >
-        {busy ? '…' : '🔎 Test alerts'}
+        {busy ? '…' : t('alerts.test')}
       </button>
-      {failed && <span className="mt-1 text-[10px] text-red-700">Couldn't reach the server</span>}
+      {failed && (
+        <span className="mt-1 text-[10px] text-red-700">{t('alerts.unreachable')}</span>
+      )}
       {report && <Report report={report} />}
     </div>
   );

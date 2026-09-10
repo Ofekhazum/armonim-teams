@@ -3,6 +3,7 @@ import type { FixtureRecord } from '../types';
 import type { Comparison } from '../compare';
 import { comparePlayers } from '../compare';
 import { Name, fmtWins } from './ui';
+import { t } from '../i18n';
 
 // Two players' records, side by side (§2.37). The counting is `compare.ts`'s
 // job; this file is the pickers and the layout.
@@ -52,17 +53,17 @@ const rate = (n: number) => n.toFixed(2);
 
 function rowsOf(c: Comparison): Row[] {
   return [
-    { label: 'Nights played', a: c.a.nights, b: c.b.nights, print: int },
-    { label: 'Nights won', a: c.a.nightsWon, b: c.b.nightsWon, print: int },
-    { label: 'Match wins', a: c.a.wins, b: c.b.wins, print: fmtWins },
+    { label: t('cmp.row.nights'), a: c.a.nights, b: c.b.nights, print: int },
+    { label: t('cmp.row.nightsWon'), a: c.a.nightsWon, b: c.b.nightsWon, print: int },
+    { label: t('cmp.row.wins'), a: c.a.wins, b: c.b.wins, print: fmtWins },
     // Directly under the nights it is divided by, so the sample size is on
     // screen with the rate rather than a scroll away (see compare.ts).
-    { label: 'Per night', a: c.a.perNight ?? 0, b: c.b.perNight ?? 0, print: rate },
-    { label: 'MVP picks', a: c.a.mvps, b: c.b.mvps, print: int },
+    { label: t('cmp.row.perNight'), a: c.a.perNight ?? 0, b: c.b.perNight ?? 0, print: rate },
+    { label: t('cmp.row.mvps'), a: c.a.mvps, b: c.b.mvps, print: int },
     // "Longest run", not "best run" — the same stat the podium names that way
     // (§2.36), and one fewer word on this screen that could be read as a
     // judgement rather than a measurement.
-    { label: 'Longest run', a: c.a.bestRun, b: c.b.bestRun, print: int },
+    { label: t('cmp.row.bestRun'), a: c.a.bestRun, b: c.b.bestRun, print: int },
   ];
 }
 
@@ -109,37 +110,38 @@ function Shared({ c }: { c: Comparison }) {
     <div className="space-y-1.5 rounded-xl border border-amber-900/10 bg-amber-900/[0.03] px-3 py-2.5 text-sm text-amber-900">
       {never ? (
         <p className="text-amber-900/60">
-          These two have never been on the same team sheet.
+          {t('cmp.never')}
         </p>
       ) : (
         <>
           {shared.together > 0 && (
             <p>
-              🤝 On the same team <b className="text-amber-950">{shared.together}</b>{' '}
-              {shared.together === 1 ? 'night' : 'nights'}, winning{' '}
-              <b className="text-amber-950">{shared.togetherWon}</b> of them
+              {t('cmp.together')} <b className="text-amber-950">{shared.together}</b>{' '}
+              {t('cmp.together.nights', { n: shared.together })}
+              {t('cmp.together.winning')}{' '}
+              <b className="text-amber-950">{shared.togetherWon}</b> {t('cmp.together.ofThem')}
             </p>
           )}
           {shared.against > 0 && (
             <p>
-              ⚔️ On opposite teams <b className="text-amber-950">{shared.against}</b>{' '}
-              {shared.against === 1 ? 'night' : 'nights'}
+              {t('cmp.against')} <b className="text-amber-950">{shared.against}</b>{' '}
+              {t('cmp.together.nights', { n: shared.against })}
             </p>
           )}
           {/* Teams beat teams, never people (§2.8) — the sentence says so even
               though the label above it is allowed its fun. */}
           {shared.faced > 0 ? (
             <p>
-              🥊 <Name className="font-bold text-amber-950">{c.a.name}</Name>'s team has beaten{' '}
-              <Name className="font-bold text-amber-950">{c.b.name}</Name>'s in{' '}
-              <b className="text-amber-950">{shared.aWon}</b> of{' '}
-              <b className="text-amber-950">{shared.faced}</b> matches
+              🥊 <Name className="font-bold text-amber-950">{c.a.name}</Name>{' '}
+              {t('cmp.h2h.beaten')}{' '}
+              <Name className="font-bold text-amber-950">{c.b.name}</Name> {t('cmp.h2h.in')}{' '}
+              <b className="text-amber-950">{shared.aWon}</b> {t('cmp.h2h.of')}{' '}
+              <b className="text-amber-950">{shared.faced}</b> {t('cmp.h2h.matches')}
             </p>
           ) : (
             shared.against > 0 && (
               <p className="text-amber-900/55">
-                None of those nights was written down match by match, so there is no head-to-head
-                to read.
+                {t('cmp.h2h.none')}
               </p>
             )
           )}
@@ -184,16 +186,18 @@ export default function PlayerCompare({
   return (
     <div className="space-y-3 rounded-2xl border border-amber-900/15 bg-[#fffdf4]/70 p-4 shadow-sm">
       <div className="flex items-center gap-2">
-        {picker(aId, setA, A_TEXT, 'Pick a player…')}
-        <span className="shrink-0 text-xs font-black uppercase text-amber-900/40">v</span>
-        {picker(bId, setB, B_TEXT, 'Pick another…')}
+        {picker(aId, setA, A_TEXT, t('cmp.pickA'))}
+        <span className="shrink-0 text-xs font-black uppercase text-amber-900/40">
+          {t('cmp.versus')}
+        </span>
+        {picker(bId, setB, B_TEXT, t('cmp.pickB'))}
       </div>
 
       {!comparison ? (
         <p className="text-sm text-amber-900/55">
           {aId && bId
-            ? 'Pick two different players.'
-            : 'Pick two players to put their records side by side.'}
+            ? t('cmp.pickDifferent')
+            : t('cmp.pickTwo')}
         </p>
       ) : (
         <>

@@ -11,8 +11,8 @@ import Leaderboards from './Leaderboards';
 const board = (over: Partial<Leaderboard> = {}): Leaderboard => ({
   key: 'wins',
   icon: '🥇',
-  title: 'Most match wins',
-  unit: 'win',
+  titleKey: 'lb.wins',
+  unitKey: 'ui.win',
   half: true,
   entries: [
     { id: 'a', name: 'אופק', value: 123, rank: 1 },
@@ -47,7 +47,7 @@ describe('Leaderboards', () => {
   it('draws whole counts without a decimal point', () => {
     render(
       <Leaderboards
-        boards={[board({ key: 'mvp', half: false, unit: 'pick', entries: [{ id: 'a', name: 'אופק', value: 7, rank: 1 }] })]}
+        boards={[board({ key: 'mvp', half: false, unitKey: 'lb.unit.pick', entries: [{ id: 'a', name: 'אופק', value: 7, rank: 1 }] })]}
       />,
     );
     expect(screen.getByText('7')).toBeInTheDocument();
@@ -61,7 +61,7 @@ describe('Leaderboards', () => {
           board({
             key: 'active-run',
             half: false,
-            unit: 'night',
+            unitKey: 'ui.night',
             entries: [
               { id: 'a', name: 'אופק', value: 3, rank: 1 },
               { id: 'b', name: 'ניב', value: 1, rank: 2 },
@@ -98,7 +98,7 @@ describe('Leaderboards', () => {
 
   it('draws each board it is given', () => {
     const { container } = render(
-      <Leaderboards boards={[board(), board({ key: 'mvp', title: 'Most MVP picks' })]} />,
+      <Leaderboards boards={[board(), board({ key: 'mvp', titleKey: 'lb.mvp' })]} />,
     );
     expect(container.querySelectorAll('section')).toHaveLength(2);
   });

@@ -3757,6 +3757,65 @@ screen reader should stop on, now marked as such.
   the one piece of this app's state machine that's live on an actual match night — not something to
   change without saying so first.
 
+### 2.45 Two languages, Hebrew first (`i18n.ts`, `lang.tsx`, `strings/`, `LangToggle.tsx`)
+
+The club is Hebrew-speaking and the app was written in English. Every screen now says everything in
+both, Hebrew is what a first-time visitor gets, and the choice is one dropdown in the header. What
+follows is mostly the list of things that turned out not to be "translate the strings".
+
+**No i18n library.** This repo has two runtime dependencies (`react`, `react-dom`) and the
+translation problem here is genuinely small: look a key up, fill `{placeholders}`, pick singular or
+plural at exactly one. `src/i18n.ts` is that, in about a hundred lines, and it imports nothing —
+including React, so the node-env test project can load it directly.
+
+**The dictionary is typed, not stringly.** `STRINGS` (`src/strings/index.ts`) merges eleven files,
+one per screen area, ~744 entries. `export type Key = keyof typeof STRINGS` means a misspelt key is
+a compile error rather than English text appearing mid-sentence on someone's phone. What types
+can't catch — an entry that exists in one language only, a `{team}` in the Hebrew against a
+`{name}` in the English, a plural that's a plural in just one language — `i18n.test.ts` checks by
+walking every entry.
+
+**Keys, not resolved strings, cross a memo boundary.** `nightStory`, `leaderboards`,
+`gradeHistory`, `achievements` and `PlayerPage`'s tier table all used to hand back finished English.
+They return `Key`s now (`headlineKey`, `titleKey`, `unitKey`, `labelKey`, `nameKey`), because
+`NightPage` memoises the story on `[fixture]` — a string resolved at build time would survive a
+language switch and sit there in the wrong language until the fixture changed.
+
+**Non-React callers get a module-level current language.** The canvas share cards
+(`canvasKit.ts`, `wrappedImage.ts`), `kickoffLabel()` and push registration all run outside the
+tree and can't call a hook. `LangProvider` sets `current` *during* render, so anything those call
+paths read is already the new language by the time effects fire. The seed is read from storage at
+module load — not defaulted — which is what stops `vi.resetModules()` handing an English-pinned
+suite a fresh Hebrew module.
+
+**`Root()` in `main.tsx` exists for a real reason.** `children` passed to a provider is one element
+created once by the parent, so React bails out of re-rendering it when only the provider's value
+changed. A component *inside* the provider that consumes the context is what makes a language
+switch repaint the tree.
+
+**RTL is layout, not `direction: rtl`.** Everything positional moved to logical properties
+(`ms/me`, `ps/pe`, `start/end`, `rounded-s/rounded-e`) so it mirrors on its own. Two places
+deliberately don't: the past-nights shelf in `History.tsx` is pinned `dir="ltr"` because the array
+is already newest-first and RTL was mirroring it into oldest-first, and the language `<select>`
+itself. Player names are wrapped in `<bdi dir="auto">` (`Name`, `ui.tsx`) — a Latin name inside a
+Hebrew sentence otherwise drags its punctuation to the wrong end. The same bidi problem in plain
+text, where there's no markup, is handled with an explicit RLM in the WhatsApp share strings.
+
+**Hebrew grammar the English shape hides.** Construct state (סמיכות) puts the head noun first, so
+"MVP of the night" is `מצטיין מחזור`, not `מחזור מצטיין`. `לנצח` is transitive — `שנוצח` reads
+"who was defeated", the opposite of the intended sense — so twelve of those became `שנלקחו`. The
+club calls a fixture a `מחזור`, not an `ערב`. English pluralisation by suffix has no Hebrew
+equivalent, which is why units are plural entries rather than a bare noun plus `+s`.
+
+**Push notifications are per-subscription.** `/subscribe` stores a `lang` alongside the endpoint,
+and `broadcastByLang()` groups subscriptions by it and sends each group its own copy —
+`messageFor(kind, period, lang)` in `worker/clock-notifier.js`. A phone gets clock alerts in the
+language that phone chose.
+
+**Left in English on purpose:** the Gemini prompt payloads in `recapFacts.ts` and `worker/grades.js`
+are an API contract, not UI. The Hebrew *vocabulary inside* those prompts did change, so published
+banter uses the same words as the screens around it.
+
 ## 3. Team generation algorithm
 
 Balancing is a small constrained optimization. With ≤15 players, brute force is too big
@@ -3823,6 +3882,11 @@ back" a step that taught nobody anything. It is one control in two states rather
 **🔒** to unlock, **🔓** to log back off, so the place you got in is the place you get out. The
 **ADMIN** badge beside the title is a label only. It was briefly the way out, and that failed for
 the obvious reason — a badge that is secretly a button is not one anybody presses.
+
+**The language dropdown sits on the top row, opposite the crest** (§2.45) — above the tabs, not in
+them. It was briefly a tab-strip control, and that pushed the strip onto two rows on a phone. Each
+language is named in its own language (`עברית` / `English`), never translated, so the way out is
+readable to somebody who cannot read the language currently showing.
 
 
 1. **Roster** (`src/components/Roster.tsx`) — the permanent squad. In **admin mode**: add/edit

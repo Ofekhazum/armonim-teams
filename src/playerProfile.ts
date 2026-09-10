@@ -22,6 +22,7 @@ import {
   isWinMilestone,
   winnerOf,
 } from './milestones';
+import { t } from './i18n';
 
 // How much football before a *rate* is worth printing. The same bar the
 // rating calibration uses (`MIN_NIGHTS`), and deliberately one number rather
@@ -218,8 +219,8 @@ export function ladderBadges(
     out.push({
       key: `nights-${nights.target}`,
       icon: '🎽',
-      label: `${nights.target} nights`,
-      detail: `Played ${nights.target} recorded nights.`,
+      label: t('ladder.nights', { n: nights.target }),
+      detail: t('ladder.nights.detail', { n: nights.target }),
       tier: nights.tier,
     });
   }
@@ -228,8 +229,8 @@ export function ladderBadges(
     out.push({
       key: `wins-${wins.target}`,
       icon: '🏆',
-      label: `${wins.target} wins`,
-      detail: `Their teams have won ${wins.target} matches with them on the pitch.`,
+      label: t('ladder.wins', { n: wins.target }),
+      detail: t('ladder.wins.detail', { n: wins.target }),
       tier: wins.tier,
     });
   }
@@ -238,8 +239,8 @@ export function ladderBadges(
     out.push({
       key: `fixtures-${fixtures.target}`,
       icon: '🥇',
-      label: `${fixtures.target} nights won`,
-      detail: `Finished top of the night ${fixtures.target} times.`,
+      label: t('ladder.fixtures', { n: fixtures.target }),
+      detail: t('ladder.fixtures.detail', { n: fixtures.target }),
       tier: fixtures.tier,
     });
   }
@@ -248,11 +249,14 @@ export function ladderBadges(
     out.push({
       key: `mvp-${picks.target}`,
       icon: '🌟',
-      label: picks.target === 1 ? 'First MVP' : `${picks.target} MVPs`,
+      label:
+        picks.target === 1
+          ? t('ladder.mvp.first')
+          : t('ladder.mvp', { n: picks.target }),
       detail:
         picks.target === 1
-          ? 'Picked MVP for the first time.'
-          : `Picked MVP on ${picks.target} different nights.`,
+          ? t('ladder.mvp.first.detail')
+          : t('ladder.mvp.detail', { n: picks.target }),
       tier: picks.tier,
     });
   }

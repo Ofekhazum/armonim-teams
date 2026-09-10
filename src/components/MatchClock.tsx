@@ -3,6 +3,7 @@ import type { ClockPeriod, ClockState } from '../types';
 import { ADDED_MIN, ADDED_MS, REGULATION_MS, withAddedTime } from '../types';
 import NotifyToggle from './NotifyToggle';
 import PitchMode from './PitchMode';
+import { t } from '../i18n';
 
 // The house rules this clock encodes (see DESIGN.md §2.8):
 //   · a match is 8 minutes, or ends early at a two-goal lead (2:0, 3:1, …)
@@ -226,21 +227,21 @@ export default function MatchClock({ state, onChange, fixtureId = null }: Props)
 
   const banner = finished
     ? addedTime
-      ? { text: '🥅 Still level — penalties', cls: 'bg-red-600/15 text-red-800' }
+      ? { text: t('clock.banner.penalties'), cls: 'bg-red-600/15 text-red-800' }
       : {
-          text: `⏱️ Full time — level? ${ADDED_MIN} minutes, golden goal`,
+          text: t('clock.banner.fullTime', { n: ADDED_MIN }),
           cls: 'bg-amber-500/25 text-amber-900',
         }
     : shouting
-      ? { text: '🔔 One minute — resting team shouts!', cls: 'bg-red-600/15 text-red-800' }
+      ? { text: t('clock.banner.oneMinute'), cls: 'bg-red-600/15 text-red-800' }
       : addedTime
-        ? { text: '⚽ Added time — golden goal', cls: 'bg-amber-500/25 text-amber-900' }
+        ? { text: t('clock.banner.added'), cls: 'bg-amber-500/25 text-amber-900' }
         : null;
 
   // py-2.5 rather than the app's usual py-2 — every button in this row is
   // pressed standing up, mid-match, often one-handed with a cold or wet grip,
   // so this row clears the ~44px touch target floor that the rest of the
-  // app's more deliberate, seated controls don't need to (§2.45).
+  // app's more deliberate, seated controls don't need to (§2.44).
   const btn =
     'rounded-xl px-4 py-2.5 text-sm font-bold shadow-sm transition-transform hover:scale-105';
 
@@ -248,14 +249,14 @@ export default function MatchClock({ state, onChange, fixtureId = null }: Props)
   // neither survives. Same states, said in two or three words.
   const headline = finished
     ? addedTime
-      ? 'Penalties'
-      : 'Full time'
+      ? t('clock.head.penalties')
+      : t('clock.head.fullTime')
     : shouting
-      ? 'One minute'
+      ? t('clock.head.oneMinute')
       : addedTime
-        ? 'Added time'
+        ? t('clock.head.added')
         : !running && !idle
-          ? 'Paused'
+          ? t('clock.head.paused')
           : null;
 
   return (
@@ -274,25 +275,29 @@ export default function MatchClock({ state, onChange, fixtureId = null }: Props)
             {!finished &&
               (running ? (
                 <button onClick={pause} className={`${btn} border border-amber-900/30 text-amber-900`}>
-                  ⏸ Pause
+                  {t('clock.pause')}
                 </button>
               ) : (
                 <button onClick={start} className={`${btn} bg-orange-600 text-amber-50`}>
-                  {idle ? (addedTime ? '▶️ Start added time' : '▶️ Start match') : '▶️ Resume'}
+                  {idle
+                    ? addedTime
+                      ? t('clock.startAdded')
+                      : t('clock.startMatch')
+                    : t('clock.resume')}
                 </button>
               ))}
 
             {/* the one moment the score decides what happens next */}
             {finished && !addedTime && (
               <button onClick={startAdded} className={`${btn} bg-orange-600 text-amber-50`}>
-                ⚽ Level — added time
+                {t('clock.level')}
               </button>
             )}
 
             <button
               onClick={addTime}
               className={`${btn} border border-amber-900/30 text-amber-900`}
-              title="Add 30 seconds to the clock"
+              title={t('clock.addTime.title')}
             >
               +30s
             </button>
@@ -300,9 +305,9 @@ export default function MatchClock({ state, onChange, fixtureId = null }: Props)
             <button
               onClick={() => toPeriod('regulation')}
               className={`${btn} border border-amber-900/30 text-amber-900`}
-              title="Reset the clock for the next match"
+              title={t('clock.reset.title')}
             >
-              {finished || !idle ? '⏭ Next match' : '↺ Reset'}
+              {finished || !idle ? t('clock.next') : t('clock.reset')}
             </button>
           </div>
         )}
@@ -319,17 +324,17 @@ export default function MatchClock({ state, onChange, fixtureId = null }: Props)
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-75" />
               <span className="relative inline-flex h-2 w-2 rounded-full bg-red-600" />
             </span>
-            match in progress
+            {t('clock.inProgress')}
           </span>
         )}
 
         <div className="flex-1" />
         <button
           onClick={() => setPitch(true)}
-          title="Fill the screen — for a phone propped up at the pitch"
+          title={t('clock.pitchMode.title')}
           className="rounded-lg border border-amber-900/25 px-3.5 py-2.5 text-xs font-bold text-amber-900 transition-colors hover:border-orange-500"
         >
-          ⛶ Pitch mode
+          {t('clock.pitchMode')}
         </button>
         {/* Sits with the clock because that is the only thing it announces —
             and lives here rather than in the two pages that render a clock, so

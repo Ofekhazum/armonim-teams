@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import type { TimelineEvent, TimelineKind } from '../playerTimeline';
 import { periodLabel } from '../wrapped';
-import { TEAM_META } from './ui';
+import { TEAM_META, teamLabel } from './ui';
+import { fmtDate, getLang, t } from '../i18n';
 
 // The player's career as a feed (§2.29). `playerTimeline` decides what happened
 // and when; everything here is how to say it.
@@ -40,20 +41,28 @@ const TONE: Record<TimelineKind, { dot: string; ring: string }> = {
   totm: { dot: 'bg-amber-400', ring: 'ring-amber-400/30' },
 };
 
-const ordinal = (n: number): string => {
+/**
+ * The count, shaped for whichever language is showing.
+ *
+ * English needs the suffix — "1st", "22nd", "13th", with the 11-13 exception
+ * that catches every naive implementation. Hebrew needs no suffix at all: the
+ * ordinal is carried by the "ה־" already in the string, so the number goes in
+ * bare and this is the identity.
+ */
+const nth = (n: number): string => {
+  if (getLang() !== 'en') return String(n);
   const rest = n % 100;
   if (rest >= 11 && rest <= 13) return `${n}th`;
   return `${n}${['th', 'st', 'nd', 'rd'][n % 10] ?? 'th'}`;
 };
 
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
 // `at` is a sort key first and a date second — Team of the Month's ends in a
 // day that cannot exist, which is what keeps it above the month's nights.
 const when = (event: TimelineEvent): string => {
   if (event.kind === 'totm' && event.period) return periodLabel(event.period);
-  const [y, m, d] = event.at.split('-');
-  return `${Number(d)} ${MONTHS[Number(m) - 1]} ${y.slice(2)}`;
+  // `Intl` rather than a hand-written month table, so the names arrive in
+  // whichever language is showing.
+  return fmtDate(event.at, getLang(), { day: 'numeric', month: 'short', year: '2-digit' });
 };
 
 // A match win can be a half — a shootout is worth one — so a tally is not
@@ -74,35 +83,59 @@ function say(event: TimelineEvent): { icon: string; head: string; detail?: strin
     case 'debut':
       return {
         icon: '🌱',
-        head: 'First night on record',
+        head: t('tl.debut'),
         detail: event.shirt
-          ? `${TEAM_META[event.shirt].emoji} ${TEAM_META[event.shirt].label}${
-              event.place ? ` · finished ${ordinal(event.place)}` : ''
+          ? `${TEAM_META[event.shirt].emoji} ${teamLabel(event.shirt)}${
+              event.place ? t('tl.debut.place', { ord: nth(event.place) }) : ''
             }`
           : undefined,
       };
     case 'nth-night':
-      return { icon: '📅', head: `${ordinal(n)} night`, detail: 'nights with a result recorded' };
+      return {
+        icon: '📅',
+        head: t('tl.nthNight', { ord: nth(n) }),
+        detail: t('tl.nthNight.detail'),
+      };
     case 'nth-win':
-      return { icon: '🏆', head: `${ordinal(n)} match win`, detail: 'across every night they have played' };
+      return {
+        icon: '🏆',
+        head: t('tl.nthWin', { ord: nth(n) }),
+        detail: t('tl.nthWin.detail'),
+      };
     case 'nth-night-won':
-      return { icon: '🥇', head: `${ordinal(n)} night won`, detail: 'nights their team finished top of' };
+      return {
+        icon: '🥇',
+        head: t('tl.nthNightWon', { ord: nth(n) }),
+        detail: t('tl.nthNightWon.detail'),
+      };
     case 'nth-mvp':
       return {
         icon: '⭐',
-        head: n === 1 ? 'Picked MVP' : `${ordinal(n)} MVP night`,
-        detail: n === 1 ? 'the first time' : undefined,
+        head: n === 1 ? t('tl.mvpFirst') : t('tl.nthMvp', { ord: nth(n) }),
+        detail: n === 1 ? t('tl.mvpFirst.detail') : undefined,
       };
     case 'streak-ended':
-      return { icon: '💔', head: `A run of ${n} ended`, detail: `${n} nights won in a row, then this one` };
+      return {
+        icon: '💔',
+        head: t('tl.streakEnded', { n }),
+        detail: t('tl.streakEnded.detail', { n }),
+      };
     case 'streak-live':
-      return { icon: '🔥', head: `On a run of ${n}`, detail: 'still going' };
+      return { icon: '🔥', head: t('tl.streakLive', { n }), detail: t('tl.streakLive.detail') };
     case 'drought-ended':
-      return { icon: '💧', head: 'Won a night again', detail: `first in ${n + 1}` };
+      return {
+        icon: '💧',
+        head: t('tl.droughtEnded'),
+        detail: t('tl.droughtEnded.detail', { n: n + 1 }),
+      };
     case 'best-night':
-      return { icon: '🎯', head: `Best night yet — ${fmt(n)} wins`, detail: 'most their team has taken in one evening' };
+      return {
+        icon: '🎯',
+        head: t('tl.bestNight', { n: fmt(n) }),
+        detail: t('tl.bestNight.detail'),
+      };
     case 'totm':
-      return { icon: '👕', head: 'Team of the Month', detail: 'named in the five' };
+      return { icon: '👕', head: t('tl.totm'), detail: t('tl.totm.detail') };
   }
 }
 
@@ -114,7 +147,7 @@ export default function PlayerTimeline({ events }: { events: TimelineEvent[] }) 
   if (events.length === 0) {
     return (
       <p className="text-sm text-amber-900/55">
-        Nothing has happened twice yet. Milestones, runs and records land here as they do.
+        {t('tl.empty')}
       </p>
     );
   }
@@ -125,10 +158,10 @@ export default function PlayerTimeline({ events }: { events: TimelineEvent[] }) 
           each row, so it runs through the gaps between cards and reads as a
           single thread. Stops at the last dot — a line continuing past the
           debut suggests history we do not have. */}
-      <ol className="relative space-y-2.5 pl-7">
+      <ol className="relative space-y-2.5 ps-7">
         <span
           aria-hidden
-          className="absolute bottom-3 left-[9px] top-3 w-px bg-gradient-to-b from-amber-900/25 via-amber-900/15 to-transparent"
+          className="absolute bottom-3 start-[9px] top-3 w-px bg-gradient-to-b from-amber-900/25 via-amber-900/15 to-transparent"
         />
         {shown.map((event, i) => {
           const { icon, head, detail } = say(event);
@@ -137,7 +170,7 @@ export default function PlayerTimeline({ events }: { events: TimelineEvent[] }) 
             <li key={`${event.kind}-${event.at}-${event.n ?? i}`} className="relative">
               <span
                 aria-hidden
-                className={`absolute -left-[22px] top-[15px] h-2.5 w-2.5 rounded-full ring-4 ${tone.dot} ${tone.ring}`}
+                className={`absolute -start-[22px] top-[15px] h-2.5 w-2.5 rounded-full ring-4 ${tone.dot} ${tone.ring}`}
               />
               <div className="flex items-start gap-2.5 rounded-xl border border-amber-900/10 bg-white/70 px-3 py-2.5 shadow-sm">
                 <span className="text-base leading-5">{icon}</span>
@@ -166,9 +199,7 @@ export default function PlayerTimeline({ events }: { events: TimelineEvent[] }) 
           onClick={() => setAll((open) => !open)}
           className="mt-3 w-full rounded-xl border border-amber-900/15 px-3 py-2 text-xs font-bold text-amber-900/70 transition-colors hover:border-orange-500 hover:text-amber-900"
         >
-          {all
-            ? '↑ Show less'
-            : `↓ ${hidden} earlier ${hidden === 1 ? 'moment' : 'moments'}`}
+          {all ? t('tl.showLess') : t('tl.showMore', { n: hidden })}
         </button>
       )}
     </div>

@@ -94,10 +94,10 @@ export async function readAllMarks(env) {
  */
 function describe(p) {
   const bits = [`ציון ${p.grade}`, he(p.team), `הקבוצה לקחה ${p.teamWins} משחקים`];
-  if (p.place === 1 && p.wonNight) bits.push('לקחו את הערב');
+  if (p.place === 1 && p.wonNight) bits.push('לקחו את המחזור');
   if (p.place === 3) bits.push('סיימו אחרונים');
-  if (p.isMvp) bits.push('נבחר לשחקן הערב');
-  if (p.nightsBefore === 0) bits.push('ערב ראשון במועדון');
+  if (p.isMvp) bits.push('נבחר לשחקן המחזור');
+  if (p.nightsBefore === 0) bits.push('מחזור ראשון במועדון');
   else {
     if (p.trend === 'hot') bits.push('בכושר עולה בחודש האחרון');
     if (p.trend === 'cold') bits.push('בירידת כושר בחודש האחרון');
@@ -110,19 +110,19 @@ function describe(p) {
     if (p.runBefore >= 2) {
       bits.push(
         p.wonNight
-          ? `הגיע עם ${p.runBefore} ערבים ברצף של ניצחון, והרצף ממשיך`
-          : `הגיע עם ${p.runBefore} ערבים ברצף של ניצחון — והרצף נגמר הלילה`,
+          ? `הגיע עם ${p.runBefore} מחזורים ברצף של ניצחון, והרצף ממשיך`
+          : `הגיע עם ${p.runBefore} מחזורים ברצף של ניצחון — והרצף נגמר הלילה`,
       );
     }
-    if (p.droughtBefore >= 3) bits.push(`לא לקח ערב כבר ${p.droughtBefore} ערבים`);
+    if (p.droughtBefore >= 3) bits.push(`לא לקח מחזור כבר ${p.droughtBefore} מחזורים`);
     // The counterweight to `trend: 'cold'`. Two poor nights after a pick is
     // enough to read as a slump, and without this the model had nothing to
     // weigh that against — see `lastMvpAgo` in grades.ts.
     if (p.lastMvpAgo !== null && p.lastMvpAgo !== undefined && p.lastMvpAgo <= 4) {
       bits.push(
         p.lastMvpAgo === 1
-          ? 'נבחר לשחקן הערב בפעם שעברה שיחק'
-          : `נבחר לשחקן הערב לפני ${p.lastMvpAgo} ערבים שלו`,
+          ? 'נבחר לשחקן המחזור בפעם שעברה שיחק'
+          : `נבחר לשחקן המחזור לפני ${p.lastMvpAgo} מחזורים שלו`,
       );
     }
   }

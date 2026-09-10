@@ -34,6 +34,8 @@ import History from './components/History';
 import { useAdminUnlock } from './useAdminUnlock';
 import { TEST_WORD, isTestMode } from './testMode';
 import TestModeBanner from './components/TestModeBanner';
+import LangToggle from './components/LangToggle';
+import { t } from './i18n';
 
 type Tab = 'live' | 'match' | 'roster' | 'club';
 
@@ -361,22 +363,16 @@ export default function App() {
     if (result === 'ok') {
       if (version) setLocalHistoryVersion(version);
     } else if (result === 'wrong-word') {
-      alert(
-        '❌ The password is no longer valid — this is saved on this device but not shared yet. Unlock admin again and re-save.',
-      );
+      alert(t('app.sync.wrongWord'));
       setAdminWord(null);
     } else if (result === 'rate-limited') {
-      alert(
-        '❌ Too many failed attempts recently — this is saved on this device, but sharing is paused for a few minutes.',
-      );
+      alert(t('app.sync.rateLimited'));
     } else if (result === 'stale') {
       // someone else recorded a night since this device last looked. Sharing
       // now would replace their results with a list that never had them.
-      alert(
-        '⚠️ Someone else has updated the shared history since this device last loaded it.\n\nThis is saved here, but not shared — reload the page to pull their version first, then re-enter this change.',
-      );
+      alert(t('app.sync.stale'));
     } else if (result !== 'not-configured') {
-      alert("Could not share this — it's saved on this device, but others won't see it yet.");
+      alert(t('app.sync.failed'));
     }
   };
 
@@ -464,7 +460,7 @@ export default function App() {
     <button
       key="live"
       onClick={() => setTab('live')}
-      className={`flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-bold transition-colors ${
+      className={`flex items-center gap-1.5 whitespace-nowrap rounded-full px-4 py-1.5 text-sm font-bold transition-colors ${
         liveScheduled
           ? tab === 'live'
             ? 'bg-amber-500 text-amber-950 shadow-sm'
@@ -494,7 +490,7 @@ export default function App() {
           }`}
         />
       </span>
-      {liveScheduled ? kickoffLabel(liveFixture!.startedAt) : 'Live'}
+      {liveScheduled ? kickoffLabel(liveFixture!.startedAt) : t('app.tab.live')}
     </button>
   );
 
@@ -522,41 +518,54 @@ export default function App() {
       {/* Above everything, on every tab, and not dismissible — see the note in
           TestModeBanner. Renders nothing at all outside the sandbox. */}
       <TestModeBanner />
-      <header className="flex flex-wrap items-center justify-between gap-3 py-5">
-        <h1 className="text-2xl font-black tracking-tight text-amber-950">
-          <span className="mr-2">🦁</span>
-          <span className="bg-gradient-to-r from-orange-600 to-amber-800 bg-clip-text text-transparent">
-            Armonim FC
-          </span>
-          {isAdmin && (
-            <span className="ml-2 rounded-full bg-orange-600 px-2 py-0.5 align-middle text-xs font-bold text-amber-50">
-              ADMIN
+      <header className="py-5">
+        {/* The crest and the language picker share the top line, at opposite
+            ends of it. The picker sits up here rather than in the tab strip
+            because it is not a place in the app — it is a property of the
+            whole app, and a row of destinations is the wrong company for it. */}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h1 className="text-2xl font-black tracking-tight text-amber-950">
+            <span className="me-2">🦁</span>
+            <span className="bg-gradient-to-r from-orange-600 to-amber-800 bg-clip-text text-transparent">
+              Armonim FC
             </span>
-          )}
-        </h1>
-        <nav className="flex items-center gap-1 rounded-full border border-amber-900/20 bg-[#fffdf4]/70 p-1 shadow-sm">
-          {(liveFixture || tab === 'live') && liveTabBtn}
-          {isAdmin && tabBtn('match', 'Match day')}
-          {tabBtn('roster', `Roster (${state.players.length})`)}
-          {tabBtn('club', 'Club')}
-          {/* Unlocking lives in the header rather than on the Roster tab
-              because what it gates is spread across all of them — Match day,
-              the rating column in History, ending a live fixture — and having
-              to go and find the Roster page first was a step that taught
-              nobody anything. It is one control in two states rather than two
-              controls: the same place you went to get in is the place you
-              press to get back out, and the open padlock says which you are. */}
-          {REMOTE_URL && (
-            <button
-              onClick={isAdmin ? () => setAdminWord(null) : unlockAdmin}
-              disabled={unlocking}
-              title={isAdmin ? 'Log off admin' : 'Unlock admin mode'}
-              className="rounded-full px-3 py-1.5 text-sm font-semibold text-amber-900/70 transition-colors hover:text-orange-700 disabled:opacity-50"
-            >
-              {unlocking ? '…' : isAdmin ? '🔓' : '🔒'}
-            </button>
-          )}
-        </nav>
+            {isAdmin && (
+              <span className="ms-2 rounded-full bg-orange-600 px-2 py-0.5 align-middle text-xs font-bold text-amber-50">
+                {t('app.admin.badge')}
+              </span>
+            )}
+          </h1>
+          <LangToggle />
+        </div>
+        {/* The strip itself is untouched — a pill that hugs its own tabs, in
+            the page's own direction. The wrapper is what keeps it that width
+            now that it sits on its own line rather than as a flex item beside
+            the crest. */}
+        <div className="mt-3 flex">
+          <nav className="flex items-center gap-1 rounded-full border border-amber-900/20 bg-[#fffdf4]/70 p-1 shadow-sm">
+            {(liveFixture || tab === 'live') && liveTabBtn}
+            {isAdmin && tabBtn('match', t('app.tab.matchday'))}
+            {tabBtn('roster', t('app.tab.roster', { n: state.players.length }))}
+            {tabBtn('club', t('app.tab.club'))}
+            {/* Unlocking lives in the header rather than on the Roster tab
+                because what it gates is spread across all of them — Match day,
+                the rating column in History, ending a live fixture — and having
+                to go and find the Roster page first was a step that taught
+                nobody anything. It is one control in two states rather than two
+                controls: the same place you went to get in is the place you
+                press to get back out, and the open padlock says which you are. */}
+            {REMOTE_URL && (
+              <button
+                onClick={isAdmin ? () => setAdminWord(null) : unlockAdmin}
+                disabled={unlocking}
+                title={isAdmin ? t('app.admin.logoff') : t('app.admin.unlock')}
+                className="rounded-full px-3 py-1.5 text-sm font-semibold text-amber-900/70 transition-colors hover:text-orange-700 disabled:opacity-50"
+              >
+                {unlocking ? '…' : isAdmin ? '🔓' : '🔒'}
+              </button>
+            )}
+          </nav>
+        </div>
       </header>
 
       {tab === 'live' ? (
@@ -592,10 +601,8 @@ export default function App() {
           // the night ended while this tab was open — say so rather than
           // leaving the last frame of a finished match on screen
           <div className="rounded-2xl border border-amber-900/15 bg-[#fffdf4]/70 p-6 text-center shadow-sm">
-            <p className="text-lg font-bold text-amber-950">No fixture is live right now</p>
-            <p className="mt-1 text-sm text-amber-900/60">
-              This tab appears on its own the moment a night kicks off.
-            </p>
+            <p className="text-lg font-bold text-amber-950">{t('app.live.none.title')}</p>
+            <p className="mt-1 text-sm text-amber-900/60">{t('app.live.none.body')}</p>
           </div>
         )
       ) : tab === 'roster' ? (

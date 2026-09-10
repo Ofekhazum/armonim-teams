@@ -18,8 +18,10 @@ import {
   SpectrumBar,
   spectrumColor,
   Stars,
-  STYLE_META,
+  STYLE_ICON,
+  styleLabel,
 } from './ui';
+import { t } from '../i18n';
 
 interface Props {
   players: Player[];
@@ -124,39 +126,38 @@ export default function Roster({
       if (version) setLocalRosterVersion(version); // don't re-pull our own change
       setDialog({
         kind: 'publish-result',
-        title: 'Roster published',
-        body: '✅ Everyone gets it next time they open the app.',
+        title: t('roster.published.title'),
+        body: t('roster.published.body'),
         tone: 'success',
       });
     } else if (result === 'wrong-word') {
       // password was changed on the server since we unlocked — drop back to normal
       setDialog({
         kind: 'publish-result',
-        title: 'Publish failed',
-        body: '❌ The password is no longer valid. Please unlock admin again.',
+        title: t('roster.publishFailed.title'),
+        body: t('roster.publishFailed.wrongWord'),
         tone: 'danger',
       });
       setAdminWord(null);
     } else if (result === 'rate-limited') {
       setDialog({
         kind: 'publish-result',
-        title: 'Publish failed',
-        body: '❌ Too many failed attempts. Please wait a few minutes and try again.',
+        title: t('roster.publishFailed.title'),
+        body: t('roster.publishFailed.rateLimited'),
         tone: 'danger',
       });
     } else if (result === 'stale') {
       setDialog({
         kind: 'publish-result',
-        title: 'Roster changed elsewhere',
-        body:
-          '⚠️ The shared roster has changed since this device last loaded it — publishing now would undo those changes.\nReload the page to pull the current roster first, then re-apply your edits.',
+        title: t('roster.staleRemote.title'),
+        body: t('roster.staleRemote.body'),
         tone: 'danger',
       });
     } else {
       setDialog({
         kind: 'publish-result',
-        title: 'Publish failed',
-        body: 'Could not publish — check your connection and try again.',
+        title: t('roster.publishFailed.title'),
+        body: t('roster.publishFailed.offline'),
         tone: 'danger',
       });
     }
@@ -396,7 +397,9 @@ export default function Roster({
   // to the top of the screen.
   const draftForm = draft && (
     <div className="pop-in space-y-4 rounded-2xl border border-amber-900/20 bg-[#fffdf4]/80 p-4 shadow-sm">
-      <h2 className="font-bold text-amber-950">{editingId ? 'Edit player' : 'New player'}</h2>
+      <h2 className="font-bold text-amber-950">
+        {editingId ? t('roster.form.editTitle') : t('roster.form.newTitle')}
+      </h2>
 
       <div>
         <input
@@ -409,7 +412,7 @@ export default function Roster({
           value={draft.name}
           onChange={(e) => setDraft({ ...draft, name: e.target.value })}
           onKeyDown={(e) => e.key === 'Enter' && save()}
-          placeholder="Name (עברית or English)"
+          placeholder={t('roster.form.name.placeholder')}
           className="w-full rounded-lg border border-amber-900/30 bg-white px-3 py-2 text-amber-950 outline-none focus:border-orange-500"
         />
         {/* Non-blocking — a duplicate is sometimes intentional (two people who
@@ -418,7 +421,7 @@ export default function Roster({
             name clash (§2.41 harden pass). */}
         {duplicateName && (
           <p className="mt-1 text-xs text-orange-700">
-            ⚠️ <Name>{duplicateName.name}</Name> is already on the roster under this name.
+            ⚠️ <Name>{duplicateName.name}</Name> {t('roster.form.duplicate')}
           </p>
         )}
       </div>
@@ -429,17 +432,15 @@ export default function Roster({
           value={draft.aliases}
           onChange={(e) => setDraft({ ...draft, aliases: e.target.value })}
           onKeyDown={(e) => e.key === 'Enter' && save()}
-          placeholder="Other names people call them, comma-separated (optional)"
+          placeholder={t('roster.form.aliases.placeholder')}
           className="w-full rounded-lg border border-amber-900/30 bg-white px-3 py-2 text-sm text-amber-950 outline-none focus:border-orange-500"
         />
-        <p className="mt-1 text-xs text-amber-900/50">
-          Used to match this player when importing a pasted list on match day.
-        </p>
+        <p className="mt-1 text-xs text-amber-900/50">{t('roster.form.aliases.hint')}</p>
       </div>
 
       <div>
         <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-amber-900/60">
-          Shirt number (optional)
+          {t('roster.form.number.label')}
         </label>
         <input
           dir="ltr"
@@ -450,13 +451,10 @@ export default function Roster({
           value={draft.number}
           onChange={(e) => setDraft({ ...draft, number: e.target.value })}
           onKeyDown={(e) => e.key === 'Enter' && save()}
-          placeholder="e.g. 9"
+          placeholder={t('roster.form.number.placeholder')}
           className="w-24 rounded-lg border border-amber-900/30 bg-white px-3 py-2 text-amber-950 outline-none focus:border-orange-500"
         />
-        <p className="mt-1 text-xs text-amber-900/50">
-          Printed on the shirt when sharing teams as images — not shown anywhere else.
-          Fine to leave blank, and fine if two players share a number.
-        </p>
+        <p className="mt-1 text-xs text-amber-900/50">{t('roster.form.number.hint')}</p>
       </div>
 
       {(!editingId || isAdmin) && (
@@ -479,7 +477,7 @@ export default function Roster({
             step={0.5}
             value={draft.rating}
             onChange={(e) => setDraft({ ...draft, rating: Number(e.target.value) })}
-            aria-label="Rating, 1 to 5"
+            aria-label={t('roster.form.rating.aria')}
             className="rating-range w-full"
           />
         </div>
@@ -488,7 +486,7 @@ export default function Roster({
       <div>
         <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
           <span className="text-xs font-semibold uppercase tracking-wide text-amber-900/60">
-            Role
+            {t('roster.form.role')}
           </span>
           <button
             onClick={() => setDraft({ ...draft, isGk: !draft.isGk })}
@@ -499,21 +497,20 @@ export default function Roster({
                 : 'border-amber-900/25 bg-white text-amber-900'
             }`}
           >
-            🧤 Goalkeeper
+            {t('roster.form.gk.toggle')}
           </button>
         </div>
 
         {draft.isGk ? (
           <p className="rounded-lg border border-amber-900/15 bg-white/60 px-3 py-2.5 text-xs text-amber-900/70">
-            Permanent goalkeepers sit outside the outfield spectrum — they're always
-            GK-capable on match day.
+            {t('roster.form.gk.note')}
           </p>
         ) : (
           <div className="rounded-lg border border-amber-900/15 bg-white/60 px-3 py-2.5">
             <div className="mb-1 flex items-center justify-between gap-2 text-sm font-bold text-amber-950">
               <span>
-                {STYLE_META[badgeForAttack(draft.attack)].icon}{' '}
-                {STYLE_META[badgeForAttack(draft.attack)].label}
+                {STYLE_ICON[badgeForAttack(draft.attack)]}{' '}
+                {styleLabel(badgeForAttack(draft.attack))}
               </span>
               <span className="text-xs font-semibold text-amber-900/60">
                 {attackLabel(draft.attack)}
@@ -529,13 +526,13 @@ export default function Roster({
               step={ATTACK_STEP}
               value={draft.attack}
               onChange={(e) => setDraft({ ...draft, attack: Number(e.target.value) })}
-              aria-label="Position on the defence to attack spectrum"
+              aria-label={t('roster.form.spectrum.aria')}
               className="spectrum-range w-full"
               style={{ '--thumb': spectrumColor(draft.attack) } as CSSProperties}
             />
             <div dir="ltr" className="flex justify-between text-xs font-semibold text-amber-900/50">
-              <span>🛡️ Defence</span>
-              <span>Attack ⚔️</span>
+              <span>{t('roster.form.defence')}</span>
+              <span>{t('roster.form.attack')}</span>
             </div>
           </div>
         )}
@@ -544,7 +541,7 @@ export default function Roster({
       {eligibleForRelationships.length > 0 && (
         <div className="rounded-lg border border-amber-900/15 bg-white/60 px-3 py-2.5">
           <FoldHeader
-            title={`🤝↔️ Relationships${
+            title={`${t('roster.rel.title')}${
               draft.chemistry.length + draft.avoid.length > 0
                 ? ` (${draft.chemistry.length + draft.avoid.length})`
                 : ''
@@ -560,8 +557,8 @@ export default function Roster({
                   dir="auto"
                   value={relFilter}
                   onChange={(e) => setRelFilter(e.target.value)}
-                  placeholder="Filter by name…"
-                  aria-label="Filter players for chemistry and avoid"
+                  placeholder={t('roster.rel.filter.placeholder')}
+                  aria-label={t('roster.rel.filter.aria')}
                   className="w-full rounded-lg border border-amber-900/25 bg-white px-3 py-1.5 text-sm text-amber-950 outline-none focus:border-orange-500"
                 />
               )}
@@ -574,8 +571,8 @@ export default function Roster({
                   sensitive, so its toggle isn't shown or editable in normal
                   mode. */}
               <p className="text-xs text-amber-900/50">
-                🤝 good chemistry
-                {isAdmin && ' · ↔️ prefer separate teams (a nudge, not a rule — admin only)'}
+                {t('roster.rel.legend.chem')}
+                {isAdmin && t('roster.rel.legend.avoid')}
               </p>
               <div className="max-h-72 space-y-1 overflow-y-auto pe-0.5">
                 {filteredForRelationships.map((p) => (
@@ -588,8 +585,8 @@ export default function Roster({
                       <button
                         onClick={() => toggleChem(p.id)}
                         aria-pressed={draft.chemistry.includes(p.id)}
-                        aria-label={`Plays well with ${p.name}`}
-                        title="Plays well with"
+                        aria-label={t('roster.rel.chem.aria', { name: p.name })}
+                        title={t('roster.rel.chem.title')}
                         className={`rounded-full border px-2.5 py-1.5 text-sm transition-colors ${
                           draft.chemistry.includes(p.id)
                             ? 'border-pink-500 bg-pink-500/15 text-pink-700'
@@ -602,8 +599,8 @@ export default function Roster({
                         <button
                           onClick={() => toggleAvoid(p.id)}
                           aria-pressed={draft.avoid.includes(p.id)}
-                          aria-label={`Prefer separate teams from ${p.name}`}
-                          title="Prefer on separate teams (admin only)"
+                          aria-label={t('roster.rel.avoid.aria', { name: p.name })}
+                          title={t('roster.rel.avoid.title')}
                           className={`rounded-full border px-2.5 py-1.5 text-sm transition-colors ${
                             draft.avoid.includes(p.id)
                               ? 'border-sky-600 bg-sky-600/15 text-sky-800'
@@ -617,7 +614,9 @@ export default function Roster({
                   </div>
                 ))}
                 {filteredForRelationships.length === 0 && (
-                  <p className="text-xs text-amber-900/50">No players match “{relFilter}”.</p>
+                  <p className="text-xs text-amber-900/50">
+                    {t('roster.rel.noMatch', { q: relFilter })}
+                  </p>
                 )}
               </div>
             </div>
@@ -633,13 +632,13 @@ export default function Roster({
           disabled={!draft.name.trim()}
           className="flex-1 rounded-lg bg-orange-600 px-5 py-2.5 text-sm font-bold text-amber-50 disabled:opacity-40 sm:flex-none"
         >
-          Save
+          {t('ui.save')}
         </button>
         <button
           onClick={cancel}
           className="flex-1 rounded-lg border border-amber-900/30 px-5 py-2.5 text-sm font-semibold text-amber-900 sm:flex-none"
         >
-          Cancel
+          {t('ui.cancel')}
         </button>
       </div>
     </div>
@@ -648,9 +647,7 @@ export default function Roster({
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm text-amber-900/70">
-          The permanent squad. Guests are added on match day.
-        </p>
+        <p className="text-sm text-amber-900/70">{t('roster.intro')}</p>
         {!draft && (
           <div className="flex gap-2">
             {/* Unlocking and leaving admin both moved to the header, where
@@ -660,9 +657,9 @@ export default function Roster({
                 onClick={publish}
                 disabled={publishing}
                 className="rounded-lg border border-orange-500 px-3 py-2 text-sm font-semibold text-orange-700 hover:bg-orange-50 disabled:opacity-50"
-                title="Update the roster for everyone"
+                title={t('roster.publish.title')}
               >
-                {publishing ? 'Publishing…' : '📢 Publish'}
+                {publishing ? t('roster.publishing') : t('roster.publish')}
               </button>
             )}
             {/* Adding, editing and removing players are all the same act —
@@ -674,7 +671,7 @@ export default function Roster({
                 onClick={startAdd}
                 className="rounded-lg bg-orange-600 px-4 py-2 text-sm font-bold text-amber-50 shadow-sm transition-transform hover:scale-105"
               >
-                + Add player
+                {t('roster.add')}
               </button>
             )}
           </div>
@@ -687,9 +684,7 @@ export default function Roster({
           edits, at the worst possible point to first meet friction. */}
       {isAdmin && !rosterHydrated && players.length > 0 && (
         <div className="rounded-xl border border-orange-500/40 bg-orange-50 px-3 py-2.5 text-xs text-orange-900">
-          ⚠️ This device hasn't loaded the shared chemistry/keep-apart lists yet. Publishing now
-          would replace them with whatever's on this device — possibly nothing. Reload the page
-          before publishing if you want them kept.
+          {t('roster.stale.banner')}
         </div>
       )}
 
@@ -702,33 +697,30 @@ export default function Roster({
               is for. The count rides on the header so a collapsed panel still
               says there is something in it. */}
           <FoldHeader
-            title={`🚪 Guests (${guestRows.length})`}
+            title={t('roster.guests.title', { n: guestRows.length })}
             open={guestsOpen}
             onToggle={toggleGuests}
             className="text-amber-900"
           />
           {guestsOpen && (
             <>
-              <p className="mt-1.5 text-xs text-amber-900/60">
-                Played but not on the roster. Promoting one keeps every night they’ve already
-                played — their nights follow the name.
-              </p>
+              <p className="mt-1.5 text-xs text-amber-900/60">{t('roster.guests.hint')}</p>
               <div className="mt-3 flex flex-wrap gap-2">
                 {guestRows.map((g) => (
                   <div
                     key={g.id}
-                    className="flex items-center gap-2 rounded-full border border-amber-900/20 bg-white/80 py-1 pl-3 pr-1 shadow-sm"
+                    className="flex items-center gap-2 rounded-full border border-amber-900/20 bg-white/80 py-1 pe-1 ps-3 shadow-sm"
                   >
                     <span className="text-sm font-bold text-amber-900">{g.name}</span>
                     <span className="text-[11px] font-semibold text-amber-900/50">
-                      {g.nights} {g.nights === 1 ? 'night' : 'nights'}
+                      {t('roster.guests.nights', { n: g.nights })}
                     </span>
                     <button
                       onClick={() => promoteGuest(g.name)}
                       className="rounded-full bg-orange-600 px-2.5 py-1 text-[11px] font-bold text-amber-50 transition-transform hover:scale-105"
-                      title={`Add ${g.name} to the roster, keeping their ${g.nights} night${g.nights === 1 ? '' : 's'}`}
+                      title={t('roster.guests.promote.title', { name: g.name, n: g.nights })}
                     >
-                      + Add to roster
+                      {t('roster.guests.promote')}
                     </button>
                   </div>
                 ))}
@@ -740,7 +732,7 @@ export default function Roster({
 
       {sorted.length === 0 && !draft ? (
         <div className="rounded-2xl border border-dashed border-amber-900/30 p-10 text-center text-amber-900/70">
-          No players yet — add your squad to get started 🙌
+          {t('roster.empty')}
         </div>
       ) : (
         <ul className="grid gap-2 sm:grid-cols-2">
@@ -770,9 +762,9 @@ export default function Roster({
                 {p.id === savedId && (
                   <span
                     aria-hidden
-                    className="save-badge pointer-events-none absolute right-3 top-2 rounded-full bg-amber-900/90 px-2 py-0.5 text-[10px] font-bold text-amber-50 shadow-sm"
+                    className="save-badge pointer-events-none absolute end-3 top-2 rounded-full bg-amber-900/90 px-2 py-0.5 text-[10px] font-bold text-amber-50 shadow-sm"
                   >
-                    ✓ Saved
+                    {t('roster.row.saved')}
                   </span>
                 )}
                 {/* The badge's own emoji, set large and nearly transparent at
@@ -785,7 +777,7 @@ export default function Roster({
                 {titles.get(p.id) && (
                   <span
                     aria-hidden
-                    className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 select-none text-5xl leading-none opacity-[0.14] transition-opacity duration-200 group-hover:opacity-25"
+                    className="pointer-events-none absolute start-3 top-1/2 -translate-y-1/2 select-none text-5xl leading-none opacity-[0.14] transition-opacity duration-200 group-hover:opacity-25"
                   >
                     {titles.get(p.id)!.icon}
                   </span>
@@ -802,25 +794,28 @@ export default function Roster({
                 <button
                   type="button"
                   onClick={() => setOpenId(p.id)}
-                  aria-label={`Open ${p.name}`}
+                  aria-label={t('roster.row.open', { name: p.name })}
                   className="relative flex min-w-0 flex-1 cursor-pointer flex-col items-start border-0 bg-transparent p-0 text-start"
                 >
                   <div className="flex items-center gap-2">
                     <Name className="truncate font-semibold text-amber-950">{p.name}</Name>
-                    <span title={STYLE_META[roleBadge(p)].label}>{STYLE_META[roleBadge(p)].icon}</span>
+                    <span title={styleLabel(roleBadge(p))}>{STYLE_ICON[roleBadge(p)]}</span>
                     {isAdmin && !p.isGk && <SpectrumBar attack={p.attack} />}
                     {isAdmin && <Stars rating={p.rating} unknown={p.ratingUnknown} />}
                   </div>
                   {(p.aliases ?? []).length > 0 && (
-                    <div className="mt-0.5 truncate text-xs text-amber-900/50" title="Also known as">
-                      aka {p.aliases!.join(', ')}
+                    <div
+                      className="mt-0.5 truncate text-xs text-amber-900/50"
+                      title={t('roster.row.akaTitle')}
+                    >
+                      {t('roster.row.aka')} {p.aliases!.join(', ')}
                     </div>
                   )}
                   <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-amber-950">
                     {p.chemistry.length > 0 && (
                       <span
                         className="min-w-0 max-w-full truncate text-xs text-pink-700/80"
-                        title="Plays well with"
+                        title={t('roster.rel.chem.title')}
                       >
                         🤝{' '}
                         {p.chemistry
@@ -832,7 +827,7 @@ export default function Roster({
                     {isAdmin && (p.avoid ?? []).length > 0 && (
                       <span
                         className="min-w-0 max-w-full truncate text-xs text-sky-800/80"
-                        title="Prefer on separate teams (admin only)"
+                        title={t('roster.rel.avoid.title')}
                       >
                         ↔️{' '}
                         {p.avoid!
@@ -849,7 +844,7 @@ export default function Roster({
                       onClick={() => startEdit(p)}
                       className="rounded-lg border border-amber-900/25 px-2.5 py-1 text-xs font-semibold text-amber-900 hover:border-orange-500"
                     >
-                      Edit
+                      {t('roster.edit')}
                     </button>
                     <button
                       onClick={() => remove(p)}
@@ -868,10 +863,10 @@ export default function Roster({
       {/* Deploy-verification only, for the organiser (§2.41 update) — was the
           first thing on the tab, ahead of the squad itself; a footer is where
           build info belongs, not the top of the task. */}
-      <div className="text-right">
+      <div className="text-end">
         <span
           className="font-mono text-[10px] uppercase tracking-wide text-amber-900/40"
-          title="Build version — changes on every deploy"
+          title={t('roster.version.title')}
         >
           v{__GIT_HASH__}
         </span>
@@ -896,9 +891,9 @@ export default function Roster({
 
       {dialog?.kind === 'remove-confirm' && (
         <ConfirmDialog
-          title="Remove player?"
-          body={`This removes ${dialog.player.name} from the permanent squad.\nYou can always add them back later.`}
-          confirmLabel="Remove"
+          title={t('roster.remove.title')}
+          body={t('roster.remove.body', { name: dialog.player.name })}
+          confirmLabel={t('roster.remove.confirm')}
           tone="danger"
           onConfirm={() => confirmRemove(dialog.player)}
           onClose={() => setDialog(null)}
@@ -906,11 +901,9 @@ export default function Roster({
       )}
       {dialog?.kind === 'publish-confirm' && (
         <ConfirmDialog
-          title="Publish without confirming private lists?"
-          body={
-            "Publishing now would replace the chemistry and keep-apart lists with whatever is on this device — possibly nothing.\nReload and unlock admin again first if you want them kept."
-          }
-          confirmLabel="Publish anyway"
+          title={t('roster.publishGate.title')}
+          body={t('roster.publishGate.body')}
+          confirmLabel={t('roster.publishGate.confirm')}
           tone="danger"
           onConfirm={doPublish}
           onClose={() => setDialog(null)}

@@ -10,7 +10,7 @@ import type {
 } from '../types';
 import { NOTE_MAX, roleBadge } from '../types';
 import { TEAM_COLORS, lineupOrder, teamStats } from '../balancer';
-import { STYLE_META } from './ui';
+import { styleLabel } from './ui';
 import { useKickedOff } from '../kickoff';
 import KickoffCountdown from './KickoffCountdown';
 import MatchClock from './MatchClock';
@@ -19,6 +19,7 @@ import TonightFacts from './TonightFacts';
 import MatchLog from './MatchLog';
 import ScoreBar from './ScoreBar';
 import { useScrollLock } from '../scrollLock';
+import { t } from '../i18n';
 
 interface Props {
   teams: Teams;
@@ -115,9 +116,7 @@ export default function FixturePage({
   // every phone in the group for up to a week.
   const cancelScheduled = () => {
     if (
-      confirm(
-        "Cancel this scheduled fixture?\n\nThe teams and countdown disappear from everyone's phones. You'll land back on the editable teams board.",
-      )
+      confirm(t('fx.cancel.confirm'))
     ) {
       onBack();
     }
@@ -138,14 +137,14 @@ export default function FixturePage({
             onClick={onBack}
             className="rounded-xl border border-amber-900/30 px-4 py-2 text-sm font-semibold text-amber-900"
           >
-            ← Back to teams
+            {t('fx.backToTeams')}
           </button>
         ) : (
           <button
             onClick={cancelScheduled}
             className="rounded-xl border border-amber-900/30 px-4 py-2 text-sm font-semibold text-amber-900"
           >
-            ✕ Cancel fixture
+            {t('fx.cancel')}
           </button>
         )}
         <div className="flex-1" />
@@ -156,7 +155,7 @@ export default function FixturePage({
             onClick={() => setEnding(true)}
             className="rounded-xl border border-red-500/60 px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-50"
           >
-            ⏹️ End fixture
+            {t('fx.end')}
           </button>
         )}
       </div>
@@ -168,12 +167,14 @@ export default function FixturePage({
         order={(c) => lineupOrder(teams[c], byId, gkSet)}
         note={(p) =>
           p.isGuest
-            ? `Guest of ${p.invitedBy ? byId.get(p.invitedBy)?.name : '?'}`
-            : STYLE_META[roleBadge(p)].label
+            ? t('board.guestOf', {
+                name: (p.invitedBy ? byId.get(p.invitedBy)?.name : '?') ?? '?',
+              })
+            : styleLabel(roleBadge(p))
         }
         // the only rating on this page, and only when an organiser is holding
         // the phone (§2.9)
-        aside={isAdmin ? (c) => ` · avg ${stats[c].avg.toFixed(1)}` : undefined}
+        aside={isAdmin ? (c) => t('fx.avg', { n: stats[c].avg.toFixed(1) }) : undefined}
       />
 
       {/* The clock and the log come before the facts, because this page is
@@ -221,11 +222,8 @@ export default function FixturePage({
       {noting && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-amber-950/40 p-4">
           <div className="w-full max-w-md rounded-2xl border border-amber-900/20 bg-[#fffdf4] p-5 shadow-xl">
-            <h3 className="text-lg font-black text-amber-950">Anything worth remembering?</h3>
-            <p className="mt-2 text-sm text-amber-900/70">
-              Optional, and it goes to the reporter — the one thing in the night's write-up that
-              can't be worked out from the results. Skip it and nothing changes.
-            </p>
+            <h3 className="text-lg font-black text-amber-950">{t('fx.note.title')}</h3>
+            <p className="mt-2 text-sm text-amber-900/70">{t('fx.note.body')}</p>
             {/* The format line is not decoration. The reporter reads this as
                 possibly *several* events, each with its own owner (one may
                 name somebody, the next may name nobody), and a list is the
@@ -233,19 +231,16 @@ export default function FixturePage({
                 "X and Y" is genuinely ambiguous between one event and two.
                 Naming a player in the line is also what gives the reporter
                 permission to go after them for it, so the box says that too. */}
-            <p className="mt-1 text-xs text-amber-900/50">
-              More than one thing? Put each on its own line, or wrap each in @…@. Name a player and
-              they'll get the blame — leave the name out and it belongs to nobody.
-            </p>
+            <p className="mt-1 text-xs text-amber-900/50">{t('fx.note.format')}</p>
             <textarea
               value={note}
               onChange={(e) => setNote(e.target.value.slice(0, NOTE_MAX))}
               rows={3}
               autoFocus
-              placeholder={'טום העיף את הכדור מעבר לגדר 5 פעמים\nמישהו הביא כלב למגרש'}
+              placeholder={t('fx.note.placeholder')}
               className="mt-3 w-full rounded-xl border border-amber-900/25 bg-white px-3 py-2 text-sm text-amber-950 outline-none focus:border-orange-500"
             />
-            <div className="mt-1 text-right text-[11px] text-amber-900/35">
+            <div className="mt-1 text-end text-[11px] text-amber-900/35">
               {note.trim().length}/{NOTE_MAX}
             </div>
             <div className="mt-3 flex flex-col gap-2">
@@ -253,7 +248,7 @@ export default function FixturePage({
                 onClick={() => finish(true)}
                 className="rounded-xl bg-orange-600 px-4 py-2.5 text-sm font-bold text-amber-50 shadow-sm transition-transform hover:scale-[1.02]"
               >
-                🗂️ {note.trim() ? 'Save with the note & end' : 'Save to history & end'}
+                {note.trim() ? t('fx.note.saveWith') : t('fx.note.save')}
               </button>
               <button
                 onClick={() => {
@@ -263,7 +258,7 @@ export default function FixturePage({
                 }}
                 className="rounded-xl border border-amber-900/25 px-4 py-2 text-sm font-bold text-amber-900 hover:border-orange-500"
               >
-                ← Back
+                {t('md.back')}
               </button>
             </div>
           </div>
@@ -276,17 +271,16 @@ export default function FixturePage({
       {ending && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-amber-950/40 p-4">
           <div className="w-full max-w-md rounded-2xl border border-amber-900/20 bg-[#fffdf4] p-5 shadow-xl">
-            <h3 className="text-lg font-black text-amber-950">That's the night?</h3>
+            <h3 className="text-lg font-black text-amber-950">{t('fx.ending.title')}</h3>
             <p className="mt-2 text-sm text-amber-900/70">
-              Ending clears tonight's players, guests and teams, and the live view disappears from
-              everyone's phones.{' '}
+              {t('fx.ending.body')}{' '}
               {saved
-                ? 'Tonight is already in history — filing again updates that same record with anything recorded since.'
+                ? t('fx.ending.alreadySaved')
                 : matchLog.length > 0
-                  ? `The ${matchLog.length} matches written down tonight are not in history yet.`
+                  ? t('fx.ending.unsavedMatches', { n: matchLog.length })
                   : anyResult
-                    ? "Tonight's tally is not in history yet."
-                    : 'Nothing was written down tonight, so there is nothing to file — ending now keeps the night off the record entirely.'}
+                    ? t('fx.ending.unsavedTally')
+                    : t('fx.ending.nothing')}
             </p>
             <div className="mt-4 flex flex-col gap-2">
               {/* Filing an empty night pollutes standings, milestones and
@@ -303,12 +297,11 @@ export default function FixturePage({
                     }}
                     className="rounded-xl bg-orange-600 px-4 py-2.5 text-sm font-bold text-amber-50 shadow-sm transition-transform hover:scale-[1.02]"
                   >
-                    🗂️ {saved ? 'Update history & end' : 'Save to history & end'}
+                    {saved ? t('fx.ending.update') : t('fx.note.save')}
                   </button>
                 ) : (
                   <p className="rounded-xl bg-amber-900/[0.06] px-3 py-2 text-xs text-amber-900/60">
-                    🔒 Unlock admin to file tonight into history. Ending now keeps the night off the
-                    record entirely.
+                    {t('fx.ending.needAdmin')}
                   </p>
                 ))}
               <button
@@ -320,16 +313,16 @@ export default function FixturePage({
                 }
               >
                 {!anyResult
-                  ? '⏹️ End without saving'
+                  ? t('fx.ending.endNoSave')
                   : saved
-                    ? '⏹️ End without updating'
-                    : '🗑️ End and lose the result'}
+                    ? t('fx.ending.endNoUpdate')
+                    : t('fx.ending.endLose')}
               </button>
               <button
                 onClick={() => setEnding(false)}
                 className="rounded-xl border border-amber-900/25 px-4 py-2 text-sm font-bold text-amber-900 hover:border-orange-500"
               >
-                ← Not yet
+                {t('fx.ending.notYet')}
               </button>
             </div>
           </div>

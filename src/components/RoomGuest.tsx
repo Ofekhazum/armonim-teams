@@ -5,6 +5,7 @@ import { getMyName, setMyName } from '../storage';
 import { createUserColorTracker } from '../userColor';
 import LiveRoomBar from './LiveRoomBar';
 import TeamsBoard from './TeamsBoard';
+import { t } from '../i18n';
 
 interface Props {
   roomId: string;
@@ -79,8 +80,8 @@ export default function RoomGuest({ roomId }: Props) {
   if (!name) {
     return (
       <div className="mx-auto max-w-sm space-y-3 px-4 py-16 text-center">
-        <h1 className="text-xl font-black text-amber-950">🦁 Armonim FC — live room</h1>
-        <p className="text-sm text-amber-900/70">What's your name? It's shown next to any change you make.</p>
+        <h1 className="text-xl font-black text-amber-950">{t('guest.title')}</h1>
+        <p className="text-sm text-amber-900/70">{t('guest.askName')}</p>
         <div className="flex gap-2">
           <input
             dir="auto"
@@ -88,7 +89,7 @@ export default function RoomGuest({ roomId }: Props) {
             value={nameDraft}
             onChange={(e) => setNameDraft(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && join()}
-            placeholder="Your name"
+            placeholder={t('guest.name.placeholder')}
             className="flex-1 rounded-lg border border-amber-900/30 bg-white px-3 py-2 text-amber-950 outline-none focus:border-orange-500"
           />
           <button
@@ -96,7 +97,7 @@ export default function RoomGuest({ roomId }: Props) {
             disabled={!nameDraft.trim()}
             className="rounded-lg bg-orange-600 px-4 py-2 text-sm font-bold text-amber-50 disabled:opacity-40"
           >
-            Join
+            {t('guest.join')}
           </button>
         </div>
       </div>
@@ -106,15 +107,15 @@ export default function RoomGuest({ roomId }: Props) {
   if (error) {
     const msg =
       error === 'room-not-found'
-        ? "This room doesn't exist — ask the host to send a fresh link."
+        ? t('guest.err.notFound')
         : error === 'closed'
-          ? 'The host closed this room.'
+          ? t('guest.err.closed')
           : error === 'not-configured'
-            ? 'Live rooms are not set up for this app.'
-            : "Lost connection to the room — try reopening the host's link.";
+            ? t('guest.err.notConfigured')
+            : t('guest.err.disconnected');
     return (
       <div className="mx-auto max-w-sm space-y-2 px-4 py-16 text-center">
-        <h1 className="text-xl font-black text-amber-950">🦁 Armonim FC</h1>
+        <h1 className="text-xl font-black text-amber-950">{t('guest.club')}</h1>
         <p className="text-sm text-amber-900/70">{msg}</p>
       </div>
     );
@@ -123,7 +124,7 @@ export default function RoomGuest({ roomId }: Props) {
   if (!state) {
     return (
       <div className="mx-auto max-w-sm px-4 py-16 text-center text-sm text-amber-900/60">
-        Connecting…
+        {t('guest.connecting')}
       </div>
     );
   }
@@ -131,7 +132,8 @@ export default function RoomGuest({ roomId }: Props) {
   return (
     <div className="mx-auto max-w-5xl space-y-3 px-3 py-5 sm:px-6">
       <h1 className="text-lg font-black text-amber-950">
-        <span className="mr-2">🦁</span>Armonim FC — live
+        <span className="me-2">🦁</span>
+        {t('guest.liveTitle')}
       </h1>
       <div className="rounded-2xl border border-red-600/20 bg-red-600/5 p-3 shadow-sm">
         <LiveRoomBar presence={presence} activity={activity} colorOf={colorOf} />

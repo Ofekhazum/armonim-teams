@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { useScrollLock } from '../scrollLock';
+import { t } from '../i18n';
 
 // The clock as the only thing on screen (§2.8). A phone propped against a bag
 // on the touchline is read from ten metres away by someone who isn't holding
@@ -78,9 +79,9 @@ export default function PitchMode({
     <div className="fixed inset-0 z-50 flex touch-none flex-col overscroll-none bg-[#0f0d0a] px-4 text-center">
       <button
         onClick={onExit}
-        title="Leave pitch mode"
-        aria-label="Leave pitch mode"
-        className="absolute right-3 top-3 rounded-full px-4 py-2 text-2xl font-bold text-amber-50/40 transition-colors hover:text-amber-50"
+        title={t('pitch.leave')}
+        aria-label={t('pitch.leave')}
+        className="absolute end-3 top-3 rounded-full px-4 py-2 text-2xl font-bold text-amber-50/40 transition-colors hover:text-amber-50"
       >
         ✕
       </button>
@@ -116,17 +117,17 @@ export default function PitchMode({
           {!finished &&
             (running ? (
               <button onClick={onPause} className={`${bigBtn} bg-amber-50/15 text-amber-50`}>
-                ⏸ Pause
+                {t('pitch.pause')}
               </button>
             ) : (
               <button onClick={onStart} className={`${bigBtn} bg-orange-600 text-amber-50`}>
-                {idle ? (addedTime ? '▶️ Added time' : '▶️ Start') : '▶️ Resume'}
+                {idle ? (addedTime ? t('pitch.addedTime') : t('pitch.start')) : t('pitch.resume')}
               </button>
             ))}
 
           {finished && !addedTime && (
             <button onClick={onAdded} className={`${bigBtn} bg-orange-600 text-amber-50`}>
-              ⚽ Level — added time
+              {t('pitch.level')}
             </button>
           )}
 
@@ -137,14 +138,14 @@ export default function PitchMode({
           </button>
 
           <button onClick={onNext} className={`${bigBtn} bg-amber-50/15 text-amber-50`}>
-            {finished || !idle ? '⏭ Next' : '↺ Reset'}
+            {finished || !idle ? t('pitch.next') : t('pitch.reset')}
           </button>
         </div>
       ) : (
         // a watcher's screen: say why there are no buttons rather than leaving
         // a gap where the organiser's phone has them
         <p className="shrink-0 pb-[6vh] pt-[2vh] text-[2.2vh] font-semibold text-amber-50/35">
-          Whoever is nearest the phone runs the clock
+          {t('pitch.watcher')}
         </p>
       )}
     </div>

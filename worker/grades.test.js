@@ -235,11 +235,11 @@ describe('buildGradesPrompt', () => {
 
   it('says what each player brought in, so the joke has material', () => {
     const p = buildGradesPrompt(facts());
-    expect(p).toContain('נבחר לשחקן הערב'); // the MVP
-    expect(p).toContain('לא לקח ערב כבר 7 ערבים'); // the drought
+    expect(p).toContain('נבחר לשחקן המחזור'); // the MVP
+    expect(p).toContain('לא לקח מחזור כבר 7 מחזורים'); // the drought
     expect(p).toContain('בירידת כושר'); // the cold run
     expect(p).toContain('סיימו אחרונים'); // the team that finished bottom
-    expect(p).toContain('ערב ראשון במועדון'); // the debut
+    expect(p).toContain('מחזור ראשון במועדון'); // the debut
   });
 
   it('names the winning team in Hebrew, from a colour code', () => {

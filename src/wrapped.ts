@@ -30,6 +30,7 @@ import { loserOf, playedCounts } from './matchLog';
 import { lean, playerArcs, rate as arcRate } from './playerArcs';
 import { nightStory } from './nightStory';
 import type { AllMarks } from './gradeHistory';
+import { fmtDate, getLang } from './i18n';
 
 // The Team of the Month scoring lives in totm.ts, because the Worker's cron
 // scores the same month with the same rule and a second copy would drift
@@ -207,24 +208,16 @@ export interface WrappedStats {
 }
 
 
-const MONTH_NAMES = [
-  'January',
-  'February',
-  'March',
-  'April',
-  'May',
-  'June',
-  'July',
-  'August',
-  'September',
-  'October',
-  'November',
-  'December',
-];
-
+/**
+ * "August 2026" / "אוגוסט 2026".
+ *
+ * `Intl` rather than a table of month names, so this follows the language
+ * without a second list to keep in step. The day is pinned to the 1st because
+ * the period only ever names a month.
+ */
 export function periodLabel(period: string): string {
   const [y, m] = period.split('-').map(Number);
-  return `${MONTH_NAMES[m - 1]} ${y}`;
+  return fmtDate(new Date(y, m - 1, 1), getLang(), { month: 'long', year: 'numeric' });
 }
 
 // Which months have at least one recorded night, newest first — populates the

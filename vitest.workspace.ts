@@ -20,6 +20,10 @@ export default defineWorkspace([
       environment: 'node',
       include: ['src/**/*.test.ts', 'worker/**/*.test.js'],
       exclude: ['**/*.dom.test.*'],
+      // Only pins the language (§2.46) — no DOM, no matchers, nothing the
+      // note above rules out. The Worker tests import it too and simply have
+      // nothing to do with it.
+      setupFiles: ['src/test-setup-logic.ts'],
     },
   },
   {

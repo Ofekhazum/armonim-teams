@@ -53,12 +53,6 @@ export const TEAM_CANVAS: Record<
   },
 };
 
-export const TEAM_LABEL: Record<TeamColor, string> = {
-  black: 'Black',
-  white: 'White',
-  blue: 'Blue',
-};
-
 // The poster's own ink, on the dark ground every page shares.
 export const INK = {
   bright: '#fffaf0',

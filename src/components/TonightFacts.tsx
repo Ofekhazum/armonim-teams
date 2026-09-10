@@ -8,6 +8,7 @@ import { duoFacts } from '../duos';
 import { derbyTonight } from '../derby';
 import DerbyBanner from './DerbyBanner';
 import { FoldHeader, Name } from './ui';
+import { t } from '../i18n';
 
 // The two strips that say what tonight means: what is on the line, and what has
 // already been reached. Lifted out of the organiser's fixture page so the
@@ -156,7 +157,7 @@ export default function TonightFacts({
       {(pending.length > 0 || bounty) && (
         <div className="rounded-2xl border border-orange-500/25 bg-orange-50/60 px-4 py-2.5">
           <FoldHeader
-            title="🎯 On the line tonight"
+            title={t('facts.line.title')}
             open={lineOpen}
             onToggle={toggleLine}
             className="text-orange-800/70"
@@ -168,22 +169,22 @@ export default function TonightFacts({
                 case 'nth-win':
                   return (
                     <span key={`w${f.id}`}>
-                      🏆 <Name className="font-bold">{f.name}</Name> is {f.away} from {f.target}{' '}
-                      career wins
+                      🏆 <Name className="font-bold">{f.name}</Name>{' '}
+                      {t('facts.line.nthWin', { away: f.away, target: f.target })}
                     </span>
                   );
                 case 'iron-man':
                   return (
                     <span key={`i${f.id}`}>
-                      🦾 <Name className="font-bold">{f.name}</Name> makes it {f.current + 1} nights
-                      in a row by turning up
+                      🦾 <Name className="font-bold">{f.name}</Name>{' '}
+                      {t('facts.line.ironMan', { n: f.current + 1 })}
                     </span>
                   );
                 case 'win-streak':
                   return (
                     <span key={`s${f.id}`}>
-                      📈 <Name className="font-bold">{f.name}</Name>'s team wins and that's{' '}
-                      {f.current + 1} nights running
+                      📈 <Name className="font-bold">{f.name}</Name>
+                      {t('facts.line.winStreak', { n: f.current + 1 })}
                     </span>
                   );
               }
@@ -192,8 +193,7 @@ export default function TonightFacts({
           )}
           {lineOpen && bounty && (
             <p className="mt-1.5 border-t border-orange-500/15 pt-1.5 text-sm font-semibold text-orange-900">
-              🎖️ Bounty — <Name className="font-black">{bounty.name}</Name> is on {bounty.nights}{' '}
-              winning nights. Somebody end it.
+              {t('facts.bounty', { name: bounty.name, n: bounty.nights })}
             </p>
           )}
         </div>
@@ -211,7 +211,7 @@ export default function TonightFacts({
       <MilestoneStrip
         milestones={milestones}
         duos={duos}
-        title="📋 Coming in tonight"
+        title={t('facts.strip.title')}
         open={factsOpen}
         onToggle={toggleFacts}
       />
@@ -259,42 +259,46 @@ export function MilestoneStrip({
       {milestones.map((m) => {
         switch (m.kind) {
           case 'debut-group':
-            return <span key="debuts">✨ {m.count} first nights tonight</span>;
+            return <span key="debuts">{t('facts.debutGroup', { n: m.count })}</span>;
           case 'debut':
             return (
               <span key={m.id}>
-                ✨ First night for <Name className="font-bold">{m.name}</Name>
+                {t('facts.debut')} <Name className="font-bold">{m.name}</Name>
               </span>
             );
           case 'nth-night':
             return (
               <span key={m.id}>
-                🎉 <Name className="font-bold">{m.name}</Name>'s {m.nights}th night
+                🎉 <Name className="font-bold">{m.name}</Name>{' '}
+                {t('facts.nthNight', { n: m.nights })}
               </span>
             );
           case 'nth-win':
             return (
               <span key={`w${m.id}`}>
-                🏆 <Name className="font-bold">{m.name}</Name>'s {m.wins}th win
+                🏆 <Name className="font-bold">{m.name}</Name>{' '}
+                {t('facts.nthWin', { n: m.wins })}
               </span>
             );
           case 'iron-man':
             return (
               <span key={`i${m.id}`}>
-                🦾 <Name className="font-bold">{m.name}</Name> hasn't missed a night in{' '}
-                {m.nights} straight
+                🦾 <Name className="font-bold">{m.name}</Name>{' '}
+                {t('facts.ironMan', { n: m.nights })}
               </span>
             );
           case 'win-streak':
             return (
               <span key={`s${m.id}`}>
-                📈 <Name className="font-bold">{m.name}</Name> has won {m.nights} nights running
+                📈 <Name className="font-bold">{m.name}</Name>{' '}
+                {t('facts.winStreak', { n: m.nights })}
               </span>
             );
           case 'winless':
             return (
               <span key={`l${m.id}`}>
-                💤 <Name className="font-bold">{m.name}</Name> hasn't won in {m.nights} nights
+                💤 <Name className="font-bold">{m.name}</Name>{' '}
+                {t('facts.winless', { n: m.nights })}
               </span>
             );
         }
@@ -305,9 +309,9 @@ export function MilestoneStrip({
       {duos.map((d) => (
         <span key={`${d.kind}${d.aName}${d.bName}`}>
           {d.kind === 'together-better' ? '🤝' : '🙃'}{' '}
-          <Name className="font-bold">{d.aName}</Name> &{' '}
-          <Name className="font-bold">{d.bName}</Name> have won {d.won} of their {d.together}{' '}
-          nights together
+          <Name className="font-bold">{d.aName}</Name> {t('facts.duo.and')}{' '}
+          <Name className="font-bold">{d.bName}</Name>{' '}
+          {t('facts.duo', { won: d.won, together: d.together })}
         </span>
       ))}
         </>

@@ -35,7 +35,8 @@ import LiveRoomBar from './LiveRoomBar';
 import TeamsBoard from './TeamsBoard';
 import FixturePage from './FixturePage';
 import StartFixtureDialog from './StartFixtureDialog';
-import { fmtRating, Name, RATING_STEPS, STYLE_META } from './ui';
+import { fmtRating, Name, RATING_STEPS, STYLE_ICON, styleLabel } from './ui';
+import { t } from '../i18n';
 
 const ACTIVITY_MS = 750;
 
@@ -419,7 +420,7 @@ export default function MatchDay({
     if (!session.teams) return;
     let name = getMyName();
     if (!name) {
-      const entered = window.prompt('Pick a name to show when you make changes:');
+      const entered = window.prompt(t('md.room.namePrompt'));
       if (!entered?.trim()) return;
       name = entered.trim();
       setMyName(name);
@@ -457,7 +458,7 @@ export default function MatchDay({
   };
 
   const closeRoomAction = () => {
-    if (!confirm('Close the room? Anyone with the link will be disconnected.')) return;
+    if (!confirm(t('md.room.closeConfirm'))) return;
     room?.closeRoom();
     leaveRoom();
     setHostRoom(null);
@@ -471,7 +472,7 @@ export default function MatchDay({
       setLinkCopied(true);
       setTimeout(() => setLinkCopied(false), 2000);
     } catch {
-      window.prompt('Copy the room link:', url);
+      window.prompt(t('md.room.copyPrompt'), url);
     }
   };
 
@@ -534,13 +535,13 @@ export default function MatchDay({
                   onClick={copyRoomLink}
                   className="rounded-lg border border-amber-900/30 bg-white/70 px-3 py-1.5 text-xs font-bold text-amber-900 hover:border-orange-500"
                 >
-                  {linkCopied ? '✓ Link copied!' : '📋 Copy link'}
+                  {linkCopied ? t('md.room.copied') : t('md.room.copy')}
                 </button>
                 <button
                   onClick={closeRoomAction}
                   className="rounded-lg border border-red-500/60 bg-white/70 px-3 py-1.5 text-xs font-bold text-red-700 hover:bg-red-50"
                 >
-                  ✕ Close room
+                  {t('md.room.close')}
                 </button>
               </div>
             </div>
@@ -550,7 +551,7 @@ export default function MatchDay({
                 onClick={goLive}
                 className="rounded-lg border border-red-500/60 px-3 py-1.5 text-xs font-bold text-red-700 hover:bg-red-50"
               >
-                🔴 Go live — let others move players in real time
+                {t('md.room.goLive')}
               </button>
             </div>
           ))}
@@ -567,7 +568,7 @@ export default function MatchDay({
           onReroll={session.teamAlts.length > 1 ? reroll : undefined}
           rerollLabel={
             session.teamAlts.length > 1
-              ? `Variation ${session.altIndex + 1}/${session.teamAlts.length}`
+              ? t('md.variation', { n: session.altIndex + 1, total: session.teamAlts.length })
               : undefined
           }
           onBack={() => {
@@ -599,21 +600,21 @@ export default function MatchDay({
     count < MIN_PLAYERS
       ? {
           cls: 'border-red-600/40 bg-red-600/10 text-red-800',
-          msg: `Need at least ${MIN_PLAYERS} players for the fixture — currently ${count}.`,
+          msg: t('md.status.tooFew', { min: MIN_PLAYERS, n: count }),
         }
       : count === IDEAL_PLAYERS
         ? {
             cls: 'border-green-600/40 bg-green-600/10 text-green-800',
-            msg: 'Perfect — three full teams of 5! 🎉',
+            msg: t('md.status.perfect'),
           }
         : count < IDEAL_PLAYERS
           ? {
               cls: 'border-amber-600/50 bg-amber-500/15 text-amber-900',
-              msg: `${count} players — teams of ${targetSizes(count).join('/')}. The resting team will lend players each match (rotation plan included).`,
+              msg: t('md.status.short', { n: count, sizes: targetSizes(count).join('/') }),
             }
           : {
               cls: 'border-sky-600/40 bg-sky-600/10 text-sky-800',
-              msg: `${count} players — teams of ${targetSizes(count).join('/')}.`,
+              msg: t('md.status.over', { n: count, sizes: targetSizes(count).join('/') }),
             };
 
   const sortedMembers = [...players].sort((a, b) => a.name.localeCompare(b.name, 'he'));
@@ -623,14 +624,14 @@ export default function MatchDay({
       {/* step indicator */}
       <div className="flex flex-wrap items-center gap-2 text-sm font-semibold">
         <span className={step === 'players' ? 'text-orange-700' : 'text-amber-900/40'}>
-          1 · Who's playing
+          {t('md.step.players')}
         </span>
         <span className="text-amber-900/30">→</span>
         <span className={step === 'gk' ? 'text-orange-700' : 'text-amber-900/40'}>
-          2 · Goalkeepers
+          {t('md.step.gk')}
         </span>
         <span className="text-amber-900/30">→</span>
-        <span className="text-amber-900/40">3 · Teams</span>
+        <span className="text-amber-900/40">{t('md.step.teams')}</span>
       </div>
 
       <div
@@ -643,7 +644,7 @@ export default function MatchDay({
         <div className="pop-in space-y-4">
           {players.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-amber-900/30 p-10 text-center text-amber-900/70">
-              The roster is empty — add players in the <b>Roster</b> tab first.
+              {t('md.rosterEmpty')}
             </div>
           ) : (
             <>
@@ -652,21 +653,16 @@ export default function MatchDay({
                   onClick={() => setShowImport((v) => !v)}
                   className="font-bold text-amber-950"
                 >
-                  📋 Import a pasted list {showImport ? '▲' : '▼'}
+                  {t('md.import.toggle')} {showImport ? '▲' : '▼'}
                 </button>
                 {showImport && (
                   <div className="pop-in mt-3 space-y-2">
-                    <p className="text-xs text-amber-900/60">
-                      Paste the player list (e.g. from WhatsApp) — numbered, bulleted, or just one
-                      name per line all work. Recognized names get checked off below; unrecognized
-                      names are added as guests automatically. This replaces the current selection
-                      and guest list entirely.
-                    </p>
+                    <p className="text-xs text-amber-900/60">{t('md.import.hint')}</p>
                     <textarea
                       dir="auto"
                       value={importText}
                       onChange={(e) => setImportText(e.target.value)}
-                      placeholder={'1. חנגל\n2. הלחמי\n3. דורגי\n...'}
+                      placeholder={t('md.import.placeholder')}
                       rows={6}
                       className="w-full rounded-lg border border-amber-900/30 bg-white px-3 py-2 text-sm text-amber-950 outline-none focus:border-orange-500"
                     />
@@ -676,13 +672,16 @@ export default function MatchDay({
                         disabled={!importText.trim()}
                         className="rounded-lg bg-amber-900 px-4 py-2 text-sm font-bold text-amber-50 disabled:opacity-40"
                       >
-                        Match & add
+                        {t('md.import.apply')}
                       </button>
                       {importSummary && (
                         <span className="text-xs text-amber-900/70">
-                          ✅ Matched {importSummary.matched.length}
+                          {t('md.import.matched', { n: importSummary.matched.length })}
                           {importSummary.guests.length > 0 &&
-                            `, added ${importSummary.guests.length} guest(s): ${importSummary.guests.join(', ')}`}
+                            t('md.import.addedGuests', {
+                              n: importSummary.guests.length,
+                              names: importSummary.guests.join(', '),
+                            })}
                         </span>
                       )}
                     </div>
@@ -693,9 +692,12 @@ export default function MatchDay({
               <div className="rounded-2xl border border-amber-900/15 bg-[#fffdf4]/70 p-4 shadow-sm">
                 <div className="mb-3 flex flex-wrap items-center gap-2">
                   <h3 className="font-bold text-amber-950">
-                    Available today{' '}
+                    {t('md.available.title')}{' '}
                     <span className="text-sm font-normal text-amber-900/60">
-                      ({selectedMembers.length} of {players.length} selected)
+                      {t('md.available.count', {
+                        n: selectedMembers.length,
+                        total: players.length,
+                      })}
                     </span>
                   </h3>
                   <div className="flex-1" />
@@ -706,10 +708,10 @@ export default function MatchDay({
                   {(import.meta.env.DEV || isAdmin) && (
                     <button
                       onClick={pickRandom}
-                      title="Testing shortcut: tick a random full squad"
+                      title={t('md.random.title')}
                       className="rounded-lg border border-amber-900/25 px-3 py-1 text-xs font-bold text-amber-900 hover:border-orange-500"
                     >
-                      🎲 Random {Math.min(IDEAL_PLAYERS, players.length)}
+                      {t('md.random', { n: Math.min(IDEAL_PLAYERS, players.length) })}
                     </button>
                   )}
                   {selectedMembers.length > 0 && (
@@ -717,7 +719,7 @@ export default function MatchDay({
                       onClick={clearSelection}
                       className="rounded-lg border border-amber-900/25 px-3 py-1 text-xs font-bold text-amber-900 hover:border-orange-500"
                     >
-                      Clear
+                      {t('md.clear')}
                     </button>
                   )}
                 </div>
@@ -756,11 +758,8 @@ export default function MatchDay({
           )}
 
           <div className="rounded-2xl border border-amber-900/15 bg-[#fffdf4]/70 p-4 shadow-sm">
-            <h3 className="font-bold text-amber-950">Guests</h3>
-            <p className="mb-3 text-xs text-amber-900/60">
-              A guest plays on the same team as the friend who brought them. Leave the
-              inviter empty if you don't know who brought them.
-            </p>
+            <h3 className="font-bold text-amber-950">{t('md.guests.title')}</h3>
+            <p className="mb-3 text-xs text-amber-900/60">{t('md.guests.hint')}</p>
 
             {session.guests.length > 0 && (
               <ul className="mb-3 space-y-1.5">
@@ -787,7 +786,7 @@ export default function MatchDay({
                           onClick={() => removeGuest(g.id)}
                           className="shrink-0 text-xs font-semibold text-red-600"
                         >
-                          remove
+                          {t('md.guests.remove')}
                         </button>
                       </div>
                       <div className="flex flex-wrap gap-1.5">
@@ -795,12 +794,12 @@ export default function MatchDay({
                           value={g.ratingUnknown ? '?' : String(g.rating)}
                           onChange={(e) => updateGuestRating(g.id, e.target.value)}
                           className="min-w-0 flex-1 rounded-lg border border-amber-900/30 bg-white px-2 py-1.5 text-xs text-amber-950 outline-none focus:border-orange-500"
-                          title="Rating"
+                          title={t('md.guests.rating.title')}
                         >
-                          <option value="?">Rating: ?</option>
+                          <option value="?">{t('md.guests.rating.unknown')}</option>
                           {RATING_STEPS.map((r) => (
                             <option key={r} value={r}>
-                              Rating: {fmtRating(r)}
+                              {t('md.guests.rating.value', { r: fmtRating(r) })}
                             </option>
                           ))}
                         </select>
@@ -808,12 +807,12 @@ export default function MatchDay({
                           value={g.invitedBy ?? ''}
                           onChange={(e) => updateGuestInviter(g.id, e.target.value)}
                           className="min-w-0 flex-1 rounded-lg border border-amber-900/30 bg-white px-2 py-1.5 text-xs text-amber-950 outline-none focus:border-orange-500"
-                          title="Invited by"
+                          title={t('md.guests.invitedBy.title')}
                         >
-                          <option value="">No inviter</option>
+                          <option value="">{t('md.guests.noInviter')}</option>
                           {inviterOptions.map((p) => (
                             <option key={p.id} value={p.id} dir="auto">
-                              with {p.name}
+                              {t('md.guests.with', { name: p.name })}
                             </option>
                           ))}
                         </select>
@@ -825,7 +824,7 @@ export default function MatchDay({
             )}
 
             {selectedMembers.length === 0 ? (
-              <p className="text-sm text-amber-900/50">Select available players first.</p>
+              <p className="text-sm text-amber-900/50">{t('md.guests.selectFirst')}</p>
             ) : (
               <div className="flex flex-wrap items-center gap-2">
                 <input
@@ -833,7 +832,7 @@ export default function MatchDay({
                   value={gName}
                   onChange={(e) => setGName(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && addGuest()}
-                  placeholder="Guest name"
+                  placeholder={t('md.guests.name.placeholder')}
                   className="w-40 rounded-lg border border-amber-900/30 bg-white px-3 py-2 text-sm text-amber-950 outline-none focus:border-orange-500"
                 />
                 <select
@@ -841,7 +840,7 @@ export default function MatchDay({
                   onChange={(e) => setGInviter(e.target.value)}
                   className="rounded-lg border border-amber-900/30 bg-white px-2 py-2 text-sm text-amber-950 outline-none focus:border-orange-500"
                 >
-                  <option value="">Invited by… (optional)</option>
+                  <option value="">{t('md.guests.invitedBy.placeholder')}</option>
                   {selectedMembers.map((p) => (
                     <option key={p.id} value={p.id} dir="auto">
                       {p.name}
@@ -854,12 +853,12 @@ export default function MatchDay({
                     setGRating(e.target.value === '?' ? '?' : Number(e.target.value))
                   }
                   className="rounded-lg border border-amber-900/30 bg-white px-2 py-2 text-sm text-amber-950 outline-none focus:border-orange-500"
-                  title="Rating, if you can guess it"
+                  title={t('md.guests.rating.guess')}
                 >
-                  <option value="?">Rating: ?</option>
+                  <option value="?">{t('md.guests.rating.unknown')}</option>
                   {RATING_STEPS.map((r) => (
                     <option key={r} value={r}>
-                      Rating: {fmtRating(r)}
+                      {t('md.guests.rating.value', { r: fmtRating(r) })}
                     </option>
                   ))}
                 </select>
@@ -868,7 +867,7 @@ export default function MatchDay({
                   disabled={!gName.trim()}
                   className="rounded-lg bg-amber-900 px-4 py-2 text-sm font-bold text-amber-50 disabled:opacity-40"
                 >
-                  + Add guest
+                  {t('md.guests.add')}
                 </button>
               </div>
             )}
@@ -880,7 +879,7 @@ export default function MatchDay({
               disabled={count < 6}
               className="rounded-xl bg-orange-600 px-6 py-2.5 font-bold text-amber-50 shadow-sm transition-transform hover:scale-105 disabled:opacity-40"
             >
-              Next: goalkeepers →
+              {t('md.next.gk')}
             </button>
           </div>
         </div>
@@ -889,11 +888,8 @@ export default function MatchDay({
       {step === 'gk' && (
         <div className="pop-in space-y-4">
           <div className="rounded-2xl border border-amber-900/15 bg-[#fffdf4]/70 p-4 shadow-sm">
-            <h3 className="font-bold text-amber-950">🧤 Who can play goalkeeper today?</h3>
-            <p className="mb-3 text-xs text-amber-900/60">
-              This changes week to week — mark everyone who can go in goal today. Keepers
-              get spread across the teams.
-            </p>
+            <h3 className="font-bold text-amber-950">{t('md.gk.title')}</h3>
+            <p className="mb-3 text-xs text-amber-900/60">{t('md.gk.hint')}</p>
             <div className="grid gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
               {todays.map((p) => {
                 const permanent = !!p.isGk;
@@ -916,11 +912,11 @@ export default function MatchDay({
                     </Name>
                     {permanent && (
                       <span className="rounded bg-amber-900/10 px-1.5 py-0.5 text-[10px] font-bold uppercase text-amber-900/70">
-                        always
+                        {t('md.gk.always')}
                       </span>
                     )}
-                    <span title={STYLE_META[roleBadge(p)].label}>
-                      {STYLE_META[roleBadge(p)].icon}
+                    <span title={styleLabel(roleBadge(p))}>
+                      {STYLE_ICON[roleBadge(p)]}
                     </span>
                   </button>
                 );
@@ -933,13 +929,13 @@ export default function MatchDay({
               onClick={() => setStep('players')}
               className="rounded-xl border border-amber-900/30 px-5 py-2.5 font-semibold text-amber-900"
             >
-              ← Back
+              {t('md.back')}
             </button>
             <button
               onClick={generate}
               className="rounded-xl bg-orange-600 px-6 py-2.5 font-bold text-amber-50 shadow-sm transition-transform hover:scale-105"
             >
-              ⚡ Generate teams
+              {t('md.generate')}
             </button>
           </div>
         </div>

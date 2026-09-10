@@ -8,10 +8,11 @@ import type { NightFact } from '../nightStory';
 import { recapFacts } from '../recapFacts';
 import type { StoredRecap } from '../recap';
 import { clearRecap, draftRecap, fetchRecap, saveRecap } from '../recap';
-import { Name, TEAM_META, fmtWins } from './ui';
+import { fmtWins, Name, TEAM_META, teamLabel } from './ui';
 import { MilestoneStrip } from './TonightFacts';
 import NightGrades from './NightGrades';
 import { useScrollLock } from '../scrollLock';
+import { fmtDate, getLang, t } from '../i18n';
 
 // One night, read back (§2.22). Opened from a past night in History, the same
 // way a roster row opens a player page — an overlay rather than a route,
@@ -52,11 +53,11 @@ function Step({
     <button
       disabled={!to}
       onClick={() => to && onGo(to.id)}
-      title={to ? to.date : 'nothing recorded that way'}
+      title={to ? to.date : t('np.nothingThatWay')}
       className="rounded-lg border border-amber-900/25 px-2.5 py-1.5 text-xs font-bold text-amber-900 transition-colors hover:border-orange-500 disabled:opacity-30 disabled:hover:border-amber-900/25"
     >
       {label}
-      {to && <span className="ml-1.5 font-mono font-normal text-amber-900/50">{to.date}</span>}
+      {to && <span className="ms-1.5 font-mono font-normal text-amber-900/50">{to.date}</span>}
     </button>
   );
 }
@@ -75,19 +76,29 @@ function Step({
 const factLine = (f: NightFact): string => {
   switch (f.kind) {
     case 'streak-broken':
-      return `${TEAM_META[f.by].label} ended ${TEAM_META[f.over].label}'s run of ${f.length}`;
+      return t('np.fact.streakBroken', {
+        by: teamLabel(f.by),
+        over: teamLabel(f.over),
+        n: f.length,
+      });
     case 'break-and-run':
-      return `${TEAM_META[f.team].label} opened up and stayed on for ${f.through}`;
+      return t('np.fact.breakAndRun', { team: teamLabel(f.team), n: f.through });
     case 'perfect':
-      return `${TEAM_META[f.team].label} won all ${f.played} they played`;
+      return t('np.fact.perfect', { team: teamLabel(f.team), n: f.played });
     case 'blanked':
-      return `${TEAM_META[f.team].label} played ${f.played} and won none`;
+      return t('np.fact.blanked', { team: teamLabel(f.team), n: f.played });
     case 'heist':
-      return `${TEAM_META[f.team].label} won ${f.early} of their first ${f.earlyOf} and ${f.late} of their last ${f.lateOf}`;
+      return t('np.fact.heist', {
+        team: teamLabel(f.team),
+        early: f.early,
+        earlyOf: f.earlyOf,
+        late: f.late,
+        lateOf: f.lateOf,
+      });
     case 'yo-yo':
-      return `${TEAM_META[f.team].label} won and lost alternately, ${f.run} deep`;
+      return t('np.fact.yoYo', { team: teamLabel(f.team), n: f.run });
     case 'shootouts':
-      return `${f.count} of them went to penalties`;
+      return t('np.fact.shootouts', { n: f.count });
   }
 };
 
@@ -184,16 +195,16 @@ export default function NightPage({
   const say = (error: string, detail?: string) =>
     setFailed(
       error === 'not-configured'
-        ? 'No reporter on this deployment: the worker has no GEMINI_KEY set.'
+        ? t('np.report.err.notConfigured')
         : error === 'wrong-word'
-          ? 'That admin word was refused.'
+          ? t('marks.err.wrongWord')
           : error === 'rate-limited'
-            ? 'Too many attempts from here. Give it ten minutes.'
+            ? t('marks.err.rateLimited')
             : error === 'too-many-recaps'
-              ? 'That is a dozen reports in an hour. The reporter has gone for a lie down — try again later.'
-                : error === 'unavailable'
-                  ? `Gemini turned it down${detail ? ` — ${detail}` : ''}`
-                  : 'Could not reach the reporter.',
+              ? t('np.report.err.tooMany')
+              : error === 'unavailable'
+                ? `${t('marks.err.unavailable')}${detail ? ` — ${detail}` : ''}`
+                : t('np.report.err.unreachable'),
     );
 
   const write = async () => {
@@ -217,7 +228,7 @@ export default function NightPage({
   };
 
   const forget = async () => {
-    if (!adminWord || !confirm('Delete this recap for everyone?')) return;
+    if (!adminWord || !confirm(t('np.report.deleteConfirm'))) return;
     const out = await clearRecap(fixture.id, adminWord);
     if ('error' in out) return say(out.error, out.detail);
     setSaved(null);
@@ -240,14 +251,14 @@ export default function NightPage({
             onClick={onClose}
             className="rounded-lg border border-amber-900/25 px-3 py-1.5 text-sm font-bold text-amber-900 transition-colors hover:border-orange-500"
           >
-            ✕ Close
+            {t('np.close')}
           </button>
           <div className="flex-1" />
           {/* The neighbouring dates are on the buttons rather than under them:
               an arrow that says where it goes needs no explaining, and reading
               a season is mostly checking you have not already seen this one. */}
-          <Step to={older} onGo={onGo} label="← older" />
-          <Step to={newer} onGo={onGo} label="newer →" />
+          <Step to={older} onGo={onGo} label={t('np.older')} />
+          <Step to={newer} onGo={onGo} label={t('np.newer')} />
         </div>
 
         <div className="rounded-2xl border border-amber-900/15 bg-gradient-to-br from-amber-100/70 via-[#fffdf4] to-[#fffdf4] p-4 shadow-sm">
@@ -258,7 +269,7 @@ export default function NightPage({
             {fixture.date}
           </div>
           <h2 className="text-2xl font-black tracking-tight text-amber-950">
-            {story ? story.headline : 'The night'}
+            {story ? t(story.headlineKey) : t('np.headline')}
           </h2>
           <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
             {winners.length > 0 && (
@@ -266,7 +277,7 @@ export default function NightPage({
                 🏆
                 {winners.map((c) => (
                   <span key={c} className={`rounded-full border px-2 py-0.5 ${TEAM_META[c].card}`}>
-                    {TEAM_META[c].label}
+                    {teamLabel(c)}
                   </span>
                 ))}
               </span>
@@ -276,7 +287,9 @@ export default function NightPage({
                 🌟 <Name className="font-bold text-amber-950">{nameOf(fixture.mvpId)}</Name>
               </span>
             )}
-            <span className="text-amber-900/55">{fixture.players.length} played</span>
+            <span className="text-amber-900/55">
+              {t('np.played', { n: fixture.players.length })}
+            </span>
           </div>
         </div>
 
@@ -286,16 +299,14 @@ export default function NightPage({
         {!story ? (
           <div className="rounded-2xl border border-amber-900/15 bg-[#fffdf4]/70 p-4">
             <p className="text-sm text-amber-900/60">
-              This night was tallied at the end rather than logged match by match, so there is no
-              sequence to read: the record is three totals. Nights logged as they happen get a
-              timeline, a shape and the moments in them.
+              {t('np.tallied')}
             </p>
             <div className="mt-3 grid gap-2 sm:grid-cols-3">
               {TEAM_COLORS.map((c) => (
                 <div key={c} className={`rounded-xl border p-2.5 text-xs ${TEAM_META[c].card}`}>
                   <div className={`font-black ${TEAM_META[c].header}`}>
-                    {TEAM_META[c].emoji} {TEAM_META[c].label}
-                    {winners.includes(c) && <span title="Won the night"> 👑</span>} —{' '}
+                    {TEAM_META[c].emoji} {teamLabel(c)}
+                    {winners.includes(c) && <span title={t('np.wonTheNight')}> 👑</span>} —{' '}
                     {fmtWins(fixture.wins[c] ?? 0)}
                   </div>
                   <div className={TEAM_META[c].sub}>
@@ -309,14 +320,14 @@ export default function NightPage({
           <>
             <div className="rounded-2xl border border-amber-900/15 bg-[#fffdf4]/70 p-4 shadow-sm">
               <h3 className="mb-2 text-[11px] font-black uppercase tracking-wide text-amber-900/45">
-                How it went, match by match
+                {t('np.matchByMatch')}
               </h3>
               {/* No colour key. A black tile is the black team on a page whose
                   own team cards are those three colours — spelling it out was
                   three words explaining something already looked at. The bar
                   is the one mark here that cannot say itself. */}
               <div className="mb-2 text-[10px] font-bold uppercase tracking-wide text-amber-900/35">
-                thin bar = who they beat
+                {t('np.thinBar')}
               </div>
               {/* Sized to be read rather than to fit. These used to share the
                   width so a night never scrolled, and on a phone an 18-match
@@ -330,25 +341,34 @@ export default function NightPage({
                 <div className="flex w-max items-center">
                   {log.map((m, i) => {
                     const loser = m.winner === m.a ? m.b : m.a;
-                    // a run is one block: no gap inside it, rounded at both
-                    // ends, so holding the pitch *looks* like holding the pitch
+                    // A run is one block: no gap inside it, rounded at both
+                    // ends, so holding the pitch *looks* like holding the
+                    // pitch.
+                    //
+                    // Logical sides rather than left/right. A run opens at the
+                    // end the reader starts from, which is the right in Hebrew
+                    // — with `rounded-l`/`ml-2` the rounding and the gap both
+                    // landed on the far end instead, which split a run down
+                    // the middle and welded it to the one before it.
                     const opens = i === 0 || log[i - 1].winner !== m.winner;
                     const closes = i === log.length - 1 || log[i + 1].winner !== m.winner;
                     return (
                       <span
                         key={i}
-                        title={`Match ${i + 1}: ${TEAM_META[m.winner].label} beat ${
-                          TEAM_META[loser].label
-                        }${m.viaPenalties ? ' on penalties' : ''}`}
+                        title={`${t('np.matchTitle', {
+                          n: i + 1,
+                          winner: teamLabel(m.winner),
+                          loser: teamLabel(loser),
+                        })}${m.viaPenalties ? t('np.matchTitle.pens') : ''}`}
                         className={`relative grid h-14 w-11 shrink-0 place-items-center overflow-hidden font-mono text-base font-black ${
                           TEAM_META[m.winner].tile
-                        } ${opens ? (i === 0 ? 'rounded-l-xl' : 'ml-2 rounded-l-xl') : ''} ${
-                          closes ? 'rounded-r-xl' : ''
+                        } ${opens ? (i === 0 ? 'rounded-s-xl' : 'ms-2 rounded-s-xl') : ''} ${
+                          closes ? 'rounded-e-xl' : ''
                         }`}
                       >
                         {i + 1}
                         {m.viaPenalties && (
-                          <span className="absolute right-1 top-0.5 text-[10px] opacity-70">½</span>
+                          <span className="absolute end-1 top-0.5 text-[10px] opacity-70">½</span>
                         )}
                         {/* who lost it, in a bar along the bottom — the one
                             thing the winner's colour cannot say on its own */}
@@ -365,20 +385,20 @@ export default function NightPage({
                   one line, the rarest thing that happened. */}
               <p className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-amber-900/10 pt-2 text-xs text-amber-900/60">
                 <span>
-                  <b className="text-amber-900">{story.matches}</b> matches
+                  <b className="text-amber-900">{story.matches}</b> {t('np.matches')}
                 </span>
                 {story.longest && (
                   <span>
-                    longest run <b className="text-amber-900">{story.longest.length}</b>{' '}
+                    {t('np.longestRun')} <b className="text-amber-900">{story.longest.length}</b>{' '}
                     {TEAM_META[story.longest.team].emoji}
                   </span>
                 )}
                 <span>
-                  lead changed <b className="text-amber-900">{story.leadChanges}</b>×
+                  {t('np.leadChanged')} <b className="text-amber-900">{story.leadChanges}</b>×
                 </span>
                 {story.penalties > 0 && (
                   <span>
-                    <b className="text-amber-900">{story.penalties}</b> on penalties
+                    <b className="text-amber-900">{story.penalties}</b> {t('np.onPenalties')}
                   </span>
                 )}
               </p>
@@ -391,16 +411,16 @@ export default function NightPage({
 
             <div className="grid gap-2 sm:grid-cols-3">
               {TEAM_COLORS.map((c) => {
-                const t = story.teams[c];
+                const tn = story.teams[c];
                 return (
                   <div key={c} className={`rounded-xl border p-2.5 shadow-sm ${TEAM_META[c].card}`}>
                     <div className="mb-1.5 flex items-baseline justify-between gap-x-2 px-0.5">
                       <h3 className={`text-sm font-black ${TEAM_META[c].header}`}>
-                        {TEAM_META[c].emoji} {TEAM_META[c].label}
+                        {TEAM_META[c].emoji} {teamLabel(c)}
                         {/* who took the night, said on the card as well as in
                             the header — the points are right there beside it,
                             but a crown is read without arithmetic */}
-                        {winners.includes(c) && <span title="Won the night"> 👑</span>}
+                        {winners.includes(c) && <span title={t('np.wonTheNight')}> 👑</span>}
                       </h3>
                       {/* Points, and nothing else. Not wins, so this agrees
                           with the result at the top of the page — a match taken
@@ -410,7 +430,7 @@ export default function NightPage({
                           told the meaning of. How many they played is still in
                           the ribbon above, one tile per match. */}
                       <span className={`text-[11px] font-semibold ${TEAM_META[c].sub}`}>
-                        {fmtWins(t.points)}
+                        {fmtWins(tn.points)}
                       </span>
                     </div>
                     <ul dir="rtl" className="flex flex-wrap gap-1">
@@ -441,16 +461,16 @@ export default function NightPage({
           <section className="rounded-2xl border border-amber-900/15 bg-[#fffdf4]/70 p-4 shadow-sm">
             <div className="mb-2 flex flex-wrap items-baseline gap-2">
               <h3 className="text-[11px] font-black uppercase tracking-wide text-amber-900/45">
-                📰 The report
+                {t('np.report.title')}
               </h3>
               {saved && !draft && (
                 <span className="text-[10px] text-amber-900/35">
-                  written {new Date(saved.at).toLocaleDateString()}
+                  {t('np.report.written', { date: fmtDate(saved.at, getLang(), {}) })}
                 </span>
               )}
               {draft && (
                 <span className="text-[10px] font-bold uppercase tracking-wide text-orange-700/70">
-                  draft — nobody else can see this yet
+                  {t('np.report.draft')}
                 </span>
               )}
             </div>
@@ -469,7 +489,7 @@ export default function NightPage({
 
             {!draft && !saved && (
               <p className="text-sm text-amber-900/55">
-                Nothing written for this night yet.
+                {t('np.report.nothing')}
               </p>
             )}
 
@@ -483,7 +503,7 @@ export default function NightPage({
                   onClick={share}
                   className="rounded-lg border border-amber-900/25 px-3 py-1 text-xs font-bold text-amber-900 hover:border-orange-500"
                 >
-                  📤 Share
+                  {t('np.report.share')}
                 </button>
               )}
               {adminWord && facts && (
@@ -494,10 +514,10 @@ export default function NightPage({
                     className="rounded-lg bg-orange-600 px-3 py-1 text-xs font-bold text-amber-50 hover:scale-105 disabled:opacity-50"
                   >
                     {busy === 'writing'
-                      ? 'writing…'
+                      ? t('np.report.writing')
                       : saved || draft
-                        ? '↻ Write another'
-                        : '✍️ Write the report'}
+                        ? t('np.report.writeAnother')
+                        : t('np.report.write')}
                   </button>
                   {draft && (
                     <>
@@ -506,13 +526,13 @@ export default function NightPage({
                         disabled={busy !== null}
                         className="rounded-lg border border-emerald-600/50 px-3 py-1 text-xs font-bold text-emerald-800 hover:bg-emerald-50 disabled:opacity-50"
                       >
-                        {busy === 'saving' ? 'saving…' : '✓ Publish this one'}
+                        {busy === 'saving' ? t('np.report.saving') : t('np.report.publish')}
                       </button>
                       <button
                         onClick={() => setDraft(null)}
                         className="rounded-lg border border-amber-900/25 px-3 py-1 text-xs font-bold text-amber-900 hover:border-orange-500"
                       >
-                        Discard
+                        {t('np.report.discard')}
                       </button>
                     </>
                   )}
@@ -521,7 +541,7 @@ export default function NightPage({
                       onClick={forget}
                       className="rounded-lg border border-red-500/50 px-3 py-1 text-xs font-bold text-red-700 hover:bg-red-50"
                     >
-                      🗑️ Delete
+                      {t('np.report.delete')}
                     </button>
                   )}
                 </>

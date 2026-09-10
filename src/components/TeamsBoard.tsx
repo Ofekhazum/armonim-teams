@@ -10,7 +10,8 @@ import {
   planRotation,
   teamStats,
 } from '../balancer';
-import { Name, STYLE_META, TEAM_META } from './ui';
+import { Name, STYLE_ICON, styleLabel, TEAM_META, teamLabel } from './ui';
+import { getLang, t } from '../i18n';
 import { shareTeamsShirtImages } from '../shirtImage';
 
 interface Props {
@@ -72,12 +73,16 @@ export default function TeamsBoard({
   for (const c of TEAM_COLORS) {
     if (stats[c].gkCount > 1)
       warnings.push(
-        `${TEAM_META[c].emoji} ${TEAM_META[c].label} has ${stats[c].gkCount} goalkeepers.`,
+        t('board.warn.keepers', {
+          emoji: TEAM_META[c].emoji,
+          team: teamLabel(c),
+          n: stats[c].gkCount,
+        }),
       );
   }
   for (const g of glued) {
     const inviter = g.invitedBy ? byId.get(g.invitedBy)?.name : '';
-    warnings.push(`Guest ${g.name} is not on the same team as ${inviter}.`);
+    warnings.push(t('board.warn.guest', { name: g.name, inviter: inviter ?? '' }));
   }
   // Who'd rather not be paired up is private — never surfaced on a board that
   // guests can see (a shared live room renders this same component).
@@ -85,9 +90,7 @@ export default function TeamsBoard({
     for (const p of players) {
       for (const otherId of p.avoid ?? []) {
         if (p.id < otherId && byId.has(otherId) && teamOf(p.id) === teamOf(otherId)) {
-          warnings.push(
-            `↔️ ${p.name} and ${byId.get(otherId)!.name} are usually kept apart — they're together here.`,
-          );
+          warnings.push(t('board.warn.avoid', { a: p.name, b: byId.get(otherId)!.name }));
         }
       }
     }
@@ -132,16 +135,19 @@ export default function TeamsBoard({
   const displayIds = (c: TeamColor) => lineupOrder(teams[c], byId, gkSet);
 
   const shareText = () => {
-    const HEB: Record<TeamColor, string> = {
-      black: 'קבוצה שחורה',
-      white: 'קבוצה לבנה',
-      blue: 'קבוצה כחולה',
+    const NAMED: Record<TeamColor, string> = {
+      black: t('board.share.team.black'),
+      white: t('board.share.team.white'),
+      blue: t('board.share.team.blue'),
     };
     const HEART: Record<TeamColor, string> = { black: '🖤', white: '🤍', blue: '💙' };
-    const RLM = '‏'; // forces RTL rendering per line when pasted as plain text (e.g. WhatsApp)
+    // Forces RTL rendering per line when pasted as plain text (e.g. WhatsApp).
+    // Only in Hebrew: prefixed to an English line it flips the paragraph the
+    // wrong way, which is the very bug it exists to fix.
+    const RLM = getLang() === 'he' ? '‏' : '';
     const lines: string[] = [];
     for (const c of TEAM_COLORS) {
-      lines.push(`${HEART[c]} ${HEB[c]} ${HEART[c]}`);
+      lines.push(`${HEART[c]} ${NAMED[c]} ${HEART[c]}`);
       for (const id of displayIds(c)) {
         const p = byId.get(id);
         if (!p) continue;
@@ -151,11 +157,20 @@ export default function TeamsBoard({
     }
     const totalAssigned = TEAM_COLORS.reduce((sum, c) => sum + teams[c].length, 0);
     if (rotation && totalAssigned >= 15) {
-      lines.push('🔁 Rotation (resting team completes the short side):');
+      lines.push(t('board.share.rotation'));
       for (const m of rotation) {
-        const base = `${HEART[m.a]} vs ${HEART[m.b]} — ${HEART[m.resting]} rests`;
+        const base = t('board.share.rotation.line', {
+          a: HEART[m.a],
+          b: HEART[m.b],
+          resting: HEART[m.resting],
+        });
         const loans = m.loans
-          .map((l) => `${byId.get(l.id)?.name ?? '?'} joins ${HEB[l.to]}`)
+          .map((l) =>
+            t('board.share.rotation.joins', {
+              name: byId.get(l.id)?.name ?? '?',
+              team: NAMED[l.to],
+            }),
+          )
           .join(', ');
         lines.push(loans ? `${base}; ${loans}` : base);
       }
@@ -170,7 +185,7 @@ export default function TeamsBoard({
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      prompt('Copy the teams:', shareText());
+      prompt(t('board.copy.prompt'), shareText());
     }
   };
 
@@ -183,7 +198,7 @@ export default function TeamsBoard({
       date: new Date().toISOString().slice(0, 10),
     });
     setSharingImages(false);
-    if (result === 'failed') alert('Could not create the lineup images on this device.');
+    if (result === 'failed') alert(t('board.shareImages.failed'));
   };
 
   return (
@@ -194,7 +209,7 @@ export default function TeamsBoard({
             onClick={onBack}
             className="rounded-xl border border-amber-900/30 px-4 py-2 text-sm font-semibold text-amber-900"
           >
-            ← Setup
+            {t('board.back')}
           </button>
         )}
         {onReroll && (
@@ -202,19 +217,19 @@ export default function TeamsBoard({
             onClick={onReroll}
             className="rounded-xl border border-amber-900/30 px-4 py-2 text-sm font-semibold text-amber-900 hover:border-orange-500"
           >
-            🎲 {rerollLabel ?? 'Re-roll'}
+            🎲 {rerollLabel ?? t('board.reroll')}
           </button>
         )}
         {onNewFixture && (
           <button
             onClick={() => {
-              if (confirm('Start a new fixture? This clears today\'s selections, guests and teams.')) {
+              if (confirm(t('board.newFixture.confirm'))) {
                 onNewFixture();
               }
             }}
             className="rounded-xl border border-amber-900/30 px-4 py-2 text-sm font-semibold text-amber-900 hover:border-orange-500"
           >
-            🆕 New Fixture
+            {t('board.newFixture')}
           </button>
         )}
         <div className="flex-1" />
@@ -230,39 +245,36 @@ export default function TeamsBoard({
                   ? 'bg-amber-500/25 text-amber-900'
                   : 'bg-red-600/15 text-red-800'
             }`}
-            title="Difference between the strongest and weakest team's average rating"
+            title={t('board.balance.title')}
           >
-            Balance gap: {spread.toFixed(2)}
+            {t('board.balance', { n: spread.toFixed(2) })}
           </span>
         )}
         <button
           onClick={shareImages}
           disabled={sharingImages}
           className="rounded-xl border border-amber-900/30 px-4 py-2 text-sm font-semibold text-amber-900 hover:border-orange-500 disabled:opacity-50"
-          title="Share each team's lineup as a shirt-card image"
+          title={t('board.shareImages.title')}
         >
-          {sharingImages ? '…' : '🖼️ Share images'}
+          {sharingImages ? '…' : t('board.shareImages')}
         </button>
         <button
           onClick={copy}
           className="rounded-xl bg-orange-600 px-4 py-2 text-sm font-bold text-amber-50 shadow-sm transition-transform hover:scale-105"
         >
-          {copied ? '✓ Copied!' : '📋 Copy for WhatsApp'}
+          {copied ? t('board.copied') : t('board.copy')}
         </button>
         {onStartFixture && (
           <button
             onClick={onStartFixture}
             className="rounded-xl bg-green-700 px-4 py-2 text-sm font-bold text-amber-50 shadow-sm transition-transform hover:scale-105"
           >
-            ▶️ Start fixture
+            {t('board.start')}
           </button>
         )}
       </div>
 
-      <p className="text-xs text-amber-900/60">
-        <b>Drag</b> a player onto another player to swap, or onto a team card to move —
-        or tap a player, then tap a player on another team (tap "move here" to move).
-      </p>
+      <p className="text-xs text-amber-900/60">{t('board.help')}</p>
 
       {warnings.length > 0 && (
         <div className="space-y-1 rounded-xl border border-amber-600/50 bg-amber-500/15 px-4 py-2.5 text-sm font-medium text-amber-900">
@@ -290,7 +302,7 @@ export default function TeamsBoard({
             >
               <div className="mb-2 flex flex-wrap items-center justify-between gap-x-2 px-1">
                 <h3 className={`flex items-center gap-1 text-lg font-black ${m.header}`}>
-                  {m.emoji} {m.label}
+                  {m.emoji} {teamLabel(c)}
                   <select
                     value=""
                     onChange={(e) => {
@@ -298,13 +310,13 @@ export default function TeamsBoard({
                       if (!target) return;
                       onTeamsChange({ ...teams, [c]: teams[target], [target]: teams[c] });
                     }}
-                    title="Swap this team's color with another team"
+                    title={t('board.swapColor.title')}
                     className="rounded bg-black/10 px-1 py-0.5 text-xs font-bold"
                   >
                     <option value="">🔀</option>
                     {TEAM_COLORS.filter((x) => x !== c).map((x) => (
                       <option key={x} value={x}>
-                        ⇄ {TEAM_META[x].emoji} {TEAM_META[x].label}
+                        ⇄ {TEAM_META[x].emoji} {teamLabel(x)}
                       </option>
                     ))}
                   </select>
@@ -315,9 +327,9 @@ export default function TeamsBoard({
                     live-room guest renders this same board and gets the count
                     only, which is the part that is a fact about tonight. */}
                 <span className={`text-xs font-semibold ${m.sub}`}>
-                  {s.size} players
-                  {showPrivateNotes && ` · avg ${s.avg.toFixed(1)}`}
-                  {s.gkCount > 1 && ` · ${s.gkCount} 🧤`}
+                  {t('board.size', { n: s.size })}
+                  {showPrivateNotes && t('board.avg', { n: s.avg.toFixed(1) })}
+                  {s.gkCount > 1 && t('board.gkCount', { n: s.gkCount })}
                 </span>
               </div>
               <ul className="space-y-1">
@@ -349,20 +361,22 @@ export default function TeamsBoard({
                           isSel ? `ring-2 ${m.ring} scale-[1.02]` : ''
                         } ${isMoved ? 'flash-ring' : ''}`}
                       >
-                        {gkSet.has(id) && <span title="Goalkeeper today">🧤</span>}
+                        {gkSet.has(id) && <span title={t('board.gkToday')}>🧤</span>}
                         <Name className="min-w-0 flex-1 truncate text-sm font-semibold">
                           {p.name}
                         </Name>
                         {p.isGuest && (
                           <span
                             className={`text-[10px] font-bold uppercase ${m.sub}`}
-                            title={`Guest of ${p.invitedBy ? byId.get(p.invitedBy)?.name : '?'}`}
+                            title={t('board.guestOf', {
+                              name: (p.invitedBy ? byId.get(p.invitedBy)?.name : '?') ?? '?',
+                            })}
                           >
-                            guest
+                            {t('board.guest')}
                           </span>
                         )}
-                        <span title={STYLE_META[roleBadge(p)].label} className="text-xs">
-                          {STYLE_META[roleBadge(p)].icon}
+                        <span title={styleLabel(roleBadge(p))} className="text-xs">
+                          {STYLE_ICON[roleBadge(p)]}
                         </span>
                       </button>
                     </li>
@@ -374,7 +388,7 @@ export default function TeamsBoard({
                       onClick={() => moveTo(c)}
                       className={`w-full rounded-lg border border-dashed px-2.5 py-2 text-center text-xs font-bold uppercase tracking-wide opacity-70 hover:opacity-100 ${m.row}`}
                     >
-                      ⤵ move here
+                      {t('board.moveHere')}
                     </button>
                   </li>
                 )}
@@ -386,11 +400,8 @@ export default function TeamsBoard({
 
       {rotation && (
         <div className="rounded-2xl border border-amber-900/15 bg-[#fffdf4]/70 p-4 shadow-sm">
-          <h3 className="font-bold text-amber-950">🔁 Rotation plan</h3>
-          <p className="mb-3 text-xs text-amber-900/60">
-            Short teams are completed by players from the resting team, rotated so it's
-            not always the same person.
-          </p>
+          <h3 className="font-bold text-amber-950">{t('board.rotation.title')}</h3>
+          <p className="mb-3 text-xs text-amber-900/60">{t('board.rotation.hint')}</p>
           <ul className="space-y-2">
             {rotation.map((match, i) => (
               <li
@@ -398,11 +409,14 @@ export default function TeamsBoard({
                 className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-amber-900/10 bg-white/60 px-4 py-2.5 text-sm"
               >
                 <span className="font-bold text-amber-950">
-                  {TEAM_META[match.a].emoji} {TEAM_META[match.a].label} vs{' '}
-                  {TEAM_META[match.b].emoji} {TEAM_META[match.b].label}
+                  {TEAM_META[match.a].emoji} {teamLabel(match.a)} {t('board.rotation.vs')}{' '}
+                  {TEAM_META[match.b].emoji} {teamLabel(match.b)}
                 </span>
                 <span className="text-xs text-amber-900/50">
-                  {TEAM_META[match.resting].emoji} {TEAM_META[match.resting].label} rests
+                  {t('board.rotation.rests', {
+                    emoji: TEAM_META[match.resting].emoji,
+                    team: teamLabel(match.resting),
+                  })}
                 </span>
                 {match.loans.length > 0 && (
                   <span className="text-orange-700">
@@ -412,7 +426,7 @@ export default function TeamsBoard({
                         <Name className="font-semibold">
                           {byId.get(l.id)?.name ?? '?'}
                         </Name>{' '}
-                        joins {TEAM_META[l.to].emoji}
+                        {t('board.rotation.joins', { emoji: TEAM_META[l.to].emoji })}
                       </span>
                     ))}
                   </span>

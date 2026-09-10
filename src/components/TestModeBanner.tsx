@@ -1,5 +1,6 @@
 import { isTestMode, setTestMode } from '../testMode';
 import { NIGHTS, PLAYER_COUNT } from '../testData';
+import { t } from '../i18n';
 
 // The banner that makes test mode impossible to be in by accident (§2.32).
 //
@@ -32,17 +33,16 @@ export default function TestModeBanner() {
   return (
     <div className="-mx-3 mb-3 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 border-b-2 border-dashed border-violet-500/50 bg-violet-500/15 px-3 py-2 text-center sm:-mx-6">
       <span className="text-sm font-black uppercase tracking-wide text-violet-900">
-        🧪 Test mode — invented club
+        {t('test.banner.title')}
       </span>
       <span className="text-[11px] font-semibold text-violet-900/70">
-        {PLAYER_COUNT} players, {NIGHTS} nights. Nothing here is published, and the real club is
-        untouched.
+        {t('test.banner.body', { players: PLAYER_COUNT, nights: NIGHTS })}
       </span>
       <button
         onClick={() => setTestMode(false)}
         className="rounded-lg border border-violet-700/40 bg-white/70 px-2.5 py-1 text-xs font-black text-violet-900 transition-colors hover:border-violet-700"
       >
-        ← Back to the real club
+        {t('test.banner.back')}
       </button>
     </div>
   );
