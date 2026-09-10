@@ -90,4 +90,64 @@ export const night = {
     he: 'החיבור לחדר אבד — נסו לפתוח מחדש את הקישור של המארח.',
     en: "Lost connection to the room — try reopening the host's link.",
   },
+
+  // --- A past night's page (NightPage) -------------------------------------
+  'np.close': { he: '✕ סגירה', en: '✕ Close' },
+  'np.older': { he: '→ קודם', en: '← older' },
+  'np.newer': { he: 'הבא ←', en: 'newer →' },
+  'np.nothingThatWay': { he: 'לא נרשם שום דבר בכיוון הזה', en: 'nothing recorded that way' },
+  'np.headline': { he: 'הערב', en: 'The night' },
+  'np.wonTheNight': { he: 'ניצחו את הערב', en: 'Won the night' },
+  'np.played': { he: '{n} שיחקו', en: '{n} played' },
+
+  'np.tallied': {
+    he: 'הערב הזה נספר בסוף במקום להירשם משחק־משחק, אז אין רצף לקרוא: הרישום הוא שלושה סכומים. ערבים שנרשמים תוך כדי מקבלים ציר זמן, צורה ואת הרגעים שבתוכם.',
+    en: 'This night was tallied at the end rather than logged match by match, so there is no sequence to read: the record is three totals. Nights logged as they happen get a timeline, a shape and the moments in them.',
+  },
+
+  'np.matchByMatch': { he: 'איך זה הלך, משחק אחרי משחק', en: 'How it went, match by match' },
+  'np.thinBar': { he: 'פס דק = את מי הם ניצחו', en: 'thin bar = who they beat' },
+  'np.matchTitle': { he: 'משחק {n}: {winner} ניצחו את {loser}', en: 'Match {n}: {winner} beat {loser}' },
+  'np.matchTitle.pens': { he: ' בפנדלים', en: ' on penalties' },
+  'np.matches': { he: 'משחקים', en: 'matches' },
+  'np.longestRun': { he: 'הרצף הארוך ביותר', en: 'longest run' },
+  'np.leadChanged': { he: 'ההובלה התחלפה', en: 'lead changed' },
+  'np.onPenalties': { he: 'בפנדלים', en: 'on penalties' },
+
+  // The one-line summary of the rarest thing that happened, from nightStory's
+  // detectors. Each is a count phrased as the event it is (§2.9).
+  'np.fact.streakBroken': { he: '{by} עצרו את הרצף של {over} על {n}', en: "{by} ended {over}'s run of {n}" },
+  'np.fact.breakAndRun': { he: '{team} פרצו ונשארו על המגרש ל־{n}', en: '{team} opened up and stayed on for {n}' },
+  'np.fact.perfect': { he: '{team} ניצחו את כל {n} המשחקים ששיחקו', en: '{team} won all {n} they played' },
+  'np.fact.blanked': { he: '{team} שיחקו {n} ולא ניצחו אף אחד', en: '{team} played {n} and won none' },
+  'np.fact.heist': {
+    he: '{team} ניצחו {early} מ־{earlyOf} הראשונים ו־{late} מ־{lateOf} האחרונים',
+    en: '{team} won {early} of their first {earlyOf} and {late} of their last {lateOf}',
+  },
+  'np.fact.yoYo': { he: '{team} ניצחו והפסידו לסירוגין, {n} עמוק', en: '{team} won and lost alternately, {n} deep' },
+  'np.fact.shootouts': { he: '{n} מהם הוכרעו בפנדלים', en: '{n} of them went to penalties' },
+
+  // --- The report -----------------------------------------------------------
+  'np.report.title': { he: '📰 הדיווח', en: '📰 The report' },
+  'np.report.written': { he: 'נכתב ב־{date}', en: 'written {date}' },
+  'np.report.draft': { he: 'טיוטה — אף אחד אחר עוד לא רואה את זה', en: 'draft — nobody else can see this yet' },
+  'np.report.nothing': { he: 'עוד לא נכתב כלום לערב הזה.', en: 'Nothing written for this night yet.' },
+  'np.report.share': { he: '📤 שיתוף', en: '📤 Share' },
+  'np.report.writing': { he: 'כותב…', en: 'writing…' },
+  'np.report.writeAnother': { he: '↻ לכתוב עוד אחד', en: '↻ Write another' },
+  'np.report.write': { he: '✍️ לכתוב את הדיווח', en: '✍️ Write the report' },
+  'np.report.saving': { he: 'שומר…', en: 'saving…' },
+  'np.report.publish': { he: '✓ לפרסם את זה', en: '✓ Publish this one' },
+  'np.report.discard': { he: 'ביטול', en: 'Discard' },
+  'np.report.delete': { he: '🗑️ מחיקה', en: '🗑️ Delete' },
+  'np.report.deleteConfirm': { he: 'למחוק את הדיווח הזה עבור כולם?', en: 'Delete this recap for everyone?' },
+  'np.report.err.notConfigured': {
+    he: 'אין כתב בפריסה הזאת: לוורקר אין GEMINI_KEY.',
+    en: 'No reporter on this deployment: the worker has no GEMINI_KEY set.',
+  },
+  'np.report.err.tooMany': {
+    he: 'זה תריסר דיווחים בשעה. הכתב הלך לנוח — נסו מאוחר יותר.',
+    en: 'That is a dozen reports in an hour. The reporter has gone for a lie down — try again later.',
+  },
+  'np.report.err.unreachable': { he: 'לא הצלחנו להגיע לכתב.', en: 'Could not reach the reporter.' },
 } as const satisfies Record<string, Entry>;
