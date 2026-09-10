@@ -3,6 +3,7 @@ import { clock } from './clock';
 import { club } from './club';
 import { common } from './common';
 import { fixture } from './fixture';
+import { history } from './history';
 import { matchday } from './matchday';
 import { night } from './night';
 import { roster } from './roster';
@@ -27,4 +28,5 @@ export const STRINGS = {
   ...clock,
   ...night,
   ...club,
+  ...history,
 } as const;

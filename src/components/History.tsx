@@ -29,6 +29,7 @@ import Leaderboards from './Leaderboards';
 import PlayerCompare from './PlayerCompare';
 import MvpPicker from './MvpPicker';
 import NightPage from './NightPage';
+import { fmtDate, getLang, t } from '../i18n';
 
 interface Props {
   history: FixtureRecord[];
@@ -61,13 +62,13 @@ type SortKey = 'name' | 'nights' | 'wins' | 'fixtures' | 'mvps' | 'perNight' | '
 // the ratings, not something to publish next to everyone's name, so the whole
 // column only exists in admin mode (§2.14).
 const sortColumns = (isAdmin: boolean): { key: SortKey; label: string }[] => [
-  { key: 'name', label: 'Player' },
-  { key: 'nights', label: 'Nights' },
-  { key: 'wins', label: 'Wins' },
-  { key: 'fixtures', label: 'Fixtures' },
-  { key: 'perNight', label: 'Per night' },
-  { key: 'mvps', label: 'MVPs' },
-  ...(isAdmin ? [{ key: 'vsRating' as SortKey, label: 'vs rating' }] : []),
+  { key: 'name', label: t('hist.col.name') },
+  { key: 'nights', label: t('hist.col.nights') },
+  { key: 'wins', label: t('hist.col.wins') },
+  { key: 'fixtures', label: t('hist.col.fixtures') },
+  { key: 'perNight', label: t('hist.col.perNight') },
+  { key: 'mvps', label: t('hist.col.mvps') },
+  ...(isAdmin ? [{ key: 'vsRating' as SortKey, label: t('hist.col.vsRating') }] : []),
 ];
 
 // How far the pointer has to travel before it counts as a drag rather than a
@@ -387,12 +388,8 @@ export default function History({
   if (history.length === 0) {
     return (
       <div className="rounded-2xl border border-amber-900/15 bg-[#fffdf4]/70 p-6 text-center shadow-sm">
-        <p className="text-lg font-bold text-amber-950">No nights recorded yet</p>
-        <p className="mx-auto mt-1 max-w-md text-sm text-amber-900/60">
-          Generate teams on Match day, log the matches as they're won, and file the night with
-          🗂️ Save to history when you end it. The career numbers and rating suggestions build
-          from there.
-        </p>
+        <p className="text-lg font-bold text-amber-950">{t('hist.empty.title')}</p>
+        <p className="mx-auto mt-1 max-w-md text-sm text-amber-900/60">{t('hist.empty.body')}</p>
       </div>
     );
   }
@@ -402,12 +399,12 @@ export default function History({
       {/* The tab strip says "Club" — short enough to sit beside Match day and
           Roster (20) on a phone. The page says what it actually is. */}
       <div className="flex flex-wrap items-baseline gap-x-3 text-sm text-amber-900/60">
-        <h2 className="text-lg font-black text-amber-950">📊 Club statistics</h2>
+        <h2 className="text-lg font-black text-amber-950">{t('hist.title')}</h2>
         <span className="font-semibold text-amber-900/70">
-          {recordedNights} night{recordedNights === 1 ? '' : 's'} recorded
+          {t('hist.recorded', { n: recordedNights })}
         </span>
         {history.length !== recordedNights && (
-          <span>{history.length - recordedNights} saved with no result</span>
+          <span>{t('hist.noResult', { n: history.length - recordedNights })}</span>
         )}
       </div>
 
@@ -417,7 +414,7 @@ export default function History({
           into a button, so it lives in admin mode (§2.14). */}
       {isAdmin && periods.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-amber-900/15 bg-[#fffdf4]/70 p-3 shadow-sm">
-          <span className="text-sm font-bold text-amber-950">📊 Monthly recap</span>
+          <span className="text-sm font-bold text-amber-950">{t('hist.recap.title')}</span>
           <select
             value={wrappedPeriod}
             onChange={(e) => setWrappedPeriod(e.target.value)}
@@ -444,7 +441,7 @@ export default function History({
             disabled={sharingWrapped || !wrappedPeriod}
             className="rounded-lg bg-orange-600 px-3 py-1.5 text-xs font-bold text-amber-50 shadow-sm transition-transform enabled:hover:scale-105 disabled:opacity-40"
           >
-            {sharingWrapped ? '…' : '🖼️ Share recap'}
+            {sharingWrapped ? '…' : t('hist.recap.share')}
           </button>
         </div>
       )}
@@ -457,10 +454,10 @@ export default function History({
           is set here stays set — and removing a month hands it back, so the
           1st will register it afresh. */}
       {isAdmin && periods.length > 0 && (
-        <Section id="totm" title="👕 Team of the Month" defaultOpen={false}>
+        <Section id="totm" title={t('hist.totm.title')} defaultOpen={false}>
         <div className="rounded-2xl border border-amber-900/15 bg-[#fffdf4]/70 p-4 shadow-sm">
           <p className="mb-1 text-xs text-amber-900/45">
-            registers itself on the 1st — this is for seeding and corrections
+            {t('hist.totm.hint')}
           </p>
           <div className="divide-y divide-amber-900/10">
             {periods.map((period) => {
@@ -482,12 +479,15 @@ export default function History({
                         <span className="text-amber-900/70">{award.names.join(', ')}</span>
                         <span className="text-amber-900/35">
                           {' '}
-                          · registered {new Date(award.at).toLocaleDateString()}
+                          {t('hist.totm.registered', {
+                            date: fmtDate(award.at, getLang(), {}),
+                          })}
                         </span>
                       </>
                     ) : (
                       <span className="text-amber-900/35">
-                        not registered{running ? ' · still being played' : ''}
+                        {t('hist.totm.notRegistered')}
+                        {running ? t('hist.totm.stillPlayed') : ''}
                       </span>
                     )}
                   </div>
@@ -501,11 +501,7 @@ export default function History({
                       // discovered in October.
                       if (
                         running &&
-                        !confirm(
-                          `${periodLabel(period)} isn't over. You'll get the team as it stands ` +
-                            `today, and the 1st won't replace it — remove it when you're done ` +
-                            `testing and it'll register itself properly. Go ahead?`,
-                        )
+                        !confirm(t('hist.totm.runningConfirm', { period: periodLabel(period) }))
                       ) {
                         return;
                       }
@@ -515,28 +511,32 @@ export default function History({
                     disabled={busy}
                     title={
                       award
-                        ? 'Score this month again and overwrite what is stored'
-                        : 'Write this month’s five down now'
+                        ? t('hist.totm.reregister.title')
+                        : t('hist.totm.register.title')
                     }
                     className="rounded-lg border border-amber-900/25 px-2.5 py-1 text-xs font-bold text-amber-900 transition-colors enabled:hover:border-orange-500 disabled:opacity-40"
                   >
-                    {busy ? '…' : award ? 'Re-register' : 'Register'}
+                    {busy ? '…' : award ? t('hist.totm.reregister') : t('hist.totm.register')}
                   </button>
                   {award && (
                     <button
                       onClick={async () => {
                         if (!adminWord) return;
-                        if (!confirm(`Remove the Team of the Month for ${periodLabel(period)}?`)) {
+                        if (
+                          !confirm(
+                            t('hist.totm.removeConfirm', { period: periodLabel(period) }),
+                          )
+                        ) {
                           return;
                         }
                         setBusyMonth(period);
                         await afterWrite(await clearMonth(period, adminWord));
                       }}
                       disabled={busy}
-                      title="Forget it. The 1st will register this month again if it is over."
+                      title={t('hist.totm.remove.title')}
                       className="rounded-lg border border-red-500/40 px-2.5 py-1 text-xs font-bold text-red-700 transition-colors enabled:hover:bg-red-50 disabled:opacity-40"
                     >
-                      Remove
+                      {t('hist.totm.remove')}
                     </button>
                   )}
                 </div>
@@ -568,10 +568,10 @@ export default function History({
             aria-expanded={shelfOpen}
             className="flex items-baseline gap-2 font-bold text-amber-950"
           >
-            📅 Past nights
+            {t('hist.shelf.title')}
             <span className="text-sm font-normal text-amber-900/50">({history.length})</span>
             <span className="text-xs font-normal text-amber-900/40">
-              {shelfOpen ? '▲ hide' : '▼ show'}
+              {shelfOpen ? t('ui.fold.hide') : t('ui.fold.show')}
             </span>
           </button>
         </div>
@@ -611,7 +611,7 @@ export default function History({
                       made the strip a worse copy of a better view. */}
                   <button
                     onClick={() => setStoryId(fx.id)}
-                    aria-label={`Read the night of ${fx.date}`}
+                    aria-label={t('hist.shelf.read', { date: fx.date })}
                     className="absolute inset-0 rounded-2xl focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-orange-500"
                   />
                   {/* scenery: clicks fall through to the button above, so there
@@ -628,7 +628,9 @@ export default function History({
                           else to say, when the headline could simply be bigger. */}
                       <div className="mt-1.5 line-clamp-4 flex-1 text-center text-base font-black leading-[1.15] text-amber-950">
                         {summary?.headline ??
-                          (hasResult(fx.wins) ? 'A night on the books' : 'No result recorded')}
+                          (hasResult(fx.wins)
+                            ? t('hist.shelf.onTheBooks')
+                            : t('hist.shelf.noResultRecorded'))}
                       </div>
                     </div>
 
@@ -657,7 +659,7 @@ export default function History({
                       // the same shape, so a night nobody tallied does not
                       // stand a different height to the ones either side of it
                       <div className="px-2.5 py-2 text-center text-[11px] font-bold text-amber-900/30">
-                        no result
+                        {t('hist.shelf.noResult')}
                       </div>
                     )}
 
@@ -683,7 +685,7 @@ export default function History({
                         cancelEdit();
                       }}
                       aria-expanded={openId === fx.id}
-                      aria-label={`Organiser actions for the night of ${fx.date}`}
+                      aria-label={t('hist.shelf.actions', { date: fx.date })}
                       className={`absolute end-1 top-1 grid h-7 w-7 place-items-center rounded-full text-base leading-none hover:bg-amber-900/10 hover:text-amber-900 ${
                         openId === fx.id ? 'bg-amber-900/10 text-amber-900' : 'text-amber-900/30'
                       }`}
@@ -704,7 +706,7 @@ export default function History({
             <div className="space-y-3 rounded-2xl border border-orange-500/40 bg-amber-100/40 p-4 shadow-sm">
               <div className="flex flex-wrap items-baseline gap-x-2">
                 <span className="font-mono text-sm font-bold text-amber-950">{editing.date}</span>
-                <span className="text-xs text-amber-900/45">organiser actions</span>
+                <span className="text-xs text-amber-900/45">{t('hist.edit.actions')}</span>
                 <div className="flex-1" />
                 <button
                   onClick={() => {
@@ -713,7 +715,7 @@ export default function History({
                   }}
                   className="text-xs font-bold text-amber-900/50 hover:text-amber-900"
                 >
-                  × close
+                  {t('hist.edit.close')}
                 </button>
               </div>
               {editId === editing.id && draft ? (
@@ -742,7 +744,7 @@ export default function History({
                           onChange={(e) => setDraftWin(c, e.target.value)}
                           readOnly={editingLogged}
                           placeholder="–"
-                          aria-label={`Matches won by ${teamLabel(c)}`}
+                          aria-label={t('hist.edit.wonBy', { team: teamLabel(c) })}
                           className={`w-20 rounded-lg border border-amber-900/25 px-2 py-1 text-center font-bold text-amber-950 ${
                             editingLogged ? 'bg-amber-900/[0.06]' : 'bg-white'
                           }`}
@@ -751,7 +753,7 @@ export default function History({
                     ))}
                   </div>
                   <label className="flex items-center gap-2 text-xs text-amber-900/70">
-                    Date
+                    {t('hist.edit.date')}
                     <input
                       type="date"
                       value={draft.date}
@@ -775,7 +777,7 @@ export default function History({
                       describes is the punchline printed above the joke.
                       Emptying the box deletes it. */}
                   <label className="block text-xs text-amber-900/70">
-                    Note for the reporter
+                    {t('hist.edit.note')}
                     <textarea
                       value={draft.note}
                       onChange={(e) =>
@@ -784,33 +786,32 @@ export default function History({
                         )
                       }
                       rows={2}
-                      placeholder="Something the results can't say — empty to delete"
+                      placeholder={t('hist.edit.note.placeholder')}
                       className="mt-1 w-full rounded-lg border border-amber-900/25 bg-white px-2 py-1.5 text-sm text-amber-950 outline-none focus:border-orange-500"
                     />
                     <span className="text-[10px] text-amber-900/35">
-                      {draft.note.trim().length}/{NOTE_MAX} · never shown on any page — it only goes
-                      to the reporter
+                      {draft.note.trim().length}/{NOTE_MAX}
+                      {t('hist.edit.note.counter')}
                     </span>
                   </label>
                   <p className="text-xs text-amber-900/50">
                     {editingLogged
-                      ? 'This night was logged match by match, so its wins are counted from the matches and can’t be typed over. '
-                      : 'Half a win means it was taken on penalties. '}
-                    The team sheet can't be changed — delete the night and save it again if the teams
-                    were wrong.
+                      ? t('hist.edit.logged')
+                      : t('hist.edit.halfWin')}
+                    {t('hist.edit.sheetFixed')}
                   </p>
                   <div className="flex flex-wrap gap-2">
                     <button
                       onClick={() => commitEdit(editing.id)}
                       className="rounded-lg bg-orange-600 px-3 py-1 text-xs font-bold text-amber-50 hover:scale-105"
                     >
-                      Save changes
+                      {t('hist.edit.save')}
                     </button>
                     <button
                       onClick={cancelEdit}
                       className="rounded-lg border border-amber-900/25 px-3 py-1 text-xs font-bold text-amber-900 hover:border-orange-500"
                     >
-                      Cancel
+                      {t('ui.cancel')}
                     </button>
                   </div>
                 </>
@@ -826,25 +827,25 @@ export default function History({
                       onClick={() => startEdit(editing)}
                       className="rounded-lg border border-amber-500/60 bg-amber-100/60 px-3 py-1 text-xs font-bold text-amber-900 hover:border-orange-500"
                     >
-                      🌟 Pick MVP
+                      {t('hist.edit.pickMvp')}
                     </button>
                   )}
                   <button
                     onClick={() => startEdit(editing)}
                     className="rounded-lg border border-amber-900/25 px-3 py-1 text-xs font-bold text-amber-900 hover:border-orange-500"
                   >
-                    ✏️ Edit result
+                    {t('hist.edit.editResult')}
                   </button>
                   <button
                     onClick={() => {
-                      if (confirm(`Delete the night of ${editing.date} from history?`)) {
+                      if (confirm(t('hist.edit.deleteConfirm', { date: editing.date }))) {
                         onDeleteFixture(editing.id);
                         setOpenId(null);
                       }
                     }}
                     className="rounded-lg border border-red-500/50 px-3 py-1 text-xs font-bold text-red-700 hover:bg-red-50"
                   >
-                    🗑️ Delete this night
+                    {t('hist.edit.delete')}
                   </button>
                 </div>
               )}
@@ -858,7 +859,7 @@ export default function History({
           the same order the tab has always had. Silent on a young club rather
           than six headings over empty podiums (§2.36). */}
       {boards.length > 0 && (
-        <Section id="leaders" title="🏆 Leaderboards">
+        <Section id="leaders" title={t('hist.section.leaders')}>
           <Leaderboards boards={boards} />
         </Section>
       )}
@@ -870,12 +871,8 @@ export default function History({
           down the page. */}
       {isAdmin && suggestions.length > 0 && (
         <div className="space-y-2 rounded-2xl border border-orange-600/40 bg-orange-500/10 p-4 shadow-sm">
-          <h3 className="font-bold text-amber-950">📈 Rating suggestions</h3>
-          <p className="text-xs text-amber-900/60">
-            Based on how each player's teams do against what their rating predicts, allowing
-            for who they lined up with. Early ones rest on a handful of nights — treat those
-            as a nudge to look, not a verdict.
-          </p>
+          <h3 className="font-bold text-amber-950">{t('hist.sugg.title')}</h3>
+          <p className="text-xs text-amber-900/60">{t('hist.sugg.body')}</p>
           <ul className="space-y-2">
             {suggestions.map((s) => (
               <li
@@ -889,7 +886,8 @@ export default function History({
                 <Name className="font-bold text-amber-950">{s.name}</Name>
                 {s.atLimit ? (
                   <span className="font-semibold text-amber-900">
-                    {s.direction === 'up' ? '⭐' : '⚓'} stays at {fmtRating(s.current)}
+                    {s.direction === 'up' ? '⭐' : '⚓'}{' '}
+                    {t('hist.sugg.staysAt', { r: fmtRating(s.current) })}
                   </span>
                 ) : (
                   <span className="font-semibold text-amber-900">
@@ -898,7 +896,8 @@ export default function History({
                   </span>
                 )}
                 <span className="text-xs text-amber-900/55">
-                  {s.nights} night{s.nights === 1 ? '' : 's'} · {fmtWins(s.wins)} wins
+                  {t('hist.sugg.nights', { n: s.nights })} ·{' '}
+                  {t('hist.sugg.wins', { n: fmtWins(s.wins) })}
                 </span>
                 <span
                   className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${
@@ -910,11 +909,15 @@ export default function History({
                   }`}
                   title={
                     s.confidence === 'building'
-                      ? 'Early — could still be luck'
-                      : 'The pattern has held up over more football'
+                      ? t('hist.sugg.early.title')
+                      : t('hist.sugg.held.title')
                   }
                 >
-                  {s.confidence === 'building' ? 'early' : s.confidence}
+                  {s.confidence === 'building'
+                    ? t('hist.sugg.early')
+                    : s.confidence === 'solid'
+                      ? t('hist.sugg.solid')
+                      : t('hist.sugg.strong')}
                 </span>
                 <div className="flex-1" />
                 {/* nothing to apply when the scale has run out — only the note */}
@@ -923,20 +926,21 @@ export default function History({
                     onClick={() => onApplyRating(s.id, s.suggested)}
                     className="rounded-lg bg-orange-600 px-3 py-1 text-xs font-bold text-amber-50 hover:scale-105"
                   >
-                    Apply
+                    {t('hist.sugg.apply')}
                   </button>
                 )}
                 <button
                   onClick={() => setDismissed((d) => new Set(d).add(s.id))}
                   className="rounded-lg border border-amber-900/25 px-3 py-1 text-xs font-bold text-amber-900 hover:border-orange-500"
                 >
-                  Dismiss
+                  {t('hist.sugg.dismiss')}
                 </button>
                 {s.atLimit && (
                   <p className="w-full text-xs text-amber-900/60">
-                    {s.direction === 'up'
-                      ? `Already at ${fmtRating(s.current)}★ — the scale stops here, but the results say they're further ahead than a ${fmtRating(s.current)} can show. Teams built around them are stronger than the numbers admit, so nudge the rest of the roster down if this keeps up.`
-                      : `Already at ${fmtRating(s.current)}★ — the scale stops here, but the results say they're further behind than a ${fmtRating(s.current)} can show. Teams carrying them are weaker than the numbers admit.`}
+                    {t(
+                      s.direction === 'up' ? 'hist.sugg.atLimit.up' : 'hist.sugg.atLimit.down',
+                      { r: fmtRating(s.current) },
+                    )}
                   </p>
                 )}
               </li>
@@ -945,7 +949,7 @@ export default function History({
         </div>
       )}
 
-      <Section id="career" title="📊 Career numbers">
+      <Section id="career" title={t('hist.section.career')}>
         {/* Opaque rather than the usual `/70`, because the name column is sticky:
             a translucent cell lets the rows it is holding still scroll visibly
             underneath it, which reads as a rendering fault. */}
@@ -953,8 +957,8 @@ export default function History({
         {isAdmin && (
           <div className="px-4 pt-4">
             <p className="mb-2 text-xs text-amber-900/60">
-              <b>vs rating</b> accounts for who they played with and against, so it can put someone
-              above a teammate on a higher per-night number. Blank under {MIN_NIGHTS} nights.
+              <b>{t('hist.col.vsRating')}</b>
+              {t('hist.vsRating.note', { n: MIN_NIGHTS })}
             </p>
           </div>
         )}
@@ -1018,7 +1022,7 @@ export default function History({
                     <td className={`${cell} font-bold text-amber-950`}>{fmtWins(s.wins)}</td>
                     <td
                       className={`${cell} text-amber-900/70`}
-                      title="Whole nights this player's team finished top of"
+                      title={t('hist.fixturesWon.title')}
                     >
                       {fixturesWon(s.id) || '—'}
                     </td>
@@ -1037,10 +1041,10 @@ export default function History({
                         }`}
                         title={
                           !rated
-                            ? `Needs ${MIN_NIGHTS} nights before this means anything`
+                            ? t('hist.vsRating.needs', { n: MIN_NIGHTS })
                             : meaningful
-                              ? 'Consistently over/under-performing their rating'
-                              : 'Not enough evidence to read anything into this yet'
+                              ? t('hist.vsRating.meaningful')
+                              : t('hist.vsRating.thin')
                         }
                       >
                         {rated ? `${d >= 0 ? '+' : ''}${d.toFixed(2)}` : '—'}
@@ -1061,7 +1065,7 @@ export default function History({
           two names, and an empty panel above the nights would be a permanent
           prompt on a page nobody opened to answer a question. */}
       {comparable.length >= 2 && (
-        <Section id="compare" title="⚖️ Compare two players" defaultOpen={false}>
+        <Section id="compare" title={t('hist.section.compare')} defaultOpen={false}>
           <PlayerCompare history={history} options={comparable} />
         </Section>
       )}
