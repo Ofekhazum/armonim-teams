@@ -1,3 +1,5 @@
+import { t } from './i18n';
+
 // The badge shown for a player — derived from their position on the attacking
 // spectrum, never stored. See roleBadge() below.
 export type RoleBadge = 'defensive' | 'balanced' | 'attacking' | 'gk';
@@ -41,10 +43,10 @@ export function roleBadge(p: Player): RoleBadge {
 
 // Human label for a spot on the spectrum, e.g. "70% defensive" / "even split".
 export function attackLabel(attack: number): string {
-  if (attack === ATTACK_DEFAULT) return 'even split';
+  if (attack === ATTACK_DEFAULT) return t('roster.attack.even');
   return attack > ATTACK_DEFAULT
-    ? `${attack}% attacking`
-    : `${100 - attack}% defensive`;
+    ? t('roster.attack.attacking', { n: attack })
+    : t('roster.attack.defensive', { n: 100 - attack });
 }
 
 // --- Legacy migration ------------------------------------------------------

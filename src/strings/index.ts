@@ -1,6 +1,8 @@
 import { app } from './app';
 import { common } from './common';
 import { fixture } from './fixture';
+import { matchday } from './matchday';
+import { roster } from './roster';
 
 // Every string the app can say, in both languages (§2.45).
 //
@@ -17,4 +19,6 @@ export const STRINGS = {
   ...common,
   ...app,
   ...fixture,
+  ...roster,
+  ...matchday,
 } as const;
