@@ -3,6 +3,7 @@ import { clock } from './clock';
 import { common } from './common';
 import { fixture } from './fixture';
 import { matchday } from './matchday';
+import { night } from './night';
 import { roster } from './roster';
 
 // Every string the app can say, in both languages (§2.45).
@@ -23,4 +24,5 @@ export const STRINGS = {
   ...roster,
   ...matchday,
   ...clock,
+  ...night,
 } as const;
