@@ -7,6 +7,7 @@ import {
   toLocalInputValue,
 } from '../kickoff';
 import { useScrollLock } from '../scrollLock';
+import { t } from '../i18n';
 
 interface Props {
   onStartNow: () => void;
@@ -26,7 +27,7 @@ export default function StartFixtureDialog({ onStartNow, onSchedule, onCancel }:
   const confirmSchedule = () => {
     const at = parseLocalKickoff(value);
     if (at === null || !isSchedulable(at)) {
-      setError('Pick a time between now and a week from now.');
+      setError(t('start.schedule.error'));
       return;
     }
     onSchedule(at);
@@ -37,39 +38,33 @@ export default function StartFixtureDialog({ onStartNow, onSchedule, onCancel }:
       <div className="w-full max-w-md rounded-2xl border border-amber-900/20 bg-[#fffdf4] p-5 shadow-xl">
         {mode === 'pick' ? (
           <>
-            <h3 className="text-lg font-black text-amber-950">Start the fixture</h3>
-            <p className="mt-2 text-sm text-amber-900/70">
-              Locks tonight's teams in and puts them in front of the group. Cancel is always there
-              afterwards if you change your mind.
-            </p>
+            <h3 className="text-lg font-black text-amber-950">{t('start.title')}</h3>
+            <p className="mt-2 text-sm text-amber-900/70">{t('start.body')}</p>
             <div className="mt-4 flex flex-col gap-2">
               <button
                 onClick={onStartNow}
                 className="rounded-xl bg-green-700 px-4 py-2.5 text-sm font-bold text-amber-50 shadow-sm transition-transform hover:scale-[1.02]"
               >
-                ▶️ Start now
+                {t('start.now')}
               </button>
               <button
                 onClick={() => setMode('schedule')}
                 className="rounded-xl border border-amber-900/25 px-4 py-2 text-sm font-bold text-amber-900 hover:border-orange-500"
               >
-                🗓️ Schedule for later
+                {t('start.later')}
               </button>
               <button
                 onClick={onCancel}
                 className="rounded-xl border border-amber-900/25 px-4 py-2 text-sm font-bold text-amber-900 hover:border-orange-500"
               >
-                ← Not yet
+                {t('start.notYet')}
               </button>
             </div>
           </>
         ) : (
           <>
-            <h3 className="text-lg font-black text-amber-950">Schedule the fixture</h3>
-            <p className="mt-2 text-sm text-amber-900/70">
-              Teams lock in now, the same as starting — the group sees them right away, counting
-              down to kickoff rather than reading them as live. Up to a week ahead.
-            </p>
+            <h3 className="text-lg font-black text-amber-950">{t('start.schedule.title')}</h3>
+            <p className="mt-2 text-sm text-amber-900/70">{t('start.schedule.body')}</p>
             <input
               type="datetime-local"
               value={value}
@@ -87,13 +82,13 @@ export default function StartFixtureDialog({ onStartNow, onSchedule, onCancel }:
                 onClick={confirmSchedule}
                 className="rounded-xl bg-orange-600 px-4 py-2.5 text-sm font-bold text-amber-50 shadow-sm transition-transform hover:scale-[1.02]"
               >
-                🗓️ Lock in teams & schedule
+                {t('start.schedule.confirm')}
               </button>
               <button
                 onClick={() => setMode('pick')}
                 className="rounded-xl border border-amber-900/25 px-4 py-2 text-sm font-bold text-amber-900 hover:border-orange-500"
               >
-                ← Back
+                {t('md.back')}
               </button>
             </div>
           </>

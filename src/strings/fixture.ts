@@ -37,4 +37,107 @@ export const fixture = {
   'log.undo': { he: 'ביטול המשחק האחרון', en: 'Undo last match' },
   'log.beat': { he: 'ניצחו את', en: 'beat' },
   'log.entry.pens': { he: 'בפנדלים · ½', en: 'on penalties · ½' },
+
+  // --- Kickoff countdown / scheduling --------------------------------------
+  'kick.countdown': { he: '⏳ נפתח {when}', en: '⏳ Kicks off {when}' },
+  // kickoffLabel(), from kickoff.ts. The short forms are what fits in a tab
+  // pill beside a pulsing dot.
+  'kick.anyMoment': { he: 'נפתח עוד רגע', en: 'kicking off any moment' },
+  'kick.in.days': { he: 'בעוד {d} ימ׳ {h} שע׳', en: 'in {d}d {h}h' },
+  'kick.in.hours': { he: 'בעוד {h} שע׳ {m} דק׳', en: 'in {h}h {m}m' },
+  'kick.in.mins': { he: 'בעוד {m} דק׳', en: 'in {m}m' },
+  'kick.in.secs': { he: 'בעוד 0:{s}', en: 'in 0:{s}' },
+  'kick.ago.justNow': { he: 'ממש עכשיו', en: 'just now' },
+  'kick.ago.mins': { he: 'לפני {m} דק׳', en: '{m} min ago' },
+  'kick.ago.hours': { he: 'לפני {h} שע׳ {m} דק׳', en: '{h}h {m}m ago' },
+
+  'start.title': { he: 'התחלת ערב המשחק', en: 'Start the fixture' },
+  'start.body': {
+    he: 'נועל את ההרכבים של הערב ומציג אותם לכל הקבוצה. תמיד אפשר לבטל אחר כך אם נמלכתם בדעתכם.',
+    en: "Locks tonight's teams in and puts them in front of the group. Cancel is always there afterwards if you change your mind.",
+  },
+  'start.now': { he: '▶️ להתחיל עכשיו', en: '▶️ Start now' },
+  'start.later': { he: '🗓️ תזמון למועד מאוחר', en: '🗓️ Schedule for later' },
+  'start.notYet': { he: '→ עוד לא', en: '← Not yet' },
+  'start.schedule.title': { he: 'תזמון ערב המשחק', en: 'Schedule the fixture' },
+  'start.schedule.body': {
+    he: 'ההרכבים ננעלים עכשיו, בדיוק כמו בהתחלה — הקבוצה רואה אותם מיד, עם ספירה לאחור לפתיחה במקום כמשחק חי. עד שבוע מראש.',
+    en: 'Teams lock in now, the same as starting — the group sees them right away, counting down to kickoff rather than reading them as live. Up to a week ahead.',
+  },
+  'start.schedule.confirm': { he: '🗓️ נעילת הרכבים ותזמון', en: '🗓️ Lock in teams & schedule' },
+  'start.schedule.error': {
+    he: 'בחרו זמן בין עכשיו לעוד שבוע.',
+    en: 'Pick a time between now and a week from now.',
+  },
+
+  // --- The spectator's live view -------------------------------------------
+  'live.title.running': { he: 'ערב המשחק', en: "Tonight's fixture" },
+  'live.title.scheduled': { he: 'ההרכבים של הערב', en: "Tonight's teams" },
+  'live.kickedOff': { he: 'נפתח {ago}', en: 'kicked off {ago}' },
+  'live.starts': { he: 'מתחיל {when}', en: 'starts {when}' },
+  'live.end': { he: '⏹️ סיום המשחק', en: '⏹️ End fixture' },
+  'live.cancel': { he: '✕ ביטול המשחק', en: '✕ Cancel fixture' },
+  'live.end.confirm': {
+    he: 'לסיים את ערב המשחק עבור כולם?\n\nהתצוגה החיה תיעלם מהטלפונים של הקבוצה. שום דבר שכבר נשמר בהיסטוריה לא מושפע.',
+    en: "End tonight's fixture for everyone?\n\nThe live view disappears from the group's phones. Nothing already saved to history is affected.",
+  },
+  'live.cancel.confirm': {
+    he: 'לבטל את ערב המשחק המתוזמן?\n\nההרכבים והספירה לאחור ייעלמו מהטלפונים של כולם.',
+    en: "Cancel this scheduled fixture?\n\nThe teams and countdown disappear from everyone's phones.",
+  },
+
+  // --- Score bar / team cards ----------------------------------------------
+  'score.chip.title': {
+    he: '{team} — {points} מתוך {n} משחקים',
+    en: '{team} — {points} from {n} matches',
+  },
+  'cards.gkTonight': { he: 'שוער הערב', en: 'Goalkeeper tonight' },
+
+  // --- Pitch mode -----------------------------------------------------------
+  'pitch.leave': { he: 'יציאה ממצב מגרש', en: 'Leave pitch mode' },
+  'pitch.pause': { he: '⏸ השהיה', en: '⏸ Pause' },
+  'pitch.addedTime': { he: '▶️ זמן נוסף', en: '▶️ Added time' },
+  'pitch.start': { he: '▶️ התחלה', en: '▶️ Start' },
+  'pitch.resume': { he: '▶️ המשך', en: '▶️ Resume' },
+  'pitch.level': { he: '⚽ שוויון — זמן נוסף', en: '⚽ Level — added time' },
+  'pitch.next': { he: '⏭ הבא', en: '⏭ Next' },
+  'pitch.reset': { he: '↺ איפוס', en: '↺ Reset' },
+  'pitch.watcher': {
+    he: 'מי שהכי קרוב לטלפון מנהל את השעון',
+    en: 'Whoever is nearest the phone runs the clock',
+  },
+
+  // --- MVP ------------------------------------------------------------------
+  'mvp.title': { he: '🌟 מצטיין הערב', en: '🌟 MVP' },
+  'mvp.hint': { he: 'רשות — הבחירה שלכם לשחקן הבולט של הערב.', en: "Optional — your pick for this night's standout player." },
+  'mvp.from.one': { he: 'מתוך {team}, שניצחו את הערב.', en: 'From {team}, who won the night.' },
+  'mvp.from.level': { he: 'הערב הסתיים בשוויון, אז כל מי ששיחק.', en: 'The night finished level, so anyone who played.' },
+  'mvp.from.tied': { he: 'מתוך {teams}, שוות בראש.', en: 'From {teams}, level at the top.' },
+  'mvp.and': { he: 'ו', en: ' and ' },
+  'mvp.noPick': { he: 'ללא בחירה', en: 'No pick' },
+
+  // --- Derby ----------------------------------------------------------------
+  'derby.title': { he: '⚔️ הדרבי של הערב', en: "⚔️ Tonight's derby" },
+  'derby.faced': { he: '{n} משחקים בצדדים מנוגדים', en: '{n} matches on opposite sides' },
+  'derby.level': { he: ', ובשוויון מוחלט', en: ', and dead level' },
+
+  // --- Test mode ------------------------------------------------------------
+  'test.banner.title': { he: '🧪 מצב בדיקה — מועדון מומצא', en: '🧪 Test mode — invented club' },
+  'test.banner.body': {
+    he: '{players} שחקנים, {nights} ערבים. שום דבר כאן לא מתפרסם, והמועדון האמיתי לא נוגע בכלום.',
+    en: '{players} players, {nights} nights. Nothing here is published, and the real club is untouched.',
+  },
+  'test.banner.back': { he: '→ חזרה למועדון האמיתי', en: '← Back to the real club' },
+
+  // --- Live room bar --------------------------------------------------------
+  'room.live': { he: '🔴 חי', en: '🔴 Live' },
+  'room.host': { he: ' · מארח', en: ' · host' },
+
+  // --- Price tag ------------------------------------------------------------
+  'price.first': { he: 'הערכה ראשונה', en: 'first valuation' },
+  'price.unchanged': { he: '— ללא שינוי', en: '— unchanged' },
+  'price.note': {
+    he: 'מתומחר לפי תוצאות, הופעות ותארים — לא לפי דירוג.',
+    en: 'Priced from results, appearances and honours — not a rating.',
+  },
 } as const satisfies Record<string, Entry>;

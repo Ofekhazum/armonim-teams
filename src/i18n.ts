@@ -62,33 +62,6 @@ export function translate(lang: Lang, key: Key, vars?: Vars): string {
   return fill(pick(entry[lang] ?? entry.he, vars), vars);
 }
 
-// --- The current language, for code that is not a component -----------------
-//
-// The canvas share cards (§2.20), the countdown labels and the push bodies all
-// build text outside React. Rather than thread a `lang` argument through every
-// one of those signatures — and through the ~200 call sites and assertions
-// that would come with it — they read the language the provider last set.
-//
-// One writer (the provider), one language at a time, app-wide: that is what
-// the app actually does, so a module-level answer is the honest shape rather
-// than a shortcut. `translate` stays pure, and is what a test uses when it
-// wants to pin a language without touching global state.
-
-let current: Lang = 'he';
-
-export const getLang = (): Lang => current;
-
-/**
- * Only the provider and the test setup call this. Everything else changes the
- * language by rendering — `setLang` on the context, which routes here and then
- * re-renders the tree.
- */
-export const setCurrentLang = (lang: Lang) => {
-  current = lang;
-};
-
-export const t = (key: Key, vars?: Vars): string => translate(current, key, vars);
-
 // --- Where the choice is kept ----------------------------------------------
 
 const LANG_KEY = 'armonim-lang';
@@ -119,6 +92,42 @@ export function rememberLang(lang: Lang) {
     // it just forgets on reload, which beats not switching at all.
   }
 }
+
+// --- The current language, for code that is not a component -----------------
+//
+// The canvas share cards (§2.20), the countdown labels and the push bodies all
+// build text outside React. Rather than thread a `lang` argument through every
+// one of those signatures — and through the ~200 call sites and assertions
+// that would come with it — they read the language the provider last set.
+//
+// One writer (the provider), one language at a time, app-wide: that is what
+// the app actually does, so a module-level answer is the honest shape rather
+// than a shortcut. `translate` stays pure, and is what a test uses when it
+// wants to pin a language without touching global state.
+
+/**
+ * Seeded from storage rather than from a constant, so that a *fresh copy* of
+ * this module starts in the language the device already chose.
+ *
+ * That is not hypothetical: a component test calling `vi.resetModules()` gets
+ * its own instance of this file, which the suite's `setCurrentLang` never
+ * touched — and it rendered a Hebrew banner in the middle of an
+ * English-pinned suite until this read the same place the provider does.
+ */
+let current: Lang = storedLang();
+
+export const getLang = (): Lang => current;
+
+/**
+ * Only the provider and the test setup call this. Everything else changes the
+ * language by rendering — `setLang` on the context, which routes here and then
+ * re-renders the tree.
+ */
+export const setCurrentLang = (lang: Lang) => {
+  current = lang;
+};
+
+export const t = (key: Key, vars?: Vars): string => translate(current, key, vars);
 
 // --- Dates ------------------------------------------------------------------
 // Both languages read the same Western digits, so a date only needs its month

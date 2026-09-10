@@ -3,6 +3,7 @@ import type { ClockState, MatchLogEntry, TeamColor } from '../types';
 import { TEAM_COLORS } from '../balancer';
 import { nextPairing, playedCounts, winsFromLog } from '../matchLog';
 import { TEAM_META, teamLabel } from './ui';
+import { t } from '../i18n';
 
 // The two numbers you look up for, stuck to the top of the fixture page
 // (§2.18): who is on what, and how long is left.
@@ -57,7 +58,11 @@ export default function ScoreBar({ clock, log }: { clock: ClockState; log: Match
               className={`flex min-w-0 flex-1 items-center justify-center gap-1 rounded-lg px-1.5 py-1 ${
                 onNow.has(c) ? 'bg-orange-500/15 ring-1 ring-orange-500/40' : 'bg-amber-900/[0.04]'
               }`}
-              title={`${teamLabel(c)} — ${fmtPoints(wins[c])} from ${played[c]} ${played[c] === 1 ? 'match' : 'matches'}`}
+              title={t('score.chip.title', {
+                team: teamLabel(c),
+                points: fmtPoints(wins[c]),
+                n: played[c],
+              })}
             >
               <span className="text-sm leading-none">{TEAM_META[c].emoji}</span>
               <span className="font-mono text-base font-black leading-none text-amber-950">

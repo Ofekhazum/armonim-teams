@@ -1,6 +1,7 @@
 import type { TeamColor, Teams, TonightPlayer } from '../types';
 import { TEAM_COLORS } from '../balancer';
 import { Name, TEAM_META, teamLabel } from './ui';
+import { t } from '../i18n';
 
 // Tonight's three teams, as something you glance at rather than work on — the
 // compact form, names in wrapped chips (~3 lines a team) instead of one tall
@@ -65,7 +66,7 @@ export default function TeamCards<P extends TonightPlayer>({
                     title={note?.(p)}
                     className={`flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-xs font-semibold ${m.row}`}
                   >
-                    {gkSet.has(id) && <span title="Goalkeeper tonight">🧤</span>}
+                    {gkSet.has(id) && <span title={t('cards.gkTonight')}>🧤</span>}
                     <Name>{p.name}</Name>
                     {p.isGuest && <span className={`text-[9px] ${m.sub}`}>★</span>}
                   </li>

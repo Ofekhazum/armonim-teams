@@ -1,5 +1,6 @@
 import type { Derby } from '../derby';
 import { FoldHeader, Name, TEAM_META } from './ui';
+import { t } from '../i18n';
 
 // Tonight's derby (§2.33) — the one card on a match night that is about a
 // rivalry rather than a record.
@@ -40,14 +41,14 @@ export default function DerbyBanner({
     <div className="rounded-2xl border border-violet-500/25 bg-gradient-to-r from-violet-100/70 via-[#fffdf4] to-violet-100/70 px-4 py-2.5">
       {onToggle ? (
         <FoldHeader
-          title="⚔️ Tonight's derby"
+          title={t('derby.title')}
           open={open}
           onToggle={onToggle}
           className="mb-1.5 text-violet-900/70"
         />
       ) : (
         <h3 className="mb-1.5 text-[11px] font-black uppercase tracking-wide text-violet-900/70">
-          ⚔️ Tonight's derby
+          {t('derby.title')}
         </h3>
       )}
 
@@ -75,8 +76,8 @@ export default function DerbyBanner({
           nights, goals or anything else, and this app has never counted a goal
           in its life (§2.9). */}
       <p className="mt-1 text-center text-[11px] text-violet-900/60">
-        {derby.faced} matches on opposite sides
-        {level ? ', and dead level' : ''}
+        {t('derby.faced', { n: derby.faced })}
+        {level ? t('derby.level') : ''}
       </p>
         </>
       )}

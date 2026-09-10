@@ -1,5 +1,6 @@
 import { kickoffLabel, useCountdownTick } from '../kickoff';
 import NotifyToggle from './NotifyToggle';
+import { getLang, localeOf, t } from '../i18n';
 
 interface Props {
   startedAt: number;
@@ -18,10 +19,10 @@ export default function KickoffCountdown({ startedAt, fixtureId }: Props) {
     <div className="sticky top-0 z-30 -mx-3 mb-3 border-b border-amber-900/15 bg-[#fdf6e3]/95 px-3 py-2 backdrop-blur sm:-mx-6 sm:px-6">
       <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-3 gap-y-1">
         <span className="text-base font-black text-amber-950">
-          ⏳ Kicks off {kickoffLabel(startedAt)}
+          {t('kick.countdown', { when: kickoffLabel(startedAt) })}
         </span>
         <span className="text-xs text-amber-900/50">
-          {new Date(startedAt).toLocaleString([], {
+          {new Date(startedAt).toLocaleString(localeOf(getLang()), {
             weekday: 'short',
             hour: '2-digit',
             minute: '2-digit',

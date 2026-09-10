@@ -7,6 +7,7 @@ import MatchLog from './MatchLog';
 import ScoreBar from './ScoreBar';
 import TeamCards from './TeamCards';
 import TonightFacts from './TonightFacts';
+import { getLang, localeOf, t } from '../i18n';
 
 interface Props {
   fixture: LiveFixture;
@@ -83,9 +84,7 @@ export default function LiveFixtureView({
   // organiser's page needs teams and ratings this view doesn't carry, but
   // *ending* needs nothing but the admin word.
   const end = () => {
-    const msg = kickedOff
-      ? "End tonight's fixture for everyone?\n\nThe live view disappears from the group's phones. Nothing already saved to history is affected."
-      : "Cancel this scheduled fixture?\n\nThe teams and countdown disappear from everyone's phones.";
+    const msg = kickedOff ? t('live.end.confirm') : t('live.cancel.confirm');
     if (confirm(msg)) onEndFixture?.();
   };
 
@@ -106,16 +105,18 @@ export default function LiveFixtureView({
               className={`relative inline-flex h-2.5 w-2.5 rounded-full ${kickedOff ? 'bg-red-600' : 'bg-amber-500'}`}
             />
           </span>
-          {kickedOff ? "Tonight's fixture" : "Tonight's teams"}
+          {kickedOff ? t('live.title.running') : t('live.title.scheduled')}
         </h2>
         <span className="text-sm text-amber-900/55">
           {kickedOff
-            ? `kicked off ${agoLabel(fixture.startedAt)}`
-            : `starts ${new Date(fixture.startedAt).toLocaleString([], {
-                weekday: 'short',
-                hour: '2-digit',
-                minute: '2-digit',
-              })}`}
+            ? t('live.kickedOff', { ago: agoLabel(fixture.startedAt) })
+            : t('live.starts', {
+                when: new Date(fixture.startedAt).toLocaleString(localeOf(getLang()), {
+                  weekday: 'short',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                }),
+              })}
         </span>
         {onEndFixture && (
           <>
@@ -124,7 +125,7 @@ export default function LiveFixtureView({
               onClick={end}
               className="rounded-xl border border-red-500/60 px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-50"
             >
-              {kickedOff ? '⏹️ End fixture' : '✕ Cancel fixture'}
+              {kickedOff ? t('live.end') : t('live.cancel')}
             </button>
           </>
         )}

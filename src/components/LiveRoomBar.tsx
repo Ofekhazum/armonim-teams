@@ -1,5 +1,6 @@
 import type { ActivityEvent, PresenceMember } from '../liveRoom';
 import { Name } from './ui';
+import { t } from '../i18n';
 
 interface Props {
   presence: PresenceMember[];
@@ -18,7 +19,7 @@ export default function LiveRoomBar({ presence, activity, colorOf }: Props) {
     <>
       <div className="flex flex-wrap items-center gap-2 text-xs">
         <span className="flex items-center gap-1 rounded-full bg-red-600/10 px-2.5 py-1 font-bold text-red-700">
-          🔴 Live
+          {t('room.live')}
         </span>
         {presence.map((m, i) => (
           <span
@@ -32,7 +33,7 @@ export default function LiveRoomBar({ presence, activity, colorOf }: Props) {
               aria-hidden
             />
             <Name>{m.name}</Name>
-            {m.isHost && <span className="text-amber-900/50"> · host</span>}
+            {m.isHost && <span className="text-amber-900/50">{t('room.host')}</span>}
           </span>
         ))}
       </div>

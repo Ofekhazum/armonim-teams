@@ -1,5 +1,6 @@
 import type { PlayerValue } from '../values';
 import { formatValue, moveOf } from '../values';
+import { t } from '../i18n';
 
 // The price tag on a player's page (§2.31).
 //
@@ -48,14 +49,14 @@ export default function PriceTag({ price }: { price?: PlayerValue }) {
         className={`rounded-full border px-1.5 py-0.5 text-[10px] font-black tabular-nums ${MOVE_TONE[move.dir]}`}
       >
         {move.dir === 'new'
-          ? 'first valuation'
+          ? t('price.first')
           : move.dir === 'flat'
-            ? '— unchanged'
+            ? t('price.unchanged')
             : `${move.dir === 'up' ? '▲ +' : '▼ −'}${formatValue(move.by)}`}
       </span>
 
       <span className="w-full text-[10px] leading-tight text-amber-900/45">
-        Priced from results, appearances and honours — not a rating.
+        {t('price.note')}
       </span>
     </div>
   );
