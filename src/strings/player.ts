@@ -34,16 +34,16 @@ export const player = {
     en: "Nothing to count — this player hasn't been on a recorded team sheet.",
   },
   'pp.stat.nights': { he: 'מחזורים', en: 'nights' },
-  'pp.stat.nightsWon': { he: 'מחזורים שנוצחו', en: 'nights won' },
+  'pp.stat.nightsWon': { he: 'מחזורים שנלקחו', en: 'nights won' },
   'pp.stat.wins': { he: 'ניצחונות', en: 'match wins' },
   'pp.stat.perNight': { he: 'לכל מחזור', en: 'per night' },
   'pp.stat.mvp': {
-    he: { one: 'מחזור מצטיין', other: 'מחזורי מצטיין' },
+    he: { one: 'מצטיין מחזור', other: 'מצטייני מחזור' },
     en: { one: 'MVP night', other: 'MVP nights' },
   },
 
   // --- Every night ----------------------------------------------------------
-  'pp.nights.title': { he: 'כל מחזור', en: 'Every night' },
+  'pp.nights.title': { he: 'כל המחזורים', en: 'Every night' },
   'pp.nights.hint': { he: 'החדש ראשון · {n} שוחקו', en: 'newest first · {n} played' },
   'pp.nights.spoken.noResult': {
     he: '{date}, {team}, לא נרשמה תוצאה',
@@ -67,7 +67,7 @@ export const player = {
   'pp.progress.aria': { he: '{now} מתוך {target} {unit}', en: '{now} of {target} {unit}' },
   'pp.unit.nights': { he: 'מחזורים', en: 'nights' },
   'pp.unit.wins': { he: 'ניצחונות', en: 'wins' },
-  'pp.unit.nightsWon': { he: 'מחזורים שנוצחו', en: 'nights won' },
+  'pp.unit.nightsWon': { he: 'מחזורים שנלקחו', en: 'nights won' },
   'pp.unit.mvps': { he: 'מצטיינים', en: 'MVPs' },
 
   // --- Mates and rivals -----------------------------------------------------
@@ -83,7 +83,7 @@ export const player = {
   'pp.rivals.playedMost': { he: 'הכי הרבה מחזורים עם', en: 'Most nights with' },
   'pp.rivals.playedMost.tail': { he: '{together} מתוך {nights}', en: '{together} of {nights}' },
   'pp.rivals.wonMost': { he: 'ניצח הכי הרבה עם', en: 'Won most with' },
-  'pp.rivals.wonMost.tail': { he: '{n} מחזורים שנוצחו', en: '{n} nights won' },
+  'pp.rivals.wonMost.tail': { he: '{n} מחזורים שנלקחו', en: '{n} nights won' },
   'pp.rivals.never': { he: 'אף פעם לא לצידו', en: 'Never once alongside' },
   'pp.rivals.never.tail': { he: '{n} מחזורים ממול', en: '{n} nights opposite' },
   'pp.rivals.facedMost': { he: 'התמודד הכי הרבה מול', en: 'Faced most' },
@@ -91,7 +91,7 @@ export const player = {
   'pp.rivals.bogey': { he: 'הקוץ בתחת', en: 'Bogey man' },
   'pp.rivals.bogey.tail': { he: 'ניצח אותך ב־{n} מתוך {faced}', en: 'has beaten you {n} of {faced}' },
   'pp.rivals.victim': { he: 'הקורבן האהוב', en: 'Favourite victim' },
-  'pp.rivals.victim.tail': { he: 'נוצח על ידיך ב־{n} מתוך {faced}', en: 'beaten by you {n} of {faced}' },
+  'pp.rivals.victim.tail': { he: 'הפסיד לך ב־{n} מתוך {faced}', en: 'beaten by you {n} of {faced}' },
   'pp.rivals.worthy': { he: 'יריב ראוי', en: 'Worthy opponent' },
   'pp.rivals.worthy.tail': { he: '{beat}–{beatenBy} — צמוד', en: '{beat}–{beatenBy} — nothing in it' },
   'pp.rivals.h2hNeedsLogs': {
@@ -140,24 +140,24 @@ export const player = {
   'tl.debut.place': { he: ' · סיים {ord}', en: ' · finished {ord}' },
   'tl.nthNight': { he: 'המחזור ה־{ord}', en: '{ord} night' },
   'tl.nthNight.detail': { he: 'מחזורים עם תוצאה שנרשמה', en: 'nights with a result recorded' },
-  'tl.nthWin': { he: 'ניצחון המשחק ה־{ord}', en: '{ord} match win' },
+  'tl.nthWin': { he: 'הניצחון ה־{ord}', en: '{ord} match win' },
   'tl.nthWin.detail': { he: 'על פני כל המחזורים ששיחק', en: 'across every night they have played' },
-  'tl.nthNightWon': { he: 'המחזור ה־{ord} שנוצח', en: '{ord} night won' },
+  'tl.nthNightWon': { he: 'המחזור ה־{ord} שנלקח', en: '{ord} night won' },
   'tl.nthNightWon.detail': {
     he: 'מחזורים שהקבוצה שלו סיימה בראשם',
     en: 'nights their team finished top of',
   },
   'tl.mvpFirst': { he: 'נבחר למצטיין', en: 'Picked MVP' },
   'tl.mvpFirst.detail': { he: 'בפעם הראשונה', en: 'the first time' },
-  'tl.nthMvp': { he: 'מחזור המצטיין ה־{ord}', en: '{ord} MVP night' },
+  'tl.nthMvp': { he: 'מצטיין המחזור בפעם ה־{ord}', en: '{ord} MVP night' },
   'tl.streakEnded': { he: 'רצף של {n} נגמר', en: 'A run of {n} ended' },
   'tl.streakEnded.detail': {
-    he: '{n} מחזורים שנוצחו ברצף, ואז זה',
+    he: '{n} מחזורים שנלקחו ברצף, ואז זה',
     en: '{n} nights won in a row, then this one',
   },
   'tl.streakLive': { he: 'על רצף של {n}', en: 'On a run of {n}' },
   'tl.streakLive.detail': { he: 'עדיין נמשך', en: 'still going' },
-  'tl.droughtEnded': { he: 'ניצח מחזור שוב', en: 'Won a night again' },
+  'tl.droughtEnded': { he: 'לקח מחזור שוב', en: 'Won a night again' },
   'tl.droughtEnded.detail': { he: 'הראשון מזה {n}', en: 'first in {n}' },
   'tl.bestNight': { he: 'המחזור הטוב ביותר — {n} ניצחונות', en: 'Best night yet — {n} wins' },
   'tl.bestNight.detail': {
@@ -183,7 +183,7 @@ export const player = {
   'ach.title.veteran': { he: 'ותיק', en: 'Veteran' },
 
   'ach.mostWins': { he: 'הכי הרבה ניצחונות במועדון — {n}', en: 'Most wins in the club — {n}' },
-  'ach.mostFixtures': { he: 'הכי הרבה מחזורים שנוצחו — {n}', en: 'Most nights won outright — {n}' },
+  'ach.mostFixtures': { he: 'הכי הרבה מחזורים שנלקחו — {n}', en: 'Most nights won outright — {n}' },
   'ach.mvp': {
     he: { one: 'הכי הרבה בחירות מצטיין — פעם אחת', other: 'הכי הרבה בחירות מצטיין — {n} פעמים' },
     en: { one: 'Most MVP picks — {n} time', other: 'Most MVP picks — {n} times' },
@@ -192,7 +192,7 @@ export const player = {
     he: 'הכי הרבה פנדלים שהקבוצה שלו ניצחה — {n}',
     en: 'Most shootouts won by their team — {n}',
   },
-  'ach.ironMan': { he: 'לא פספס מחזור כבר {n}', en: "Hasn't missed a night in {n}" },
+  'ach.ironMan': { he: 'לא פספס מחזור ב־{n} האחרונים', en: "Hasn't missed a night in {n}" },
   'ach.winStreak': { he: 'הרצף המנצח הארוך ביותר — {n} מחזורים', en: 'Longest winning run — {n} nights' },
   'ach.activeRun': { he: 'על רצף מנצח של {n} מחזורים', en: 'On a {n}-night winning run' },
   'ach.everPresent': { he: 'שיחק בכל מחזור — כל {n}', en: 'Played every night — all {n}' },
@@ -205,7 +205,7 @@ export const player = {
     he: 'הקבוצות שלו ניצחו {n} משחקים כשהוא על המגרש.',
     en: 'Their teams have won {n} matches with them on the pitch.',
   },
-  'ladder.fixtures': { he: '{n} מחזורים שנוצחו', en: '{n} nights won' },
+  'ladder.fixtures': { he: '{n} מחזורים שנלקחו', en: '{n} nights won' },
   'ladder.fixtures.detail': { he: 'סיים בראש המחזור {n} פעמים.', en: 'Finished top of the night {n} times.' },
   'ladder.mvp.first': { he: 'מצטיין ראשון', en: 'First MVP' },
   'ladder.mvp.first.detail': { he: 'נבחר למצטיין בפעם הראשונה.', en: 'Picked MVP for the first time.' },

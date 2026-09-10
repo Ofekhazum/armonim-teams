@@ -97,7 +97,7 @@ export const night = {
   'np.newer': { he: 'הבא ←', en: 'newer →' },
   'np.nothingThatWay': { he: 'לא נרשם שום דבר בכיוון הזה', en: 'nothing recorded that way' },
   'np.headline': { he: 'המחזור', en: 'The night' },
-  'np.wonTheNight': { he: 'ניצחו את המחזור', en: 'Won the night' },
+  'np.wonTheNight': { he: 'לקחו את המחזור', en: 'Won the night' },
   'np.played': { he: '{n} שיחקו', en: '{n} played' },
 
   'np.tallied': {

@@ -25,9 +25,9 @@ export const share = {
     he: { one: 'מצטיין אחד', other: '{n} מצטיינים' },
     en: { one: '{n} MVP', other: '{n} MVPs' },
   },
-  'wr.topWins': { he: '🏅 הכי הרבה משחקים שנוצחו', en: '🏅 Most matches won' },
+  'wr.topWins': { he: '🏅 הכי הרבה ניצחונות', en: '🏅 Most matches won' },
   'wr.topWins.stat': { he: '{n} ניצחונות', en: '{n} wins' },
-  'wr.topFixtures': { he: '🏆 הכי הרבה מחזורים שנוצחו', en: '🏆 Most fixtures won' },
+  'wr.topFixtures': { he: '🏆 הכי הרבה מחזורים שנלקחו', en: '🏆 Most fixtures won' },
   'wr.topFixtures.stat': {
     he: { one: 'מחזור אחד', other: '{n} מחזורים' },
     en: { one: '{n} fixture', other: '{n} fixtures' },
@@ -49,7 +49,7 @@ export const share = {
     he: 'המאזן הכי חד־צדדי של החודש — {n} משחקים מולו',
     en: "the month's most lopsided record — {n} matches faced",
   },
-  'wr.duo.detail': { he: 'מחזורים שנוצחו יחד', en: 'nights won together' },
+  'wr.duo.detail': { he: 'מחזורים שנלקחו יחד', en: 'nights won together' },
   'wr.run.detail': { he: 'משחקים ברצף', en: 'matches in a row' },
   'wr.reservists': {
     he: 'שיחקו פעם או פעמיים, ועדיין לקחו מחזור',

@@ -5,13 +5,13 @@ import type { Entry } from '../i18n';
 //
 // The fact lines are the app's one piece of real prose, and the Hebrew keeps
 // the rule the English set itself (§2.9): everything here is a *count*, never
-// a verdict. "ניצח 3 מחזורים ברצף" is a number; "בכושר" would be a claim about
+// a verdict. "לקח 3 מחזורים ברצף" is a number; "בכושר" would be a claim about
 // how somebody is playing that three win totals cannot support.
 
 export const club = {
   // --- Podiums (leaderboards.ts) -------------------------------------------
   'lb.wins': { he: 'הכי הרבה ניצחונות', en: 'Most match wins' },
-  'lb.nightsWon': { he: 'הכי הרבה מחזורים שנוצחו', en: 'Most nights won outright' },
+  'lb.nightsWon': { he: 'הכי הרבה מחזורים שנלקחו', en: 'Most nights won outright' },
   'lb.nights': { he: 'הכי הרבה מחזורים', en: 'Most nights played' },
   'lb.mvp': { he: 'הכי הרבה בחירות מצטיין', en: 'Most MVP picks' },
   'lb.winRun': { he: 'הרצף המנצח הארוך ביותר', en: 'Longest winning run' },
@@ -22,7 +22,7 @@ export const club = {
   'facts.line.title': { he: '🎯 על הכף במחזור', en: '🎯 On the line tonight' },
   'facts.line.nthWin': { he: 'במרחק {away} מ־{target} ניצחונות בקריירה', en: 'is {away} from {target} career wins' },
   'facts.line.ironMan': {
-    he: 'משלים {n} מחזורים ברצף עצם ההגעה',
+    he: 'מגיע — וזה {n} מחזורים ברצף',
     en: 'makes it {n} nights in a row by turning up',
   },
   'facts.line.winStreak': {
@@ -30,7 +30,7 @@ export const club = {
     en: "'s team wins and that's {n} nights running",
   },
   'facts.bounty': {
-    he: '🎖️ פרס ראש — {name} על {n} מחזורים מנצחים. שמישהו יעצור את זה.',
+    he: '🎖️ פרס ראש — {name} לקח {n} מחזורים ברצף. שמישהו יעצור את זה.',
     en: '🎖️ Bounty — {name} is on {n} winning nights. Somebody end it.',
   },
 
@@ -40,9 +40,9 @@ export const club = {
   'facts.debut': { he: '✨ מחזור ראשון ל', en: '✨ First night for' },
   'facts.nthNight': { he: 'במחזור ה־{n} שלו', en: "'s {n}th night" },
   'facts.nthWin': { he: 'בניצחון ה־{n} שלו', en: "'s {n}th win" },
-  'facts.ironMan': { he: 'לא פספס מחזור כבר {n} ברצף', en: "hasn't missed a night in {n} straight" },
-  'facts.winStreak': { he: 'ניצח {n} מחזורים ברצף', en: 'has won {n} nights running' },
-  'facts.winless': { he: 'לא ניצח כבר {n} מחזורים', en: "hasn't won in {n} nights" },
+  'facts.ironMan': { he: 'לא פספס מחזור ב־{n} האחרונים', en: "hasn't missed a night in {n} straight" },
+  'facts.winStreak': { he: 'לקח {n} מחזורים ברצף', en: 'has won {n} nights running' },
+  'facts.winless': { he: 'בלי ניצחון כבר {n} מחזורים', en: "hasn't won in {n} nights" },
   'facts.duo': {
     he: 'ניצחו ב־{won} מתוך {together} המחזורים המשותפים שלהם',
     en: 'have won {won} of their {together} nights together',
@@ -64,7 +64,7 @@ export const club = {
     en: 'across the whole night — a bar above it is a part of the evening they win more of.',
   },
   'parts.barTitle': {
-    he: '{won} מתוך {played} משחקים שנוצחו ב{part} של המחזור',
+    he: 'ניצח ב־{won} מתוך {played} המשחקים ב{part} של המחזור',
     en: '{won} of {played} matches won in the {part} of the night',
   },
   'parts.wonOf': { he: '{won} מתוך {played}', en: '{won} of {played}' },
@@ -134,7 +134,7 @@ export const club = {
     en: 'Pick two players to put their records side by side.',
   },
   'cmp.row.nights': { he: 'מחזורים ששוחקו', en: 'Nights played' },
-  'cmp.row.nightsWon': { he: 'מחזורים שנוצחו', en: 'Nights won' },
+  'cmp.row.nightsWon': { he: 'מחזורים שנלקחו', en: 'Nights won' },
   'cmp.row.wins': { he: 'ניצחונות', en: 'Match wins' },
   'cmp.row.perNight': { he: 'לכל מחזור', en: 'Per night' },
   'cmp.row.mvps': { he: 'בחירות מצטיין', en: 'MVP picks' },

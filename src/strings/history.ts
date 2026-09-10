@@ -67,7 +67,7 @@ export const history = {
   // --- The organiser's drawer ----------------------------------------------
   'hist.edit.actions': { he: 'פעולות מארגן', en: 'organiser actions' },
   'hist.edit.close': { he: '× סגירה', en: '× close' },
-  'hist.edit.wonBy': { he: 'משחקים שנוצחו על ידי {team}', en: 'Matches won by {team}' },
+  'hist.edit.wonBy': { he: 'ניצחונות של {team}', en: 'Matches won by {team}' },
   'hist.edit.date': { he: 'תאריך', en: 'Date' },
   'hist.edit.note': { he: 'הערה לכתב', en: 'Note for the reporter' },
   'hist.edit.note.placeholder': {
@@ -139,7 +139,7 @@ export const history = {
   'hist.col.name': { he: 'שחקן', en: 'Player' },
   'hist.col.nights': { he: 'מחזורים', en: 'Nights' },
   'hist.col.wins': { he: 'ניצחונות', en: 'Wins' },
-  'hist.col.fixtures': { he: 'מחזורים שנוצחו', en: 'Fixtures' },
+  'hist.col.fixtures': { he: 'מחזורים שנלקחו', en: 'Fixtures' },
   'hist.col.perNight': { he: 'לכל מחזור', en: 'Per night' },
   'hist.col.mvps': { he: 'מצטיינים', en: 'MVPs' },
   'hist.col.vsRating': { he: 'מול הדירוג', en: 'vs rating' },
