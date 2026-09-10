@@ -438,7 +438,10 @@ export default function App() {
     <button
       key={t}
       onClick={() => setTab(t)}
-      className={`rounded-full px-4 py-1.5 text-sm font-bold transition-colors ${
+      // The strip's order is pinned `ltr` (see the nav below); this lets each
+      // label still read in its own direction inside its own pill.
+      dir="auto"
+      className={`whitespace-nowrap rounded-full px-4 py-1.5 text-sm font-bold transition-colors ${
         tab === t
           ? 'bg-orange-600 text-amber-50 shadow-sm'
           : 'text-amber-900 hover:bg-amber-200/70'
@@ -460,6 +463,7 @@ export default function App() {
     <button
       key="live"
       onClick={() => setTab('live')}
+      dir="auto"
       className={`flex items-center gap-1.5 whitespace-nowrap rounded-full px-4 py-1.5 text-sm font-bold transition-colors ${
         liveScheduled
           ? tab === 'live'
@@ -518,24 +522,42 @@ export default function App() {
       {/* Above everything, on every tab, and not dismissible — see the note in
           TestModeBanner. Renders nothing at all outside the sandbox. */}
       <TestModeBanner />
-      <header className="flex flex-wrap items-center justify-between gap-3 py-5">
-        <h1 className="text-2xl font-black tracking-tight text-amber-950">
-          <span className="me-2">🦁</span>
-          <span className="bg-gradient-to-r from-orange-600 to-amber-800 bg-clip-text text-transparent">
-            Armonim FC
-          </span>
-          {isAdmin && (
-            <span className="ms-2 rounded-full bg-orange-600 px-2 py-0.5 align-middle text-xs font-bold text-amber-50">
-              {t('app.admin.badge')}
+      <header className="py-5">
+        {/* The crest and the language picker share the top line, at opposite
+            ends of it. The picker sits up here rather than in the tab strip
+            because it is not a place in the app — it is a property of the
+            whole app, and a row of destinations is the wrong company for it.
+            It also stopped the strip from fitting on one line at phone width. */}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h1 className="text-2xl font-black tracking-tight text-amber-950">
+            <span className="me-2">🦁</span>
+            <span className="bg-gradient-to-r from-orange-600 to-amber-800 bg-clip-text text-transparent">
+              Armonim FC
             </span>
-          )}
-        </h1>
-        <nav className="flex items-center gap-1 rounded-full border border-amber-900/20 bg-[#fffdf4]/70 p-1 shadow-sm">
+            {isAdmin && (
+              <span className="ms-2 rounded-full bg-orange-600 px-2 py-0.5 align-middle text-xs font-bold text-amber-50">
+                {t('app.admin.badge')}
+              </span>
+            )}
+          </h1>
+          <LangToggle />
+        </div>
+        {/* **Pinned `ltr`, so the tabs sit in the same places in both
+            languages.** Everything else on the page mirrors, and should — but
+            these five controls are muscle memory rather than reading, and a
+            reader who has learnt that Club is the third pill does not want it
+            to become the third-from-the-other-end when they switch. Each
+            button carries `dir="auto"` so its own label still reads in its own
+            direction; only the order across the strip is fixed. */}
+        <nav
+          dir="ltr"
+          className="mt-3 flex items-center gap-1 rounded-full border border-amber-900/20 bg-[#fffdf4]/70 p-1 shadow-sm"
+        >
           {(liveFixture || tab === 'live') && liveTabBtn}
           {isAdmin && tabBtn('match', t('app.tab.matchday'))}
           {tabBtn('roster', t('app.tab.roster', { n: state.players.length }))}
           {tabBtn('club', t('app.tab.club'))}
-          <LangToggle />
+          <div className="flex-1" />
           {/* Unlocking lives in the header rather than on the Roster tab
               because what it gates is spread across all of them — Match day,
               the rating column in History, ending a live fixture — and having

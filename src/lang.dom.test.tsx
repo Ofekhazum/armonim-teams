@@ -33,6 +33,10 @@ const setup = () =>
     </LangProvider>,
   );
 
+// Found by its accessible name rather than by role alone, so the assertion
+// keeps meaning the language control and not whatever select is added next.
+const picker = () => screen.getByRole('combobox', { name: /Language|שפה/ });
+
 // Stands in for `main.tsx`'s `Root`: it reads the context, so its children are
 // created afresh on a switch. Without this the provider re-renders and React
 // skips the identical `children` element beneath it — the exact bug the real
@@ -66,7 +70,7 @@ describe('the language toggle', () => {
 
     expect(screen.getByTestId('label')).toHaveTextContent('Club');
 
-    await userEvent.click(screen.getByRole('button'));
+    await userEvent.selectOptions(picker(), 'he');
 
     expect(screen.getByTestId('label')).toHaveTextContent('מועדון');
     expect(screen.getByTestId('state')).toHaveTextContent('he/rtl');
@@ -75,11 +79,11 @@ describe('the language toggle', () => {
   it('turns the document right-to-left and back', async () => {
     setup();
 
-    await userEvent.click(screen.getByRole('button'));
+    await userEvent.selectOptions(picker(), 'he');
     expect(document.documentElement).toHaveAttribute('dir', 'rtl');
     expect(document.documentElement).toHaveAttribute('lang', 'he');
 
-    await userEvent.click(screen.getByRole('button'));
+    await userEvent.selectOptions(picker(), 'en');
     expect(document.documentElement).toHaveAttribute('dir', 'ltr');
     expect(document.documentElement).toHaveAttribute('lang', 'en');
   });
@@ -87,7 +91,7 @@ describe('the language toggle', () => {
   it('remembers the choice for the next visit', async () => {
     setup();
 
-    await userEvent.click(screen.getByRole('button'));
+    await userEvent.selectOptions(picker(), 'he');
 
     expect(storedLang()).toBe('he');
     // and the non-React readers — the share cards, the countdown labels — see
@@ -95,18 +99,18 @@ describe('the language toggle', () => {
     expect(getLang()).toBe('he');
   });
 
-  it('offers the other language in that language', async () => {
+  it('names every language in its own language, whichever one is showing', async () => {
     setup();
 
-    // In English it offers Hebrew…
-    expect(screen.getByRole('button')).toHaveTextContent('עברית');
-    // …while telling a screen reader what it does in the language being read.
-    expect(screen.getByRole('button')).toHaveAccessibleName('Language: Switch to Hebrew');
+    // The way out has to be readable to somebody who cannot read the language
+    // the app is currently in — so neither option is ever translated.
+    const named = () => screen.getAllByRole('option').map((o) => o.textContent);
+    expect(named()).toEqual(['עברית', 'English']);
+    expect(picker()).toHaveValue('en');
 
-    await userEvent.click(screen.getByRole('button'));
+    await userEvent.selectOptions(picker(), 'he');
 
-    // …and in Hebrew it offers English, the same way round.
-    expect(screen.getByRole('button')).toHaveTextContent('English');
-    expect(screen.getByRole('button')).toHaveAccessibleName('שפה: מעבר לאנגלית');
+    expect(named()).toEqual(['עברית', 'English']);
+    expect(picker()).toHaveValue('he');
   });
 });

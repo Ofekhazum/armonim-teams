@@ -1,32 +1,40 @@
+import { LANGS, type Lang } from '../i18n';
 import { useI18n } from '../lang';
 
+const NATIVE_NAME: Record<Lang, string> = { he: 'עברית', en: 'English' };
+
 /**
- * One button, not a picker (§2.45). There are two languages, so a control that
- * asks which of them you want is a menu with one useful row in it — the button
- * simply says what it will switch you to, in that language, which is also the
- * only label a reader of the *other* language is guaranteed to recognise.
+ * The language picker, in the header opposite the crest (§2.45).
  *
- * It lives in the header beside the padlock rather than on a settings screen
- * for the same reason unlocking does: it is a thing you do once on a new
- * phone, and hunting for it is the whole cost.
+ * A native `<select>` rather than a hand-built menu: it is two options, and on
+ * a phone the platform picker is a better one than anything drawn here — it
+ * opens as a wheel or a sheet, is reachable one-handed, and already knows how
+ * to close itself. The same reason the guest-rating and shirt-swap pickers on
+ * match day are native selects too.
+ *
+ * Each option is written in its own language, and carries `lang` to match, so
+ * a reader who cannot read the current one can still find the row that gets
+ * them out. `dir="ltr"` on the control keeps "עברית / English" from having its
+ * own glyph reordered against the box (§2.44 fixed the same thing for the
+ * guest-rating select).
  */
 export default function LangToggle() {
   const { lang, setLang, t } = useI18n();
-  const next = lang === 'he' ? 'en' : 'he';
 
   return (
-    <button
-      onClick={() => setLang(next)}
-      // The visible label is a word in the language it switches *to*, which a
-      // screen reader set to the current language would mispronounce — so the
-      // accessible name says what the control does, in the language the page
-      // is in right now, and `lang` is scoped to the label itself rather than
-      // put on the button (where it would cover the aria-label too).
-      aria-label={`${t('ui.lang.label')}: ${t('ui.lang.switch.full')}`}
-      title={t('ui.lang.switch.full')}
-      className="whitespace-nowrap rounded-full px-3 py-1.5 text-sm font-bold text-amber-900/70 transition-colors hover:text-orange-700"
+    <select
+      value={lang}
+      onChange={(e) => setLang(e.target.value as Lang)}
+      aria-label={t('ui.lang.label')}
+      title={t('ui.lang.label')}
+      dir="ltr"
+      className="rounded-full border border-amber-900/20 bg-[#fffdf4]/70 px-3 py-1.5 text-sm font-bold text-amber-900/80 shadow-sm outline-none transition-colors hover:border-orange-500 focus:border-orange-500"
     >
-      <span lang={next}>{t('ui.lang.switch')}</span>
-    </button>
+      {LANGS.map((l) => (
+        <option key={l} value={l} lang={l}>
+          {NATIVE_NAME[l]}
+        </option>
+      ))}
+    </select>
   );
 }
