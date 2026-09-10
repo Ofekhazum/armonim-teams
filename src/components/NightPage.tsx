@@ -341,8 +341,15 @@ export default function NightPage({
                 <div className="flex w-max items-center">
                   {log.map((m, i) => {
                     const loser = m.winner === m.a ? m.b : m.a;
-                    // a run is one block: no gap inside it, rounded at both
-                    // ends, so holding the pitch *looks* like holding the pitch
+                    // A run is one block: no gap inside it, rounded at both
+                    // ends, so holding the pitch *looks* like holding the
+                    // pitch.
+                    //
+                    // Logical sides rather than left/right. A run opens at the
+                    // end the reader starts from, which is the right in Hebrew
+                    // — with `rounded-l`/`ml-2` the rounding and the gap both
+                    // landed on the far end instead, which split a run down
+                    // the middle and welded it to the one before it.
                     const opens = i === 0 || log[i - 1].winner !== m.winner;
                     const closes = i === log.length - 1 || log[i + 1].winner !== m.winner;
                     return (
@@ -355,8 +362,8 @@ export default function NightPage({
                         })}${m.viaPenalties ? t('np.matchTitle.pens') : ''}`}
                         className={`relative grid h-14 w-11 shrink-0 place-items-center overflow-hidden font-mono text-base font-black ${
                           TEAM_META[m.winner].tile
-                        } ${opens ? (i === 0 ? 'rounded-l-xl' : 'ml-2 rounded-l-xl') : ''} ${
-                          closes ? 'rounded-r-xl' : ''
+                        } ${opens ? (i === 0 ? 'rounded-s-xl' : 'ms-2 rounded-s-xl') : ''} ${
+                          closes ? 'rounded-e-xl' : ''
                         }`}
                       >
                         {i + 1}

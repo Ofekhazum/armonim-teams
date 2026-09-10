@@ -580,9 +580,19 @@ export default function History({
           <>
 
           {/* Bleeds through the page gutter so the strip scrolls edge to edge
-              rather than inside a narrower window. */}
+              rather than inside a narrower window.
+
+              **Pinned `ltr`, so the newest night is on the left in both
+              languages.** `nights` is already newest-first, which an RTL row
+              lays out from the right — so the strip mirrored and the most
+              recent night, the one anybody opening this tab is looking for,
+              moved to the far end. This is a shelf you scan rather than a
+              sentence you read, and the newest end of it should not move
+              because the labels changed language. Each card's own text still
+              sets its own direction. */}
           <div
               {...shelf}
+              dir="ltr"
               className="no-scrollbar -mx-3 flex cursor-grab select-none gap-3 overflow-x-auto px-3 pb-1 active:cursor-grabbing sm:-mx-6 sm:px-6"
             >
             {nights.map((fx) => {
@@ -626,7 +636,13 @@ export default function History({
                           the whole middle of the card — the empty band under it
                           in the first cut was the card admitting it had nothing
                           else to say, when the headline could simply be bigger. */}
-                      <div className="mt-1.5 line-clamp-4 flex-1 text-center text-base font-black leading-[1.15] text-amber-950">
+                      <div
+                        // The strip above is pinned `ltr` for its ordering;
+                        // the headline inside it is a sentence and takes its
+                        // direction from its own first letter.
+                        dir="auto"
+                        className="mt-1.5 line-clamp-4 flex-1 text-center text-base font-black leading-[1.15] text-amber-950"
+                      >
                         {(summary && t(summary.headlineKey)) ??
                           (hasResult(fx.wins)
                             ? t('hist.shelf.onTheBooks')
