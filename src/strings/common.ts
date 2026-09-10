@@ -35,7 +35,7 @@ export const common = {
   'ui.show': { he: 'הצגה', en: 'Show' },
   'ui.hide': { he: 'הסתרה', en: 'Hide' },
 
-  'ui.night': { he: { one: 'ערב', other: 'ערבים' }, en: { one: 'night', other: 'nights' } },
+  'ui.night': { he: { one: 'מחזור', other: 'מחזורים' }, en: { one: 'night', other: 'nights' } },
   'ui.player': {
     he: { one: 'שחקן', other: 'שחקנים' },
     en: { one: 'player', other: 'players' },

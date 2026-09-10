@@ -5,46 +5,46 @@ import type { Entry } from '../i18n';
 //
 // The fact lines are the app's one piece of real prose, and the Hebrew keeps
 // the rule the English set itself (§2.9): everything here is a *count*, never
-// a verdict. "ניצח 3 ערבים ברצף" is a number; "בכושר" would be a claim about
+// a verdict. "ניצח 3 מחזורים ברצף" is a number; "בכושר" would be a claim about
 // how somebody is playing that three win totals cannot support.
 
 export const club = {
   // --- Podiums (leaderboards.ts) -------------------------------------------
   'lb.wins': { he: 'הכי הרבה ניצחונות', en: 'Most match wins' },
-  'lb.nightsWon': { he: 'הכי הרבה ערבים שנוצחו', en: 'Most nights won outright' },
-  'lb.nights': { he: 'הכי הרבה ערבים', en: 'Most nights played' },
+  'lb.nightsWon': { he: 'הכי הרבה מחזורים שנוצחו', en: 'Most nights won outright' },
+  'lb.nights': { he: 'הכי הרבה מחזורים', en: 'Most nights played' },
   'lb.mvp': { he: 'הכי הרבה בחירות מצטיין', en: 'Most MVP picks' },
   'lb.winRun': { he: 'הרצף המנצח הארוך ביותר', en: 'Longest winning run' },
   'lb.activeRun': { he: 'על רצף כרגע', en: 'On a run right now' },
   'lb.unit.pick': { he: { one: 'בחירה', other: 'בחירות' }, en: { one: 'pick', other: 'picks' } },
 
   // --- On the line tonight --------------------------------------------------
-  'facts.line.title': { he: '🎯 על הכף הערב', en: '🎯 On the line tonight' },
+  'facts.line.title': { he: '🎯 על הכף במחזור', en: '🎯 On the line tonight' },
   'facts.line.nthWin': { he: 'במרחק {away} מ־{target} ניצחונות בקריירה', en: 'is {away} from {target} career wins' },
   'facts.line.ironMan': {
-    he: 'משלים {n} ערבים ברצף עצם ההגעה',
+    he: 'משלים {n} מחזורים ברצף עצם ההגעה',
     en: 'makes it {n} nights in a row by turning up',
   },
   'facts.line.winStreak': {
-    he: 'הקבוצה שלו מנצחת וזה {n} ערבים ברצף',
+    he: 'הקבוצה שלו מנצחת וזה {n} מחזורים ברצף',
     en: "'s team wins and that's {n} nights running",
   },
   'facts.bounty': {
-    he: '🎖️ פרס ראש — {name} על {n} ערבים מנצחים. שמישהו יעצור את זה.',
+    he: '🎖️ פרס ראש — {name} על {n} מחזורים מנצחים. שמישהו יעצור את זה.',
     en: '🎖️ Bounty — {name} is on {n} winning nights. Somebody end it.',
   },
 
   // --- Coming in tonight ----------------------------------------------------
-  'facts.strip.title': { he: '📋 נכנסים לערב', en: '📋 Coming in tonight' },
-  'facts.debutGroup': { he: '✨ {n} ערבים ראשונים הערב', en: '✨ {n} first nights tonight' },
-  'facts.debut': { he: '✨ ערב ראשון ל', en: '✨ First night for' },
-  'facts.nthNight': { he: 'בערב ה־{n} שלו', en: "'s {n}th night" },
+  'facts.strip.title': { he: '📋 נכנסים למחזור', en: '📋 Coming in tonight' },
+  'facts.debutGroup': { he: '✨ {n} בכורות במחזור הזה', en: '✨ {n} first nights tonight' },
+  'facts.debut': { he: '✨ מחזור ראשון ל', en: '✨ First night for' },
+  'facts.nthNight': { he: 'במחזור ה־{n} שלו', en: "'s {n}th night" },
   'facts.nthWin': { he: 'בניצחון ה־{n} שלו', en: "'s {n}th win" },
-  'facts.ironMan': { he: 'לא פספס ערב כבר {n} ברצף', en: "hasn't missed a night in {n} straight" },
-  'facts.winStreak': { he: 'ניצח {n} ערבים ברצף', en: 'has won {n} nights running' },
-  'facts.winless': { he: 'לא ניצח כבר {n} ערבים', en: "hasn't won in {n} nights" },
+  'facts.ironMan': { he: 'לא פספס מחזור כבר {n} ברצף', en: "hasn't missed a night in {n} straight" },
+  'facts.winStreak': { he: 'ניצח {n} מחזורים ברצף', en: 'has won {n} nights running' },
+  'facts.winless': { he: 'לא ניצח כבר {n} מחזורים', en: "hasn't won in {n} nights" },
   'facts.duo': {
-    he: 'ניצחו ב־{won} מתוך {together} הערבים המשותפים שלהם',
+    he: 'ניצחו ב־{won} מתוך {together} המחזורים המשותפים שלהם',
     en: 'have won {won} of their {together} nights together',
   },
   'facts.duo.and': { he: 'ו', en: '&' },
@@ -54,17 +54,17 @@ export const club = {
   'parts.middle': { he: 'אמצע', en: 'Middle' },
   'parts.end': { he: 'סוף', en: 'End' },
   'parts.intro': {
-    he: 'באיזו תדירות ניצח, לפי מתי בערב שוחק המשחק. הקו המקווקו הוא',
+    he: 'באיזו תדירות ניצח, לפי מתי במחזור שוחק המשחק. הקו המקווקו הוא',
     en: 'How often they won, by when in the evening the match was played. The dashed line is their',
   },
   // Split either side of the percentage, which is bold — the one number on the
   // card the sentence exists to point at.
   'parts.overallTail': {
-    he: 'על פני כל הערב — עמודה מעליו היא חלק מהערב שבו הוא מנצח יותר.',
+    he: 'על פני כל המחזור — עמודה מעליו היא חלק מהמחזור שבו הוא מנצח יותר.',
     en: 'across the whole night — a bar above it is a part of the evening they win more of.',
   },
   'parts.barTitle': {
-    he: '{won} מתוך {played} משחקים שנוצחו ב{part} של הערב',
+    he: '{won} מתוך {played} משחקים שנוצחו ב{part} של המחזור',
     en: '{won} of {played} matches won in the {part} of the night',
   },
   'parts.wonOf': { he: '{won} מתוך {played}', en: '{won} of {played}' },
@@ -76,7 +76,7 @@ export const club = {
     en: 'No marks for this player yet.',
   },
   'form.col.date': { he: 'תאריך', en: 'Date' },
-  'form.col.night': { he: 'ערב', en: 'Night' },
+  'form.col.night': { he: 'מחזור', en: 'Night' },
   'form.col.wins': { he: 'ניצחונות', en: 'Wins' },
   'form.col.mark': { he: 'ציון', en: 'Mark' },
   'form.range.1M': { he: '1ח׳', en: '1M' },
@@ -84,11 +84,11 @@ export const club = {
   'form.range.6M': { he: '6ח׳', en: '6M' },
   'form.range.1Y': { he: '1ש׳', en: '1Y' },
   'form.range.ALL': { he: 'הכול', en: 'All' },
-  'form.noneInWindow': { he: 'אין ערבים מדורגים בחלון הזה.', en: 'No graded nights in this window.' },
+  'form.noneInWindow': { he: 'אין מחזורים מדורגים בחלון הזה.', en: 'No graded nights in this window.' },
   'form.tryLonger': { he: ' נסו חלון ארוך יותר.', en: ' Try a longer one.' },
   'form.lastNights': {
-    he: { one: 'הערב האחרון', other: '{n} הערבים האחרונים' },
-    // Hebrew's singular does not carry the count — "הערב האחרון" already says
+    he: { one: 'המחזור האחרון', other: '{n} המחזורים האחרונים' },
+    // Hebrew's singular does not carry the count — "המחזור האחרון" already says
     // there is one. The English keeps the wording it had.
     en: { one: 'last {n} night', other: 'last {n} nights' },
   },
@@ -97,7 +97,7 @@ export const club = {
   'marks.title': { he: '📋 הציונים', en: '📋 The marks' },
   'marks.written': { he: 'נכתב ב־{date}', en: 'written {date}' },
   'marks.draft': { he: 'טיוטה — אף אחד אחר עוד לא רואה את זה', en: 'draft — nobody else can see this yet' },
-  'marks.mvpTitle': { he: 'שחקן הערב', en: 'Player of the night' },
+  'marks.mvpTitle': { he: 'שחקן המחזור', en: 'Player of the night' },
   'marks.noLine': { he: 'אין שורה ל{names}', en: 'no line for {names}' },
   'marks.share': { he: '📤 שיתוף', en: '📤 Share' },
   'marks.writing': { he: 'כותב…', en: 'writing…' },
@@ -133,10 +133,10 @@ export const club = {
     he: 'בחרו שני שחקנים כדי להעמיד את הרשומות שלהם זו מול זו.',
     en: 'Pick two players to put their records side by side.',
   },
-  'cmp.row.nights': { he: 'ערבים ששוחקו', en: 'Nights played' },
-  'cmp.row.nightsWon': { he: 'ערבים שנוצחו', en: 'Nights won' },
+  'cmp.row.nights': { he: 'מחזורים ששוחקו', en: 'Nights played' },
+  'cmp.row.nightsWon': { he: 'מחזורים שנוצחו', en: 'Nights won' },
   'cmp.row.wins': { he: 'ניצחונות', en: 'Match wins' },
-  'cmp.row.perNight': { he: 'לכל ערב', en: 'Per night' },
+  'cmp.row.perNight': { he: 'לכל מחזור', en: 'Per night' },
   'cmp.row.mvps': { he: 'בחירות מצטיין', en: 'MVP picks' },
   'cmp.row.bestRun': { he: 'הרצף הארוך ביותר', en: 'Longest run' },
   'cmp.never': {
@@ -144,7 +144,7 @@ export const club = {
     en: 'These two have never been on the same team sheet.',
   },
   'cmp.together': { he: '🤝 באותה קבוצה', en: '🤝 On the same team' },
-  'cmp.together.nights': { he: { one: 'ערב', other: 'ערבים' }, en: { one: 'night', other: 'nights' } },
+  'cmp.together.nights': { he: { one: 'מחזור', other: 'מחזורים' }, en: { one: 'night', other: 'nights' } },
   'cmp.together.winning': { he: ', וניצחו ב־', en: ', winning' },
   'cmp.together.ofThem': { he: 'מתוכם', en: 'of them' },
   'cmp.against': { he: '⚔️ בקבוצות יריבות', en: '⚔️ On opposite teams' },
@@ -153,7 +153,7 @@ export const club = {
   'cmp.h2h.of': { he: 'מתוך', en: 'of' },
   'cmp.h2h.matches': { he: 'משחקים', en: 'matches' },
   'cmp.h2h.none': {
-    he: 'אף אחד מהערבים האלה לא נרשם משחק־משחק, אז אין מאזן ישיר לקרוא.',
+    he: 'אף אחד מהמחזורים האלה לא נרשם משחק־משחק, אז אין מאזן ישיר לקרוא.',
     en: 'None of those nights was written down match by match, so there is no head-to-head to read.',
   },
   'form.place.shared': { he: 'שוויון על מקום {n}', en: 'Level on {n}' },

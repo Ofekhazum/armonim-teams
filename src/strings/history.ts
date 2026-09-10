@@ -4,14 +4,14 @@ import type { Entry } from '../i18n';
 // monthly tooling, and the rating suggestions.
 
 export const history = {
-  'hist.empty.title': { he: 'עוד לא נרשמו ערבים', en: 'No nights recorded yet' },
+  'hist.empty.title': { he: 'עוד לא נרשמו מחזורים', en: 'No nights recorded yet' },
   'hist.empty.body': {
-    he: 'צרו הרכבים בערב המשחק, רשמו את המשחקים תוך כדי, ותייקו את הערב עם 🗂️ שמירה להיסטוריה כשאתם מסיימים. מספרי הקריירה והצעות הדירוג נבנים משם.',
+    he: 'צרו הרכבים במחזור, רשמו את המשחקים תוך כדי, ותייקו את המחזור עם 🗂️ שמירה להיסטוריה כשאתם מסיימים. מספרי הקריירה והצעות הדירוג נבנים משם.',
     en: "Generate teams on Match day, log the matches as they're won, and file the night with 🗂️ Save to history when you end it. The career numbers and rating suggestions build from there.",
   },
   'hist.title': { he: '📊 סטטיסטיקות המועדון', en: '📊 Club statistics' },
   'hist.recorded': {
-    he: { one: 'ערב אחד נרשם', other: '{n} ערבים נרשמו' },
+    he: { one: 'מחזור אחד נרשם', other: '{n} מחזורים נרשמו' },
     en: { one: '{n} night recorded', other: '{n} nights recorded' },
   },
   'hist.noResult': { he: '{n} נשמרו ללא תוצאה', en: '{n} saved with no result' },
@@ -54,13 +54,13 @@ export const history = {
   'hist.totm.remove': { he: 'הסרה', en: 'Remove' },
 
   // --- The shelf of past nights --------------------------------------------
-  'hist.shelf.title': { he: '📅 ערבים קודמים', en: '📅 Past nights' },
-  'hist.shelf.read': { he: 'לקרוא את הערב של {date}', en: 'Read the night of {date}' },
-  'hist.shelf.onTheBooks': { he: 'ערב שנרשם', en: 'A night on the books' },
+  'hist.shelf.title': { he: '📅 מחזורים קודמים', en: '📅 Past nights' },
+  'hist.shelf.read': { he: 'לקרוא את המחזור של {date}', en: 'Read the night of {date}' },
+  'hist.shelf.onTheBooks': { he: 'מחזור שנרשם', en: 'A night on the books' },
   'hist.shelf.noResultRecorded': { he: 'לא נרשמה תוצאה', en: 'No result recorded' },
   'hist.shelf.noResult': { he: 'ללא תוצאה', en: 'no result' },
   'hist.shelf.actions': {
-    he: 'פעולות מארגן לערב של {date}',
+    he: 'פעולות מארגן למחזור של {date}',
     en: 'Organiser actions for the night of {date}',
   },
 
@@ -79,7 +79,7 @@ export const history = {
     en: ' · never shown on any page — it only goes to the reporter',
   },
   'hist.edit.logged': {
-    he: 'הערב הזה נרשם משחק־משחק, כך שהניצחונות נספרים מהמשחקים ואי אפשר להקליד מעליהם. ',
+    he: 'המחזור הזה נרשם משחק־משחק, כך שהניצחונות נספרים מהמשחקים ואי אפשר להקליד מעליהם. ',
     en: 'This night was logged match by match, so its wins are counted from the matches and can’t be typed over. ',
   },
   'hist.edit.halfWin': {
@@ -87,15 +87,15 @@ export const history = {
     en: 'Half a win means it was taken on penalties. ',
   },
   'hist.edit.sheetFixed': {
-    he: 'אי אפשר לשנות את דף ההרכב — מחקו את הערב ושמרו אותו מחדש אם ההרכבים היו שגויים.',
+    he: 'אי אפשר לשנות את דף ההרכב — מחקו את המחזור ושמרו אותו מחדש אם ההרכבים היו שגויים.',
     en: "The team sheet can't be changed — delete the night and save it again if the teams were wrong.",
   },
   'hist.edit.save': { he: 'שמירת שינויים', en: 'Save changes' },
   'hist.edit.pickMvp': { he: '🌟 בחירת מצטיין', en: '🌟 Pick MVP' },
   'hist.edit.editResult': { he: '✏️ עריכת תוצאה', en: '✏️ Edit result' },
-  'hist.edit.delete': { he: '🗑️ מחיקת הערב הזה', en: '🗑️ Delete this night' },
+  'hist.edit.delete': { he: '🗑️ מחיקת המחזור הזה', en: '🗑️ Delete this night' },
   'hist.edit.deleteConfirm': {
-    he: 'למחוק את הערב של {date} מההיסטוריה?',
+    he: 'למחוק את המחזור של {date} מההיסטוריה?',
     en: 'Delete the night of {date} from history?',
   },
 
@@ -107,12 +107,12 @@ export const history = {
   // --- Rating suggestions ---------------------------------------------------
   'hist.sugg.title': { he: '📈 הצעות דירוג', en: '📈 Rating suggestions' },
   'hist.sugg.body': {
-    he: 'מבוסס על איך שהקבוצות של כל שחקן מסתדרות מול מה שהדירוג שלו מנבא, בהתחשב במי שהוא שיחק לצידו. הצעות מוקדמות נשענות על קומץ ערבים — התייחסו אליהן כרמז להסתכל, לא כפסק דין.',
+    he: 'מבוסס על איך שהקבוצות של כל שחקן מסתדרות מול מה שהדירוג שלו מנבא, בהתחשב במי שהוא שיחק לצידו. הצעות מוקדמות נשענות על קומץ מחזורים — התייחסו אליהן כרמז להסתכל, לא כפסק דין.',
     en: "Based on how each player's teams do against what their rating predicts, allowing for who they lined up with. Early ones rest on a handful of nights — treat those as a nudge to look, not a verdict.",
   },
   'hist.sugg.staysAt': { he: 'נשאר על {r}', en: 'stays at {r}' },
   'hist.sugg.nights': {
-    he: { one: 'ערב אחד', other: '{n} ערבים' },
+    he: { one: 'מחזור אחד', other: '{n} מחזורים' },
     en: { one: '{n} night', other: '{n} nights' },
   },
   'hist.sugg.wins': { he: '{n} ניצחונות', en: '{n} wins' },
@@ -137,22 +137,22 @@ export const history = {
 
   // --- The career table -----------------------------------------------------
   'hist.col.name': { he: 'שחקן', en: 'Player' },
-  'hist.col.nights': { he: 'ערבים', en: 'Nights' },
+  'hist.col.nights': { he: 'מחזורים', en: 'Nights' },
   'hist.col.wins': { he: 'ניצחונות', en: 'Wins' },
-  'hist.col.fixtures': { he: 'ערבים שנוצחו', en: 'Fixtures' },
-  'hist.col.perNight': { he: 'לכל ערב', en: 'Per night' },
+  'hist.col.fixtures': { he: 'מחזורים שנוצחו', en: 'Fixtures' },
+  'hist.col.perNight': { he: 'לכל מחזור', en: 'Per night' },
   'hist.col.mvps': { he: 'מצטיינים', en: 'MVPs' },
   'hist.col.vsRating': { he: 'מול הדירוג', en: 'vs rating' },
   'hist.vsRating.note': {
-    he: ' לוקח בחשבון עם מי ונגד מי שיחקו, כך שהוא יכול להציב מישהו מעל חבר לקבוצה עם מספר גבוה יותר לערב. ריק מתחת ל־{n} ערבים.',
+    he: ' לוקח בחשבון עם מי ונגד מי שיחקו, כך שהוא יכול להציב מישהו מעל חבר לקבוצה עם מספר גבוה יותר למחזור. ריק מתחת ל־{n} מחזורים.',
     en: ' accounts for who they played with and against, so it can put someone above a teammate on a higher per-night number. Blank under {n} nights.',
   },
   'hist.fixturesWon.title': {
-    he: 'ערבים שלמים שהקבוצה של השחקן הזה סיימה בראש',
+    he: 'מחזורים שלמים שהקבוצה של השחקן הזה סיימה בראש',
     en: "Whole nights this player's team finished top of",
   },
   'hist.vsRating.needs': {
-    he: 'צריך {n} ערבים לפני שזה אומר משהו',
+    he: 'צריך {n} מחזורים לפני שזה אומר משהו',
     en: 'Needs {n} nights before this means anything',
   },
   'hist.vsRating.meaningful': {

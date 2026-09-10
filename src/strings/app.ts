@@ -5,7 +5,7 @@ import type { Entry } from '../i18n';
 // recorded.
 
 export const app = {
-  'app.tab.matchday': { he: 'ערב משחק', en: 'Match day' },
+  'app.tab.matchday': { he: 'מחזור', en: 'Match day' },
   'app.tab.roster': { he: 'סגל ({n})', en: 'Roster ({n})' },
   'app.tab.club': { he: 'מועדון', en: 'Club' },
   'app.tab.live': { he: 'חי', en: 'Live' },
@@ -16,7 +16,7 @@ export const app = {
 
   'app.live.none.title': { he: 'אין משחק חי כרגע', en: 'No fixture is live right now' },
   'app.live.none.body': {
-    he: 'הלשונית הזאת מופיעה מעצמה ברגע שערב משחק נפתח.',
+    he: 'הלשונית הזאת מופיעה מעצמה ברגע שמחזור נפתח.',
     en: 'This tab appears on its own the moment a night kicks off.',
   },
 

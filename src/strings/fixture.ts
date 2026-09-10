@@ -51,15 +51,15 @@ export const fixture = {
   'kick.ago.mins': { he: 'לפני {m} דק׳', en: '{m} min ago' },
   'kick.ago.hours': { he: 'לפני {h} שע׳ {m} דק׳', en: '{h}h {m}m ago' },
 
-  'start.title': { he: 'התחלת ערב המשחק', en: 'Start the fixture' },
+  'start.title': { he: 'התחלת המחזור', en: 'Start the fixture' },
   'start.body': {
-    he: 'נועל את ההרכבים של הערב ומציג אותם לכל הקבוצה. תמיד אפשר לבטל אחר כך אם נמלכתם בדעתכם.',
+    he: 'נועל את ההרכבים של המחזור ומציג אותם לכל הקבוצה. תמיד אפשר לבטל אחר כך אם נמלכתם בדעתכם.',
     en: "Locks tonight's teams in and puts them in front of the group. Cancel is always there afterwards if you change your mind.",
   },
   'start.now': { he: '▶️ להתחיל עכשיו', en: '▶️ Start now' },
   'start.later': { he: '🗓️ תזמון למועד מאוחר', en: '🗓️ Schedule for later' },
   'start.notYet': { he: '→ עוד לא', en: '← Not yet' },
-  'start.schedule.title': { he: 'תזמון ערב המשחק', en: 'Schedule the fixture' },
+  'start.schedule.title': { he: 'תזמון המחזור', en: 'Schedule the fixture' },
   'start.schedule.body': {
     he: 'ההרכבים ננעלים עכשיו, בדיוק כמו בהתחלה — הקבוצה רואה אותם מיד, עם ספירה לאחור לפתיחה במקום כמשחק חי. עד שבוע מראש.',
     en: 'Teams lock in now, the same as starting — the group sees them right away, counting down to kickoff rather than reading them as live. Up to a week ahead.',
@@ -71,18 +71,18 @@ export const fixture = {
   },
 
   // --- The spectator's live view -------------------------------------------
-  'live.title.running': { he: 'ערב המשחק', en: "Tonight's fixture" },
-  'live.title.scheduled': { he: 'ההרכבים של הערב', en: "Tonight's teams" },
+  'live.title.running': { he: 'המחזור', en: "Tonight's fixture" },
+  'live.title.scheduled': { he: 'ההרכבים של המחזור', en: "Tonight's teams" },
   'live.kickedOff': { he: 'נפתח {ago}', en: 'kicked off {ago}' },
   'live.starts': { he: 'מתחיל {when}', en: 'starts {when}' },
   'live.end': { he: '⏹️ סיום המשחק', en: '⏹️ End fixture' },
   'live.cancel': { he: '✕ ביטול המשחק', en: '✕ Cancel fixture' },
   'live.end.confirm': {
-    he: 'לסיים את ערב המשחק עבור כולם?\n\nהתצוגה החיה תיעלם מהטלפונים של הקבוצה. שום דבר שכבר נשמר בהיסטוריה לא מושפע.',
+    he: 'לסיים את המחזור עבור כולם?\n\nהתצוגה החיה תיעלם מהטלפונים של הקבוצה. שום דבר שכבר נשמר בהיסטוריה לא מושפע.',
     en: "End tonight's fixture for everyone?\n\nThe live view disappears from the group's phones. Nothing already saved to history is affected.",
   },
   'live.cancel.confirm': {
-    he: 'לבטל את ערב המשחק המתוזמן?\n\nההרכבים והספירה לאחור ייעלמו מהטלפונים של כולם.',
+    he: 'לבטל את המחזור המתוזמן?\n\nההרכבים והספירה לאחור ייעלמו מהטלפונים של כולם.',
     en: "Cancel this scheduled fixture?\n\nThe teams and countdown disappear from everyone's phones.",
   },
 
@@ -91,7 +91,7 @@ export const fixture = {
     he: '{team} — {points} מתוך {n} משחקים',
     en: '{team} — {points} from {n} matches',
   },
-  'cards.gkTonight': { he: 'שוער הערב', en: 'Goalkeeper tonight' },
+  'cards.gkTonight': { he: 'שוער המחזור', en: 'Goalkeeper tonight' },
 
   // --- Pitch mode -----------------------------------------------------------
   'pitch.leave': { he: 'יציאה ממצב מגרש', en: 'Leave pitch mode' },
@@ -108,23 +108,23 @@ export const fixture = {
   },
 
   // --- MVP ------------------------------------------------------------------
-  'mvp.title': { he: '🌟 מצטיין הערב', en: '🌟 MVP' },
-  'mvp.hint': { he: 'רשות — הבחירה שלכם לשחקן הבולט של הערב.', en: "Optional — your pick for this night's standout player." },
-  'mvp.from.one': { he: 'מתוך {team}, שניצחו את הערב.', en: 'From {team}, who won the night.' },
-  'mvp.from.level': { he: 'הערב הסתיים בשוויון, אז כל מי ששיחק.', en: 'The night finished level, so anyone who played.' },
+  'mvp.title': { he: '🌟 מצטיין המחזור', en: '🌟 MVP' },
+  'mvp.hint': { he: 'רשות — הבחירה שלכם לשחקן הבולט של המחזור.', en: "Optional — your pick for this night's standout player." },
+  'mvp.from.one': { he: 'מתוך {team}, שניצחו את המחזור.', en: 'From {team}, who won the night.' },
+  'mvp.from.level': { he: 'המחזור הסתיים בשוויון, אז כל מי ששיחק.', en: 'The night finished level, so anyone who played.' },
   'mvp.from.tied': { he: 'מתוך {teams}, שוות בראש.', en: 'From {teams}, level at the top.' },
   'mvp.and': { he: 'ו', en: ' and ' },
   'mvp.noPick': { he: 'ללא בחירה', en: 'No pick' },
 
   // --- Derby ----------------------------------------------------------------
-  'derby.title': { he: '⚔️ הדרבי של הערב', en: "⚔️ Tonight's derby" },
+  'derby.title': { he: '⚔️ הדרבי של המחזור', en: "⚔️ Tonight's derby" },
   'derby.faced': { he: '{n} משחקים בצדדים מנוגדים', en: '{n} matches on opposite sides' },
   'derby.level': { he: ', ובשוויון מוחלט', en: ', and dead level' },
 
   // --- Test mode ------------------------------------------------------------
   'test.banner.title': { he: '🧪 מצב בדיקה — מועדון מומצא', en: '🧪 Test mode — invented club' },
   'test.banner.body': {
-    he: '{players} שחקנים, {nights} ערבים. שום דבר כאן לא מתפרסם, והמועדון האמיתי לא נוגע בכלום.',
+    he: '{players} שחקנים, {nights} מחזורים. שום דבר כאן לא מתפרסם, והמועדון האמיתי לא נוגע בכלום.',
     en: '{players} players, {nights} nights. Nothing here is published, and the real club is untouched.',
   },
   'test.banner.back': { he: '→ חזרה למועדון האמיתי', en: '← Back to the real club' },

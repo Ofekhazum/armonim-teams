@@ -12,7 +12,7 @@ export const matchday = {
 
   // --- The sticky status line ----------------------------------------------
   'md.status.tooFew': {
-    he: 'צריך לפחות {min} שחקנים לערב משחק — כרגע {n}.',
+    he: 'צריך לפחות {min} שחקנים למחזור — כרגע {n}.',
     en: 'Need at least {min} players for the fixture — currently {n}.',
   },
   'md.status.perfect': {
@@ -117,9 +117,9 @@ export const matchday = {
   // --- The teams board ------------------------------------------------------
   'board.back': { he: '→ הגדרות', en: '← Setup' },
   'board.reroll': { he: 'ערבוב מחדש', en: 'Re-roll' },
-  'board.newFixture': { he: '🆕 ערב חדש', en: '🆕 New Fixture' },
+  'board.newFixture': { he: '🆕 מחזור חדש', en: '🆕 New Fixture' },
   'board.newFixture.confirm': {
-    he: 'להתחיל ערב משחק חדש? הפעולה מנקה את הבחירות, האורחים וההרכבים של היום.',
+    he: 'להתחיל מחזור חדש? הפעולה מנקה את הבחירות, האורחים וההרכבים של היום.',
     en: "Start a new fixture? This clears today's selections, guests and teams.",
   },
   'board.balance': { he: 'פער איזון: {n}', en: 'Balance gap: {n}' },

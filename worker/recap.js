@@ -242,7 +242,7 @@ Then five paragraphs, in this order, 280 to 380 words in total:
 
    Wrong, and the exact mistake to avoid: "נראה אם הכחולים יצליחו להגן על התואר" — the blues of next week are five different people. Also wrong: "השחורים חייבים לחזור חזק", "הלבנים ירצו נקמה", or anything at all about what a colour will do, want, defend or avenge.
 
-   Right: "ניב לוקח ערב שלישי ברצף, ומישהו צריך לעצור אותו לפני שזה נהיה הרגל" — a named person, their own record, and no assumption about what shirt anybody will be wearing.
+   Right: "ניב לוקח מחזור שלישי ברצף, ומישהו צריך לעצור אותו לפני שזה נהיה הרגל" — a named person, their own record, and no assumption about what shirt anybody will be wearing.
 
 Rules:
 - Every paragraph must be a complete thought that finishes. Never stop mid-sentence.

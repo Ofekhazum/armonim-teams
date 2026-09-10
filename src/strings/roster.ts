@@ -5,7 +5,7 @@ import type { Entry } from '../i18n';
 
 export const roster = {
   'roster.intro': {
-    he: 'הסגל הקבוע. אורחים מתווספים בערב המשחק.',
+    he: 'הסגל הקבוע. אורחים מתווספים במחזור.',
     en: 'The permanent squad. Guests are added on match day.',
   },
   'roster.empty': {
@@ -36,7 +36,7 @@ export const roster = {
     en: 'Other names people call them, comma-separated (optional)',
   },
   'roster.form.aliases.hint': {
-    he: 'משמש להתאמת השחקן כשמדביקים רשימת נוכחות בערב משחק.',
+    he: 'משמש להתאמת השחקן כשמדביקים רשימת נוכחות במחזור.',
     en: 'Used to match this player when importing a pasted list on match day.',
   },
   'roster.form.number.label': { he: 'מספר חולצה (רשות)', en: 'Shirt number (optional)' },
@@ -49,7 +49,7 @@ export const roster = {
   'roster.form.role': { he: 'תפקיד', en: 'Role' },
   'roster.form.gk.toggle': { he: '🧤 שוער', en: '🧤 Goalkeeper' },
   'roster.form.gk.note': {
-    he: 'שוערים קבועים נמצאים מחוץ לציר ההגנה־התקפה — הם תמיד זמינים לשער בערב משחק.',
+    he: 'שוערים קבועים נמצאים מחוץ לציר ההגנה־התקפה — הם תמיד זמינים לשער במחזור.',
     en: "Permanent goalkeepers sit outside the outfield spectrum — they're always GK-capable on match day.",
   },
   'roster.form.spectrum.aria': {
@@ -88,13 +88,13 @@ export const roster = {
   // --- Guests ---------------------------------------------------------------
   'roster.guests.title': { he: '🚪 אורחים ({n})', en: '🚪 Guests ({n})' },
   'roster.guests.hint': {
-    he: 'שיחקו אבל לא בסגל. קידום אורח שומר כל ערב שכבר שיחק — הערבים הולכים אחרי השם.',
+    he: 'שיחקו אבל לא בסגל. קידום אורח שומר כל מחזור שכבר שיחק — המחזורים הולכים אחרי השם.',
     en: 'Played but not on the roster. Promoting one keeps every night they’ve already played — their nights follow the name.',
   },
-  'roster.guests.nights': { he: { one: 'ערב {n}', other: '{n} ערבים' }, en: { one: '{n} night', other: '{n} nights' } },
+  'roster.guests.nights': { he: { one: 'מחזור אחד', other: '{n} מחזורים' }, en: { one: '{n} night', other: '{n} nights' } },
   'roster.guests.promote': { he: '+ הוספה לסגל', en: '+ Add to roster' },
   'roster.guests.promote.title': {
-    he: 'הוספת {name} לסגל, עם כל {n} הערבים שכבר שיחק',
+    he: 'הוספת {name} לסגל, עם כל {n} המחזורים שכבר שיחק',
     en: 'Add {name} to the roster, keeping their {n} nights',
   },
 

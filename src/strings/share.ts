@@ -17,7 +17,7 @@ export const share = {
   },
 
   // --- Page 1: the podiums --------------------------------------------------
-  'wr.nightsPlayed': { he: 'ערבים ששוחקו', en: 'nights played' },
+  'wr.nightsPlayed': { he: 'מחזורים ששוחקו', en: 'nights played' },
   'wr.thisMonth': { he: 'החודש', en: 'this month' },
   'wr.totalWins': { he: '⚽ {n} ניצחונות נצברו על ידי הסגל', en: '⚽ {n} wins banked by the squad' },
   'wr.topMvp': { he: '🌟 הכי הרבה בחירות מצטיין', en: '🌟 Most MVP picks' },
@@ -27,9 +27,9 @@ export const share = {
   },
   'wr.topWins': { he: '🏅 הכי הרבה משחקים שנוצחו', en: '🏅 Most matches won' },
   'wr.topWins.stat': { he: '{n} ניצחונות', en: '{n} wins' },
-  'wr.topFixtures': { he: '🏆 הכי הרבה ערבים שנוצחו', en: '🏆 Most fixtures won' },
+  'wr.topFixtures': { he: '🏆 הכי הרבה מחזורים שנוצחו', en: '🏆 Most fixtures won' },
   'wr.topFixtures.stat': {
-    he: { one: 'ערב אחד', other: '{n} ערבים' },
+    he: { one: 'מחזור אחד', other: '{n} מחזורים' },
     en: { one: '{n} fixture', other: '{n} fixtures' },
   },
 
@@ -49,10 +49,10 @@ export const share = {
     he: 'המאזן הכי חד־צדדי של החודש — {n} משחקים מולו',
     en: "the month's most lopsided record — {n} matches faced",
   },
-  'wr.duo.detail': { he: 'ערבים שנוצחו יחד', en: 'nights won together' },
+  'wr.duo.detail': { he: 'מחזורים שנוצחו יחד', en: 'nights won together' },
   'wr.run.detail': { he: 'משחקים ברצף', en: 'matches in a row' },
   'wr.reservists': {
-    he: 'שיחקו פעם או פעמיים, ועדיין לקחו ערב',
+    he: 'שיחקו פעם או פעמיים, ועדיין לקחו מחזור',
     en: 'played once or twice, and still took a night',
   },
   'wr.reservists.wins': {
@@ -67,34 +67,34 @@ export const share = {
   },
   'wr.cursedShirt': { he: 'החולצה הביש־מזלית', en: 'Unlucky shirt' },
   'wr.cursedShirt.detail': {
-    he: 'ניצחה ב־{won} מתוך {played} ערבים',
+    he: 'ניצחה ב־{won} מתוך {played} מחזורים',
     en: 'won {won} of {played} nights',
   },
   'wr.outOfGas': { he: 'הזינוק המהיר ביותר', en: 'Fastest starter' },
   'wr.outOfGas.detail': { he: '{early}% בהתחלה, {late}% בסוף', en: '{early}% early, {late}% late' },
   'wr.bottomScorer': { he: 'הכי מעט ניצחונות', en: 'Fewest wins' },
   'wr.bottomScorer.detail': {
-    he: { one: '{wins} בערב אחד', other: '{wins} ב־{n} ערבים' },
+    he: { one: '{wins} במחזור אחד', other: '{wins} ב־{n} מחזורים' },
     en: { one: '{wins} in {n} night', other: '{wins} in {n} nights' },
   },
   'wr.longestWait': { he: 'ההמתנה הארוכה ביותר', en: 'Longest wait' },
   'wr.longestWait.detail': {
-    he: { one: 'ערב אחד בלי ניצחון', other: '{n} ערבים בלי ניצחון' },
+    he: { one: 'מחזור אחד בלי ניצחון', other: '{n} מחזורים בלי ניצחון' },
     en: { one: '{n} night without a win', other: '{n} nights without a win' },
   },
 
   // --- Page 4: the month's achievements ------------------------------------
   'wr.page.achievements': { he: 'הישגים', en: 'Achievements' },
-  'wr.group.debuts': { he: '✨ ערב ראשון במועדון', en: '✨ First night at the club' },
-  'wr.group.nights': { he: '🎉 הגיעו לאבן דרך של ערבים', en: '🎉 Hit a milestone night' },
+  'wr.group.debuts': { he: '✨ מחזור ראשון במועדון', en: '✨ First night at the club' },
+  'wr.group.nights': { he: '🎉 הגיעו לאבן דרך של מחזורים', en: '🎉 Hit a milestone night' },
   'wr.group.wins': { he: '🏆 הגיעו לאבן דרך של ניצחונות', en: '🏆 Hit a milestone win' },
   'wr.group.ironman': { he: '🦾 הגיעו כל שבוע', en: '🦾 Turned up every week' },
   'wr.group.streaks': { he: '📈 על רצף מנצח', en: '📈 On a winning run' },
   'wr.group.droughts': { he: '💤 עדיין מחכים לניצחון', en: '💤 Still waiting for a win' },
   'wr.chip.newFaces': { he: '{n} פנים חדשות', en: '{n} new faces' },
-  'wr.chip.nthNight': { he: 'הערב ה־{n}', en: '{n}th night' },
+  'wr.chip.nthNight': { he: 'המחזור ה־{n}', en: '{n}th night' },
   'wr.chip.nthWin': { he: 'הניצחון ה־{n}', en: '{n}th win' },
   'wr.chip.ironman': { he: '{n} שבועות ברצף', en: '{n} weeks in a row' },
-  'wr.chip.streak': { he: '{n} ערבים ברצף', en: '{n} nights running' },
-  'wr.chip.drought': { he: '{n} ערבים עד כה', en: '{n} nights so far' },
+  'wr.chip.streak': { he: '{n} מחזורים ברצף', en: '{n} nights running' },
+  'wr.chip.drought': { he: '{n} מחזורים עד כה', en: '{n} nights so far' },
 } as const satisfies Record<string, Entry>;

@@ -9,7 +9,7 @@ export const night = {
   'fx.backToTeams': { he: '→ חזרה להרכבים', en: '← Back to teams' },
   'fx.cancel': { he: '✕ ביטול המשחק', en: '✕ Cancel fixture' },
   'fx.cancel.confirm': {
-    he: 'לבטל את ערב המשחק המתוזמן?\n\nההרכבים והספירה לאחור ייעלמו מהטלפונים של כולם. תחזרו ללוח ההרכבים הניתן לעריכה.',
+    he: 'לבטל את המחזור המתוזמן?\n\nההרכבים והספירה לאחור ייעלמו מהטלפונים של כולם. תחזרו ללוח ההרכבים הניתן לעריכה.',
     en: "Cancel this scheduled fixture?\n\nThe teams and countdown disappear from everyone's phones. You'll land back on the editable teams board.",
   },
   'fx.end': { he: '⏹️ סיום המשחק', en: '⏹️ End fixture' },
@@ -18,7 +18,7 @@ export const night = {
   // --- "Anything worth remembering?" ---------------------------------------
   'fx.note.title': { he: 'משהו ששווה לזכור?', en: 'Anything worth remembering?' },
   'fx.note.body': {
-    he: 'רשות, וזה הולך לכתב — הדבר היחיד בסיכום הערב שאי אפשר להסיק מהתוצאות. דלגו ושום דבר לא משתנה.',
+    he: 'רשות, וזה הולך לכתב — הדבר היחיד בסיכום המחזור שאי אפשר להסיק מהתוצאות. דלגו ושום דבר לא משתנה.',
     en: "Optional, and it goes to the reporter — the one thing in the night's write-up that can't be worked out from the results. Skip it and nothing changes.",
   },
   'fx.note.format': {
@@ -35,30 +35,30 @@ export const night = {
   'fx.note.save': { he: '🗂️ שמירה להיסטוריה וסיום', en: '🗂️ Save to history & end' },
 
   // --- "That's the night?" --------------------------------------------------
-  'fx.ending.title': { he: 'זה הערב?', en: "That's the night?" },
+  'fx.ending.title': { he: 'זה המחזור?', en: "That's the night?" },
   'fx.ending.body': {
-    he: 'סיום מנקה את השחקנים, האורחים וההרכבים של הערב, והתצוגה החיה נעלמת מהטלפונים של כולם.',
+    he: 'סיום מנקה את השחקנים, האורחים וההרכבים של המחזור, והתצוגה החיה נעלמת מהטלפונים של כולם.',
     en: "Ending clears tonight's players, guests and teams, and the live view disappears from everyone's phones.",
   },
   'fx.ending.alreadySaved': {
-    he: 'הערב כבר בהיסטוריה — שמירה חוזרת מעדכנת את אותה רשומה עם כל מה שנרשם מאז.',
+    he: 'המחזור כבר בהיסטוריה — שמירה חוזרת מעדכנת את אותה רשומה עם כל מה שנרשם מאז.',
     en: 'Tonight is already in history — filing again updates that same record with anything recorded since.',
   },
   'fx.ending.unsavedMatches': {
-    he: '{n} המשחקים שנרשמו הערב עוד לא בהיסטוריה.',
+    he: '{n} המשחקים שנרשמו במחזור עוד לא בהיסטוריה.',
     en: 'The {n} matches written down tonight are not in history yet.',
   },
   'fx.ending.unsavedTally': {
-    he: 'הספירה של הערב עוד לא בהיסטוריה.',
+    he: 'הספירה של המחזור עוד לא בהיסטוריה.',
     en: "Tonight's tally is not in history yet.",
   },
   'fx.ending.nothing': {
-    he: 'לא נרשם כלום הערב, אז אין מה לתייק — סיום עכשיו משאיר את הערב מחוץ לרישום לגמרי.',
+    he: 'לא נרשם כלום במחזור, אז אין מה לתייק — סיום עכשיו משאיר את המחזור מחוץ לרישום לגמרי.',
     en: 'Nothing was written down tonight, so there is nothing to file — ending now keeps the night off the record entirely.',
   },
   'fx.ending.update': { he: '🗂️ עדכון ההיסטוריה וסיום', en: '🗂️ Update history & end' },
   'fx.ending.needAdmin': {
-    he: '🔒 פתחו מצב מנהל כדי לתייק את הערב להיסטוריה. סיום עכשיו משאיר את הערב מחוץ לרישום לגמרי.',
+    he: '🔒 פתחו מצב מנהל כדי לתייק את המחזור להיסטוריה. סיום עכשיו משאיר את המחזור מחוץ לרישום לגמרי.',
     en: '🔒 Unlock admin to file tonight into history. Ending now keeps the night off the record entirely.',
   },
   'fx.ending.endNoSave': { he: '⏹️ סיום בלי שמירה', en: '⏹️ End without saving' },
@@ -96,12 +96,12 @@ export const night = {
   'np.older': { he: '→ קודם', en: '← older' },
   'np.newer': { he: 'הבא ←', en: 'newer →' },
   'np.nothingThatWay': { he: 'לא נרשם שום דבר בכיוון הזה', en: 'nothing recorded that way' },
-  'np.headline': { he: 'הערב', en: 'The night' },
-  'np.wonTheNight': { he: 'ניצחו את הערב', en: 'Won the night' },
+  'np.headline': { he: 'המחזור', en: 'The night' },
+  'np.wonTheNight': { he: 'ניצחו את המחזור', en: 'Won the night' },
   'np.played': { he: '{n} שיחקו', en: '{n} played' },
 
   'np.tallied': {
-    he: 'הערב הזה נספר בסוף במקום להירשם משחק־משחק, אז אין רצף לקרוא: הרישום הוא שלושה סכומים. ערבים שנרשמים תוך כדי מקבלים ציר זמן, צורה ואת הרגעים שבתוכם.',
+    he: 'המחזור הזה נספר בסוף במקום להירשם משחק־משחק, אז אין רצף לקרוא: הרישום הוא שלושה סכומים. מחזורים שנרשמים תוך כדי מקבלים ציר זמן, צורה ואת הרגעים שבתוכם.',
     en: 'This night was tallied at the end rather than logged match by match, so there is no sequence to read: the record is three totals. Nights logged as they happen get a timeline, a shape and the moments in them.',
   },
 
@@ -131,7 +131,7 @@ export const night = {
   'np.report.title': { he: '📰 הדיווח', en: '📰 The report' },
   'np.report.written': { he: 'נכתב ב־{date}', en: 'written {date}' },
   'np.report.draft': { he: 'טיוטה — אף אחד אחר עוד לא רואה את זה', en: 'draft — nobody else can see this yet' },
-  'np.report.nothing': { he: 'עוד לא נכתב כלום לערב הזה.', en: 'Nothing written for this night yet.' },
+  'np.report.nothing': { he: 'עוד לא נכתב כלום למחזור הזה.', en: 'Nothing written for this night yet.' },
   'np.report.share': { he: '📤 שיתוף', en: '📤 Share' },
   'np.report.writing': { he: 'כותב…', en: 'writing…' },
   'np.report.writeAnother': { he: '↻ לכתוב עוד אחד', en: '↻ Write another' },
@@ -157,7 +157,7 @@ export const night = {
   // every time and differently from the one before it. Both languages keep
   // four, because the pick is an index into the bank.
   'story.dictatorship.1': { he: 'דיקטטורה', en: 'A dictatorship' },
-  'story.dictatorship.2': { he: 'קבוצה אחת, ערב אחד', en: 'One team, one evening' },
+  'story.dictatorship.2': { he: 'קבוצה אחת, מחזור אחד', en: 'One team, one evening' },
   'story.dictatorship.3': { he: 'מישהו השתלט', en: 'Somebody took over' },
   'story.dictatorship.4': { he: 'שלטון יחיד', en: 'A reign' },
   'story.chaos.1': { he: 'כאוס מוחלט', en: 'Complete chaos' },
@@ -166,10 +166,10 @@ export const night = {
   'story.chaos.4': { he: 'אנרכיה', en: 'Anarchy' },
   'story.tugOfWar.1': { he: 'משיכת חבל', en: 'A tug of war' },
   'story.tugOfWar.2': { he: 'צמוד עד הסוף', en: 'Nothing in it' },
-  'story.tugOfWar.3': { he: 'החליפו הובלה כל הערב', en: 'Traded all night' },
+  'story.tugOfWar.3': { he: 'החליפו הובלה כל המחזור', en: 'Traded all night' },
   'story.tugOfWar.4': { he: 'אחד מול השני', en: 'Toe to toe' },
   'story.ordinary.1': { he: 'עוד יום שלישי רגיל', en: 'An ordinary Tuesday' },
-  'story.ordinary.2': { he: 'ערב של כדורגל', en: 'A night of football' },
+  'story.ordinary.2': { he: 'מחזור של כדורגל', en: 'A night of football' },
   'story.ordinary.3': { he: 'עסקים כרגיל', en: 'Business as usual' },
   'story.ordinary.4': { he: 'פשוט כדורגל', en: 'Just football' },
 } as const satisfies Record<string, Entry>;

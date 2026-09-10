@@ -85,8 +85,8 @@ describe('translate', () => {
     ] as const) {
       expect(translate('en', 'ui.night', { n })).toBe(want);
     }
-    expect(translate('he', 'ui.night', { n: 1 })).toBe('ערב');
-    expect(translate('he', 'ui.night', { n: 3 })).toBe('ערבים');
+    expect(translate('he', 'ui.night', { n: 1 })).toBe('מחזור');
+    expect(translate('he', 'ui.night', { n: 3 })).toBe('מחזורים');
   });
 
   it('returns the key itself for one it does not know', () => {
