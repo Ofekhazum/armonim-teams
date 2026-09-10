@@ -126,4 +126,49 @@ export const player = {
   'pp.tier.sapphire': { he: 'ספיר', en: 'Sapphire' },
   'pp.tier.amethyst': { he: 'אחלמה', en: 'Amethyst' },
   'pp.tier.diamond': { he: 'יהלום', en: 'Diamond' },
+
+  // --- The timeline (PlayerTimeline) ---------------------------------------
+  //
+  // `{ord}` is the count, already shaped for the language: "50th" in English,
+  // a bare "50" in Hebrew, where the ordinal is carried by the "ה־" in the
+  // string itself rather than by a suffix on the number.
+  'tl.empty': {
+    he: 'עוד לא קרה שום דבר פעמיים. אבני דרך, רצפים ושיאים ינחתו כאן ברגע שיקרו.',
+    en: 'Nothing has happened twice yet. Milestones, runs and records land here as they do.',
+  },
+  'tl.debut': { he: 'הערב הראשון ברישום', en: 'First night on record' },
+  'tl.debut.place': { he: ' · סיים {ord}', en: ' · finished {ord}' },
+  'tl.nthNight': { he: 'הערב ה־{ord}', en: '{ord} night' },
+  'tl.nthNight.detail': { he: 'ערבים עם תוצאה שנרשמה', en: 'nights with a result recorded' },
+  'tl.nthWin': { he: 'ניצחון המשחק ה־{ord}', en: '{ord} match win' },
+  'tl.nthWin.detail': { he: 'על פני כל הערבים ששיחק', en: 'across every night they have played' },
+  'tl.nthNightWon': { he: 'הערב ה־{ord} שנוצח', en: '{ord} night won' },
+  'tl.nthNightWon.detail': {
+    he: 'ערבים שהקבוצה שלו סיימה בראשם',
+    en: 'nights their team finished top of',
+  },
+  'tl.mvpFirst': { he: 'נבחר למצטיין', en: 'Picked MVP' },
+  'tl.mvpFirst.detail': { he: 'בפעם הראשונה', en: 'the first time' },
+  'tl.nthMvp': { he: 'ערב המצטיין ה־{ord}', en: '{ord} MVP night' },
+  'tl.streakEnded': { he: 'רצף של {n} נגמר', en: 'A run of {n} ended' },
+  'tl.streakEnded.detail': {
+    he: '{n} ערבים שנוצחו ברצף, ואז זה',
+    en: '{n} nights won in a row, then this one',
+  },
+  'tl.streakLive': { he: 'על רצף של {n}', en: 'On a run of {n}' },
+  'tl.streakLive.detail': { he: 'עדיין נמשך', en: 'still going' },
+  'tl.droughtEnded': { he: 'ניצח ערב שוב', en: 'Won a night again' },
+  'tl.droughtEnded.detail': { he: 'הראשון מזה {n}', en: 'first in {n}' },
+  'tl.bestNight': { he: 'הערב הטוב ביותר — {n} ניצחונות', en: 'Best night yet — {n} wins' },
+  'tl.bestNight.detail': {
+    he: 'הכי הרבה שהקבוצה שלו לקחה בערב אחד',
+    en: 'most their team has taken in one evening',
+  },
+  'tl.totm': { he: 'הרכב החודש', en: 'Team of the Month' },
+  'tl.totm.detail': { he: 'נכלל בחמישייה', en: 'named in the five' },
+  'tl.showLess': { he: '↑ להציג פחות', en: '↑ Show less' },
+  'tl.showMore': {
+    he: { one: '↓ רגע מוקדם אחד', other: '↓ {n} רגעים מוקדמים יותר' },
+    en: { one: '↓ {n} earlier moment', other: '↓ {n} earlier moments' },
+  },
 } as const satisfies Record<string, Entry>;
