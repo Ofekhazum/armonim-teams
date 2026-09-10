@@ -93,7 +93,7 @@ export default function MatchLog({ log, onChange, canUndo = false }: Props) {
             </button>
             <button
               onClick={() => record(winner, true, opening)}
-              className="rounded-lg border border-amber-900/25 px-3 py-1.5 text-xs font-bold text-amber-900/80 transition-colors hover:border-orange-500 hover:text-orange-700"
+              className="rounded-lg border border-amber-900/25 px-3 py-2.5 text-xs font-bold text-amber-900/80 transition-colors hover:border-orange-500 hover:text-orange-700"
               title={`${m.label} took it on penalties — half a win, per the house rule`}
             >
               penalties · ½
@@ -189,7 +189,7 @@ export default function MatchLog({ log, onChange, canUndo = false }: Props) {
           {canUndo && (
             <button
               onClick={() => onChange(log.slice(0, -1))}
-              className="text-xs font-semibold text-amber-900/60 underline underline-offset-2 hover:text-orange-700"
+              className="-m-2 inline-block p-2 text-xs font-semibold text-amber-900/60 underline underline-offset-2 hover:text-orange-700"
             >
               Undo last match
             </button>

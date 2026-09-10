@@ -15,7 +15,6 @@ import {
   fmtRating,
   FoldHeader,
   Name,
-  RATING_STEPS,
   SpectrumBar,
   spectrumColor,
   Stars,
@@ -379,27 +378,50 @@ export default function Roster({
       )
     : eligibleForRelationships;
 
+  // A non-blocking nudge, not a gate — a duplicate is sometimes intentional
+  // (two people who really do share a name).
+  const duplicateName =
+    draft && draft.name.trim()
+      ? players.find(
+          (p) =>
+            p.id !== editingId &&
+            (guestKey(p.name) === guestKey(draft.name) ||
+              (p.aliases ?? []).some((a) => guestKey(a) === guestKey(draft.name))),
+        )
+      : undefined;
+
   // Rendered either up top (adding a new player, nothing to anchor to yet)
   // or inline in place of the player's own row (editing one) — so editing
   // someone near the bottom of a long roster doesn't yank the page back up
   // to the top of the screen.
   const draftForm = draft && (
     <div className="pop-in space-y-4 rounded-2xl border border-amber-900/20 bg-[#fffdf4]/80 p-4 shadow-sm">
-      <h3 className="font-bold text-amber-950">{editingId ? 'Edit player' : 'New player'}</h3>
+      <h2 className="font-bold text-amber-950">{editingId ? 'Edit player' : 'New player'}</h2>
 
-      <input
-        dir="auto"
-        // Only for a brand-new player — focusing this on an existing one pops
-        // the keyboard open on mobile the instant you tap Edit, which shoves
-        // the page around for no reason since you're often just tweaking a
-        // rating or role, not the name.
-        autoFocus={editingId === null}
-        value={draft.name}
-        onChange={(e) => setDraft({ ...draft, name: e.target.value })}
-        onKeyDown={(e) => e.key === 'Enter' && save()}
-        placeholder="Name (עברית or English)"
-        className="w-full rounded-lg border border-amber-900/30 bg-white px-3 py-2 text-amber-950 outline-none focus:border-orange-500"
-      />
+      <div>
+        <input
+          dir="auto"
+          // Only for a brand-new player — focusing this on an existing one
+          // pops the keyboard open on mobile the instant you tap Edit, which
+          // shoves the page around for no reason since you're often just
+          // tweaking a rating or role, not the name.
+          autoFocus={editingId === null}
+          value={draft.name}
+          onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+          onKeyDown={(e) => e.key === 'Enter' && save()}
+          placeholder="Name (עברית or English)"
+          className="w-full rounded-lg border border-amber-900/30 bg-white px-3 py-2 text-amber-950 outline-none focus:border-orange-500"
+        />
+        {/* Non-blocking — a duplicate is sometimes intentional (two people who
+            really do share a name), so this warns rather than gates Save the
+            way promoteGuest's guestKey check already gates a guest/roster
+            name clash (§2.41 harden pass). */}
+        {duplicateName && (
+          <p className="mt-1 text-xs text-orange-700">
+            ⚠️ <Name>{duplicateName.name}</Name> is already on the roster under this name.
+          </p>
+        )}
+      </div>
 
       <div>
         <input
@@ -438,27 +460,28 @@ export default function Roster({
       </div>
 
       {(!editingId || isAdmin) && (
-        <div>
-          <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-amber-900/60">
-            Rating
+        <div className="rounded-lg border border-amber-900/15 bg-white/60 px-3 py-2.5">
+          {/* A slider, matching the Attack spectrum just below it (§2.41
+              distill pass) — the 9-button grid it replaced was a flat wall of
+              equally-weighted choices with no progressive disclosure, unlike
+              every other continuous pick in this form. */}
+          <div className="mb-1 flex items-center justify-between gap-2 text-sm font-bold text-amber-950">
+            <Stars rating={draft.rating} />
+            <span className="text-xs font-semibold text-amber-900/60">
+              {fmtRating(draft.rating)} / 5
+            </span>
           </div>
-          {/* fixed 5-up grid rather than wrapping buttons — keeps the rows
-              even and the targets thumb-sized on a narrow screen */}
-          <div className="grid grid-cols-5 gap-1 sm:flex sm:flex-wrap">
-            {RATING_STEPS.map((r) => (
-              <button
-                key={r}
-                onClick={() => setDraft({ ...draft, rating: r })}
-                className={`h-10 rounded-lg border text-sm font-bold transition-colors sm:min-w-10 sm:px-1.5 ${
-                  draft.rating === r
-                    ? 'border-amber-500 bg-amber-500 text-amber-950'
-                    : 'border-amber-900/25 bg-white text-amber-900 hover:border-amber-500'
-                }`}
-              >
-                {fmtRating(r)}
-              </button>
-            ))}
-          </div>
+          <input
+            dir="ltr"
+            type="range"
+            min={1}
+            max={5}
+            step={0.5}
+            value={draft.rating}
+            onChange={(e) => setDraft({ ...draft, rating: Number(e.target.value) })}
+            aria-label="Rating, 1 to 5"
+            className="rating-range w-full"
+          />
         </div>
       )}
 
@@ -469,6 +492,7 @@ export default function Roster({
           </span>
           <button
             onClick={() => setDraft({ ...draft, isGk: !draft.isGk })}
+            aria-pressed={draft.isGk}
             className={`rounded-lg border px-3 py-1.5 text-sm font-semibold transition-colors ${
               draft.isGk
                 ? 'border-sky-600 bg-sky-600/15 text-sky-800'
@@ -509,10 +533,7 @@ export default function Roster({
               className="spectrum-range w-full"
               style={{ '--thumb': spectrumColor(draft.attack) } as CSSProperties}
             />
-            <div
-              dir="ltr"
-              className="flex justify-between text-[11px] font-semibold text-amber-900/50"
-            >
+            <div dir="ltr" className="flex justify-between text-xs font-semibold text-amber-900/50">
               <span>🛡️ Defence</span>
               <span>Attack ⚔️</span>
             </div>
@@ -533,7 +554,7 @@ export default function Roster({
             className="text-amber-900"
           />
           {relOpen && (
-            <div className="mt-3 space-y-4">
+            <div className="mt-3 space-y-2">
               {eligibleForRelationships.length > 8 && (
                 <input
                   dir="auto"
@@ -545,61 +566,60 @@ export default function Roster({
                 />
               )}
 
-              <div>
-                <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-amber-900/60">
-                  🤝 Plays well with (chemistry)
-                </div>
-                <div className="flex flex-wrap gap-1.5">
-                  {filteredForRelationships.map((p) => (
-                    <button
-                      key={p.id}
-                      onClick={() => toggleChem(p.id)}
-                      className={`rounded-full border px-3 py-2 text-sm transition-colors ${
-                        draft.chemistry.includes(p.id)
-                          ? 'border-pink-500 bg-pink-500/15 text-pink-700'
-                          : 'border-amber-900/25 bg-white text-amber-900/70 hover:border-pink-500/60'
-                      }`}
-                    >
-                      <Name>{p.name}</Name>
-                    </button>
-                  ))}
-                  {filteredForRelationships.length === 0 && (
-                    <p className="text-xs text-amber-900/50">No players match “{relFilter}”.</p>
-                  )}
-                </div>
-              </div>
-
-              {/* deliberately admin-only: who'd rather not be paired up is
-                  sensitive, so it isn't shown or editable in normal mode */}
-              {isAdmin && (
-                <div>
-                  <div className="text-xs font-semibold uppercase tracking-wide text-amber-900/60">
-                    ↔️ Prefer on separate teams
-                  </div>
-                  <p className="mb-1.5 text-xs text-amber-900/50">
-                    A nudge, not a rule — the balancer splits them when it can, but won't
-                    wreck the balance to do it. Only visible in admin mode.
-                  </p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {filteredForRelationships.map((p) => (
+              {/* One row per player rather than two parallel full-roster chip
+                  clouds (§2.41 update, distill pass): the old shape made
+                  toggling both relationships for the same person mean
+                  scanning two separately-sorted lists for their name twice.
+                  Avoid stays admin-only — who'd rather not be paired up is
+                  sensitive, so its toggle isn't shown or editable in normal
+                  mode. */}
+              <p className="text-xs text-amber-900/50">
+                🤝 good chemistry
+                {isAdmin && ' · ↔️ prefer separate teams (a nudge, not a rule — admin only)'}
+              </p>
+              <div className="max-h-72 space-y-1 overflow-y-auto pe-0.5">
+                {filteredForRelationships.map((p) => (
+                  <div
+                    key={p.id}
+                    className="flex items-center justify-between gap-2 rounded-lg border border-amber-900/15 bg-white px-3 py-1.5"
+                  >
+                    <Name className="min-w-0 truncate text-sm text-amber-950">{p.name}</Name>
+                    <div className="flex shrink-0 gap-1.5">
                       <button
-                        key={p.id}
-                        onClick={() => toggleAvoid(p.id)}
-                        className={`rounded-full border px-3 py-2 text-sm transition-colors ${
-                          draft.avoid.includes(p.id)
-                            ? 'border-sky-600 bg-sky-600/15 text-sky-800'
-                            : 'border-amber-900/25 bg-white text-amber-900/70 hover:border-sky-600/60'
+                        onClick={() => toggleChem(p.id)}
+                        aria-pressed={draft.chemistry.includes(p.id)}
+                        aria-label={`Plays well with ${p.name}`}
+                        title="Plays well with"
+                        className={`rounded-full border px-2.5 py-1.5 text-sm transition-colors ${
+                          draft.chemistry.includes(p.id)
+                            ? 'border-pink-500 bg-pink-500/15 text-pink-700'
+                            : 'border-amber-900/25 bg-white text-amber-900/40 hover:border-pink-500/60'
                         }`}
                       >
-                        <Name>{p.name}</Name>
+                        🤝
                       </button>
-                    ))}
-                    {filteredForRelationships.length === 0 && (
-                      <p className="text-xs text-amber-900/50">No players match “{relFilter}”.</p>
-                    )}
+                      {isAdmin && (
+                        <button
+                          onClick={() => toggleAvoid(p.id)}
+                          aria-pressed={draft.avoid.includes(p.id)}
+                          aria-label={`Prefer separate teams from ${p.name}`}
+                          title="Prefer on separate teams (admin only)"
+                          className={`rounded-full border px-2.5 py-1.5 text-sm transition-colors ${
+                            draft.avoid.includes(p.id)
+                              ? 'border-sky-600 bg-sky-600/15 text-sky-800'
+                              : 'border-amber-900/25 bg-white text-amber-900/40 hover:border-sky-600/60'
+                          }`}
+                        >
+                          ↔️
+                        </button>
+                      )}
+                    </div>
                   </div>
-                </div>
-              )}
+                ))}
+                {filteredForRelationships.length === 0 && (
+                  <p className="text-xs text-amber-900/50">No players match “{relFilter}”.</p>
+                )}
+              </div>
             </div>
           )}
         </div>
@@ -661,6 +681,18 @@ export default function Roster({
         )}
       </div>
 
+      {/* Surfaced as soon as it's true, not just inside the Publish-click
+          gate below (§2.41 clarify pass) — the old flow only revealed a
+          stale-hydration problem after an admin had already made several
+          edits, at the worst possible point to first meet friction. */}
+      {isAdmin && !rosterHydrated && players.length > 0 && (
+        <div className="rounded-xl border border-orange-500/40 bg-orange-50 px-3 py-2.5 text-xs text-orange-900">
+          ⚠️ This device hasn't loaded the shared chemistry/keep-apart lists yet. Publishing now
+          would replace them with whatever's on this device — possibly nothing. Reload the page
+          before publishing if you want them kept.
+        </div>
+      )}
+
       {draft && editingId === null && draftForm}
 
       {isAdmin && !draft && guestRows.length > 0 && (
@@ -721,24 +753,28 @@ export default function Roster({
               <li
                 key={p.id}
                 dir="rtl"
-                onClick={() => setOpenId(p.id)}
                 // Named in the tooltip as well as worn: a coloured card nobody
                 // can decode is the mystery-emoji problem the badge key exists
                 // to avoid (§2.18). The tooltip is a desktop-hover shortcut,
-                // not the only path — the row is a tap target (below), and
-                // PlayerPage writes the same title out as plain text under
-                // the name, so touch never actually dead-ends on it.
+                // not the only path — the row's own button below writes the
+                // same title out as plain text via PlayerPage, so touch never
+                // actually dead-ends on it.
                 title={titles.get(p.id)?.title}
-                // the whole row, not a small "view" link: on a phone the row
-                // is the target your thumb is already aimed at. It lifts on
-                // hover, which is the cheapest way to say "this is a door".
-                className={`group relative flex cursor-pointer items-center gap-3 overflow-hidden rounded-2xl border px-4 py-3 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-orange-500/60 hover:shadow-md ${
+                className={`group relative flex items-center gap-3 overflow-hidden rounded-2xl border px-4 py-3 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-orange-500/60 hover:shadow-md ${
                   p.id === savedId ? 'flash-ring' : ''
                 } ${theme(p.id)}`}
                 style={
                   p.id === savedId ? ({ '--flash-color': '#78350f' } as CSSProperties) : undefined
                 }
               >
+                {p.id === savedId && (
+                  <span
+                    aria-hidden
+                    className="save-badge pointer-events-none absolute right-3 top-2 rounded-full bg-amber-900/90 px-2 py-0.5 text-[10px] font-bold text-amber-50 shadow-sm"
+                  >
+                    ✓ Saved
+                  </span>
+                )}
                 {/* The badge's own emoji, set large and nearly transparent at
                     the far edge — a watermark rather than an icon, so it reads
                     as the card's character rather than as another thing to
@@ -754,7 +790,21 @@ export default function Roster({
                     {titles.get(p.id)!.icon}
                   </span>
                 )}
-                <div className="relative min-w-0 flex-1">
+                {/* A real <button>, not a role="button" on the <li> (§2.41
+                    distill pass) — the earlier fix for "keyboard users can't
+                    open a player" wrapped Edit/✕ inside another interactive
+                    element, which is invalid ARIA nesting and tripled the Tab
+                    stops per row. This is now a plain sibling of Edit/✕, so
+                    each row is exactly the two-or-three real controls it
+                    looks like. Still the whole content area, not a small
+                    "view" link — on a phone that's the target your thumb is
+                    already aimed at, and it lifts on hover same as before. */}
+                <button
+                  type="button"
+                  onClick={() => setOpenId(p.id)}
+                  aria-label={`Open ${p.name}`}
+                  className="relative flex min-w-0 flex-1 cursor-pointer flex-col items-start border-0 bg-transparent p-0 text-start"
+                >
                   <div className="flex items-center gap-2">
                     <Name className="truncate font-semibold text-amber-950">{p.name}</Name>
                     <span title={STYLE_META[roleBadge(p)].label}>{STYLE_META[roleBadge(p)].icon}</span>
@@ -792,26 +842,17 @@ export default function Roster({
                       </span>
                     )}
                   </div>
-                </div>
+                </button>
                 {isAdmin && (
                   <>
-                    {/* inside a row that is itself a button now, so both of
-                        these have to stop the click travelling — an Edit press
-                        that also opened the player page would bury the form */}
                     <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        startEdit(p);
-                      }}
+                      onClick={() => startEdit(p)}
                       className="rounded-lg border border-amber-900/25 px-2.5 py-1 text-xs font-semibold text-amber-900 hover:border-orange-500"
                     >
                       Edit
                     </button>
                     <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        remove(p);
-                      }}
+                      onClick={() => remove(p)}
                       className="rounded-lg border border-amber-900/25 px-2.5 py-1 text-xs font-semibold text-red-600 hover:border-red-500"
                     >
                       ✕

@@ -124,22 +124,27 @@ const SHIRT_BAR: Record<TeamColor, string> = {
 const fmt = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
 
 const Card = ({
+  id,
   title,
   hint,
   children,
   className = '',
 }: {
+  id?: string;
   title: string;
   hint?: string;
   children: React.ReactNode;
   className?: string;
 }) => (
   <section
-    className={`rounded-2xl border border-amber-900/10 bg-white/70 p-4 shadow-sm ring-1 ring-white/60 ${className}`}
+    id={id}
+    // scroll-margin so the jump strip doesn't land on top of the heading it
+    // just scrolled to — the strip is sticky at the top of the same scroller
+    className={`scroll-mt-14 rounded-2xl border border-amber-900/10 bg-white/70 p-4 shadow-sm ring-1 ring-white/60 ${className}`}
   >
     <div className="mb-2.5 flex items-baseline gap-2">
       <h3 className="text-[13px] font-black uppercase tracking-wide text-amber-900/70">{title}</h3>
-      {hint && <span className="text-[11px] text-amber-900/40">{hint}</span>}
+      {hint && <span className="text-xs text-amber-900/45">{hint}</span>}
     </div>
     {children}
   </section>
@@ -157,7 +162,7 @@ const Stat = ({ n, label, quiet }: { n: string; label: string; quiet?: boolean }
     >
       {n}
     </div>
-    <div className="mt-1.5 text-[10px] font-bold uppercase leading-tight tracking-wide text-amber-900/50">
+    <div className="mt-1.5 text-[11px] font-bold uppercase leading-tight tracking-wide text-amber-900/55">
       {label}
     </div>
   </div>
@@ -218,10 +223,20 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
   // see `readAllMarks` in the Worker. `{}` on any failure, so an offline
   // phone or a club with nothing published yet simply has no graph.
   const [marks, setMarks] = useState<AllMarks>({});
+  // Tracked separately from `marks` being empty, because those are two
+  // different facts: "we haven't asked yet" reserves space for the Form card,
+  // "we asked and there's nothing" removes it. Without the distinction the
+  // card inserted itself into the middle of a page already being read
+  // (§2.43) — the one async arrival that lands under a reading thumb rather
+  // than above the fold.
+  const [marksLoading, setMarksLoading] = useState(true);
   useEffect(() => {
     let live = true;
+    setMarksLoading(true);
     fetchAllMarks(history).then((all) => {
-      if (live) setMarks(all);
+      if (!live) return;
+      setMarks(all);
+      setMarksLoading(false);
     });
     return () => {
       live = false;
@@ -294,12 +309,42 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
   const [detail, setDetail] = useState<{ where: 'badges' | 'nights'; text: string } | null>(null);
   const say = (where: 'badges' | 'nights', text: string) => () =>
     setDetail((d) => (d?.text === text ? null : { where, text }));
-  const caption = (where: 'badges' | 'nights') =>
-    detail?.where === where ? (
-      <p className="mt-2 text-xs font-semibold text-amber-900/70">{detail.text}</p>
-    ) : null;
+  // `aria-live` because the caption is the *whole* answer for a screen reader
+  // that just activated a badge (§2.43) — without it the tap appears to do
+  // nothing and the reader has to go hunting forward for a new paragraph.
+  // Rendered always, empty when nothing is selected, so the region exists to
+  // be announced into rather than arriving with its own text already in it.
+  const caption = (where: 'badges' | 'nights') => (
+    <p
+      aria-live="polite"
+      // margin only when it has something to say, so an empty live region
+      // doesn't leave a permanent gap under every badge row
+      className={`text-xs font-semibold text-amber-900/70 ${detail?.where === where ? 'mt-2' : ''}`}
+    >
+      {detail?.where === where ? detail.text : ''}
+    </p>
+  );
   const enoughLogged = shootouts.loggedNights >= MIN_PROFILE_NIGHTS;
   const role = STYLE_META[roleBadge(player)];
+
+  // Ten cards and roughly 2,500px on a long career, with nothing but the
+  // scrollbar to navigate it (§2.43). A reader arriving to *read* is fine —
+  // the order is a story, deliberately. A reader arriving to look one thing up
+  // ("what's his shootout record?") had to scroll past everything else twice:
+  // once to find it, once to get back. This is a strip of jump links, not a
+  // second information architecture — the page keeps its single scroll, the
+  // sections keep their order, and the strip only names what actually
+  // rendered for this player.
+  const sections = [
+    { id: 'pp-nights', label: '🎽 Nights' },
+    ...(marksLoading || gradePoints.length > 0 ? [{ id: 'pp-form', label: '📈 Form' }] : []),
+    { id: 'pp-story', label: '📖 Story' },
+    { id: 'pp-milestones', label: '🎯 Milestones' },
+    { id: 'pp-rivals', label: '⚔️ Rivals' },
+    { id: 'pp-arcs', label: '🕗 The night' },
+  ];
+  const jump = (id: string) => () =>
+    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
   return (
     <div className="fixed inset-0 z-40 overflow-y-auto overscroll-contain bg-[#fdf6e3]">
@@ -353,7 +398,7 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
             )}
           </div>
           {title && (
-            <p className="relative mt-1.5 text-sm font-black uppercase tracking-[0.2em] text-orange-700/80">
+            <p className="relative mt-1.5 text-sm font-black uppercase tracking-[0.2em] text-orange-800">
               {title}
             </p>
           )}
@@ -426,17 +471,23 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
                     <button
                       key={b.key}
                       title={said}
+                      aria-label={said}
                       onClick={say('badges', said)}
-                      className="flex w-14 flex-col items-center gap-1 transition-transform hover:scale-105"
+                      className="flex w-16 flex-col items-center gap-1 transition-transform hover:scale-105"
                     >
                       <span
+                        aria-hidden
                         className={`grid h-11 w-11 place-items-center rounded-full text-lg shadow-sm ring-2 ${style.ring} ${style.fill} ${
                           maxed ? 'animate-pulse' : ''
                         }`}
                       >
                         {b.icon}
                       </span>
-                      <span className="w-full truncate text-center text-[10px] font-bold leading-tight text-amber-900/70">
+                      {/* Wraps to a second line rather than truncating (§2.43):
+                          "10 nights won" clipped to "10 night…" is a badge you
+                          have to tap to identify, on a row whose whole claim is
+                          that the tier reads without a legend. */}
+                      <span className="w-full text-center text-[11px] font-bold leading-tight text-amber-900/70 [overflow-wrap:anywhere]">
                         {b.label}
                       </span>
                     </button>
@@ -473,6 +524,26 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
           </Card>
         ) : (
           <>
+            {/* Bleeds to the panel edges so nothing scrolls through the gap
+                beside it, and scrolls sideways on a phone rather than wrapping
+                to a second row that would eat a third of the screen. */}
+            <nav
+              aria-label="Jump to a section"
+              className="sticky top-0 z-10 -mx-3 border-b border-amber-900/10 bg-[#fdf6e3]/95 px-3 py-2 backdrop-blur-sm sm:-mx-6 sm:px-6"
+            >
+              <div className="no-scrollbar flex gap-1.5 overflow-x-auto">
+                {sections.map((s) => (
+                  <button
+                    key={s.id}
+                    onClick={jump(s.id)}
+                    className="shrink-0 rounded-full border border-amber-900/15 bg-white/70 px-2.5 py-1 text-xs font-bold text-amber-900/80 transition-colors hover:border-orange-500 hover:text-amber-950"
+                  >
+                    {s.label}
+                  </button>
+                ))}
+              </div>
+            </nav>
+
             <div className="flex flex-wrap gap-2">
               <Stat n={String(counts.nights)} label="nights" />
               <Stat n={String(counts.nightsWon)} label="nights won" />
@@ -490,23 +561,34 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
             </div>
 
             <Card
+              id="pp-nights"
               title="Every night"
-              hint={`oldest first · ${counts.onSheet} played`}
+              hint={`newest first · ${counts.onSheet} played`}
             >
               {/* One medal per night. A night with no result recorded is not a
                   third place — nobody finished anywhere — so it gets no medal
-                  at all rather than the bottom one. */}
+                  at all rather than the bottom one. Reversed only for this
+                  ribbon (`nights` itself stays oldest-first — counts, shirts
+                  and the timeline all read it chronologically). */}
               <div className="flex flex-wrap gap-1.5">
-                {nights.map((n) => {
+                {[...nights].reverse().map((n) => {
                   // The date and the shirt, and nothing else: the medal in
                   // the square already says where they finished, and repeating
                   // it in words was the caption explaining the thing you were
                   // looking at rather than the thing you couldn't see.
                   const said = `${n.date} — ${TEAM_META[n.shirt].emoji}`;
+                  // Spoken in full (§2.43). The visible glyph is a bare digit,
+                  // so a screen reader met forty of these as "1, button, 2,
+                  // button" with no hint they were nights, dates or places.
+                  const spoken =
+                    n.place === null
+                      ? `${n.date}, ${TEAM_META[n.shirt].label}, no result recorded`
+                      : `${n.date}, ${TEAM_META[n.shirt].label}, finished ${n.place}`;
                   return (
                     <button
                       key={n.fixtureId}
                       title={said}
+                      aria-label={spoken}
                       onClick={say('nights', said)}
                       className={`grid h-8 w-8 place-items-center rounded-lg font-mono text-xs font-black shadow-sm transition-transform hover:scale-110 ${
                         n.place === null
@@ -546,20 +628,29 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
                 well they played, the timeline is what happened. Absent
                 entirely for a player nobody has ever published a mark for —
                 see the note on `gradePoints`. */}
-            {gradePoints.length > 0 && (
-              <Card title="Form">
-                <GradeForm points={gradePoints} />
+            {marksLoading ? (
+              <Card id="pp-form" title="Form" hint="loading">
+                <div
+                  aria-hidden
+                  className="h-20 animate-pulse rounded-xl bg-amber-900/[0.06]"
+                />
               </Card>
+            ) : (
+              gradePoints.length > 0 && (
+                <Card id="pp-form" title="Form">
+                  <GradeForm points={gradePoints} />
+                </Card>
+              )
             )}
 
             {/* Directly under the ribbon, because they are the same nights
                 asked two different questions. The ribbon answers "how has it
                 gone"; this answers "what happened, and when". */}
-            <Card title="The story so far" hint="newest first">
+            <Card id="pp-story" title="The story so far" hint="newest first">
               <PlayerTimeline events={timeline} />
             </Card>
 
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div id="pp-milestones" className="grid scroll-mt-14 gap-3 sm:grid-cols-2">
               <Card title="Milestones">
                 <div className="space-y-3">
                   <Progress now={counts.nights} next={nextNight} unit="nights" />
@@ -593,7 +684,7 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
               </Card>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div id="pp-rivals" className="grid scroll-mt-14 gap-3 sm:grid-cols-2">
               <Card title="Mates and rivals">
                 {!picks.playedMost && !picks.facedMost ? (
                   <p className="text-sm text-amber-900/55">
@@ -716,7 +807,7 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
                       <div className="font-mono text-2xl font-black leading-none text-rose-900">
                         {shootouts.taken}
                       </div>
-                      <div className="mt-1 text-[10px] font-bold uppercase tracking-wide text-rose-900/60">
+                      <div className="mt-1 text-[11px] font-bold uppercase tracking-wide text-rose-900/65">
                         on penalties
                       </div>
                     </div>
@@ -724,7 +815,7 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
                       <div className="font-mono text-2xl font-black leading-none text-amber-950">
                         {shootouts.wonInPlay}
                       </div>
-                      <div className="mt-1 text-[10px] font-bold uppercase tracking-wide text-amber-900/50">
+                      <div className="mt-1 text-[11px] font-bold uppercase tracking-wide text-amber-900/55">
                         won in play
                       </div>
                     </div>
@@ -743,6 +834,7 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
                 what it says, and the app never turns that into a word about
                 somebody's character. */}
             <Card
+              id="pp-arcs"
               title="Across the night"
               hint={enoughArcs ? `${arcs.matches} matches logged` : undefined}
             >
@@ -815,9 +907,19 @@ function Progress({
           <span className="font-mono tabular-nums">{now}</span>
           <span className="text-amber-900/40"> / {next.target}</span> {unit}
         </span>
-        <span className="text-[11px] font-semibold text-amber-900/50">{next.away} to go</span>
+        <span className="text-xs font-semibold text-amber-900/50">{next.away} to go</span>
       </div>
-      <div className="h-2.5 overflow-hidden rounded-full bg-amber-900/[0.07]">
+      {/* The bar carries the same fact its label does, so it's a real
+          progressbar rather than decoration — without the role it was silent
+          to a screen reader beyond the text beside it (§2.43). */}
+      <div
+        role="progressbar"
+        aria-valuenow={now}
+        aria-valuemin={0}
+        aria-valuemax={next.target}
+        aria-label={`${now} of ${next.target} ${unit}`}
+        className="h-2.5 overflow-hidden rounded-full bg-amber-900/[0.07]"
+      >
         <div
           className="h-full rounded-full bg-gradient-to-r from-amber-400 to-orange-500"
           style={{ width: `${Math.min(100, (now / next.target) * 100)}%` }}

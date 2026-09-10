@@ -13,7 +13,12 @@ import { useScrollLock } from '../scrollLock';
 export const MEDAL: Record<1 | 2 | 3, string> = {
   1: 'bg-gradient-to-br from-yellow-200 via-amber-400 to-yellow-600 text-amber-950 ring-1 ring-amber-600/50',
   2: 'bg-gradient-to-br from-slate-50 via-slate-300 to-slate-400 text-slate-700 ring-1 ring-slate-400/60',
-  3: 'bg-gradient-to-br from-orange-200 via-amber-600 to-amber-800 text-amber-50 ring-1 ring-amber-800/40',
+  // Darker through the middle than it first shipped (§2.43): the cream numeral
+  // sits over the `via` stop, and amber-600 under amber-50 measured ~3.3:1 —
+  // the only one of the three medals whose own digit was hard to read. The
+  // highlight survives at the top-left corner, which is what separates bronze
+  // from gold at 8px; only the body it crosses got darker.
+  3: 'bg-gradient-to-br from-orange-300 via-amber-700 to-amber-900 text-amber-50 ring-1 ring-amber-800/40',
 };
 
 export const STYLE_META: Record<RoleBadge, { icon: string; label: string }> = {

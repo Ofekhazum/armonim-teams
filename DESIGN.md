@@ -3551,6 +3551,17 @@ the app that renders it — a deploy-verification affordance for the organiser) 
 first thing on the tab, ahead of the squad itself. It's now a footer line at the bottom, after the
 roster list.
 
+**The persona review's accessibility flags, fixed separately.** The critique's priority list above
+came from the redesign pass; a later "Sam (accessibility)" persona note on the same report flagged
+two gaps it didn't cover: the rating/chemistry/avoid/goalkeeper toggle buttons carried no
+`aria-pressed`, and the whole player row was a bare `<li onClick>` — no `role`, no `tabIndex`, no
+keyboard handler, so keyboard and screen-reader users had no way to open a player's page at all.
+The toggle buttons got `aria-pressed` and stayed that way. The row's own fix didn't: `role="button"`
+`tabIndex={0}` on the `<li>` solved "keyboard users can't open a player" but introduced invalid ARIA
+nesting (two real `<button>`s living inside another interactive element) — the very next critique
+pass (§2.42) caught it and replaced it with a cleaner structure. See §2.42 for what the row looks
+like now.
+
 **The row's title tooltip is a shortcut, not the only path — left as-is.** The critique flagged
 `title={titles.get(p.id)?.title}` as touch-inert. It's true the tooltip itself doesn't fire on tap,
 but the row is already a tap target that opens `PlayerPage`, which writes the same title out as
@@ -3559,6 +3570,192 @@ one more tap than a desktop hover does. Adding the title text directly to the ro
 before and deliberately reverted (`titleTheme.ts`'s file comment): a name, a role icon, an aka line
 and a title is more than the row can carry at once. Re-adding it to fix a finding that turned out
 not to hold up would have undone that decision for no real gain.
+
+### 2.42 A second `/impeccable critique` pass on Roster.tsx: the row's real structure, two distills, and three smaller fixes (`Roster.tsx`, `index.css`)
+
+Re-running the critique after §2.41 moved the score 25→29/40 (full report:
+`.impeccable/critique/2026-09-02T14-38-50Z__src-components-roster-tsx.md`, gitignored). Five
+changes, in the order they were made:
+
+**The row is no longer a `role="button"` wrapping two real buttons.** §2.41's accessibility fix
+made the whole `<li>` interactive to answer "keyboard users can't open a player" — but that put two
+real `<button>` elements (Edit, ✕) inside another interactive element, which is invalid ARIA nesting
+and tripled the Tab stops per row. The `<li>` is a plain container again; what used to be its content
+`<div>` is now a real `<button type="button">` (name, role icon, chemistry/avoid lines all inside it,
+`aria-label={`Open ${p.name}`}`), sitting as a sibling of Edit and ✕ rather than their parent. The
+`onKeyDown`/`e.target !== e.currentTarget` guard §2.41 needed is gone entirely — three sibling
+buttons need no bubbling defence, because there's nothing to bubble through.
+
+**Rating is a slider, not nine buttons.** The `RATING_STEPS` grid was a flat wall of 9
+equally-weighted choices with no progressive disclosure, the only continuous pick in the form that
+didn't already work that way. It's now a `type="range"` matching the Attack spectrum's mechanics one
+control down — `Stars` plus a numeric readout above it, the slider below — but its own visual
+language: a single amber intensity ramp (`.rating-range` in `index.css`), not the spectrum's two-pole
+blue→red gradient, because rating has one direction (weak→strong) where attack has two opposing
+ones. `RATING_STEPS` stays exported from `ui.tsx` — `MatchDay.tsx`'s guest-rating picker still uses
+the button-grid shape, this change is Roster.tsx's own form only.
+
+**Chemistry and avoid are one merged per-player list, not two parallel full-roster chip clouds.**
+The old shape meant toggling both relationships for the same person required scanning two
+separately-ordered lists for their name twice — up to 40 individual chip decisions for a 20-player
+roster, split across two clouds that never visually corresponded to each other. Now `filteredForRelationships`
+renders once, as one row per player with two inline icon-toggles (🤝 chemistry, ↔️ avoid — avoid
+still admin-only, same sensitivity reasoning as before) instead of two separate button clouds; a
+`max-h-72 overflow-y-auto` keeps a full roster from pushing the rest of the form off-screen. Same
+total number of toggles for an admin, but organized by person instead of duplicated across two
+lists — and non-admins now see one chip cloud's worth of chrome instead of what was already a single
+cloud for them too, just tidier.
+
+**Publish's stale-hydration warning surfaces on tab-open, not only at the Publish click.** The old
+flow's only signal that `rosterHydrated` was false was the confirm dialog Publish itself triggers —
+discovered only after an admin had potentially already made several edits, at the worst point to
+first meet friction. An inline `⚠️` banner now renders whenever `isAdmin && !rosterHydrated &&
+players.length > 0`, right below the tab's header row. The Publish-click confirm dialog stays as a
+last-resort gate; this is advance warning, not a replacement for it.
+
+**Three smaller fixes.** (1) Non-blocking duplicate-name detection: a `duplicateName` lookup (via
+the same `guestKey` normalization `promoteGuest` already uses for its own guest/roster clash check)
+renders a soft `⚠️` note under the Name field when the trimmed name matches an existing player's name
+or alias — it warns rather than gates Save, because two people sharing a name is sometimes just true.
+(2) The save-pulse gained a companion: a `.save-badge` "✓ Saved" pill (`index.css`, `1.2s` — pinned to
+`SAVE_HIGHLIGHT_MS` so its fade-out lands exactly when the row's saved-state class is removed) next
+to the existing `.flash-ring`, since a ring alone was easy to miss on a slower re-render. (3) Two
+detector-confirmed structural fixes: the Defence/Attack spectrum labels moved off an 11px
+`text-[11px]` (now `text-xs`, matching every other section label in the form), and `Edit player`'s
+heading moved from `<h3>` to `<h2>` — it's the only heading Roster.tsx renders, and it sat directly
+under the app's own `<h1>` with no `<h2>` between them.
+
+### 2.43 `/impeccable critique` on PlayerPage.tsx: a spine for ten cards, and a screenshot that stops at the page's own edge (`PlayerPage.tsx`, `scrollLock.ts`, `ui.tsx`)
+
+Scored 27/32 applicable — heuristics 7 (flexibility) and 10 (help) were marked n/a: nobody develops
+shortcuts for a read-only profile they visit occasionally, and every ambiguous element already
+carries its own caption instead of deferring to docs. Full report:
+`.impeccable/critique/2026-09-02T20-37-02Z__src-components-playerpage-tsx.md`, gitignored.
+
+**A sticky strip of jump links, because ten cards had no spine.** A long career runs to roughly
+2,500px across ten cards with nothing but the scrollbar to navigate it. The reader who arrives to
+*read* was always fine — the card order is a story, deliberately, and the comments through this file
+argue for each position. The reader who arrives to look one thing up ("what's his shootout record?")
+had to scroll past everything else twice: once to find it, once to get back. `sections` builds a
+strip of jump chips from the cards that actually rendered for this player (Form only appears when
+there are marks), each scrolling its target into view; `Card` grew an optional `id` and a
+`scroll-mt-14` so the sticky strip doesn't land on top of the heading it just jumped to. It is not a
+second information architecture — the page keeps one scroll, in one order.
+
+**A full-page screenshot now stops where the page does (`scrollLock.ts`).** The scroll lock's fixed
+body is out of the document's flow but keeps its *content* height, so a twenty-row roster is still a
+2,000px box pinned behind the overlay. Every "capture full page" tool — phone long-screenshots,
+`fullPage` in Playwright, browser extensions — sized its capture from that and then photographed a
+viewport-tall overlay against it: the shot ran past the bottom of the player's page and into the
+roster list underneath. On the one page whose whole point is being screenshotted into the group chat
+(§2.19), that was the feature contradicting itself. The locked body is now
+`height: calc(100% + <savedY>px)` with `overflow: hidden` on the document element as well — viewport
+-tall, and offset back down by exactly the amount it is pulled up, so its bottom edge lands on the
+viewport's rather than short of it. `documentElement.scrollHeight` while locked is now exactly the
+viewport height. This is in `scrollLock.ts`, so the night page and pitch mode get it too. (Playwright
+still reports a taller `body.scrollHeight` and captures a band of flat page colour below the panel —
+a quirk of which metric it picks; no roster content appears in it any more, which was the defect.)
+
+**Ladder badge labels wrap instead of truncating.** `w-14 truncate` rendered "10 nights won" as
+"10 night…", and two different milestones could clip to the same unreadable string — on a row whose
+entire claim is that the tier colour reads without a legend. Now `w-16`, 11px, wrapping to a second
+line, with the full text also on the button's `aria-label`.
+
+**Three accessibility gaps the persona review found.** (1) The tap-for-caption pattern — correct for
+a page with no hover — told a screen reader nothing, because the caption was a plain `<p>` that
+simply appeared. It is now an always-present `aria-live="polite"` region (empty, and without its
+margin, when nothing is selected), so activating a badge announces what it said. (2) The "Every
+night" ribbon was ~37 buttons labelled with a bare digit — "1, button, 2, button" with no hint they
+were nights, dates or places; each now carries an `aria-label` reading the date, shirt and finishing
+place in full. (3) `Progress` bars were silent beyond the text beside them, and now carry
+`role="progressbar"` with `aria-valuenow`/`aria-valuemax`.
+
+**A reserved slot for the Form card, and nothing else.** Team of the Month, Form and the (hidden)
+price tag all arrive after mount. Only Form lands mid-page, under a reading thumb, so only Form got
+a skeleton: `marksLoading` is tracked separately from `marks` being empty because those are two
+different facts — "we haven't asked yet" reserves the space, "we asked and there's nothing" removes
+the card. Team of the Month was deliberately left alone: it is absent for most players by design
+(§2.25's absent-not-zero rule), and a skeleton for a card that usually never materialises would
+trade one shift for a worse one.
+
+**Contrast and text-size fixes from the detector.** The player's title ("TOP OF THE CLUB") measured
+4.0:1 at `text-orange-700/80` and is now `text-orange-800`; the 10px `Stat` labels and shootout
+labels moved to 11px (the detector's floor for functional text) with a little more opacity; `Card`'s
+hint went to 12px. One shared token changed: `MEDAL[3]`, the bronze medal in `ui.tsx`, ran
+`via-amber-600` under a cream numeral at ~3.3:1 — the only one of the three medals whose own digit
+was hard to read (gold and silver use dark text on light metal). It is now `via-amber-700
+to-amber-900`, keeping the top-left highlight that separates bronze from gold at 8px and darkening
+only the body the digit crosses. This shows up on the club podiums too (§2.36), which is the point —
+they are one visual language.
+
+**Left as-is, with reasons.** The detector's `ai-color-palette` hit on `TIER_STYLE`'s violet
+("Amethyst") is a false positive — one hue of seven in a deliberate bronze→diamond ramp whose
+ordering is the whole legibility mechanism; it is now recorded in
+`.impeccable/critique/ignore.md` so later runs drop it silently. The `layout-transition` on the
+shirts-worn bars animates `width` rather than a transform, but it fires only when the data changes on
+a three-bar readout, and rebuilding it around `scaleX` would fight the rounded caps for no
+user-visible gain. The critique also asked whether the "no organiser half" rule (§2.19) still holds:
+it does — ratings and keep-apart lists stay the organiser's private notes. The gap it actually found
+is navigational rather than about privacy (no way to get from a badge or a timeline moment to the
+fixture it came from), and closing that would not reopen the ratings question. Not built yet.
+
+### 2.44 `/impeccable critique` on the Live page: a resting team's score you could actually read, and a clock built for cold hands (`LiveFixtureView.tsx`, `ScoreBar.tsx`, `MatchClock.tsx`, `MatchLog.tsx`)
+
+Two isolated assessments (design review + detector/evidence). The mechanical detector came back
+clean on all four files; both agree the page's own stated design — a read-only spectator's cut,
+built to be glanced at while walking to the pitch — is genuinely delivered, not just claimed in
+the comments. No `.impeccable/critique/` snapshot for this run: the page can't be reached through
+normal interaction (see below), so instead of a persisted report this section *is* the record.
+
+**How it was even reviewed.** `LiveFixtureView` only ever populates from polling the production
+Worker (`useLiveFixture`, `src/live.ts:189`, `if (!enabled || !REMOTE_URL) return`), and this app's
+sandboxed test mode (§2.32) forces `REMOTE_URL` to `''` specifically so nothing can reach the
+network — which means the one thing test mode exists to make safe to explore is exactly the thing
+that makes this one page unreachable inside it. Reviewed instead from source plus three screenshots
+rendered through a temporary, dev-only harness (a `?livepreview=` branch added to `main.tsx` for the
+session, mounting the component directly with fixture data shaped like
+`LiveFixtureView.dom.test.tsx`'s mocks, then removed once the review was done — nothing shipped).
+
+**The resting team's score was dimmed along with everything else about it (`ScoreBar.tsx`).** The
+sticky score bar fades whichever team isn't currently on the pitch — a fair way to answer "who's
+playing" at a glance — but did it with a single `opacity-60` on the whole chip, which pulled the
+actual score digit down with it: `text-amber-950` at 60% opacity over this app's cream background
+computes to ~4.1:1, under AA for text that size. The "on now" chip was already doing the
+highlighting on its own (a tinted background plus a ring); the resting chip didn't need the extra
+dimming to read as the quieter one, so the block opacity is gone and the number stays legible.
+
+**Touch targets sized for a desk, on the one page built for a touchline.** `MatchClock.tsx`'s
+Pause/Start/+30s/Next-match row, its Pitch-mode toggle, and `MatchLog.tsx`'s "penalties · ½" button
+all used this app's ordinary compact padding (`py-2`/`py-1.5`) — sized fine for the rest of the app
+but landing around 28-36px, on controls whose own comments describe someone standing up, mid-match,
+often one-handed. All three grew to a ~44px floor. The penalties button also closes most of the gap
+with its sibling full-win button, rather than being both the secondary *and* the harder-to-hit
+target. "Undo last match" (`MatchLog.tsx`) had no padding at all — a bare underlined text node as
+its whole hit target — and gained an invisible one (`-m-2 p-2`, so the visible label doesn't move).
+
+**Decorative pulsing dots get `aria-hidden`.** The "live" indicator dot (`LiveFixtureView.tsx`) and
+the "match in progress" dot (`MatchClock.tsx`) are two empty `<span>`s animating a ping — nothing a
+screen reader should stop on, now marked as such.
+
+**Left alone, flagged rather than fixed.** Two things the review surfaced are decisions, not bugs:
+
+- **The low-opacity `text-amber-900/NN` idiom used throughout `MatchLog.tsx` and this page** (index
+  numbers at 40%, several labels at 50-70%) reads as low-contrast in isolation, but it's the same
+  token this entire app uses for secondary text — 155 occurrences across 24 components. Fixing it
+  here alone would make this page inconsistent with every other one rather than fixing the actual
+  problem. Same category as the app-wide orange-button contrast question raised in the PlayerPage
+  pass (§2.43): a brand-level call, not a page fix, and left for the same reason.
+- **An admin's "End fixture" button that a real tap may never land on.** `LiveFixtureView.tsx`'s
+  fallback for "an organiser whose browser was cleared" only renders while `isAdmin` is true and
+  `runningLocally` is false — but the moment both of those are true on the Live tab, `App.tsx`'s
+  adopt effect (`App.tsx:191-196`) fires and flips `runningLocally` to true on the very next render,
+  swapping this view out for the full `FixturePage` before a tap on this specific button could
+  plausibly land. The *outcome* the comment promises — a cleared-browser admin regains control of a
+  night some other device started — does happen, just via adoption itself rather than this button;
+  whether the button is worth keeping as a slightly faster path, or the comment should just describe
+  adoption as the real recovery mechanism, is a product call rather than a rendering bug, and touches
+  the one piece of this app's state machine that's live on an actual match night — not something to
+  change without saying so first.
 
 ## 3. Team generation algorithm
 

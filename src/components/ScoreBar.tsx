@@ -55,9 +55,7 @@ export default function ScoreBar({ clock, log }: { clock: ClockState; log: Match
               // the two on the pitch are lifted out of the three, so the bar
               // answers "who is on" without anyone reading a word
               className={`flex min-w-0 flex-1 items-center justify-center gap-1 rounded-lg px-1.5 py-1 ${
-                onNow.has(c)
-                  ? 'bg-orange-500/15 ring-1 ring-orange-500/40'
-                  : 'bg-amber-900/[0.04] opacity-60'
+                onNow.has(c) ? 'bg-orange-500/15 ring-1 ring-orange-500/40' : 'bg-amber-900/[0.04]'
               }`}
               title={`${TEAM_META[c].label} — ${fmtPoints(wins[c])} from ${played[c]} ${played[c] === 1 ? 'match' : 'matches'}`}
             >
