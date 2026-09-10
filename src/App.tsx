@@ -438,10 +438,7 @@ export default function App() {
     <button
       key={t}
       onClick={() => setTab(t)}
-      // The strip's order is pinned `ltr` (see the nav below); this lets each
-      // label still read in its own direction inside its own pill.
-      dir="auto"
-      className={`whitespace-nowrap rounded-full px-4 py-1.5 text-sm font-bold transition-colors ${
+      className={`rounded-full px-4 py-1.5 text-sm font-bold transition-colors ${
         tab === t
           ? 'bg-orange-600 text-amber-50 shadow-sm'
           : 'text-amber-900 hover:bg-amber-200/70'
@@ -463,7 +460,6 @@ export default function App() {
     <button
       key="live"
       onClick={() => setTab('live')}
-      dir="auto"
       className={`flex items-center gap-1.5 whitespace-nowrap rounded-full px-4 py-1.5 text-sm font-bold transition-colors ${
         liveScheduled
           ? tab === 'live'
@@ -526,8 +522,7 @@ export default function App() {
         {/* The crest and the language picker share the top line, at opposite
             ends of it. The picker sits up here rather than in the tab strip
             because it is not a place in the app — it is a property of the
-            whole app, and a row of destinations is the wrong company for it.
-            It also stopped the strip from fitting on one line at phone width. */}
+            whole app, and a row of destinations is the wrong company for it. */}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h1 className="text-2xl font-black tracking-tight text-amber-950">
             <span className="me-2">🦁</span>
@@ -542,40 +537,35 @@ export default function App() {
           </h1>
           <LangToggle />
         </div>
-        {/* **Pinned `ltr`, so the tabs sit in the same places in both
-            languages.** Everything else on the page mirrors, and should — but
-            these five controls are muscle memory rather than reading, and a
-            reader who has learnt that Club is the third pill does not want it
-            to become the third-from-the-other-end when they switch. Each
-            button carries `dir="auto"` so its own label still reads in its own
-            direction; only the order across the strip is fixed. */}
-        <nav
-          dir="ltr"
-          className="mt-3 flex items-center gap-1 rounded-full border border-amber-900/20 bg-[#fffdf4]/70 p-1 shadow-sm"
-        >
-          {(liveFixture || tab === 'live') && liveTabBtn}
-          {isAdmin && tabBtn('match', t('app.tab.matchday'))}
-          {tabBtn('roster', t('app.tab.roster', { n: state.players.length }))}
-          {tabBtn('club', t('app.tab.club'))}
-          <div className="flex-1" />
-          {/* Unlocking lives in the header rather than on the Roster tab
-              because what it gates is spread across all of them — Match day,
-              the rating column in History, ending a live fixture — and having
-              to go and find the Roster page first was a step that taught
-              nobody anything. It is one control in two states rather than two
-              controls: the same place you went to get in is the place you
-              press to get back out, and the open padlock says which you are. */}
-          {REMOTE_URL && (
-            <button
-              onClick={isAdmin ? () => setAdminWord(null) : unlockAdmin}
-              disabled={unlocking}
-              title={isAdmin ? t('app.admin.logoff') : t('app.admin.unlock')}
-              className="rounded-full px-3 py-1.5 text-sm font-semibold text-amber-900/70 transition-colors hover:text-orange-700 disabled:opacity-50"
-            >
-              {unlocking ? '…' : isAdmin ? '🔓' : '🔒'}
-            </button>
-          )}
-        </nav>
+        {/* The strip itself is untouched — a pill that hugs its own tabs, in
+            the page's own direction. The wrapper is what keeps it that width
+            now that it sits on its own line rather than as a flex item beside
+            the crest. */}
+        <div className="mt-3 flex">
+          <nav className="flex items-center gap-1 rounded-full border border-amber-900/20 bg-[#fffdf4]/70 p-1 shadow-sm">
+            {(liveFixture || tab === 'live') && liveTabBtn}
+            {isAdmin && tabBtn('match', t('app.tab.matchday'))}
+            {tabBtn('roster', t('app.tab.roster', { n: state.players.length }))}
+            {tabBtn('club', t('app.tab.club'))}
+            {/* Unlocking lives in the header rather than on the Roster tab
+                because what it gates is spread across all of them — Match day,
+                the rating column in History, ending a live fixture — and having
+                to go and find the Roster page first was a step that taught
+                nobody anything. It is one control in two states rather than two
+                controls: the same place you went to get in is the place you
+                press to get back out, and the open padlock says which you are. */}
+            {REMOTE_URL && (
+              <button
+                onClick={isAdmin ? () => setAdminWord(null) : unlockAdmin}
+                disabled={unlocking}
+                title={isAdmin ? t('app.admin.logoff') : t('app.admin.unlock')}
+                className="rounded-full px-3 py-1.5 text-sm font-semibold text-amber-900/70 transition-colors hover:text-orange-700 disabled:opacity-50"
+              >
+                {unlocking ? '…' : isAdmin ? '🔓' : '🔒'}
+              </button>
+            )}
+          </nav>
+        </div>
       </header>
 
       {tab === 'live' ? (
