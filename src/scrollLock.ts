@@ -24,6 +24,18 @@
 // put back on the way out. `overflow: hidden` alone is not enough — iOS Safari
 // has ignored it on `body` for touch scrolling for years, which is why this
 // looks more elaborate than it should have to be.
+//
+// 4. **Full-page screenshots capturing the page behind** (§2.43). A fixed body
+//    is out of the document's flow, but it keeps its *content* height — a
+//    twenty-row roster is still a 2,000px box, it is just pinned to the
+//    viewport. "Capture full page" tools (phone browsers' long-screenshot,
+//    Playwright's `fullPage`, screenshot extensions) size their capture from
+//    that, then photograph a viewport-sized overlay against it: the shot runs
+//    past the bottom of the player's page and into the roster list underneath.
+//    Pinning the locked body to the viewport height, and clipping the document
+//    element with it, makes the capture's idea of "the whole page" the same
+//    size as the overlay it is actually looking at. Matters most on the player
+//    page, which exists to be screenshotted and shared (§2.19).
 
 import { useEffect } from 'react';
 
@@ -53,9 +65,17 @@ export function useScrollLock(active = true): void {
       style.left = '0';
       style.right = '0';
       style.width = '100%';
+      // Viewport-tall, not content-tall — see note 4 above. The body is fixed,
+      // so 100% resolves against the viewport; the saved offset is added back
+      // because the body is also pulled up by exactly that much, and a plain
+      // 100% would stop short of the viewport's bottom edge by the same
+      // amount — invisible behind the overlay, but a strip of bare page in a
+      // full-page capture.
+      style.height = `calc(100% + ${savedY}px)`;
       // belt and braces: the body being fixed is what actually does it, but
       // this stops a stray scrollbar appearing on desktop as it happens
       style.overflow = 'hidden';
+      document.documentElement.style.overflow = 'hidden';
     }
     locks++;
 
@@ -68,7 +88,9 @@ export function useScrollLock(active = true): void {
       style.left = '';
       style.right = '';
       style.width = '';
+      style.height = '';
       style.overflow = '';
+      document.documentElement.style.overflow = '';
       // Instantly, and not with whatever `scroll-behavior` is in force: a
       // closing overlay that then animates the page back into place looks
       // like the app losing its footing rather than like a restoration.

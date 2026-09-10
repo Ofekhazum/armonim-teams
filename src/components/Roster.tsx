@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { CSSProperties } from 'react';
 import type { FixtureRecord, Player } from '../types';
 import { ATTACK_DEFAULT, ATTACK_STEP, attackLabel, badgeForAttack, roleBadge } from '../types';
@@ -11,10 +11,10 @@ import { hasResult } from '../calibration';
 import { guestKey, knownGuests } from '../guests';
 import { PLAIN_ROW, TITLE_THEME } from './titleTheme';
 import {
+  ConfirmDialog,
   fmtRating,
   FoldHeader,
   Name,
-  RATING_STEPS,
   SpectrumBar,
   spectrumColor,
   Stars,
@@ -48,6 +48,22 @@ interface Draft {
 // Namespaced so it cannot collide with a History tab section id.
 const GUESTS_SECTION = 'roster-guests';
 
+// How long a just-saved row keeps its flash-ring pulse (§2.41 update) —
+// matches the live room's activity highlight (MatchDay.tsx) in spirit, not
+// duration: that one has a toast to fade with it, this one is just the ring.
+const SAVE_HIGHLIGHT_MS = 1200;
+
+// One themed dialog replaces every alert()/confirm() the tab used to reach
+// for (§2.41) — native dialogs can't render Hebrew names with correct bidi
+// and broke the amber theme exactly at the highest-stakes moments (remove,
+// publish). 'publish-result' covers every alert the old publish flow ended
+// on (success and every failure branch); only 'remove-confirm' and
+// 'publish-confirm' are actual yes/no gates.
+type DialogState =
+  | { kind: 'remove-confirm'; player: Player }
+  | { kind: 'publish-confirm' }
+  | { kind: 'publish-result'; title: string; body: string; tone: 'default' | 'danger' | 'success' };
+
 const parseAliases = (raw: string): string[] =>
   [...new Set(raw.split(',').map((a) => a.trim()).filter(Boolean))];
 
@@ -62,6 +78,20 @@ export default function Roster({
   const [draft, setDraft] = useState<Draft | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [publishing, setPublishing] = useState(false);
+  const [dialog, setDialog] = useState<DialogState | null>(null);
+  // Chemistry/avoid start folded for a form that doesn't already carry any —
+  // the common case, and the one the mega-form critique flagged (§2.41): two
+  // full-roster chip clouds rendering unconditionally on every add/edit. An
+  // existing player's relationships stay visible by default so editing one
+  // doesn't hide the very thing being edited.
+  const [relOpen, setRelOpen] = useState(false);
+  const [relFilter, setRelFilter] = useState('');
+  const [savedId, setSavedId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!savedId) return;
+    const t = setTimeout(() => setSavedId(null), SAVE_HIGHLIGHT_MS);
+    return () => clearTimeout(t);
+  }, [savedId]);
   // whose page is open, if any — no router in this app, so the panel is state
   // and an overlay, the same shape as pitch mode
   const [openId, setOpenId] = useState<string | null>(null);
@@ -83,43 +113,68 @@ export default function Roster({
     return out;
   }, [history, players]);
 
+  // The actual network publish, once any confirmation gate is cleared.
+  const doPublish = async () => {
+    if (adminWord == null) return;
+    setDialog(null);
+    setPublishing(true);
+    const { result, version } = await publishRemoteRoster(players, adminWord);
+    setPublishing(false);
+    if (result === 'ok') {
+      if (version) setLocalRosterVersion(version); // don't re-pull our own change
+      setDialog({
+        kind: 'publish-result',
+        title: 'Roster published',
+        body: '✅ Everyone gets it next time they open the app.',
+        tone: 'success',
+      });
+    } else if (result === 'wrong-word') {
+      // password was changed on the server since we unlocked — drop back to normal
+      setDialog({
+        kind: 'publish-result',
+        title: 'Publish failed',
+        body: '❌ The password is no longer valid. Please unlock admin again.',
+        tone: 'danger',
+      });
+      setAdminWord(null);
+    } else if (result === 'rate-limited') {
+      setDialog({
+        kind: 'publish-result',
+        title: 'Publish failed',
+        body: '❌ Too many failed attempts. Please wait a few minutes and try again.',
+        tone: 'danger',
+      });
+    } else if (result === 'stale') {
+      setDialog({
+        kind: 'publish-result',
+        title: 'Roster changed elsewhere',
+        body:
+          '⚠️ The shared roster has changed since this device last loaded it — publishing now would undo those changes.\nReload the page to pull the current roster first, then re-apply your edits.',
+        tone: 'danger',
+      });
+    } else {
+      setDialog({
+        kind: 'publish-result',
+        title: 'Publish failed',
+        body: 'Could not publish — check your connection and try again.',
+        tone: 'danger',
+      });
+    }
+  };
+
   // Push the current roster to everyone, using the already-unlocked word.
-  const publish = async () => {
+  const publish = () => {
     if (adminWord == null) return;
     // A publish sends the whole player list, private fields included. If this
     // device never managed to read those back from the server, the empty lists
     // it is holding are "we don't know", not "there aren't any" — and sending
     // them would erase everyone's keep-apart lists. Happens if the worker is
     // older than this build, or the fetch simply failed.
-    if (
-      !rosterHydrated &&
-      !confirm(
-        "⚠️ Couldn't confirm the chemistry and keep-apart lists with the server.\n\n" +
-          'Publishing now would replace them with whatever is on this device — possibly nothing. ' +
-          'Reload and unlock admin again first if you want them kept.\n\nPublish anyway?',
-      )
-    ) {
+    if (!rosterHydrated) {
+      setDialog({ kind: 'publish-confirm' });
       return;
     }
-    setPublishing(true);
-    const { result, version } = await publishRemoteRoster(players, adminWord);
-    setPublishing(false);
-    if (result === 'ok') {
-      if (version) setLocalRosterVersion(version); // don't re-pull our own change
-      alert('✅ Roster published — everyone gets it next time they open the app.');
-    } else if (result === 'wrong-word') {
-      // password was changed on the server since we unlocked — drop back to normal
-      alert('❌ The password is no longer valid. Please unlock admin again.');
-      setAdminWord(null);
-    } else if (result === 'rate-limited') {
-      alert('❌ Too many failed attempts. Please wait a few minutes and try again.');
-    } else if (result === 'stale') {
-      alert(
-        '⚠️ The shared roster has changed since this device last loaded it — publishing now would undo those changes.\n\nReload the page to pull the current roster first, then re-apply your edits.',
-      );
-    } else {
-      alert('Could not publish — check your connection and try again.');
-    }
+    doPublish();
   };
 
   // A titled player wears their theme; everyone else keeps the plain surface.
@@ -142,6 +197,8 @@ export default function Roster({
       avoid: [],
       number: '',
     });
+    setRelOpen(false);
+    setRelFilter('');
   };
 
   const startEdit = (p: Player) => {
@@ -156,6 +213,10 @@ export default function Roster({
       avoid: [...(p.avoid ?? [])],
       number: p.number != null ? String(p.number) : '',
     });
+    // Already-set relationships stay visible — editing a player shouldn't
+    // hide the very thing being edited behind an extra tap.
+    setRelOpen(p.chemistry.length > 0 || (p.avoid ?? []).length > 0);
+    setRelFilter('');
   };
 
   const cancel = () => {
@@ -196,6 +257,11 @@ export default function Roster({
         return { ...p, chemistry, avoid: newAvoid };
       }),
     );
+    // The routine action deserved feedback of its own (§2.41 update) — it
+    // used to just close the form, while Publish (the rare action) got a
+    // whole dialog. A brief pulse on the row that was actually touched is
+    // the smallest fix that isn't silence.
+    setSavedId(id);
     cancel();
   };
 
@@ -261,13 +327,16 @@ export default function Roster({
       avoid: [],
       number: '',
     });
+    setRelOpen(false);
+    setRelFilter('');
   };
 
-  const remove = (p: Player) => {
-    if (confirm(`Remove ${p.name} from the roster?`)) {
-      onChange(players.filter((x) => x.id !== p.id));
-      if (editingId === p.id) cancel();
-    }
+  const remove = (p: Player) => setDialog({ kind: 'remove-confirm', player: p });
+
+  const confirmRemove = (p: Player) => {
+    onChange(players.filter((x) => x.id !== p.id));
+    if (editingId === p.id) cancel();
+    setDialog(null);
   };
 
   // a player can't be in both lists — adding to one removes from the other
@@ -296,27 +365,63 @@ export default function Roster({
   const sorted = [...players].sort((a, b) => a.name.localeCompare(b.name, 'he'));
   const byId = new Map(players.map((p) => [p.id, p]));
 
+  // Shared by the chemistry and avoid chip clouds below — one filter, one
+  // eligible-players list, so the two stay in sync rather than each
+  // recomputing its own view of "everyone but the player being edited".
+  const eligibleForRelationships = sorted.filter((p) => p.id !== editingId);
+  const relQuery = relFilter.trim().toLowerCase();
+  const filteredForRelationships = relQuery
+    ? eligibleForRelationships.filter(
+        (p) =>
+          p.name.toLowerCase().includes(relQuery) ||
+          (p.aliases ?? []).some((a) => a.toLowerCase().includes(relQuery)),
+      )
+    : eligibleForRelationships;
+
+  // A non-blocking nudge, not a gate — a duplicate is sometimes intentional
+  // (two people who really do share a name).
+  const duplicateName =
+    draft && draft.name.trim()
+      ? players.find(
+          (p) =>
+            p.id !== editingId &&
+            (guestKey(p.name) === guestKey(draft.name) ||
+              (p.aliases ?? []).some((a) => guestKey(a) === guestKey(draft.name))),
+        )
+      : undefined;
+
   // Rendered either up top (adding a new player, nothing to anchor to yet)
   // or inline in place of the player's own row (editing one) — so editing
   // someone near the bottom of a long roster doesn't yank the page back up
   // to the top of the screen.
   const draftForm = draft && (
     <div className="pop-in space-y-4 rounded-2xl border border-amber-900/20 bg-[#fffdf4]/80 p-4 shadow-sm">
-      <h3 className="font-bold text-amber-950">{editingId ? 'Edit player' : 'New player'}</h3>
+      <h2 className="font-bold text-amber-950">{editingId ? 'Edit player' : 'New player'}</h2>
 
-      <input
-        dir="auto"
-        // Only for a brand-new player — focusing this on an existing one pops
-        // the keyboard open on mobile the instant you tap Edit, which shoves
-        // the page around for no reason since you're often just tweaking a
-        // rating or role, not the name.
-        autoFocus={editingId === null}
-        value={draft.name}
-        onChange={(e) => setDraft({ ...draft, name: e.target.value })}
-        onKeyDown={(e) => e.key === 'Enter' && save()}
-        placeholder="Name (עברית or English)"
-        className="w-full rounded-lg border border-amber-900/30 bg-white px-3 py-2 text-amber-950 outline-none focus:border-orange-500"
-      />
+      <div>
+        <input
+          dir="auto"
+          // Only for a brand-new player — focusing this on an existing one
+          // pops the keyboard open on mobile the instant you tap Edit, which
+          // shoves the page around for no reason since you're often just
+          // tweaking a rating or role, not the name.
+          autoFocus={editingId === null}
+          value={draft.name}
+          onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+          onKeyDown={(e) => e.key === 'Enter' && save()}
+          placeholder="Name (עברית or English)"
+          className="w-full rounded-lg border border-amber-900/30 bg-white px-3 py-2 text-amber-950 outline-none focus:border-orange-500"
+        />
+        {/* Non-blocking — a duplicate is sometimes intentional (two people who
+            really do share a name), so this warns rather than gates Save the
+            way promoteGuest's guestKey check already gates a guest/roster
+            name clash (§2.41 harden pass). */}
+        {duplicateName && (
+          <p className="mt-1 text-xs text-orange-700">
+            ⚠️ <Name>{duplicateName.name}</Name> is already on the roster under this name.
+          </p>
+        )}
+      </div>
 
       <div>
         <input
@@ -355,27 +460,28 @@ export default function Roster({
       </div>
 
       {(!editingId || isAdmin) && (
-        <div>
-          <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-amber-900/60">
-            Rating
+        <div className="rounded-lg border border-amber-900/15 bg-white/60 px-3 py-2.5">
+          {/* A slider, matching the Attack spectrum just below it (§2.41
+              distill pass) — the 9-button grid it replaced was a flat wall of
+              equally-weighted choices with no progressive disclosure, unlike
+              every other continuous pick in this form. */}
+          <div className="mb-1 flex items-center justify-between gap-2 text-sm font-bold text-amber-950">
+            <Stars rating={draft.rating} />
+            <span className="text-xs font-semibold text-amber-900/60">
+              {fmtRating(draft.rating)} / 5
+            </span>
           </div>
-          {/* fixed 5-up grid rather than wrapping buttons — keeps the rows
-              even and the targets thumb-sized on a narrow screen */}
-          <div className="grid grid-cols-5 gap-1 sm:flex sm:flex-wrap">
-            {RATING_STEPS.map((r) => (
-              <button
-                key={r}
-                onClick={() => setDraft({ ...draft, rating: r })}
-                className={`h-10 rounded-lg border text-sm font-bold transition-colors sm:min-w-10 sm:px-1.5 ${
-                  draft.rating === r
-                    ? 'border-amber-500 bg-amber-500 text-amber-950'
-                    : 'border-amber-900/25 bg-white text-amber-900 hover:border-amber-500'
-                }`}
-              >
-                {fmtRating(r)}
-              </button>
-            ))}
-          </div>
+          <input
+            dir="ltr"
+            type="range"
+            min={1}
+            max={5}
+            step={0.5}
+            value={draft.rating}
+            onChange={(e) => setDraft({ ...draft, rating: Number(e.target.value) })}
+            aria-label="Rating, 1 to 5"
+            className="rating-range w-full"
+          />
         </div>
       )}
 
@@ -386,6 +492,7 @@ export default function Roster({
           </span>
           <button
             onClick={() => setDraft({ ...draft, isGk: !draft.isGk })}
+            aria-pressed={draft.isGk}
             className={`rounded-lg border px-3 py-1.5 text-sm font-semibold transition-colors ${
               draft.isGk
                 ? 'border-sky-600 bg-sky-600/15 text-sky-800'
@@ -426,10 +533,7 @@ export default function Roster({
               className="spectrum-range w-full"
               style={{ '--thumb': spectrumColor(draft.attack) } as CSSProperties}
             />
-            <div
-              dir="ltr"
-              className="flex justify-between text-[11px] font-semibold text-amber-900/50"
-            >
+            <div dir="ltr" className="flex justify-between text-xs font-semibold text-amber-900/50">
               <span>🛡️ Defence</span>
               <span>Attack ⚔️</span>
             </div>
@@ -437,62 +541,88 @@ export default function Roster({
         )}
       </div>
 
-      {players.filter((p) => p.id !== editingId).length > 0 && (
-        <>
-          <div>
-            <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-amber-900/60">
-              🤝 Plays well with (chemistry)
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              {sorted
-                .filter((p) => p.id !== editingId)
-                .map((p) => (
-                  <button
-                    key={p.id}
-                    onClick={() => toggleChem(p.id)}
-                    className={`rounded-full border px-3 py-2 text-sm transition-colors ${
-                      draft.chemistry.includes(p.id)
-                        ? 'border-pink-500 bg-pink-500/15 text-pink-700'
-                        : 'border-amber-900/25 bg-white text-amber-900/70 hover:border-pink-500/60'
-                    }`}
-                  >
-                    <Name>{p.name}</Name>
-                  </button>
-                ))}
-            </div>
-          </div>
+      {eligibleForRelationships.length > 0 && (
+        <div className="rounded-lg border border-amber-900/15 bg-white/60 px-3 py-2.5">
+          <FoldHeader
+            title={`🤝↔️ Relationships${
+              draft.chemistry.length + draft.avoid.length > 0
+                ? ` (${draft.chemistry.length + draft.avoid.length})`
+                : ''
+            }`}
+            open={relOpen}
+            onToggle={() => setRelOpen(!relOpen)}
+            className="text-amber-900"
+          />
+          {relOpen && (
+            <div className="mt-3 space-y-2">
+              {eligibleForRelationships.length > 8 && (
+                <input
+                  dir="auto"
+                  value={relFilter}
+                  onChange={(e) => setRelFilter(e.target.value)}
+                  placeholder="Filter by name…"
+                  aria-label="Filter players for chemistry and avoid"
+                  className="w-full rounded-lg border border-amber-900/25 bg-white px-3 py-1.5 text-sm text-amber-950 outline-none focus:border-orange-500"
+                />
+              )}
 
-          {/* deliberately admin-only: who'd rather not be paired up is
-              sensitive, so it isn't shown or editable in normal mode */}
-          {isAdmin && (
-            <div>
-              <div className="text-xs font-semibold uppercase tracking-wide text-amber-900/60">
-                ↔️ Prefer on separate teams
-              </div>
-              <p className="mb-1.5 text-xs text-amber-900/50">
-                A nudge, not a rule — the balancer splits them when it can, but won't
-                wreck the balance to do it. Only visible in admin mode.
+              {/* One row per player rather than two parallel full-roster chip
+                  clouds (§2.41 update, distill pass): the old shape made
+                  toggling both relationships for the same person mean
+                  scanning two separately-sorted lists for their name twice.
+                  Avoid stays admin-only — who'd rather not be paired up is
+                  sensitive, so its toggle isn't shown or editable in normal
+                  mode. */}
+              <p className="text-xs text-amber-900/50">
+                🤝 good chemistry
+                {isAdmin && ' · ↔️ prefer separate teams (a nudge, not a rule — admin only)'}
               </p>
-              <div className="flex flex-wrap gap-1.5">
-                {sorted
-                  .filter((p) => p.id !== editingId)
-                  .map((p) => (
-                    <button
-                      key={p.id}
-                      onClick={() => toggleAvoid(p.id)}
-                      className={`rounded-full border px-3 py-2 text-sm transition-colors ${
-                        draft.avoid.includes(p.id)
-                          ? 'border-sky-600 bg-sky-600/15 text-sky-800'
-                          : 'border-amber-900/25 bg-white text-amber-900/70 hover:border-sky-600/60'
-                      }`}
-                    >
-                      <Name>{p.name}</Name>
-                    </button>
-                  ))}
+              <div className="max-h-72 space-y-1 overflow-y-auto pe-0.5">
+                {filteredForRelationships.map((p) => (
+                  <div
+                    key={p.id}
+                    className="flex items-center justify-between gap-2 rounded-lg border border-amber-900/15 bg-white px-3 py-1.5"
+                  >
+                    <Name className="min-w-0 truncate text-sm text-amber-950">{p.name}</Name>
+                    <div className="flex shrink-0 gap-1.5">
+                      <button
+                        onClick={() => toggleChem(p.id)}
+                        aria-pressed={draft.chemistry.includes(p.id)}
+                        aria-label={`Plays well with ${p.name}`}
+                        title="Plays well with"
+                        className={`rounded-full border px-2.5 py-1.5 text-sm transition-colors ${
+                          draft.chemistry.includes(p.id)
+                            ? 'border-pink-500 bg-pink-500/15 text-pink-700'
+                            : 'border-amber-900/25 bg-white text-amber-900/40 hover:border-pink-500/60'
+                        }`}
+                      >
+                        🤝
+                      </button>
+                      {isAdmin && (
+                        <button
+                          onClick={() => toggleAvoid(p.id)}
+                          aria-pressed={draft.avoid.includes(p.id)}
+                          aria-label={`Prefer separate teams from ${p.name}`}
+                          title="Prefer on separate teams (admin only)"
+                          className={`rounded-full border px-2.5 py-1.5 text-sm transition-colors ${
+                            draft.avoid.includes(p.id)
+                              ? 'border-sky-600 bg-sky-600/15 text-sky-800'
+                              : 'border-amber-900/25 bg-white text-amber-900/40 hover:border-sky-600/60'
+                          }`}
+                        >
+                          ↔️
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+                {filteredForRelationships.length === 0 && (
+                  <p className="text-xs text-amber-900/50">No players match “{relFilter}”.</p>
+                )}
               </div>
             </div>
           )}
-        </>
+        </div>
       )}
 
       {/* sticky on mobile so Save stays reachable without scrolling back
@@ -517,15 +647,6 @@ export default function Roster({
 
   return (
     <div className="space-y-4">
-      <div className="text-right">
-        <span
-          className="font-mono text-[10px] uppercase tracking-wide text-amber-900/40"
-          title="Build version — changes on every deploy"
-        >
-          v{__GIT_HASH__}
-        </span>
-      </div>
-
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-amber-900/70">
           The permanent squad. Guests are added on match day.
@@ -559,6 +680,18 @@ export default function Roster({
           </div>
         )}
       </div>
+
+      {/* Surfaced as soon as it's true, not just inside the Publish-click
+          gate below (§2.41 clarify pass) — the old flow only revealed a
+          stale-hydration problem after an admin had already made several
+          edits, at the worst possible point to first meet friction. */}
+      {isAdmin && !rosterHydrated && players.length > 0 && (
+        <div className="rounded-xl border border-orange-500/40 bg-orange-50 px-3 py-2.5 text-xs text-orange-900">
+          ⚠️ This device hasn't loaded the shared chemistry/keep-apart lists yet. Publishing now
+          would replace them with whatever's on this device — possibly nothing. Reload the page
+          before publishing if you want them kept.
+        </div>
+      )}
 
       {draft && editingId === null && draftForm}
 
@@ -620,18 +753,28 @@ export default function Roster({
               <li
                 key={p.id}
                 dir="rtl"
-                onClick={() => setOpenId(p.id)}
                 // Named in the tooltip as well as worn: a coloured card nobody
                 // can decode is the mystery-emoji problem the badge key exists
-                // to avoid (§2.16).
+                // to avoid (§2.18). The tooltip is a desktop-hover shortcut,
+                // not the only path — the row's own button below writes the
+                // same title out as plain text via PlayerPage, so touch never
+                // actually dead-ends on it.
                 title={titles.get(p.id)?.title}
-                // the whole row, not a small "view" link: on a phone the row
-                // is the target your thumb is already aimed at. It lifts on
-                // hover, which is the cheapest way to say "this is a door".
-                className={`group relative flex cursor-pointer items-center gap-3 overflow-hidden rounded-2xl border px-4 py-3 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-orange-500/60 hover:shadow-md ${
-                  theme(p.id)
-                }`}
+                className={`group relative flex items-center gap-3 overflow-hidden rounded-2xl border px-4 py-3 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-orange-500/60 hover:shadow-md ${
+                  p.id === savedId ? 'flash-ring' : ''
+                } ${theme(p.id)}`}
+                style={
+                  p.id === savedId ? ({ '--flash-color': '#78350f' } as CSSProperties) : undefined
+                }
               >
+                {p.id === savedId && (
+                  <span
+                    aria-hidden
+                    className="save-badge pointer-events-none absolute right-3 top-2 rounded-full bg-amber-900/90 px-2 py-0.5 text-[10px] font-bold text-amber-50 shadow-sm"
+                  >
+                    ✓ Saved
+                  </span>
+                )}
                 {/* The badge's own emoji, set large and nearly transparent at
                     the far edge — a watermark rather than an icon, so it reads
                     as the card's character rather than as another thing to
@@ -647,7 +790,21 @@ export default function Roster({
                     {titles.get(p.id)!.icon}
                   </span>
                 )}
-                <div className="relative min-w-0 flex-1">
+                {/* A real <button>, not a role="button" on the <li> (§2.41
+                    distill pass) — the earlier fix for "keyboard users can't
+                    open a player" wrapped Edit/✕ inside another interactive
+                    element, which is invalid ARIA nesting and tripled the Tab
+                    stops per row. This is now a plain sibling of Edit/✕, so
+                    each row is exactly the two-or-three real controls it
+                    looks like. Still the whole content area, not a small
+                    "view" link — on a phone that's the target your thumb is
+                    already aimed at, and it lifts on hover same as before. */}
+                <button
+                  type="button"
+                  onClick={() => setOpenId(p.id)}
+                  aria-label={`Open ${p.name}`}
+                  className="relative flex min-w-0 flex-1 cursor-pointer flex-col items-start border-0 bg-transparent p-0 text-start"
+                >
                   <div className="flex items-center gap-2">
                     <Name className="truncate font-semibold text-amber-950">{p.name}</Name>
                     <span title={STYLE_META[roleBadge(p)].label}>{STYLE_META[roleBadge(p)].icon}</span>
@@ -685,26 +842,17 @@ export default function Roster({
                       </span>
                     )}
                   </div>
-                </div>
+                </button>
                 {isAdmin && (
                   <>
-                    {/* inside a row that is itself a button now, so both of
-                        these have to stop the click travelling — an Edit press
-                        that also opened the player page would bury the form */}
                     <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        startEdit(p);
-                      }}
+                      onClick={() => startEdit(p)}
                       className="rounded-lg border border-amber-900/25 px-2.5 py-1 text-xs font-semibold text-amber-900 hover:border-orange-500"
                     >
                       Edit
                     </button>
                     <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        remove(p);
-                      }}
+                      onClick={() => remove(p)}
                       className="rounded-lg border border-amber-900/25 px-2.5 py-1 text-xs font-semibold text-red-600 hover:border-red-500"
                     >
                       ✕
@@ -716,6 +864,18 @@ export default function Roster({
           )}
         </ul>
       )}
+
+      {/* Deploy-verification only, for the organiser (§2.41 update) — was the
+          first thing on the tab, ahead of the squad itself; a footer is where
+          build info belongs, not the top of the task. */}
+      <div className="text-right">
+        <span
+          className="font-mono text-[10px] uppercase tracking-wide text-amber-900/40"
+          title="Build version — changes on every deploy"
+        >
+          v{__GIT_HASH__}
+        </span>
+      </div>
 
       {open && (
         <PlayerPage
@@ -731,6 +891,37 @@ export default function Roster({
             startEdit(open);
           }}
           onClose={() => setOpenId(null)}
+        />
+      )}
+
+      {dialog?.kind === 'remove-confirm' && (
+        <ConfirmDialog
+          title="Remove player?"
+          body={`This removes ${dialog.player.name} from the permanent squad.\nYou can always add them back later.`}
+          confirmLabel="Remove"
+          tone="danger"
+          onConfirm={() => confirmRemove(dialog.player)}
+          onClose={() => setDialog(null)}
+        />
+      )}
+      {dialog?.kind === 'publish-confirm' && (
+        <ConfirmDialog
+          title="Publish without confirming private lists?"
+          body={
+            "Publishing now would replace the chemistry and keep-apart lists with whatever is on this device — possibly nothing.\nReload and unlock admin again first if you want them kept."
+          }
+          confirmLabel="Publish anyway"
+          tone="danger"
+          onConfirm={doPublish}
+          onClose={() => setDialog(null)}
+        />
+      )}
+      {dialog?.kind === 'publish-result' && (
+        <ConfirmDialog
+          title={dialog.title}
+          body={dialog.body}
+          tone={dialog.tone}
+          onClose={() => setDialog(null)}
         />
       )}
     </div>

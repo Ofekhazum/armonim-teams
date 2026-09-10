@@ -237,8 +237,12 @@ export default function MatchClock({ state, onChange, fixtureId = null }: Props)
         ? { text: '⚽ Added time — golden goal', cls: 'bg-amber-500/25 text-amber-900' }
         : null;
 
+  // py-2.5 rather than the app's usual py-2 — every button in this row is
+  // pressed standing up, mid-match, often one-handed with a cold or wet grip,
+  // so this row clears the ~44px touch target floor that the rest of the
+  // app's more deliberate, seated controls don't need to (§2.45).
   const btn =
-    'rounded-xl px-4 py-2 text-sm font-bold shadow-sm transition-transform hover:scale-105';
+    'rounded-xl px-4 py-2.5 text-sm font-bold shadow-sm transition-transform hover:scale-105';
 
   // The card's banner carries an emoji and a sentence; from ten metres away
   // neither survives. Same states, said in two or three words.
@@ -311,7 +315,7 @@ export default function MatchClock({ state, onChange, fixtureId = null }: Props)
 
         {running && (
           <span className="flex items-center gap-1.5 text-xs font-bold text-red-700">
-            <span className="relative flex h-2 w-2">
+            <span aria-hidden className="relative flex h-2 w-2">
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-75" />
               <span className="relative inline-flex h-2 w-2 rounded-full bg-red-600" />
             </span>
@@ -323,7 +327,7 @@ export default function MatchClock({ state, onChange, fixtureId = null }: Props)
         <button
           onClick={() => setPitch(true)}
           title="Fill the screen — for a phone propped up at the pitch"
-          className="rounded-lg border border-amber-900/25 px-3 py-1.5 text-xs font-bold text-amber-900 transition-colors hover:border-orange-500"
+          className="rounded-lg border border-amber-900/25 px-3.5 py-2.5 text-xs font-bold text-amber-900 transition-colors hover:border-orange-500"
         >
           ⛶ Pitch mode
         </button>

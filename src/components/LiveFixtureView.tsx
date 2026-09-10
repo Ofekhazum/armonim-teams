@@ -98,7 +98,7 @@ export default function LiveFixtureView({
       )}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <h2 className="flex items-center gap-2 text-lg font-black text-amber-950">
-          <span className="relative flex h-2.5 w-2.5">
+          <span aria-hidden className="relative flex h-2.5 w-2.5">
             {kickedOff && (
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-75" />
             )}
