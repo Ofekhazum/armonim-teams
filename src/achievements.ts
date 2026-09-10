@@ -14,6 +14,7 @@ import { hasResult, playerStandings } from './calibration';
 import { MIN_ATTEND_STREAK, MIN_WIN_STREAK, appearances } from './milestones';
 import { mvpCounts } from './mvp';
 import { MIN_PROFILE_NIGHTS, loggedNightsFor, shootoutWins } from './playerProfile';
+import { t, type Key } from './i18n';
 
 export type AchievementKind =
   | 'most-wins'
@@ -53,23 +54,23 @@ export const VETERAN_NIGHTS = 25;
 // winning run, which is the thing anyone at the pitch would actually mention.
 // So this list is the organiser's call, set here in one place, and the roster
 // skins follow it rather than keeping a ranking of their own.
-const TITLE_ORDER: { kind: AchievementKind; title: string; minNights?: number }[] = [
-  { kind: 'most-wins', title: 'Top of the Club' },
-  { kind: 'mvp', title: 'The Star' },
+const TITLE_ORDER: { kind: AchievementKind; titleKey: Key; minNights?: number }[] = [
+  { kind: 'most-wins', titleKey: 'ach.title.mostWins' },
+  { kind: 'mvp', titleKey: 'ach.title.mvp' },
   // Third, and the only one that carries its own evidence: a run of
   // MIN_WIN_STREAK winning nights cannot exist in a history shorter than
   // MIN_WIN_STREAK, so unlike "played every night" it can never be an artefact
   // of a thin record. It is therefore also let through early, on its own terms
   // — which makes it the first title the club will ever see.
-  { kind: 'active-run', title: 'On a Run', minNights: MIN_WIN_STREAK },
-  { kind: 'most-fixtures', title: 'Night Taker' },
-  { kind: 'ever-present', title: 'Ever Present' },
+  { kind: 'active-run', titleKey: 'ach.title.activeRun', minNights: MIN_WIN_STREAK },
+  { kind: 'most-fixtures', titleKey: 'ach.title.mostFixtures' },
+  { kind: 'ever-present', titleKey: 'ach.title.everPresent' },
   // above Iron Man: turning up is a habit, holding your nerve at the spot is
   // an event — and only one of the two has to be earned again each time
-  { kind: 'shootouts', title: 'Nerves of Steel' },
-  { kind: 'iron-man', title: 'Iron Man' },
-  { kind: 'veteran', title: 'Veteran' },
-].map((t) => ({ ...t, kind: t.kind as AchievementKind }));
+  { kind: 'shootouts', titleKey: 'ach.title.shootouts' },
+  { kind: 'iron-man', titleKey: 'ach.title.ironMan' },
+  { kind: 'veteran', titleKey: 'ach.title.veteran' },
+];
 
 // No titles until the club has this many recorded nights behind it. A title is
 // the most declarative thing in the app — a noun attached to a person — and on
@@ -111,7 +112,7 @@ export function titleBadgeFor(
   );
   if (!found) return null;
   const badge = achievements.find((a) => a.kind === found.kind)!;
-  return { kind: found.kind, title: found.title, icon: badge.icon };
+  return { kind: found.kind, title: t(found.titleKey), icon: badge.icon };
 }
 
 export function titleFor(achievements: Achievement[], recordedNights: number): string | null {
@@ -215,16 +216,16 @@ export function playerAchievements(history: FixtureRecord[]): Map<string, Player
     const attend = attendanceStreak(s.id, recorded);
 
     if (mostWins.has(s.id)) {
-      list.push({ kind: 'most-wins', icon: '🥇', label: `Most wins in the club — ${s.wins}` });
+      list.push({ kind: 'most-wins', icon: '🥇', label: t('ach.mostWins', { n: s.wins }) });
     }
     if (mostFixtures.has(s.id)) {
-      list.push({ kind: 'most-fixtures', icon: '🏅', label: `Most nights won outright — ${won}` });
+      list.push({ kind: 'most-fixtures', icon: '🏅', label: t('ach.mostFixtures', { n: won }) });
     }
     if (mostMvps.has(s.id)) {
       list.push({
         kind: 'mvp',
         icon: '🌟',
-        label: `Most MVP picks — ${mvpCount} time${mvpCount === 1 ? '' : 's'}`,
+        label: t('ach.mvp', { n: mvpCount }),
       });
     }
     if (mostShootouts.has(s.id)) {
@@ -235,26 +236,26 @@ export function playerAchievements(history: FixtureRecord[]): Map<string, Player
         // "their team won", not "they won" — a shootout is taken by a side.
         // The badge is still worth having: somebody keeps being in the team
         // that holds its nerve, and that is a count, not a verdict.
-        label: `Most shootouts won by their team — ${n}`,
+        label: t('ach.shootouts', { n }),
       });
     }
     if (attend >= MIN_ATTEND_STREAK) {
-      list.push({ kind: 'iron-man', icon: '🦾', label: `Hasn't missed a night in ${attend}` });
+      list.push({ kind: 'iron-man', icon: '🦾', label: t('ach.ironMan', { n: attend }) });
     }
     if (streak >= MIN_WIN_STREAK) {
-      list.push({ kind: 'win-streak', icon: '📈', label: `Longest winning run — ${streak} nights` });
+      list.push({ kind: 'win-streak', icon: '📈', label: t('ach.winStreak', { n: streak }) });
     }
     // A separate badge from the one above, deliberately: "the longest run they
     // ever had" and "the run they are on" answer different questions, and only
     // the second one is news.
     if (onNow >= MIN_WIN_STREAK) {
-      list.push({ kind: 'active-run', icon: '🔥', label: `On a ${onNow}-night winning run` });
+      list.push({ kind: 'active-run', icon: '🔥', label: t('ach.activeRun', { n: onNow }) });
     }
     if (recorded.length >= MIN_NIGHTS_FOR_EVER_PRESENT && s.nights === recorded.length) {
-      list.push({ kind: 'ever-present', icon: '✨', label: `Played every night — all ${s.nights}` });
+      list.push({ kind: 'ever-present', icon: '✨', label: t('ach.everPresent', { n: s.nights }) });
     }
     if (s.nights >= VETERAN_NIGHTS) {
-      list.push({ kind: 'veteran', icon: '🎖️', label: `${s.nights} nights played` });
+      list.push({ kind: 'veteran', icon: '🎖️', label: t('ach.veteran', { n: s.nights }) });
     }
 
     out.set(s.id, {

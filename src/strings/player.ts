@@ -171,4 +171,44 @@ export const player = {
     he: { one: '↓ רגע מוקדם אחד', other: '↓ {n} רגעים מוקדמים יותר' },
     en: { one: '↓ {n} earlier moment', other: '↓ {n} earlier moments' },
   },
+
+  // --- Titles and badges (achievements.ts, playerProfile.ts) ---------------
+  'ach.title.mostWins': { he: 'בראש המועדון', en: 'Top of the Club' },
+  'ach.title.mvp': { he: 'הכוכב', en: 'The Star' },
+  'ach.title.activeRun': { he: 'על רצף', en: 'On a Run' },
+  'ach.title.mostFixtures': { he: 'לוקח הערבים', en: 'Night Taker' },
+  'ach.title.everPresent': { he: 'תמיד נוכח', en: 'Ever Present' },
+  'ach.title.shootouts': { he: 'עצבים מברזל', en: 'Nerves of Steel' },
+  'ach.title.ironMan': { he: 'איש הברזל', en: 'Iron Man' },
+  'ach.title.veteran': { he: 'ותיק', en: 'Veteran' },
+
+  'ach.mostWins': { he: 'הכי הרבה ניצחונות במועדון — {n}', en: 'Most wins in the club — {n}' },
+  'ach.mostFixtures': { he: 'הכי הרבה ערבים שנוצחו — {n}', en: 'Most nights won outright — {n}' },
+  'ach.mvp': {
+    he: { one: 'הכי הרבה בחירות מצטיין — פעם אחת', other: 'הכי הרבה בחירות מצטיין — {n} פעמים' },
+    en: { one: 'Most MVP picks — {n} time', other: 'Most MVP picks — {n} times' },
+  },
+  'ach.shootouts': {
+    he: 'הכי הרבה פנדלים שהקבוצה שלו ניצחה — {n}',
+    en: 'Most shootouts won by their team — {n}',
+  },
+  'ach.ironMan': { he: 'לא פספס ערב כבר {n}', en: "Hasn't missed a night in {n}" },
+  'ach.winStreak': { he: 'הרצף המנצח הארוך ביותר — {n} ערבים', en: 'Longest winning run — {n} nights' },
+  'ach.activeRun': { he: 'על רצף מנצח של {n} ערבים', en: 'On a {n}-night winning run' },
+  'ach.everPresent': { he: 'שיחק בכל ערב — כל {n}', en: 'Played every night — all {n}' },
+  'ach.veteran': { he: '{n} ערבים ששוחקו', en: '{n} nights played' },
+
+  'ladder.nights': { he: '{n} ערבים', en: '{n} nights' },
+  'ladder.nights.detail': { he: 'שיחק {n} ערבים שנרשמו.', en: 'Played {n} recorded nights.' },
+  'ladder.wins': { he: '{n} ניצחונות', en: '{n} wins' },
+  'ladder.wins.detail': {
+    he: 'הקבוצות שלו ניצחו {n} משחקים כשהוא על המגרש.',
+    en: 'Their teams have won {n} matches with them on the pitch.',
+  },
+  'ladder.fixtures': { he: '{n} ערבים שנוצחו', en: '{n} nights won' },
+  'ladder.fixtures.detail': { he: 'סיים בראש הערב {n} פעמים.', en: 'Finished top of the night {n} times.' },
+  'ladder.mvp.first': { he: 'מצטיין ראשון', en: 'First MVP' },
+  'ladder.mvp.first.detail': { he: 'נבחר למצטיין בפעם הראשונה.', en: 'Picked MVP for the first time.' },
+  'ladder.mvp': { he: '{n} מצטיינים', en: '{n} MVPs' },
+  'ladder.mvp.detail': { he: 'נבחר למצטיין ב־{n} ערבים שונים.', en: 'Picked MVP on {n} different nights.' },
 } as const satisfies Record<string, Entry>;
