@@ -41,7 +41,7 @@ function Board({ board }: { board: Leaderboard }) {
             <span className="flex-1" />
             <span className="shrink-0 font-mono text-sm font-black tabular-nums text-amber-950">
               {board.half ? fmtWins(e.value) : e.value}
-              <span className="ml-1 font-sans text-[10px] font-semibold text-amber-900/45">
+              <span className="ms-1 font-sans text-[10px] font-semibold text-amber-900/45">
                 {plural(e.value, board.unit)}
               </span>
             </span>

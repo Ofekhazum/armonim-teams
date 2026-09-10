@@ -460,7 +460,7 @@ export default function App() {
     <button
       key="live"
       onClick={() => setTab('live')}
-      className={`flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-bold transition-colors ${
+      className={`flex items-center gap-1.5 whitespace-nowrap rounded-full px-4 py-1.5 text-sm font-bold transition-colors ${
         liveScheduled
           ? tab === 'live'
             ? 'bg-amber-500 text-amber-950 shadow-sm'
@@ -520,12 +520,12 @@ export default function App() {
       <TestModeBanner />
       <header className="flex flex-wrap items-center justify-between gap-3 py-5">
         <h1 className="text-2xl font-black tracking-tight text-amber-950">
-          <span className="mr-2">🦁</span>
+          <span className="me-2">🦁</span>
           <span className="bg-gradient-to-r from-orange-600 to-amber-800 bg-clip-text text-transparent">
             Armonim FC
           </span>
           {isAdmin && (
-            <span className="ml-2 rounded-full bg-orange-600 px-2 py-0.5 align-middle text-xs font-bold text-amber-50">
+            <span className="ms-2 rounded-full bg-orange-600 px-2 py-0.5 align-middle text-xs font-bold text-amber-50">
               {t('app.admin.badge')}
             </span>
           )}

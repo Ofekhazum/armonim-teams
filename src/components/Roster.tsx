@@ -709,7 +709,7 @@ export default function Roster({
                 {guestRows.map((g) => (
                   <div
                     key={g.id}
-                    className="flex items-center gap-2 rounded-full border border-amber-900/20 bg-white/80 py-1 pl-3 pr-1 shadow-sm"
+                    className="flex items-center gap-2 rounded-full border border-amber-900/20 bg-white/80 py-1 pe-1 ps-3 shadow-sm"
                   >
                     <span className="text-sm font-bold text-amber-900">{g.name}</span>
                     <span className="text-[11px] font-semibold text-amber-900/50">
@@ -762,7 +762,7 @@ export default function Roster({
                 {p.id === savedId && (
                   <span
                     aria-hidden
-                    className="save-badge pointer-events-none absolute right-3 top-2 rounded-full bg-amber-900/90 px-2 py-0.5 text-[10px] font-bold text-amber-50 shadow-sm"
+                    className="save-badge pointer-events-none absolute end-3 top-2 rounded-full bg-amber-900/90 px-2 py-0.5 text-[10px] font-bold text-amber-50 shadow-sm"
                   >
                     {t('roster.row.saved')}
                   </span>
@@ -777,7 +777,7 @@ export default function Roster({
                 {titles.get(p.id) && (
                   <span
                     aria-hidden
-                    className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 select-none text-5xl leading-none opacity-[0.14] transition-opacity duration-200 group-hover:opacity-25"
+                    className="pointer-events-none absolute start-3 top-1/2 -translate-y-1/2 select-none text-5xl leading-none opacity-[0.14] transition-opacity duration-200 group-hover:opacity-25"
                   >
                     {titles.get(p.id)!.icon}
                   </span>
@@ -863,7 +863,7 @@ export default function Roster({
       {/* Deploy-verification only, for the organiser (§2.41 update) — was the
           first thing on the tab, ahead of the squad itself; a footer is where
           build info belongs, not the top of the task. */}
-      <div className="text-right">
+      <div className="text-end">
         <span
           className="font-mono text-[10px] uppercase tracking-wide text-amber-900/40"
           title={t('roster.version.title')}

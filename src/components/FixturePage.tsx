@@ -240,7 +240,7 @@ export default function FixturePage({
               placeholder={t('fx.note.placeholder')}
               className="mt-3 w-full rounded-xl border border-amber-900/25 bg-white px-3 py-2 text-sm text-amber-950 outline-none focus:border-orange-500"
             />
-            <div className="mt-1 text-right text-[11px] text-amber-900/35">
+            <div className="mt-1 text-end text-[11px] text-amber-900/35">
               {note.trim().length}/{NOTE_MAX}
             </div>
             <div className="mt-3 flex flex-col gap-2">

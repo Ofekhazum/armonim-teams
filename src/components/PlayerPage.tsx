@@ -376,7 +376,7 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
           {player.number !== undefined && (
             <span
               aria-hidden
-              className="pointer-events-none absolute -top-3 right-3 select-none font-mono text-[6.5rem] font-black leading-none text-amber-900/[0.07]"
+              className="pointer-events-none absolute -top-3 end-3 select-none font-mono text-[6.5rem] font-black leading-none text-amber-900/[0.07]"
             >
               {player.number}
             </span>
@@ -675,7 +675,7 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
                           }}
                         />
                       </div>
-                      <span className="w-5 text-right font-mono text-xs font-black tabular-nums text-amber-900/70">
+                      <span className="w-5 text-end font-mono text-xs font-black tabular-nums text-amber-900/70">
                         {shirts[c]}
                       </span>
                     </div>

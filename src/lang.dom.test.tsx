@@ -100,10 +100,13 @@ describe('the language toggle', () => {
 
     // In English it offers Hebrew…
     expect(screen.getByRole('button')).toHaveTextContent('עברית');
+    // …while telling a screen reader what it does in the language being read.
+    expect(screen.getByRole('button')).toHaveAccessibleName('Language: Switch to Hebrew');
 
     await userEvent.click(screen.getByRole('button'));
 
-    // …and in Hebrew it offers English.
-    expect(screen.getByRole('button')).toHaveTextContent('Switch to English');
+    // …and in Hebrew it offers English, the same way round.
+    expect(screen.getByRole('button')).toHaveTextContent('English');
+    expect(screen.getByRole('button')).toHaveAccessibleName('שפה: מעבר לאנגלית');
   });
 });

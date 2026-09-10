@@ -61,6 +61,12 @@ export const common = {
   'ui.stars.newTitle': { he: 'שחקן חדש — הרמה עוד לא ידועה', en: 'New player — ability unknown' },
   'ui.stars.rating': { he: 'דירוג {r}/5', en: 'Rating {r}/5' },
 
-  'ui.lang.switch': { he: 'Switch to English', en: 'עברית' },
+  // Short, because this sits in the tab strip: "Switch to English" wrapped to
+  // three lines and pushed the nav into two rows. The full sentence is still
+  // the button's accessible name and tooltip, below.
+  'ui.lang.switch': { he: 'English', en: 'עברית' },
+  // The spoken name, in the language the page is *currently* in — unlike the
+  // visible label above, which is deliberately in the language it switches to.
+  'ui.lang.switch.full': { he: 'מעבר לאנגלית', en: 'Switch to Hebrew' },
   'ui.lang.label': { he: 'שפה', en: 'Language' },
 } as const satisfies Record<string, Entry>;

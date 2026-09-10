@@ -125,10 +125,10 @@ export default function PlayerTimeline({ events }: { events: TimelineEvent[] }) 
           each row, so it runs through the gaps between cards and reads as a
           single thread. Stops at the last dot — a line continuing past the
           debut suggests history we do not have. */}
-      <ol className="relative space-y-2.5 pl-7">
+      <ol className="relative space-y-2.5 ps-7">
         <span
           aria-hidden
-          className="absolute bottom-3 left-[9px] top-3 w-px bg-gradient-to-b from-amber-900/25 via-amber-900/15 to-transparent"
+          className="absolute bottom-3 start-[9px] top-3 w-px bg-gradient-to-b from-amber-900/25 via-amber-900/15 to-transparent"
         />
         {shown.map((event, i) => {
           const { icon, head, detail } = say(event);
@@ -137,7 +137,7 @@ export default function PlayerTimeline({ events }: { events: TimelineEvent[] }) 
             <li key={`${event.kind}-${event.at}-${event.n ?? i}`} className="relative">
               <span
                 aria-hidden
-                className={`absolute -left-[22px] top-[15px] h-2.5 w-2.5 rounded-full ring-4 ${tone.dot} ${tone.ring}`}
+                className={`absolute -start-[22px] top-[15px] h-2.5 w-2.5 rounded-full ring-4 ${tone.dot} ${tone.ring}`}
               />
               <div className="flex items-start gap-2.5 rounded-xl border border-amber-900/10 bg-white/70 px-3 py-2.5 shadow-sm">
                 <span className="text-base leading-5">{icon}</span>

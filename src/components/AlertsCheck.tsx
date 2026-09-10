@@ -37,7 +37,7 @@ function Report({ report }: { report: PushReport }) {
     : null;
 
   return (
-    <div className="mt-1 space-y-0.5 text-left text-[10px] leading-tight">
+    <div className="mt-1 space-y-0.5 text-start text-[10px] leading-tight">
       <Line ok={report.configured}>
         {report.configured ? t('alerts.configured') : t('alerts.noVapid')}
       </Line>

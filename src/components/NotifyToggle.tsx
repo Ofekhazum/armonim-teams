@@ -104,7 +104,7 @@ export default function NotifyToggle({ fixtureId }: { fixtureId: string | null }
         {busy ? '…' : on ? t('notify.on') : t('notify.off')}
       </button>
       {note && (
-        <span className="max-w-[16rem] text-right text-[10px] leading-tight text-red-700">
+        <span className="max-w-[16rem] text-end text-[10px] leading-tight text-red-700">
           {note}
         </span>
       )}

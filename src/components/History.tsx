@@ -684,7 +684,7 @@ export default function History({
                       }}
                       aria-expanded={openId === fx.id}
                       aria-label={`Organiser actions for the night of ${fx.date}`}
-                      className={`absolute right-1 top-1 grid h-7 w-7 place-items-center rounded-full text-base leading-none hover:bg-amber-900/10 hover:text-amber-900 ${
+                      className={`absolute end-1 top-1 grid h-7 w-7 place-items-center rounded-full text-base leading-none hover:bg-amber-900/10 hover:text-amber-900 ${
                         openId === fx.id ? 'bg-amber-900/10 text-amber-900' : 'text-amber-900/30'
                       }`}
                     >
@@ -894,7 +894,7 @@ export default function History({
                 ) : (
                   <span className="font-semibold text-amber-900">
                     {fmtRating(s.current)} → {fmtRating(s.suggested)}
-                    <span className="ml-1">{s.direction === 'up' ? '⬆️' : '⬇️'}</span>
+                    <span className="ms-1">{s.direction === 'up' ? '⬆️' : '⬇️'}</span>
                   </span>
                 )}
                 <span className="text-xs text-amber-900/55">
@@ -964,12 +964,12 @@ export default function History({
         <div className="overflow-x-auto">
           <table className="w-full min-w-[26rem] border-separate border-spacing-0 text-sm">
             <thead>
-              <tr className="text-left text-xs uppercase tracking-wide text-amber-900/50">
+              <tr className="text-start text-xs uppercase tracking-wide text-amber-900/50">
                 {columns.map(({ key, label }) => (
                   <th
                     key={key}
                     className={`border-b border-amber-900/15 bg-[#fffdf4] pb-1.5 font-bold ${
-                      key === 'name' ? 'sticky left-0 z-10 pl-4 pr-3' : 'px-3 text-right'
+                      key === 'name' ? 'sticky start-0 z-10 ps-4 pe-3' : 'px-3 text-end'
                     }`}
                   >
                     <button
@@ -999,7 +999,7 @@ export default function History({
               // show nothing at all rather than a number that invites reading
                 const rated = s.nights >= MIN_NIGHTS;
                 const meaningful = rated && Math.abs(f?.z ?? 0) >= 1.5;
-                const cell = `border-t border-amber-900/10 px-3 py-2 text-right tabular-nums ${stripe}`;
+                const cell = `border-t border-amber-900/10 px-3 py-2 text-end tabular-nums ${stripe}`;
                 return (
                   <tr key={s.id}>
                     {/* Just the name. The badge cluster that used to sit here
@@ -1010,7 +1010,7 @@ export default function History({
                         crowded thing on the page and the least legible way to
                         carry that fact. */}
                     <td
-                      className={`sticky left-0 z-10 border-t border-amber-900/10 py-2 pl-4 pr-3 ${stripe}`}
+                      className={`sticky start-0 z-10 border-t border-amber-900/10 py-2 ps-4 pe-3 ${stripe}`}
                     >
                       <Name className="font-semibold text-amber-950">{s.name}</Name>
                     </td>
@@ -1028,7 +1028,7 @@ export default function History({
                     </td>
                     {isAdmin && (
                       <td
-                        className={`${cell} pr-4 ${
+                        className={`${cell} pe-4 ${
                           !meaningful
                             ? 'text-amber-900/30'
                             : d > 0

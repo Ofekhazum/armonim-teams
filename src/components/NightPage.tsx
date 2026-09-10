@@ -56,7 +56,7 @@ function Step({
       className="rounded-lg border border-amber-900/25 px-2.5 py-1.5 text-xs font-bold text-amber-900 transition-colors hover:border-orange-500 disabled:opacity-30 disabled:hover:border-amber-900/25"
     >
       {label}
-      {to && <span className="ml-1.5 font-mono font-normal text-amber-900/50">{to.date}</span>}
+      {to && <span className="ms-1.5 font-mono font-normal text-amber-900/50">{to.date}</span>}
     </button>
   );
 }
@@ -348,7 +348,7 @@ export default function NightPage({
                       >
                         {i + 1}
                         {m.viaPenalties && (
-                          <span className="absolute right-1 top-0.5 text-[10px] opacity-70">½</span>
+                          <span className="absolute end-1 top-0.5 text-[10px] opacity-70">½</span>
                         )}
                         {/* who lost it, in a bar along the bottom — the one
                             thing the winner's colour cannot say on its own */}

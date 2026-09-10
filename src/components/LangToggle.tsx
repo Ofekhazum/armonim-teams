@@ -17,16 +17,16 @@ export default function LangToggle() {
   return (
     <button
       onClick={() => setLang(next)}
-      lang={next}
-      // The label is already in the language it switches to, which for a
-      // screen reader in the *current* language would be read out in the
-      // wrong one — so the accessible name says what the control does in the
-      // language the page is currently in.
-      aria-label={`${t('ui.lang.label')}: ${t('ui.lang.switch')}`}
-      title={t('ui.lang.switch')}
-      className="rounded-full px-3 py-1.5 text-sm font-bold text-amber-900/70 transition-colors hover:text-orange-700"
+      // The visible label is a word in the language it switches *to*, which a
+      // screen reader set to the current language would mispronounce — so the
+      // accessible name says what the control does, in the language the page
+      // is in right now, and `lang` is scoped to the label itself rather than
+      // put on the button (where it would cover the aria-label too).
+      aria-label={`${t('ui.lang.label')}: ${t('ui.lang.switch.full')}`}
+      title={t('ui.lang.switch.full')}
+      className="whitespace-nowrap rounded-full px-3 py-1.5 text-sm font-bold text-amber-900/70 transition-colors hover:text-orange-700"
     >
-      {t('ui.lang.switch')}
+      <span lang={next}>{t('ui.lang.switch')}</span>
     </button>
   );
 }
