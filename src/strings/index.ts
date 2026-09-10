@@ -8,6 +8,7 @@ import { matchday } from './matchday';
 import { night } from './night';
 import { player } from './player';
 import { roster } from './roster';
+import { share } from './share';
 
 // Every string the app can say, in both languages (§2.45).
 //
@@ -31,4 +32,5 @@ export const STRINGS = {
   ...club,
   ...history,
   ...player,
+  ...share,
 } as const;

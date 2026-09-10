@@ -7,6 +7,7 @@
 // awake.
 
 import { REMOTE_URL } from './remote';
+import { getLang } from './i18n';
 
 // Which devices have opted in is per-device by definition, so it lives here
 // rather than in the shared session.
@@ -131,7 +132,10 @@ export async function enableNotifications(fixtureId: string): Promise<EnableOutc
     const res = await fetch(`${REMOTE_URL}/push/subscribe`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ subscription: subscription.toJSON() }),
+      // The language travels with the subscription: the Worker builds one
+      // payload per group of devices, so it has to be told which words to
+      // put in this one (§2.45).
+      body: JSON.stringify({ subscription: subscription.toJSON(), lang: getLang() }),
     });
     if (!res.ok) return { result: 'error', message: `server said ${res.status}` };
 
@@ -205,7 +209,7 @@ export async function testPush(secret: string): Promise<PushReport | null> {
     const res = await fetch(`${REMOTE_URL}/push/test`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ secret, endpoint }),
+      body: JSON.stringify({ secret, endpoint, lang: getLang() }),
     });
     if (!res.ok) return null;
     return {

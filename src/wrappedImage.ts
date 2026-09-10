@@ -45,7 +45,6 @@ import {
   CHIP_H,
   INK,
   TEAM_CANVAS,
-  TEAM_LABEL,
   drawChip,
   fillRound,
   fitText,
@@ -69,6 +68,8 @@ import {
   wrapText,
   type Slot,
 } from './canvasKit';
+import { t } from './i18n';
+import { teamLabel } from './components/ui';
 
 const W = 720;
 const PAD = 44;
@@ -94,8 +95,6 @@ const MAX_MINOR_CARDS = 6;
 
 const TEAM_EMOJI: Record<TeamColor, string> = { black: '⚫', white: '⚪', blue: '🔵' };
 
-const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
-
 // --- Page furniture --------------------------------------------------------
 
 function drawPageBackground(ctx: CanvasRenderingContext2D, w: number, h: number) {
@@ -117,7 +116,7 @@ function drawBrand(ctx: CanvasRenderingContext2D) {
   ctx.textAlign = 'left';
   ctx.fillStyle = INK.body;
   ctx.font = font(24, '800');
-  ctx.fillText('🦁 Armonim FC', PAD, PAD + 24);
+  ctx.fillText(t('wr.brand'), PAD, PAD + 24);
   ctx.restore();
 }
 
@@ -139,7 +138,7 @@ function drawFooter(ctx: CanvasRenderingContext2D, y: number) {
   ctx.direction = 'ltr';
   ctx.font = font(15, '600');
   ctx.fillStyle = INK.faint;
-  ctx.fillText('Every number here is a count, not a verdict.', W / 2, y + 20);
+  ctx.fillText(t('wr.footer'), W / 2, y + 20);
   ctx.restore();
 }
 
@@ -320,28 +319,31 @@ function renderHighlights(stats: WrappedStats): HTMLCanvasElement {
   const boards: Leaderboard[] = [];
   if (stats.topMvps.length > 0) {
     boards.push({
-      title: '🌟 Most MVP picks',
+      title: t('wr.topMvp'),
       accent: '#f472b6',
       entries: stats.topMvps.map((m) => ({
         name: m.name,
-        stat: `${m.count} MVP${m.count === 1 ? '' : 's'}`,
+        stat: t('wr.topMvp.stat', { n: m.count }),
       })),
     });
   }
   if (stats.topMatchWinners.length > 0) {
     boards.push({
-      title: '🏅 Most matches won',
+      title: t('wr.topWins'),
       accent: INK.gold,
-      entries: stats.topMatchWinners.map((w) => ({ name: w.name, stat: `${w.wins} wins` })),
+      entries: stats.topMatchWinners.map((w) => ({
+        name: w.name,
+        stat: t('wr.topWins.stat', { n: w.wins }),
+      })),
     });
   }
   if (stats.topFixtureWinners.length > 0) {
     boards.push({
-      title: '🏆 Most fixtures won',
+      title: t('wr.topFixtures'),
       accent: '#5eead4',
       entries: stats.topFixtureWinners.map((w) => ({
         name: w.name,
-        stat: `${w.nights} fixture${w.nights === 1 ? '' : 's'}`,
+        stat: t('wr.topFixtures.stat', { n: w.nights }),
       })),
     });
   }
@@ -369,7 +371,7 @@ function renderHighlights(stats: WrappedStats): HTMLCanvasElement {
     stroke: 'rgba(0,0,0,0.35)',
     strokeWidth: 7,
   });
-  spacedCaps(ctx, 'Monthly recap', PAD, PAD + 140, { size: 15, color: INK.muted, tracking: 5 });
+  spacedCaps(ctx, t('wr.subtitle'), PAD, PAD + 140, { size: 15, color: INK.muted, tracking: 5 });
 
   let y = PAD + HEADER_H;
 
@@ -402,10 +404,10 @@ function renderHighlights(stats: WrappedStats): HTMLCanvasElement {
   ctx.textAlign = 'left';
   ctx.font = font(26, '900');
   ctx.fillStyle = INK.bright;
-  ctx.fillText('nights played', numRight, y + 106);
+  ctx.fillText(t('wr.nightsPlayed'), numRight, y + 106);
   ctx.font = font(19, '700');
   ctx.fillStyle = 'rgba(255,250,240,0.82)';
-  ctx.fillText('this month', numRight, y + 132);
+  ctx.fillText(t('wr.thisMonth'), numRight, y + 132);
   ctx.restore();
 
   ctx.save();
@@ -413,7 +415,7 @@ function renderHighlights(stats: WrappedStats): HTMLCanvasElement {
   ctx.textAlign = 'left';
   ctx.font = font(18, '800');
   ctx.fillStyle = 'rgba(255,250,240,0.9)';
-  ctx.fillText(`⚽ ${stats.totalWins} wins banked by the squad`, PAD + 32, y + 176);
+  ctx.fillText(t('wr.totalWins', { n: stats.totalWins }), PAD + 32, y + 176);
   ctx.restore();
   y += HERO_H + GAP;
 
@@ -591,7 +593,7 @@ function drawSharedWinCard(
   }
   ctx.restore();
 
-  const badgeLabel = `🤝 ${night.date} · ${plural(night.wins, 'win')} each`;
+  const badgeLabel = t('wr.sharedNight', { date: night.date, n: night.wins });
   const bm = measurer();
   bm.font = font(17, '900');
   const badgeW = bm.measureText(badgeLabel).width + 32;
@@ -669,7 +671,7 @@ function renderWinningTeams(stats: WrappedStats): HTMLCanvasElement {
     PAD;
 
   const [canvas, ctx] = canvasOf(H);
-  drawPageHeader(ctx, stats.label, 'Winning Teams');
+  drawPageHeader(ctx, stats.label, t('wr.page.teams'));
 
   let y = PAD + PAGE_HEADER_H;
   for (const { night, colLines } of nights) {
@@ -717,8 +719,8 @@ function drawMarksCard(
   const rowH = (s.h - 62) / 2;
   (
     [
-      { p: best, tag: 'Highest average', color: '#4ade80' },
-      { p: worst, tag: 'Lowest average', color: '#f87171' },
+      { p: best, tag: t('wr.marks.best'), color: '#4ade80' },
+      { p: worst, tag: t('wr.marks.worst'), color: '#f87171' },
     ] as const
   ).forEach((row, i) => {
     const rowY = s.y + 62 + i * rowH;
@@ -759,7 +761,7 @@ function drawBullyCard(ctx: CanvasRenderingContext2D, b: Bully, s: Slot) {
   ctx.textAlign = 'center';
   ctx.font = font(14, '700');
   ctx.fillStyle = 'rgba(255,237,213,0.78)';
-  ctx.fillText(`the month's most lopsided record — ${b.faced} matches faced`, midX, s.y + s.h - 26);
+  ctx.fillText(t('wr.bully.detail', { n: b.faced }), midX, s.y + s.h - 26);
   ctx.restore();
 }
 
@@ -785,7 +787,7 @@ function drawDuoCard(
   ctx.textAlign = 'left';
   ctx.font = font(14, '700');
   ctx.fillStyle = 'rgba(255,228,230,0.8)';
-  ctx.fillText('nights won together', s.x + 20, s.y + s.h - 20);
+  ctx.fillText(t('wr.duo.detail'), s.x + 20, s.y + s.h - 20);
   ctx.restore();
 }
 
@@ -818,7 +820,7 @@ function drawBiggestRunCard(ctx: CanvasRenderingContext2D, run: LongestRun, s: S
   ctx.textAlign = 'left';
   ctx.font = font(17, '800');
   ctx.fillStyle = 'rgba(255,240,240,0.92)';
-  ctx.fillText('matches in a row', s.x + 30 + numW, s.y + 90);
+  ctx.fillText(t('wr.run.detail'), s.x + 30 + numW, s.y + 90);
   ctx.font = font(13, '700');
   ctx.fillStyle = 'rgba(254,202,202,0.75)';
   ctx.fillText(run.date, s.x + 30 + numW, s.y + 110);
@@ -871,7 +873,7 @@ function drawReservistsCard(
   stripes(ctx, PAD, y, cardW, h, CARD_R, 'rgba(255,255,255,0.045)', 20, 8);
   strokeRound(ctx, PAD, y, cardW, h, CARD_R, 'rgba(94,234,212,0.3)', 1.5);
   sectionHeader(ctx, '🎖️ The reservists', PAD + 20, y + 38, '#5eead4', 20);
-  spacedCaps(ctx, 'played once or twice, and still took a night', PAD + 20, y + 64, {
+  spacedCaps(ctx, t('wr.reservists'), PAD + 20, y + 64, {
     size: 12,
     color: 'rgba(153,246,228,0.8)',
     tracking: 1.4,
@@ -891,7 +893,7 @@ function drawReservistsCard(
 }
 
 const reservistChips = (rs: Reservist[]) =>
-  rs.map((r) => isoPair(r.name, `${r.wins} win${r.wins === 1 ? '' : 's'}`));
+  rs.map((r) => isoPair(r.name, t('wr.reservists.wins', { n: r.wins })));
 
 /** Ordered by how much anybody wants to read it — the tail past
  *  MAX_MINOR_CARDS is dropped rather than shrunk. */
@@ -900,9 +902,9 @@ function buildMinors(stats: WrappedStats): Award[] {
 
   if (stats.benchwarmer) {
     out.push({
-      eyebrow: 'Benched most',
+      eyebrow: t('wr.benched'),
       value: stats.benchwarmer.name,
-      detail: `sat out ${plural(stats.benchwarmer.matchesBenched, 'match', 'matches')}`,
+      detail: t('wr.benched.detail', { n: stats.benchwarmer.matchesBenched }),
       emoji: '🪑',
       accent: '#cbd5e1',
       tint: ['#475569', '#1e293b'],
@@ -910,9 +912,12 @@ function buildMinors(stats: WrappedStats): Award[] {
   }
   if (stats.cursedShirt) {
     out.push({
-      eyebrow: 'Unlucky shirt',
-      value: TEAM_LABEL[stats.cursedShirt.color],
-      detail: `won ${stats.cursedShirt.nightsWon} of ${stats.cursedShirt.nightsPlayed} nights`,
+      eyebrow: t('wr.cursedShirt'),
+      value: teamLabel(stats.cursedShirt.color),
+      detail: t('wr.cursedShirt.detail', {
+        won: stats.cursedShirt.nightsWon,
+        played: stats.cursedShirt.nightsPlayed,
+      }),
       emoji: '👕',
       accent: '#94a3b8',
       tint: ['#334155', '#131c2b'],
@@ -920,9 +925,12 @@ function buildMinors(stats: WrappedStats): Award[] {
   }
   if (stats.outOfGas) {
     out.push({
-      eyebrow: 'Fastest starter',
+      eyebrow: t('wr.outOfGas'),
       value: stats.outOfGas.name,
-      detail: `${Math.round(stats.outOfGas.earlyRate * 100)}% early, ${Math.round(stats.outOfGas.lateRate * 100)}% late`,
+      detail: t('wr.outOfGas.detail', {
+        early: Math.round(stats.outOfGas.earlyRate * 100),
+        late: Math.round(stats.outOfGas.lateRate * 100),
+      }),
       emoji: '🔋',
       accent: '#fdba74',
       tint: ['#c2410c', '#6b2410'],
@@ -930,9 +938,12 @@ function buildMinors(stats: WrappedStats): Award[] {
   }
   if (stats.bottomScorer) {
     out.push({
-      eyebrow: 'Fewest wins',
+      eyebrow: t('wr.bottomScorer'),
       value: stats.bottomScorer.name,
-      detail: `${stats.bottomScorer.wins} in ${plural(stats.bottomScorer.nights, 'night')}`,
+      detail: t('wr.bottomScorer.detail', {
+        wins: stats.bottomScorer.wins,
+        n: stats.bottomScorer.nights,
+      }),
       emoji: '🥶',
       accent: '#bae6fd',
       tint: ['#0369a1', '#08344f'],
@@ -940,9 +951,9 @@ function buildMinors(stats: WrappedStats): Award[] {
   }
   if (stats.longestWinless) {
     out.push({
-      eyebrow: 'Longest wait',
+      eyebrow: t('wr.longestWait'),
       value: stats.longestWinless.name,
-      detail: `${plural(stats.longestWinless.nights, 'night')} without a win`,
+      detail: t('wr.longestWait.detail', { n: stats.longestWinless.nights }),
       emoji: '💤',
       accent: '#fca5a5',
       tint: ['#991b1b', '#450a0a'],
@@ -981,7 +992,7 @@ function renderBreakdown(stats: WrappedStats): HTMLCanvasElement {
     PAD;
 
   const [canvas, ctx] = canvasOf(H);
-  drawPageHeader(ctx, stats.label, 'The breakdown');
+  drawPageHeader(ctx, stats.label, t('wr.page.breakdown'));
 
   let y = PAD + PAGE_HEADER_H;
 
@@ -1031,36 +1042,36 @@ function groupAchievements(milestones: Milestone[]): ChipGroup[] {
   for (const m of milestones) {
     switch (m.kind) {
       case 'debut-group':
-        debuts.push({ name: `${m.count} new faces` });
+        debuts.push({ name: t('wr.chip.newFaces', { n: m.count }) });
         break;
       case 'debut':
         debuts.push({ name: m.name });
         break;
       case 'nth-night':
-        nights.push({ name: m.name, detail: `${m.nights}th night` });
+        nights.push({ name: m.name, detail: t('wr.chip.nthNight', { n: m.nights }) });
         break;
       case 'nth-win':
-        wins.push({ name: m.name, detail: `${m.wins}th win` });
+        wins.push({ name: m.name, detail: t('wr.chip.nthWin', { n: m.wins }) });
         break;
       case 'iron-man':
-        ironman.push({ name: m.name, detail: `${m.nights} weeks in a row` });
+        ironman.push({ name: m.name, detail: t('wr.chip.ironman', { n: m.nights }) });
         break;
       case 'win-streak':
-        streaks.push({ name: m.name, detail: `${m.nights} nights running` });
+        streaks.push({ name: m.name, detail: t('wr.chip.streak', { n: m.nights }) });
         break;
       case 'winless':
-        droughts.push({ name: m.name, detail: `${m.nights} nights so far` });
+        droughts.push({ name: m.name, detail: t('wr.chip.drought', { n: m.nights }) });
         break;
     }
   }
 
   return [
-    { title: '✨ First night at the club', accent: '#fde68a', chips: debuts },
-    { title: '🎉 Hit a milestone night', accent: '#f0abfc', chips: nights },
-    { title: '🏆 Hit a milestone win', accent: INK.gold, chips: wins },
-    { title: '🦾 Turned up every week', accent: '#7dd3fc', chips: ironman },
-    { title: '📈 On a winning run', accent: '#86efac', chips: streaks },
-    { title: '💤 Still waiting for a win', accent: '#fca5a5', chips: droughts },
+    { title: t('wr.group.debuts'), accent: '#fde68a', chips: debuts },
+    { title: t('wr.group.nights'), accent: '#f0abfc', chips: nights },
+    { title: t('wr.group.wins'), accent: INK.gold, chips: wins },
+    { title: t('wr.group.ironman'), accent: '#7dd3fc', chips: ironman },
+    { title: t('wr.group.streaks'), accent: '#86efac', chips: streaks },
+    { title: t('wr.group.droughts'), accent: '#fca5a5', chips: droughts },
   ].filter((g) => g.chips.length > 0);
 }
 
@@ -1084,7 +1095,7 @@ function renderAchievements(stats: WrappedStats): HTMLCanvasElement {
     PAD;
 
   const [canvas, ctx] = canvasOf(H);
-  drawPageHeader(ctx, stats.label, 'Achievements');
+  drawPageHeader(ctx, stats.label, t('wr.page.achievements'));
 
   let y = PAD + PAGE_HEADER_H;
   for (const g of groups) {

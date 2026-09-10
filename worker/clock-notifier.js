@@ -7,7 +7,7 @@
 // the moments worth announcing are known the instant someone presses Start —
 // and a Durable Object alarm survives every phone in the squad going to sleep.
 //
-//   POST /subscribe    { subscription }  a device opts in
+//   POST /subscribe    { subscription, lang }  a device opts in
 //   POST /unsubscribe  { endpoint }      it opts out
 //   POST /schedule     { clock }         the clock changed; recompute alarms
 //
@@ -102,17 +102,49 @@ export function isLogStep(prev, next) {
   return false;
 }
 
-export function messageFor(kind, period) {
-  if (kind === 'one-minute') {
-    return period === 'added'
-      ? { title: '⏱️ One minute left', body: 'Golden goal — next goal ends it.' }
-      : // the house rule the clock exists to prompt: the team that isn't
-        // playing does the shouting, because they are the only ones free to
-        { title: '⏱️ One minute left', body: 'Resting team — shout it out.' };
-  }
-  return period === 'added'
-    ? { title: '🥅 End of added time', body: 'Still level? Penalties.' }
-    : { title: '🏁 Full time', body: 'Ahead? Done. Level? Two minutes, golden goal.' };
+// The four things a clock alert can say, in both languages (§2.45).
+//
+// Written out here rather than imported from `src/strings/`: this is a Worker
+// with its own bundle, and the alternative is shipping the app's whole
+// dictionary to the edge to use four lines of it. The pair that matters is
+// kept side by side so a change to one is a visible omission in the other.
+const MESSAGES = {
+  he: {
+    test: { title: '🔔 בדיקת התראה', body: 'ככה תיראה ההתראה של דקה אחרונה' },
+    'one-minute': {
+      added: { title: '⏱️ נותרה דקה', body: 'גול זהב — השער הבא מסיים.' },
+      // the house rule the clock exists to prompt: the team that isn't
+      // playing does the shouting, because they are the only ones free to
+      regulation: { title: '⏱️ נותרה דקה', body: 'הקבוצה שנחה — תצעקו!' },
+    },
+    end: {
+      added: { title: '🥅 סוף הזמן הנוסף', body: 'עדיין שוויון? פנדלים.' },
+      regulation: { title: '🏁 סיום', body: 'מובילים? נגמר. שוויון? שתי דקות, גול זהב.' },
+    },
+  },
+  en: {
+    test: { title: '🔔 Test alert', body: 'This is what one minute left will look like' },
+    'one-minute': {
+      added: { title: '⏱️ One minute left', body: 'Golden goal — next goal ends it.' },
+      regulation: { title: '⏱️ One minute left', body: 'Resting team — shout it out.' },
+    },
+    end: {
+      added: { title: '🥅 End of added time', body: 'Still level? Penalties.' },
+      regulation: { title: '🏁 Full time', body: 'Ahead? Done. Level? Two minutes, golden goal.' },
+    },
+  },
+};
+
+/**
+ * @param lang which language this device asked for — Hebrew unless it said
+ *   otherwise, matching the app's own default. An unknown value falls back the
+ *   same way rather than sending nothing.
+ */
+export function messageFor(kind, period, lang = 'he') {
+  const bank = MESSAGES[lang] ?? MESSAGES.he;
+  if (kind === 'test') return bank.test;
+  const group = kind === 'one-minute' ? bank['one-minute'] : bank.end;
+  return period === 'added' ? group.added : group.regulation;
 }
 
 export class ClockNotifier {
@@ -130,7 +162,10 @@ export class ClockNotifier {
       // keyed by endpoint, so re-subscribing the same device replaces rather
       // than duplicates — browsers hand out a fresh subscription fairly often
       const next = subs.filter((s) => s.endpoint !== body.subscription.endpoint);
-      next.push(body.subscription);
+      // The language rides on the subscription so an alert arrives in the one
+      // the device asked for. Hebrew unless it said otherwise, which is the
+      // app's own default.
+      next.push({ ...body.subscription, lang: body.lang === 'en' ? 'en' : 'he' });
       await this.state.storage.put('subs', next.slice(-MAX_SUBSCRIPTIONS));
       return Response.json({ ok: true, count: next.length });
     }
@@ -249,10 +284,7 @@ export class ClockNotifier {
         : body.all
           ? subs
           : [];
-      const sent = await this.send(targets, {
-        title: '🔔 Test alert',
-        body: 'This is what one minute left will look like',
-      });
+      const sent = await this.send(targets, messageFor('test', null, body.lang));
       // The two pieces of VAPID configuration a push service can object to.
       // The subject is not a secret — it exists precisely so a push provider
       // can contact whoever runs this — and seeing it is the difference
@@ -330,12 +362,35 @@ export class ClockNotifier {
     if (later.length > 0) await this.state.storage.setAlarm(Math.min(...later.map((t) => t.at)));
 
     for (const trigger of due) {
-      await this.broadcast(messageFor(trigger.kind, trigger.period));
+      await this.broadcastByLang(trigger.kind, trigger.period);
     }
   }
 
   async broadcast(message) {
     return this.send(await this.subscriptions(), message);
+  }
+
+  /**
+   * One send per language rather than one for everybody.
+   *
+   * A payload is built once and pushed to many endpoints, so the moment the
+   * text depends on the reader it has to be built once *per group of readers*.
+   * Devices are grouped by the `lang` they subscribed with; there are two, so
+   * this is at most two sends.
+   */
+  async broadcastByLang(kind, period) {
+    const subs = await this.subscriptions();
+    const byLang = new Map();
+    for (const s of subs) {
+      const lang = s.lang === 'en' ? 'en' : 'he';
+      if (!byLang.has(lang)) byLang.set(lang, []);
+      byLang.get(lang).push(s);
+    }
+    const rows = [];
+    for (const [lang, targets] of byLang) {
+      rows.push(...(await this.send(targets, messageFor(kind, period, lang))));
+    }
+    return rows;
   }
 
   // Returns one row per device — the push service it belongs to, what that
