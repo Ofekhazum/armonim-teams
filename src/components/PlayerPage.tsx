@@ -26,7 +26,7 @@ import { MIN_ARC_NIGHTS, playerArcs } from '../playerArcs';
 import NightParts from './NightParts';
 import { playerTimeline } from '../playerTimeline';
 import PlayerTimeline from './PlayerTimeline';
-import { MEDAL, Name, STYLE_META, TEAM_META } from './ui';
+import { MEDAL, Name, STYLE_ICON, styleLabel, TEAM_META, teamLabel } from './ui';
 import { useScrollLock } from '../scrollLock';
 import { fetchAwards, monthsWon } from '../awards';
 import type { PlayerValue } from '../values';
@@ -325,7 +325,7 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
     </p>
   );
   const enoughLogged = shootouts.loggedNights >= MIN_PROFILE_NIGHTS;
-  const role = STYLE_META[roleBadge(player)];
+  const roleKind = roleBadge(player);
 
   // Ten cards and roughly 2,500px on a long career, with nothing but the
   // scrollbar to navigate it (§2.43). A reader arriving to *read* is fine —
@@ -386,10 +386,10 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
               <Name>{player.name}</Name>
             </h2>
             <span
-              title={role.label}
+              title={styleLabel(roleKind)}
               className="rounded-full border border-amber-900/15 bg-white/70 px-2.5 py-1 text-xs font-bold text-amber-900"
             >
-              {role.icon} {role.label}
+              {STYLE_ICON[roleKind]} {styleLabel(roleKind)}
             </span>
             {player.isGuest && (
               <span className="rounded-full border border-amber-900/15 bg-white/70 px-2.5 py-1 text-xs font-bold text-amber-900/70">
@@ -582,8 +582,8 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
                   // button" with no hint they were nights, dates or places.
                   const spoken =
                     n.place === null
-                      ? `${n.date}, ${TEAM_META[n.shirt].label}, no result recorded`
-                      : `${n.date}, ${TEAM_META[n.shirt].label}, finished ${n.place}`;
+                      ? `${n.date}, ${teamLabel(n.shirt)}, no result recorded`
+                      : `${n.date}, ${teamLabel(n.shirt)}, finished ${n.place}`;
                   return (
                     <button
                       key={n.fixtureId}
@@ -665,7 +665,7 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
                   {TEAM_COLORS.map((c: TeamColor) => (
                     <div key={c} className="flex items-center gap-2 text-sm">
                       <span className="w-20 shrink-0 font-bold text-amber-950">
-                        {TEAM_META[c].emoji} {TEAM_META[c].label}
+                        {TEAM_META[c].emoji} {teamLabel(c)}
                       </span>
                       <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-amber-900/[0.07]">
                         <div

@@ -10,16 +10,7 @@ import { playerAchievements, titleBadgeFor } from '../achievements';
 import { hasResult } from '../calibration';
 import { guestKey, knownGuests } from '../guests';
 import { PLAIN_ROW, TITLE_THEME } from './titleTheme';
-import {
-  ConfirmDialog,
-  fmtRating,
-  FoldHeader,
-  Name,
-  SpectrumBar,
-  spectrumColor,
-  Stars,
-  STYLE_META,
-} from './ui';
+import { ConfirmDialog, fmtRating, FoldHeader, Name, SpectrumBar, spectrumColor, Stars, STYLE_ICON, styleLabel } from './ui';
 
 interface Props {
   players: Player[];
@@ -512,8 +503,8 @@ export default function Roster({
           <div className="rounded-lg border border-amber-900/15 bg-white/60 px-3 py-2.5">
             <div className="mb-1 flex items-center justify-between gap-2 text-sm font-bold text-amber-950">
               <span>
-                {STYLE_META[badgeForAttack(draft.attack)].icon}{' '}
-                {STYLE_META[badgeForAttack(draft.attack)].label}
+                {STYLE_ICON[badgeForAttack(draft.attack)]}{' '}
+                {styleLabel(badgeForAttack(draft.attack))}
               </span>
               <span className="text-xs font-semibold text-amber-900/60">
                 {attackLabel(draft.attack)}
@@ -807,7 +798,7 @@ export default function Roster({
                 >
                   <div className="flex items-center gap-2">
                     <Name className="truncate font-semibold text-amber-950">{p.name}</Name>
-                    <span title={STYLE_META[roleBadge(p)].label}>{STYLE_META[roleBadge(p)].icon}</span>
+                    <span title={styleLabel(roleBadge(p))}>{STYLE_ICON[roleBadge(p)]}</span>
                     {isAdmin && !p.isGk && <SpectrumBar attack={p.attack} />}
                     {isAdmin && <Stars rating={p.rating} unknown={p.ratingUnknown} />}
                   </div>

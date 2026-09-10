@@ -1,6 +1,6 @@
 import type { TeamColor } from '../types';
 import { TEAM_COLORS } from '../balancer';
-import { TEAM_META } from './ui';
+import { TEAM_META, teamLabel } from './ui';
 
 interface Props {
   // just id/name — works for a live squad (Player[]) and a past night's
@@ -28,7 +28,7 @@ interface Props {
 // is; this just draws them.
 export default function MvpPicker({ players, mvpId, onChange, winners }: Props) {
   const sorted = [...players].sort((a, b) => a.name.localeCompare(b.name, 'he'));
-  const shirts = winners.map((c) => `${TEAM_META[c].emoji} ${TEAM_META[c].label}`);
+  const shirts = winners.map((c) => `${TEAM_META[c].emoji} ${teamLabel(c)}`);
   return (
     <div className="rounded-2xl border border-amber-900/15 bg-[#fffdf4]/70 p-4 shadow-sm">
       <h3 className="mb-1 font-bold text-amber-950">🌟 MVP</h3>

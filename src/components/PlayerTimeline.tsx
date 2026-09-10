@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { TimelineEvent, TimelineKind } from '../playerTimeline';
 import { periodLabel } from '../wrapped';
-import { TEAM_META } from './ui';
+import { TEAM_META, teamLabel } from './ui';
 
 // The player's career as a feed (§2.29). `playerTimeline` decides what happened
 // and when; everything here is how to say it.
@@ -76,7 +76,7 @@ function say(event: TimelineEvent): { icon: string; head: string; detail?: strin
         icon: '🌱',
         head: 'First night on record',
         detail: event.shirt
-          ? `${TEAM_META[event.shirt].emoji} ${TEAM_META[event.shirt].label}${
+          ? `${TEAM_META[event.shirt].emoji} ${teamLabel(event.shirt)}${
               event.place ? ` · finished ${ordinal(event.place)}` : ''
             }`
           : undefined,

@@ -24,7 +24,7 @@ import {
 } from '../storage';
 import { playerAchievements } from '../achievements';
 import { leaderboards } from '../leaderboards';
-import { FoldHeader, Name, TEAM_META, fmtRating, fmtWins } from './ui';
+import { fmtRating, fmtWins, FoldHeader, Name, TEAM_META, teamLabel } from './ui';
 import Leaderboards from './Leaderboards';
 import PlayerCompare from './PlayerCompare';
 import MvpPicker from './MvpPicker';
@@ -648,7 +648,7 @@ export default function History({
                             className={`flex flex-1 items-center justify-center gap-1.5 px-2 py-2 text-[11px] font-black ${TEAM_META[c].tile}`}
                           >
                             <span className="leading-none">👑</span>
-                            <span className="truncate">{TEAM_META[c].label}</span>
+                            <span className="truncate">{teamLabel(c)}</span>
                             <span className="tabular-nums">{fmtWins(fx.wins[c] ?? 0)}</span>
                           </div>
                         ))}
@@ -725,7 +725,7 @@ export default function History({
                         className="flex items-center gap-2 rounded-xl border border-amber-900/10 bg-white/70 px-3 py-2"
                       >
                         <span className="flex-1 text-sm font-bold text-amber-950">
-                          {TEAM_META[c].emoji} {TEAM_META[c].label}
+                          {TEAM_META[c].emoji} {teamLabel(c)}
                         </span>
                         {/* A logged night counts itself, so its tally is
                             read-only here. Typing over it would leave the record
@@ -742,7 +742,7 @@ export default function History({
                           onChange={(e) => setDraftWin(c, e.target.value)}
                           readOnly={editingLogged}
                           placeholder="–"
-                          aria-label={`Matches won by ${TEAM_META[c].label}`}
+                          aria-label={`Matches won by ${teamLabel(c)}`}
                           className={`w-20 rounded-lg border border-amber-900/25 px-2 py-1 text-center font-bold text-amber-950 ${
                             editingLogged ? 'bg-amber-900/[0.06]' : 'bg-white'
                           }`}

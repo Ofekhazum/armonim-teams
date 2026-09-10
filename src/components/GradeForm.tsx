@@ -10,7 +10,7 @@ import {
   type GradePoint,
   type GradeRange,
 } from '../gradeHistory';
-import { MEDAL, Name, TEAM_META, fmtRating, fmtWins } from './ui';
+import { fmtRating, fmtWins, MEDAL, Name, TEAM_META, teamLabel } from './ui';
 
 // A player's recent form (§2.40), in the shape every football screen uses for
 // it: a row of coloured squares, a summary of the last few, and a table with a
@@ -167,7 +167,7 @@ export default function GradeForm({ points }: { points: GradePoint[] }) {
                         </span>
                       )}
                       <span className={`rounded px-1.5 py-0.5 text-[11px] font-semibold ${TEAM_META[p.shirt].tile}`}>
-                        <Name>{TEAM_META[p.shirt].label}</Name>
+                        <Name>{teamLabel(p.shirt)}</Name>
                       </span>
                       {p.isMvp && <span title="Player of the night">🌟</span>}
                     </span>

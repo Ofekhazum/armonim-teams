@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import type { RoleBadge, TeamColor } from '../types';
 import { useScrollLock } from '../scrollLock';
+import { t } from '../i18n';
 
 // Gold, silver, bronze — for a team's place on a night and, in exactly the
 // same colours, for a rank on a club podium (§2.36). Shared here because they
@@ -21,12 +22,30 @@ export const MEDAL: Record<1 | 2 | 3, string> = {
   3: 'bg-gradient-to-br from-orange-300 via-amber-700 to-amber-900 text-amber-50 ring-1 ring-amber-800/40',
 };
 
-export const STYLE_META: Record<RoleBadge, { icon: string; label: string }> = {
-  defensive: { icon: '🛡️', label: 'Defensive' },
-  balanced: { icon: '⚖️', label: 'Balanced' },
-  attacking: { icon: '⚔️', label: 'Attacking' },
-  gk: { icon: '🧤', label: 'Goalkeeper' },
+export const STYLE_ICON: Record<RoleBadge, string> = {
+  defensive: '🛡️',
+  balanced: '⚖️',
+  attacking: '⚔️',
+  gk: '🧤',
 };
+
+// The labels are looked up rather than stored, because they change with the
+// language and the icons do not (§2.45). Same reasoning for `teamLabel` below:
+// a shirt's colour, emoji and every class name on it are fixed, and only the
+// word for it moves.
+export const styleLabel = (badge: RoleBadge): string =>
+  t(
+    badge === 'defensive'
+      ? 'ui.role.defensive'
+      : badge === 'balanced'
+        ? 'ui.role.balanced'
+        : badge === 'attacking'
+          ? 'ui.role.attacking'
+          : 'ui.role.gk',
+  );
+
+export const teamLabel = (color: TeamColor): string =>
+  t(color === 'black' ? 'ui.team.black' : color === 'white' ? 'ui.team.white' : 'ui.team.blue');
 
 // `tile` is the ribbon palette — deliberately louder than `card`. A ribbon
 // tile has to hold its own against the tile pressed up beside it, where a team
@@ -37,7 +56,6 @@ export const STYLE_META: Record<RoleBadge, { icon: string; label: string }> = {
 export const TEAM_META: Record<
   TeamColor,
   {
-    label: string;
     emoji: string;
     card: string;
     tile: string;
@@ -48,7 +66,6 @@ export const TEAM_META: Record<
   }
 > = {
   black: {
-    label: 'Black',
     emoji: '⚫',
     card: 'bg-stone-900 border-stone-700 text-stone-100',
     tile: 'bg-stone-800 text-stone-100',
@@ -58,7 +75,6 @@ export const TEAM_META: Record<
     ring: 'ring-orange-400',
   },
   white: {
-    label: 'White',
     emoji: '⚪',
     card: 'bg-[#fffdf4] border-amber-900/25 text-amber-950',
     tile: 'bg-white text-amber-950 ring-1 ring-inset ring-amber-900/25',
@@ -68,7 +84,6 @@ export const TEAM_META: Record<
     ring: 'ring-orange-500',
   },
   blue: {
-    label: 'Blue',
     emoji: '🔵',
     card: 'bg-blue-900 border-blue-700 text-blue-50',
     tile: 'bg-blue-800 text-blue-50',
@@ -161,13 +176,13 @@ export function ConfirmDialog({
               onClick={onClose}
               className="flex-1 rounded-xl border border-amber-900/25 px-4 py-2 text-sm font-bold text-amber-900 hover:border-orange-500"
             >
-              Cancel
+              {t('ui.cancel')}
             </button>
           </div>
         ) : (
           <div className="mt-4">
             <button onClick={onClose} className={`w-full ${primaryCls}`}>
-              {confirmLabel ?? 'OK'}
+              {confirmLabel ?? t('ui.ok')}
             </button>
           </div>
         )}
@@ -209,7 +224,7 @@ export function FoldHeader({
     >
       {title}
       <span className="ms-auto text-[10px] font-bold normal-case opacity-70">
-        {open ? '▲ hide' : '▼ show'}
+        {open ? t('ui.fold.hide') : t('ui.fold.show')}
       </span>
     </button>
   );
@@ -223,9 +238,9 @@ export function Stars({ rating, unknown }: { rating: number; unknown?: boolean }
     return (
       <span
         className="rounded bg-orange-500/15 px-1.5 py-0.5 text-[10px] font-bold text-orange-600"
-        title="New player — ability unknown"
+        title={t('ui.stars.newTitle')}
       >
-        NEW ?
+        {t('ui.stars.newLabel')}
       </span>
     );
   }
@@ -234,7 +249,7 @@ export function Stars({ rating, unknown }: { rating: number; unknown?: boolean }
     <span
       dir="ltr"
       className="relative inline-block text-sm leading-none tracking-tight"
-      title={`Rating ${rating}/5`}
+      title={t('ui.stars.rating', { r: rating })}
     >
       <span className="opacity-25">★★★★★</span>
       <span

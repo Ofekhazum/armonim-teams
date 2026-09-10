@@ -34,6 +34,8 @@ import History from './components/History';
 import { useAdminUnlock } from './useAdminUnlock';
 import { TEST_WORD, isTestMode } from './testMode';
 import TestModeBanner from './components/TestModeBanner';
+import LangToggle from './components/LangToggle';
+import { t } from './i18n';
 
 type Tab = 'live' | 'match' | 'roster' | 'club';
 
@@ -361,22 +363,16 @@ export default function App() {
     if (result === 'ok') {
       if (version) setLocalHistoryVersion(version);
     } else if (result === 'wrong-word') {
-      alert(
-        '❌ The password is no longer valid — this is saved on this device but not shared yet. Unlock admin again and re-save.',
-      );
+      alert(t('app.sync.wrongWord'));
       setAdminWord(null);
     } else if (result === 'rate-limited') {
-      alert(
-        '❌ Too many failed attempts recently — this is saved on this device, but sharing is paused for a few minutes.',
-      );
+      alert(t('app.sync.rateLimited'));
     } else if (result === 'stale') {
       // someone else recorded a night since this device last looked. Sharing
       // now would replace their results with a list that never had them.
-      alert(
-        '⚠️ Someone else has updated the shared history since this device last loaded it.\n\nThis is saved here, but not shared — reload the page to pull their version first, then re-enter this change.',
-      );
+      alert(t('app.sync.stale'));
     } else if (result !== 'not-configured') {
-      alert("Could not share this — it's saved on this device, but others won't see it yet.");
+      alert(t('app.sync.failed'));
     }
   };
 
@@ -494,7 +490,7 @@ export default function App() {
           }`}
         />
       </span>
-      {liveScheduled ? kickoffLabel(liveFixture!.startedAt) : 'Live'}
+      {liveScheduled ? kickoffLabel(liveFixture!.startedAt) : t('app.tab.live')}
     </button>
   );
 
@@ -530,15 +526,16 @@ export default function App() {
           </span>
           {isAdmin && (
             <span className="ml-2 rounded-full bg-orange-600 px-2 py-0.5 align-middle text-xs font-bold text-amber-50">
-              ADMIN
+              {t('app.admin.badge')}
             </span>
           )}
         </h1>
         <nav className="flex items-center gap-1 rounded-full border border-amber-900/20 bg-[#fffdf4]/70 p-1 shadow-sm">
           {(liveFixture || tab === 'live') && liveTabBtn}
-          {isAdmin && tabBtn('match', 'Match day')}
-          {tabBtn('roster', `Roster (${state.players.length})`)}
-          {tabBtn('club', 'Club')}
+          {isAdmin && tabBtn('match', t('app.tab.matchday'))}
+          {tabBtn('roster', t('app.tab.roster', { n: state.players.length }))}
+          {tabBtn('club', t('app.tab.club'))}
+          <LangToggle />
           {/* Unlocking lives in the header rather than on the Roster tab
               because what it gates is spread across all of them — Match day,
               the rating column in History, ending a live fixture — and having
@@ -550,7 +547,7 @@ export default function App() {
             <button
               onClick={isAdmin ? () => setAdminWord(null) : unlockAdmin}
               disabled={unlocking}
-              title={isAdmin ? 'Log off admin' : 'Unlock admin mode'}
+              title={isAdmin ? t('app.admin.logoff') : t('app.admin.unlock')}
               className="rounded-full px-3 py-1.5 text-sm font-semibold text-amber-900/70 transition-colors hover:text-orange-700 disabled:opacity-50"
             >
               {unlocking ? '…' : isAdmin ? '🔓' : '🔒'}
@@ -592,10 +589,8 @@ export default function App() {
           // the night ended while this tab was open — say so rather than
           // leaving the last frame of a finished match on screen
           <div className="rounded-2xl border border-amber-900/15 bg-[#fffdf4]/70 p-6 text-center shadow-sm">
-            <p className="text-lg font-bold text-amber-950">No fixture is live right now</p>
-            <p className="mt-1 text-sm text-amber-900/60">
-              This tab appears on its own the moment a night kicks off.
-            </p>
+            <p className="text-lg font-bold text-amber-950">{t('app.live.none.title')}</p>
+            <p className="mt-1 text-sm text-amber-900/60">{t('app.live.none.body')}</p>
           </div>
         )
       ) : tab === 'roster' ? (

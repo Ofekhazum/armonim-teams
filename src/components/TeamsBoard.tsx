@@ -10,7 +10,7 @@ import {
   planRotation,
   teamStats,
 } from '../balancer';
-import { Name, STYLE_META, TEAM_META } from './ui';
+import { Name, STYLE_ICON, styleLabel, TEAM_META, teamLabel } from './ui';
 import { shareTeamsShirtImages } from '../shirtImage';
 
 interface Props {
@@ -72,7 +72,7 @@ export default function TeamsBoard({
   for (const c of TEAM_COLORS) {
     if (stats[c].gkCount > 1)
       warnings.push(
-        `${TEAM_META[c].emoji} ${TEAM_META[c].label} has ${stats[c].gkCount} goalkeepers.`,
+        `${TEAM_META[c].emoji} ${teamLabel(c)} has ${stats[c].gkCount} goalkeepers.`,
       );
   }
   for (const g of glued) {
@@ -290,7 +290,7 @@ export default function TeamsBoard({
             >
               <div className="mb-2 flex flex-wrap items-center justify-between gap-x-2 px-1">
                 <h3 className={`flex items-center gap-1 text-lg font-black ${m.header}`}>
-                  {m.emoji} {m.label}
+                  {m.emoji} {teamLabel(c)}
                   <select
                     value=""
                     onChange={(e) => {
@@ -304,7 +304,7 @@ export default function TeamsBoard({
                     <option value="">🔀</option>
                     {TEAM_COLORS.filter((x) => x !== c).map((x) => (
                       <option key={x} value={x}>
-                        ⇄ {TEAM_META[x].emoji} {TEAM_META[x].label}
+                        ⇄ {TEAM_META[x].emoji} {teamLabel(x)}
                       </option>
                     ))}
                   </select>
@@ -361,8 +361,8 @@ export default function TeamsBoard({
                             guest
                           </span>
                         )}
-                        <span title={STYLE_META[roleBadge(p)].label} className="text-xs">
-                          {STYLE_META[roleBadge(p)].icon}
+                        <span title={styleLabel(roleBadge(p))} className="text-xs">
+                          {STYLE_ICON[roleBadge(p)]}
                         </span>
                       </button>
                     </li>
@@ -398,11 +398,11 @@ export default function TeamsBoard({
                 className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-amber-900/10 bg-white/60 px-4 py-2.5 text-sm"
               >
                 <span className="font-bold text-amber-950">
-                  {TEAM_META[match.a].emoji} {TEAM_META[match.a].label} vs{' '}
-                  {TEAM_META[match.b].emoji} {TEAM_META[match.b].label}
+                  {TEAM_META[match.a].emoji} {teamLabel(match.a)} vs{' '}
+                  {TEAM_META[match.b].emoji} {teamLabel(match.b)}
                 </span>
                 <span className="text-xs text-amber-900/50">
-                  {TEAM_META[match.resting].emoji} {TEAM_META[match.resting].label} rests
+                  {TEAM_META[match.resting].emoji} {teamLabel(match.resting)} rests
                 </span>
                 {match.loans.length > 0 && (
                   <span className="text-orange-700">

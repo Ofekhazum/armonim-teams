@@ -35,7 +35,7 @@ import LiveRoomBar from './LiveRoomBar';
 import TeamsBoard from './TeamsBoard';
 import FixturePage from './FixturePage';
 import StartFixtureDialog from './StartFixtureDialog';
-import { fmtRating, Name, RATING_STEPS, STYLE_META } from './ui';
+import { fmtRating, Name, RATING_STEPS, STYLE_ICON, styleLabel } from './ui';
 
 const ACTIVITY_MS = 750;
 
@@ -919,8 +919,8 @@ export default function MatchDay({
                         always
                       </span>
                     )}
-                    <span title={STYLE_META[roleBadge(p)].label}>
-                      {STYLE_META[roleBadge(p)].icon}
+                    <span title={styleLabel(roleBadge(p))}>
+                      {STYLE_ICON[roleBadge(p)]}
                     </span>
                   </button>
                 );

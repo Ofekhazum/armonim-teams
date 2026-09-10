@@ -10,7 +10,7 @@ import type {
 } from '../types';
 import { NOTE_MAX, roleBadge } from '../types';
 import { TEAM_COLORS, lineupOrder, teamStats } from '../balancer';
-import { STYLE_META } from './ui';
+import { styleLabel } from './ui';
 import { useKickedOff } from '../kickoff';
 import KickoffCountdown from './KickoffCountdown';
 import MatchClock from './MatchClock';
@@ -169,7 +169,7 @@ export default function FixturePage({
         note={(p) =>
           p.isGuest
             ? `Guest of ${p.invitedBy ? byId.get(p.invitedBy)?.name : '?'}`
-            : STYLE_META[roleBadge(p)].label
+            : styleLabel(roleBadge(p))
         }
         // the only rating on this page, and only when an organiser is holding
         // the phone (§2.9)

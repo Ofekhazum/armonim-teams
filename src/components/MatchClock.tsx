@@ -240,7 +240,7 @@ export default function MatchClock({ state, onChange, fixtureId = null }: Props)
   // py-2.5 rather than the app's usual py-2 — every button in this row is
   // pressed standing up, mid-match, often one-handed with a cold or wet grip,
   // so this row clears the ~44px touch target floor that the rest of the
-  // app's more deliberate, seated controls don't need to (§2.45).
+  // app's more deliberate, seated controls don't need to (§2.44).
   const btn =
     'rounded-xl px-4 py-2.5 text-sm font-bold shadow-sm transition-transform hover:scale-105';
 

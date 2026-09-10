@@ -4,7 +4,7 @@ import { TEAM_COLORS } from '../balancer';
 import { gradesFacts, type GradeFactLine } from '../gradesFacts';
 import type { GradeLines, StoredGrades } from '../gradesApi';
 import { clearGrades, draftGrades, fetchGrades, publishedMarks, saveGrades } from '../gradesApi';
-import { Name, TEAM_META, fmtRating } from './ui';
+import { fmtRating, Name, TEAM_META, teamLabel } from './ui';
 
 // One line of banter beside every mark (§2.39), on the night page below the
 // report. Deliberately last on the page: the report is the night's story, this
@@ -125,7 +125,7 @@ function TeamGroup({
   return (
     <div className={`rounded-xl border p-3.5 shadow-sm ${TEAM_META[color].card}`}>
       <h4 className={`mb-3 text-xs font-black ${TEAM_META[color].header}`}>
-        {TEAM_META[color].emoji} {TEAM_META[color].label}
+        {TEAM_META[color].emoji} {teamLabel(color)}
       </h4>
       {/* No hairline between rows: the card's own background swings from a
           dark shirt to a cream one, and one divider colour cannot read on
@@ -232,7 +232,7 @@ export default function NightGrades({ fixture, history, players, adminWord = nul
       const team = facts.players.filter((p) => p.team === c);
       if (team.length === 0) return [];
       return [
-        `${TEAM_META[c].label}:`,
+        `${teamLabel(c)}:`,
         ...team.map((p) => {
           const mark = shown[p.id]?.grade ?? p.grade;
           const line = shown[p.id]?.text;

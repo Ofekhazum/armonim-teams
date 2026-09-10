@@ -8,7 +8,7 @@ import type { NightFact } from '../nightStory';
 import { recapFacts } from '../recapFacts';
 import type { StoredRecap } from '../recap';
 import { clearRecap, draftRecap, fetchRecap, saveRecap } from '../recap';
-import { Name, TEAM_META, fmtWins } from './ui';
+import { fmtWins, Name, TEAM_META, teamLabel } from './ui';
 import { MilestoneStrip } from './TonightFacts';
 import NightGrades from './NightGrades';
 import { useScrollLock } from '../scrollLock';
@@ -75,17 +75,17 @@ function Step({
 const factLine = (f: NightFact): string => {
   switch (f.kind) {
     case 'streak-broken':
-      return `${TEAM_META[f.by].label} ended ${TEAM_META[f.over].label}'s run of ${f.length}`;
+      return `${teamLabel(f.by)} ended ${teamLabel(f.over)}'s run of ${f.length}`;
     case 'break-and-run':
-      return `${TEAM_META[f.team].label} opened up and stayed on for ${f.through}`;
+      return `${teamLabel(f.team)} opened up and stayed on for ${f.through}`;
     case 'perfect':
-      return `${TEAM_META[f.team].label} won all ${f.played} they played`;
+      return `${teamLabel(f.team)} won all ${f.played} they played`;
     case 'blanked':
-      return `${TEAM_META[f.team].label} played ${f.played} and won none`;
+      return `${teamLabel(f.team)} played ${f.played} and won none`;
     case 'heist':
-      return `${TEAM_META[f.team].label} won ${f.early} of their first ${f.earlyOf} and ${f.late} of their last ${f.lateOf}`;
+      return `${teamLabel(f.team)} won ${f.early} of their first ${f.earlyOf} and ${f.late} of their last ${f.lateOf}`;
     case 'yo-yo':
-      return `${TEAM_META[f.team].label} won and lost alternately, ${f.run} deep`;
+      return `${teamLabel(f.team)} won and lost alternately, ${f.run} deep`;
     case 'shootouts':
       return `${f.count} of them went to penalties`;
   }
@@ -266,7 +266,7 @@ export default function NightPage({
                 🏆
                 {winners.map((c) => (
                   <span key={c} className={`rounded-full border px-2 py-0.5 ${TEAM_META[c].card}`}>
-                    {TEAM_META[c].label}
+                    {teamLabel(c)}
                   </span>
                 ))}
               </span>
@@ -294,7 +294,7 @@ export default function NightPage({
               {TEAM_COLORS.map((c) => (
                 <div key={c} className={`rounded-xl border p-2.5 text-xs ${TEAM_META[c].card}`}>
                   <div className={`font-black ${TEAM_META[c].header}`}>
-                    {TEAM_META[c].emoji} {TEAM_META[c].label}
+                    {TEAM_META[c].emoji} {teamLabel(c)}
                     {winners.includes(c) && <span title="Won the night"> 👑</span>} —{' '}
                     {fmtWins(fixture.wins[c] ?? 0)}
                   </div>
@@ -337,8 +337,8 @@ export default function NightPage({
                     return (
                       <span
                         key={i}
-                        title={`Match ${i + 1}: ${TEAM_META[m.winner].label} beat ${
-                          TEAM_META[loser].label
+                        title={`Match ${i + 1}: ${teamLabel(m.winner)} beat ${
+                          teamLabel(loser)
                         }${m.viaPenalties ? ' on penalties' : ''}`}
                         className={`relative grid h-14 w-11 shrink-0 place-items-center overflow-hidden font-mono text-base font-black ${
                           TEAM_META[m.winner].tile
@@ -396,7 +396,7 @@ export default function NightPage({
                   <div key={c} className={`rounded-xl border p-2.5 shadow-sm ${TEAM_META[c].card}`}>
                     <div className="mb-1.5 flex items-baseline justify-between gap-x-2 px-0.5">
                       <h3 className={`text-sm font-black ${TEAM_META[c].header}`}>
-                        {TEAM_META[c].emoji} {TEAM_META[c].label}
+                        {TEAM_META[c].emoji} {teamLabel(c)}
                         {/* who took the night, said on the card as well as in
                             the header — the points are right there beside it,
                             but a crown is read without arithmetic */}
