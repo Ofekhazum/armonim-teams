@@ -92,4 +92,68 @@ export const club = {
     // there is one. The English keeps the wording it had.
     en: { one: 'last {n} night', other: 'last {n} nights' },
   },
+
+  // --- The joker's marks (NightGrades) -------------------------------------
+  'marks.title': { he: '📋 הציונים', en: '📋 The marks' },
+  'marks.written': { he: 'נכתב ב־{date}', en: 'written {date}' },
+  'marks.draft': { he: 'טיוטה — אף אחד אחר עוד לא רואה את זה', en: 'draft — nobody else can see this yet' },
+  'marks.mvpTitle': { he: 'שחקן הערב', en: 'Player of the night' },
+  'marks.noLine': { he: 'אין שורה ל{names}', en: 'no line for {names}' },
+  'marks.share': { he: '📤 שיתוף', en: '📤 Share' },
+  'marks.writing': { he: 'כותב…', en: 'writing…' },
+  'marks.writeAnother': { he: '↻ לכתוב עוד אחד', en: '↻ Write another' },
+  'marks.write': { he: '✍️ לכתוב את הציונים', en: '✍️ Write the marks' },
+  'marks.saving': { he: 'שומר…', en: 'saving…' },
+  'marks.publish': { he: '✓ לפרסם את זה', en: '✓ Publish this one' },
+  'marks.discard': { he: 'ביטול', en: 'Discard' },
+  'marks.delete': { he: '🗑️ מחיקה', en: '🗑️ Delete' },
+  'marks.delete.confirm': { he: 'למחוק את הציונים האלה עבור כולם?', en: 'Delete these marks for everyone?' },
+  'marks.err.notConfigured': {
+    he: 'אין ג׳וקר בפריסה הזאת: לוורקר אין GEMINI_KEY.',
+    en: 'No joker on this deployment: the worker has no GEMINI_KEY set.',
+  },
+  'marks.err.wrongWord': { he: 'סיסמת המנהל נדחתה.', en: 'That admin word was refused.' },
+  'marks.err.rateLimited': {
+    he: 'יותר מדי ניסיונות מכאן. חכו עשר דקות.',
+    en: 'Too many attempts from here. Give it ten minutes.',
+  },
+  'marks.err.tooMany': {
+    he: 'זה תריסר סטים של ציונים בשעה. תנו לזה לנוח ונסו מאוחר יותר.',
+    en: 'That is a dozen sets of marks in an hour. Give it a rest and try later.',
+  },
+  'marks.err.unavailable': { he: 'ג׳מיני סירב', en: 'Gemini turned it down' },
+  'marks.err.unreachable': { he: 'לא הצלחנו להגיע לג׳וקר.', en: 'Could not reach the joker.' },
+
+  // --- Head to head (PlayerCompare) ----------------------------------------
+  'cmp.pickA': { he: 'בחרו שחקן…', en: 'Pick a player…' },
+  'cmp.pickB': { he: 'בחרו עוד אחד…', en: 'Pick another…' },
+  'cmp.versus': { he: 'נגד', en: 'v' },
+  'cmp.pickDifferent': { he: 'בחרו שני שחקנים שונים.', en: 'Pick two different players.' },
+  'cmp.pickTwo': {
+    he: 'בחרו שני שחקנים כדי להעמיד את הרשומות שלהם זו מול זו.',
+    en: 'Pick two players to put their records side by side.',
+  },
+  'cmp.row.nights': { he: 'ערבים ששוחקו', en: 'Nights played' },
+  'cmp.row.nightsWon': { he: 'ערבים שנוצחו', en: 'Nights won' },
+  'cmp.row.wins': { he: 'ניצחונות', en: 'Match wins' },
+  'cmp.row.perNight': { he: 'לכל ערב', en: 'Per night' },
+  'cmp.row.mvps': { he: 'בחירות מצטיין', en: 'MVP picks' },
+  'cmp.row.bestRun': { he: 'הרצף הארוך ביותר', en: 'Longest run' },
+  'cmp.never': {
+    he: 'השניים האלה מעולם לא היו באותו דף הרכב.',
+    en: 'These two have never been on the same team sheet.',
+  },
+  'cmp.together': { he: '🤝 באותה קבוצה', en: '🤝 On the same team' },
+  'cmp.together.nights': { he: { one: 'ערב', other: 'ערבים' }, en: { one: 'night', other: 'nights' } },
+  'cmp.together.winning': { he: ', וניצחו ב־', en: ', winning' },
+  'cmp.together.ofThem': { he: 'מתוכם', en: 'of them' },
+  'cmp.against': { he: '⚔️ בקבוצות יריבות', en: '⚔️ On opposite teams' },
+  'cmp.h2h.beaten': { he: 'ניצחה את הקבוצה של', en: "'s team has beaten" },
+  'cmp.h2h.in': { he: 'ב־', en: "'s in" },
+  'cmp.h2h.of': { he: 'מתוך', en: 'of' },
+  'cmp.h2h.matches': { he: 'משחקים', en: 'matches' },
+  'cmp.h2h.none': {
+    he: 'אף אחד מהערבים האלה לא נרשם משחק־משחק, אז אין מאזן ישיר לקרוא.',
+    en: 'None of those nights was written down match by match, so there is no head-to-head to read.',
+  },
 } as const satisfies Record<string, Entry>;

@@ -5,6 +5,7 @@ import { gradesFacts, type GradeFactLine } from '../gradesFacts';
 import type { GradeLines, StoredGrades } from '../gradesApi';
 import { clearGrades, draftGrades, fetchGrades, publishedMarks, saveGrades } from '../gradesApi';
 import { fmtRating, Name, TEAM_META, teamLabel } from './ui';
+import { fmtDate, getLang, t } from '../i18n';
 
 // One line of banter beside every mark (§2.39), on the night page below the
 // report. Deliberately last on the page: the report is the night's story, this
@@ -82,7 +83,7 @@ function PlayerRow({ p, grade, line }: { p: GradeFactLine; grade: number; line?:
     <li dir="rtl">
       <div className="flex items-center justify-between gap-2">
         <span className="flex min-w-0 items-baseline gap-1.5">
-          {p.isMvp && <span title="Player of the night">🌟</span>}
+          {p.isMvp && <span title={t('marks.mvpTitle')}>🌟</span>}
           {/* No colour of its own: the card's own text-* (TEAM_META.card)
               already reads on that card, light ink on white, light text on
               black and blue — the same thing TeamCards does above it. */}
@@ -153,16 +154,16 @@ function TeamGroup({
 // worker, the same waterfall, and the same handful of ways it says no.
 const say = (error: string, detail?: string): string =>
   error === 'not-configured'
-    ? 'No joker on this deployment: the worker has no GEMINI_KEY set.'
+    ? t('marks.err.notConfigured')
     : error === 'wrong-word'
-      ? 'That admin word was refused.'
+      ? t('marks.err.wrongWord')
       : error === 'rate-limited'
-        ? 'Too many attempts from here. Give it ten minutes.'
+        ? t('marks.err.rateLimited')
         : error === 'too-many-grades'
-          ? 'That is a dozen sets of marks in an hour. Give it a rest and try later.'
+          ? t('marks.err.tooMany')
           : error === 'unavailable'
-            ? `Gemini turned it down${detail ? ` — ${detail}` : ''}`
-            : 'Could not reach the joker.';
+            ? `${t('marks.err.unavailable')}${detail ? ` — ${detail}` : ''}`
+            : t('marks.err.unreachable');
 
 export default function NightGrades({ fixture, history, players, adminWord = null }: Props) {
   // Grades belong to the night, exactly like the report: asked for when the
@@ -219,7 +220,7 @@ export default function NightGrades({ fixture, history, players, adminWord = nul
   };
 
   const forget = async () => {
-    if (!confirm('Delete these marks for everyone?')) return;
+    if (!confirm(t('marks.delete.confirm'))) return;
     const out = await clearGrades(fixture.id, adminWord ?? '');
     if ('error' in out) return setFailed(say(out.error, out.detail));
     setSaved(null);
@@ -254,16 +255,16 @@ export default function NightGrades({ fixture, history, players, adminWord = nul
     <section className="rounded-2xl border border-amber-900/15 bg-[#fffdf4]/70 p-4 shadow-sm">
       <div className="mb-2 flex flex-wrap items-baseline gap-2">
         <h3 className="text-[11px] font-black uppercase tracking-wide text-amber-900/45">
-          📋 The marks
+          {t('marks.title')}
         </h3>
         {saved && !draft && (
           <span className="text-[10px] text-amber-900/35">
-            written {new Date(saved.at).toLocaleDateString()}
+            {t('marks.written', { date: fmtDate(saved.at, getLang(), {}) })}
           </span>
         )}
         {draft && (
           <span className="text-[10px] font-bold uppercase tracking-wide text-orange-700/70">
-            draft — nobody else can see this yet
+            {t('marks.draft')}
           </span>
         )}
       </div>
@@ -282,7 +283,9 @@ export default function NightGrades({ fixture, history, players, adminWord = nul
       )}
 
       {missing.length > 0 && (
-        <p className="mt-2 text-xs text-amber-900/50">no line for {missing.join(', ')}</p>
+        <p className="mt-2 text-xs text-amber-900/50">
+          {t('marks.noLine', { names: missing.join(', ') })}
+        </p>
       )}
 
       {failed && (
@@ -295,7 +298,7 @@ export default function NightGrades({ fixture, history, players, adminWord = nul
             onClick={share}
             className="rounded-lg border border-amber-900/25 px-3 py-1 text-xs font-bold text-amber-900 hover:border-orange-500"
           >
-            📤 Share
+            {t('marks.share')}
           </button>
         )}
         {adminWord && (
@@ -305,7 +308,11 @@ export default function NightGrades({ fixture, history, players, adminWord = nul
               disabled={busy !== null}
               className="rounded-lg bg-orange-600 px-3 py-1 text-xs font-bold text-amber-50 hover:scale-105 disabled:opacity-50"
             >
-              {busy === 'writing' ? 'writing…' : saved || draft ? '↻ Write another' : '✍️ Write the marks'}
+              {busy === 'writing'
+                ? t('marks.writing')
+                : saved || draft
+                  ? t('marks.writeAnother')
+                  : t('marks.write')}
             </button>
             {draft && (
               <>
@@ -314,7 +321,7 @@ export default function NightGrades({ fixture, history, players, adminWord = nul
                   disabled={busy !== null}
                   className="rounded-lg border border-emerald-600/50 px-3 py-1 text-xs font-bold text-emerald-800 hover:bg-emerald-50 disabled:opacity-50"
                 >
-                  {busy === 'saving' ? 'saving…' : '✓ Publish this one'}
+                  {busy === 'saving' ? t('marks.saving') : t('marks.publish')}
                 </button>
                 <button
                   onClick={() => {
@@ -323,7 +330,7 @@ export default function NightGrades({ fixture, history, players, adminWord = nul
                   }}
                   className="rounded-lg border border-amber-900/25 px-3 py-1 text-xs font-bold text-amber-900 hover:border-orange-500"
                 >
-                  Discard
+                  {t('marks.discard')}
                 </button>
               </>
             )}
@@ -332,7 +339,7 @@ export default function NightGrades({ fixture, history, players, adminWord = nul
                 onClick={forget}
                 className="rounded-lg border border-red-500/50 px-3 py-1 text-xs font-bold text-red-700 hover:bg-red-50"
               >
-                🗑️ Delete
+                {t('marks.delete')}
               </button>
             )}
           </>
