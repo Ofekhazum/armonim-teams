@@ -27,6 +27,7 @@ import NightParts from './NightParts';
 import { playerTimeline } from '../playerTimeline';
 import PlayerTimeline from './PlayerTimeline';
 import { MEDAL, Name, STYLE_ICON, styleLabel, TEAM_META, teamLabel } from './ui';
+import { t, type Key } from '../i18n';
 import { useScrollLock } from '../scrollLock';
 import { fetchAwards, monthsWon } from '../awards';
 import type { PlayerValue } from '../values';
@@ -92,14 +93,14 @@ const BADGE_TONE: Record<AchievementKind, string> = {
 // ramp that kept inventing new hues forever would eventually repeat one by
 // coincidence and imply a demotion; capping and adding motion instead says
 // "as far as this scale goes" without lying about the direction.
-const TIER_STYLE: { name: string; ring: string; fill: string }[] = [
-  { name: 'Bronze', ring: 'ring-amber-800/50', fill: 'bg-gradient-to-br from-amber-500 to-amber-800 text-amber-50' },
-  { name: 'Silver', ring: 'ring-slate-400/60', fill: 'bg-gradient-to-br from-slate-200 to-slate-400 text-slate-900' },
-  { name: 'Gold', ring: 'ring-amber-500/60', fill: 'bg-gradient-to-br from-yellow-300 to-amber-500 text-amber-950' },
-  { name: 'Emerald', ring: 'ring-emerald-500/50', fill: 'bg-gradient-to-br from-emerald-300 to-emerald-600 text-emerald-50' },
-  { name: 'Sapphire', ring: 'ring-blue-500/50', fill: 'bg-gradient-to-br from-blue-300 to-blue-600 text-blue-50' },
-  { name: 'Amethyst', ring: 'ring-violet-500/50', fill: 'bg-gradient-to-br from-violet-300 to-violet-600 text-violet-50' },
-  { name: 'Diamond', ring: 'ring-cyan-300/70', fill: 'bg-gradient-to-br from-cyan-100 via-white to-cyan-200 text-cyan-900' },
+const TIER_STYLE: { nameKey: Key; ring: string; fill: string }[] = [
+  { nameKey: 'pp.tier.bronze', ring: 'ring-amber-800/50', fill: 'bg-gradient-to-br from-amber-500 to-amber-800 text-amber-50' },
+  { nameKey: 'pp.tier.silver', ring: 'ring-slate-400/60', fill: 'bg-gradient-to-br from-slate-200 to-slate-400 text-slate-900' },
+  { nameKey: 'pp.tier.gold', ring: 'ring-amber-500/60', fill: 'bg-gradient-to-br from-yellow-300 to-amber-500 text-amber-950' },
+  { nameKey: 'pp.tier.emerald', ring: 'ring-emerald-500/50', fill: 'bg-gradient-to-br from-emerald-300 to-emerald-600 text-emerald-50' },
+  { nameKey: 'pp.tier.sapphire', ring: 'ring-blue-500/50', fill: 'bg-gradient-to-br from-blue-300 to-blue-600 text-blue-50' },
+  { nameKey: 'pp.tier.amethyst', ring: 'ring-violet-500/50', fill: 'bg-gradient-to-br from-violet-300 to-violet-600 text-violet-50' },
+  { nameKey: 'pp.tier.diamond', ring: 'ring-cyan-300/70', fill: 'bg-gradient-to-br from-cyan-100 via-white to-cyan-200 text-cyan-900' },
 ];
 
 // Where the team finished that night: gold, silver, bronze. Three teams means
@@ -336,12 +337,14 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
   // sections keep their order, and the strip only names what actually
   // rendered for this player.
   const sections = [
-    { id: 'pp-nights', label: '🎽 Nights' },
-    ...(marksLoading || gradePoints.length > 0 ? [{ id: 'pp-form', label: '📈 Form' }] : []),
-    { id: 'pp-story', label: '📖 Story' },
-    { id: 'pp-milestones', label: '🎯 Milestones' },
-    { id: 'pp-rivals', label: '⚔️ Rivals' },
-    { id: 'pp-arcs', label: '🕗 The night' },
+    { id: 'pp-nights', label: t('pp.jump.nights') },
+    ...(marksLoading || gradePoints.length > 0
+      ? [{ id: 'pp-form', label: t('pp.jump.form') }]
+      : []),
+    { id: 'pp-story', label: t('pp.jump.story') },
+    { id: 'pp-milestones', label: t('pp.jump.milestones') },
+    { id: 'pp-rivals', label: t('pp.jump.rivals') },
+    { id: 'pp-arcs', label: t('pp.jump.arcs') },
   ];
   const jump = (id: string) => () =>
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -354,7 +357,7 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
             onClick={onClose}
             className="rounded-lg border border-amber-900/25 px-3 py-1.5 text-sm font-bold text-amber-900 transition-colors hover:border-orange-500"
           >
-            ← Back
+            {t('pp.back')}
           </button>
           <div className="flex-1" />
           {isAdmin && (
@@ -362,7 +365,7 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
               onClick={onEdit}
               className="rounded-lg border border-amber-900/25 px-3 py-1.5 text-sm font-bold text-amber-900 transition-colors hover:border-orange-500"
             >
-              ✏️ Edit
+              {t('pp.edit')}
             </button>
           )}
         </div>
@@ -393,7 +396,7 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
             </span>
             {player.isGuest && (
               <span className="rounded-full border border-amber-900/15 bg-white/70 px-2.5 py-1 text-xs font-bold text-amber-900/70">
-                ★ Guest
+                {t('pp.guest')}
               </span>
             )}
           </div>
@@ -404,7 +407,7 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
           )}
           {(player.aliases ?? []).length > 0 && (
             <p className="relative mt-1 text-xs font-semibold text-amber-900/45">
-              aka {player.aliases!.join(', ')}
+              {t('pp.aka')} {player.aliases!.join(', ')}
             </p>
           )}
           {/* Inside the header rather than in a card of its own, because a
@@ -432,7 +435,7 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
           <div className="rounded-2xl border border-amber-500/30 bg-gradient-to-br from-amber-300/25 to-[#fffdf4] px-4 py-3 shadow-sm">
             <div className="mb-1.5 flex items-baseline gap-2">
               <h3 className="text-[13px] font-black uppercase tracking-wide text-amber-900/70">
-                👕 Team of the Month
+                {t('pp.totm.title')}
               </h3>
               <span className="text-[11px] font-bold text-amber-900/40">×{totm.length}</span>
             </div>
@@ -445,7 +448,7 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
                   // and not be eligible. Correct for "of the month", and it
                   // looks like a bug to the player it happens to without this
                   // sentence.
-                  title="Picked in the five for this month. Needs more than half the month's nights to be eligible."
+                  title={t('pp.totm.chip.title')}
                   className="rounded-full border border-amber-600/30 bg-white/70 px-2.5 py-1 text-xs font-bold text-amber-900 shadow-sm"
                 >
                   {periodLabel(period)}
@@ -466,7 +469,7 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
                 {earned.map((b) => {
                   const style = TIER_STYLE[Math.min(b.tier, TIER_STYLE.length) - 1];
                   const maxed = b.tier >= TIER_STYLE.length;
-                  const said = `${style.name} — ${b.detail}`;
+                  const said = `${t(style.nameKey)} — ${b.detail}`;
                   return (
                     <button
                       key={b.key}
@@ -517,10 +520,8 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
         )}
 
         {counts.onSheet === 0 ? (
-          <Card title="No football yet">
-            <p className="text-sm text-amber-900/60">
-              Nothing to count — this player hasn't been on a recorded team sheet.
-            </p>
+          <Card title={t('pp.noFootball')}>
+            <p className="text-sm text-amber-900/60">{t('pp.noFootball.body')}</p>
           </Card>
         ) : (
           <>
@@ -528,7 +529,7 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
                 beside it, and scrolls sideways on a phone rather than wrapping
                 to a second row that would eat a third of the screen. */}
             <nav
-              aria-label="Jump to a section"
+              aria-label={t('pp.jump.aria')}
               className="sticky top-0 z-10 -mx-3 border-b border-amber-900/10 bg-[#fdf6e3]/95 px-3 py-2 backdrop-blur-sm sm:-mx-6 sm:px-6"
             >
               <div className="no-scrollbar flex gap-1.5 overflow-x-auto">
@@ -545,25 +546,29 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
             </nav>
 
             <div className="flex flex-wrap gap-2">
-              <Stat n={String(counts.nights)} label="nights" />
-              <Stat n={String(counts.nightsWon)} label="nights won" />
-              <Stat n={fmt(counts.wins)} label="match wins" />
+              <Stat n={String(counts.nights)} label={t('pp.stat.nights')} />
+              <Stat n={String(counts.nightsWon)} label={t('pp.stat.nightsWon')} />
+              <Stat n={fmt(counts.wins)} label={t('pp.stat.wins')} />
               <Stat
                 n={counts.perNight === null ? '–' : counts.perNight.toFixed(1)}
-                label="per night"
+                label={t('pp.stat.perNight')}
                 quiet={counts.perNight === null}
               />
               {/* No threshold on this one, unlike the rate beside it: a pick is
                   a thing that either happened or didn't, and "0" is the true
                   answer rather than a small sample of one. Shown for everybody
                   so a zero is legible as none rather than as untracked. */}
-              <Stat n={String(mvps)} label={mvps === 1 ? 'MVP night' : 'MVP nights'} quiet={mvps === 0} />
+              <Stat
+                n={String(mvps)}
+                label={t('pp.stat.mvp', { n: mvps })}
+                quiet={mvps === 0}
+              />
             </div>
 
             <Card
               id="pp-nights"
-              title="Every night"
-              hint={`newest first · ${counts.onSheet} played`}
+              title={t('pp.nights.title')}
+              hint={t('pp.nights.hint', { n: counts.onSheet })}
             >
               {/* One medal per night. A night with no result recorded is not a
                   third place — nobody finished anywhere — so it gets no medal
@@ -582,8 +587,15 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
                   // button" with no hint they were nights, dates or places.
                   const spoken =
                     n.place === null
-                      ? `${n.date}, ${teamLabel(n.shirt)}, no result recorded`
-                      : `${n.date}, ${teamLabel(n.shirt)}, finished ${n.place}`;
+                      ? t('pp.nights.spoken.noResult', {
+                          date: n.date,
+                          team: teamLabel(n.shirt),
+                        })
+                      : t('pp.nights.spoken.place', {
+                          date: n.date,
+                          team: teamLabel(n.shirt),
+                          place: n.place,
+                        });
                   return (
                     <button
                       key={n.fixtureId}
@@ -609,12 +621,14 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
                 <p className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-amber-900/55">
                   {counts.bestRun >= 2 && (
                     <span>
-                      best run <b className="text-amber-900">{counts.bestRun}</b>
+                      {t('pp.nights.bestRun')}{' '}
+                      <b className="text-amber-900">{counts.bestRun}</b>
                     </span>
                   )}
                   {counts.currentRun >= 2 && (
                     <span>
-                      on <b className="text-amber-900">{counts.currentRun}</b> right now 🔥
+                      {t('pp.nights.onNow')}{' '}
+                      <b className="text-amber-900">{counts.currentRun}</b> {t('pp.nights.rightNow')}
                     </span>
                   )}
                 </p>
@@ -629,7 +643,7 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
                 entirely for a player nobody has ever published a mark for —
                 see the note on `gradePoints`. */}
             {marksLoading ? (
-              <Card id="pp-form" title="Form" hint="loading">
+              <Card id="pp-form" title={t('pp.form.title')} hint={t('pp.form.loading')}>
                 <div
                   aria-hidden
                   className="h-20 animate-pulse rounded-xl bg-amber-900/[0.06]"
@@ -637,7 +651,7 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
               </Card>
             ) : (
               gradePoints.length > 0 && (
-                <Card id="pp-form" title="Form">
+                <Card id="pp-form" title={t('pp.form.title')}>
                   <GradeForm points={gradePoints} />
                 </Card>
               )
@@ -646,21 +660,25 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
             {/* Directly under the ribbon, because they are the same nights
                 asked two different questions. The ribbon answers "how has it
                 gone"; this answers "what happened, and when". */}
-            <Card id="pp-story" title="The story so far" hint="newest first">
+            <Card id="pp-story" title={t('pp.story.title')} hint={t('pp.story.hint')}>
               <PlayerTimeline events={timeline} />
             </Card>
 
             <div id="pp-milestones" className="grid scroll-mt-14 gap-3 sm:grid-cols-2">
-              <Card title="Milestones">
+              <Card title={t('pp.milestones.title')}>
                 <div className="space-y-3">
-                  <Progress now={counts.nights} next={nextNight} unit="nights" />
-                  <Progress now={Math.floor(counts.wins)} next={nextWin} unit="wins" />
-                  <Progress now={counts.nightsWon} next={nextFixture} unit="nights won" />
-                  <Progress now={mvps} next={nextMvp} unit="MVPs" />
+                  <Progress now={counts.nights} next={nextNight} unit={t('pp.unit.nights')} />
+                  <Progress now={Math.floor(counts.wins)} next={nextWin} unit={t('pp.unit.wins')} />
+                  <Progress
+                    now={counts.nightsWon}
+                    next={nextFixture}
+                    unit={t('pp.unit.nightsWon')}
+                  />
+                  <Progress now={mvps} next={nextMvp} unit={t('pp.unit.mvps')} />
                 </div>
               </Card>
 
-              <Card title="Shirts worn">
+              <Card title={t('pp.shirts.title')}>
                 <div className="space-y-2">
                   {TEAM_COLORS.map((c: TeamColor) => (
                     <div key={c} className="flex items-center gap-2 text-sm">
@@ -685,12 +703,15 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
             </div>
 
             <div id="pp-rivals" className="grid scroll-mt-14 gap-3 sm:grid-cols-2">
-              <Card title="Mates and rivals">
+              <Card title={t('pp.rivals.title')}>
                 {!picks.playedMost && !picks.facedMost ? (
                   <p className="text-sm text-amber-900/55">
                     {counts.nights < MIN_PROFILE_NIGHTS
-                      ? `Needs ${MIN_PROFILE_NIGHTS} nights before any of this is about them — ${counts.nights} so far.`
-                      : 'Nobody they have shared enough football with yet.'}
+                      ? t('pp.rivals.needsNights', {
+                          min: MIN_PROFILE_NIGHTS,
+                          n: counts.nights,
+                        })
+                      : t('pp.rivals.nobodyYet')}
                   </p>
                 ) : (
                   <div className="space-y-2.5">
@@ -703,63 +724,71 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
                     <div className="space-y-1">
                       <Line
                         icon="🔗"
-                        label="Most nights with"
+                        label={t('pp.rivals.playedMost')}
                         m={picks.playedMost}
                         tail={(m) =>
-                          `${m.together} of ${counts.nights}${
-                            counts.nights ? ` · ${Math.round((m.together / counts.nights) * 100)}%` : ''
+                          `${t('pp.rivals.playedMost.tail', {
+                            together: m.together,
+                            nights: counts.nights,
+                          })}${
+                            counts.nights
+                              ? ` · ${Math.round((m.together / counts.nights) * 100)}%`
+                              : ''
                           }`
                         }
                       />
                       <Line
                         icon="🏆"
-                        label="Won most with"
+                        label={t('pp.rivals.wonMost')}
                         m={picks.wonMost}
-                        tail={(m) => `${m.togetherWon} nights won`}
+                        tail={(m) => t('pp.rivals.wonMost.tail', { n: m.togetherWon })}
                       />
                       <Line
                         icon="👻"
-                        label="Never once alongside"
+                        label={t('pp.rivals.never')}
                         m={picks.neverTogether}
-                        tail={(m) => `${m.against} nights opposite`}
+                        tail={(m) => t('pp.rivals.never.tail', { n: m.against })}
                       />
                     </div>
                     <div className="space-y-1 border-t border-amber-900/10 pt-2">
                       <Line
                         icon="⚔️"
-                        label="Faced most"
+                        label={t('pp.rivals.facedMost')}
                         m={picks.facedMost}
-                        tail={(m) => `${m.faced} matches`}
+                        tail={(m) => t('pp.rivals.facedMost.tail', { n: m.faced })}
                       />
                       <Line
                         icon="😤"
-                        label="Bogey man"
+                        label={t('pp.rivals.bogey')}
                         m={picks.bogey}
                         // The denominator is the point: the pick is made on
                         // the *share*, so "23 times" alone would leave a
                         // reader unable to see why this name and not a longer
                         // record with more losses in it.
-                        tail={(m) => `has beaten you ${m.beatenBy} of ${m.faced}`}
+                        tail={(m) =>
+                          t('pp.rivals.bogey.tail', { n: m.beatenBy, faced: m.faced })
+                        }
                       />
                       <Line
                         icon="😎"
-                        label="Favourite victim"
+                        label={t('pp.rivals.victim')}
                         m={picks.victim}
-                        tail={(m) => `beaten by you ${m.beat} of ${m.faced}`}
+                        tail={(m) => t('pp.rivals.victim.tail', { n: m.beat, faced: m.faced })}
                       />
                       <Line
                         icon="🤜"
-                        label="Worthy opponent"
+                        label={t('pp.rivals.worthy')}
                         m={picks.worthy}
-                        tail={(m) => `${m.beat}–${m.beatenBy} — nothing in it`}
+                        tail={(m) =>
+                          t('pp.rivals.worthy.tail', { beat: m.beat, beatenBy: m.beatenBy })
+                        }
                       />
                       {/* The whole head-to-head half is counted in matches, so
                           it can only speak about nights somebody wrote down
                           match by match. Saying so beats an empty space. */}
                       {!picks.facedMost && !picks.bogey && !picks.victim && (
                         <p className="text-xs text-amber-900/50">
-                          Head-to-head needs nights logged match by match — a night alone can't say
-                          who beat whom.
+                          {t('pp.rivals.h2hNeedsLogs')}
                         </p>
                       )}
                     </div>
@@ -772,22 +801,28 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
                         {duos.best && (
                           <div className="flex flex-wrap items-baseline gap-x-2 text-sm">
                             <span className="shrink-0 text-[11px] font-bold uppercase tracking-wide text-emerald-800/60">
-                              🤝 Wins more with
+                              {t('pp.duo.better')}
                             </span>
                             <Name className="font-black text-amber-950">{other(duos.best)}</Name>
                             <span className="text-xs text-amber-900/55">
-                              {duos.best.won} of {duos.best.together} nights
+                              {t('pp.duo.tail', {
+                                won: duos.best.won,
+                                together: duos.best.together,
+                              })}
                             </span>
                           </div>
                         )}
                         {duos.worst && (
                           <div className="flex flex-wrap items-baseline gap-x-2 text-sm">
                             <span className="shrink-0 text-[11px] font-bold uppercase tracking-wide text-amber-900/45">
-                              🙃 Wins less with
+                              {t('pp.duo.worse')}
                             </span>
                             <Name className="font-black text-amber-950">{other(duos.worst)}</Name>
                             <span className="text-xs text-amber-900/55">
-                              {duos.worst.won} of {duos.worst.together} nights
+                              {t('pp.duo.tail', {
+                                won: duos.worst.won,
+                                together: duos.worst.together,
+                              })}
                             </span>
                           </div>
                         )}
@@ -798,8 +833,12 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
               </Card>
 
               <Card
-                title="Shootouts"
-                hint={enoughLogged ? `${shootouts.loggedNights} logged nights` : undefined}
+                title={t('pp.shootouts.title')}
+                hint={
+                  enoughLogged
+                    ? t('pp.shootouts.hint', { n: shootouts.loggedNights })
+                    : undefined
+                }
               >
                 {enoughLogged ? (
                   <div className="flex gap-2">
@@ -808,7 +847,7 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
                         {shootouts.taken}
                       </div>
                       <div className="mt-1 text-[11px] font-bold uppercase tracking-wide text-rose-900/65">
-                        on penalties
+                        {t('pp.shootouts.onPens')}
                       </div>
                     </div>
                     <div className="flex-1 rounded-xl bg-amber-900/[0.05] px-3 py-2 text-center">
@@ -816,14 +855,16 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
                         {shootouts.wonInPlay}
                       </div>
                       <div className="mt-1 text-[11px] font-bold uppercase tracking-wide text-amber-900/55">
-                        won in play
+                        {t('pp.shootouts.inPlay')}
                       </div>
                     </div>
                   </div>
                 ) : (
                   <p className="text-sm text-amber-900/55">
-                    Only nights logged match by match can answer this — {shootouts.loggedNights} so
-                    far, {MIN_PROFILE_NIGHTS} needed.
+                    {t('pp.shootouts.needsLogs', {
+                      n: shootouts.loggedNights,
+                      min: MIN_PROFILE_NIGHTS,
+                    })}
                   </p>
                 )}
               </Card>
@@ -835,13 +876,12 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
                 somebody's character. */}
             <Card
               id="pp-arcs"
-              title="Across the night"
-              hint={enoughArcs ? `${arcs.matches} matches logged` : undefined}
+              title={t('pp.arcs.title')}
+              hint={enoughArcs ? t('pp.arcs.hint', { n: arcs.matches }) : undefined}
             >
               {!enoughArcs ? (
                 <p className="text-sm text-amber-900/55">
-                  This one needs nights logged match by match — {arcs.loggedNights} so far,{' '}
-                  {MIN_ARC_NIGHTS} needed. A tallied night says how much they won, never when.
+                  {t('pp.arcs.needsLogs', { n: arcs.loggedNights, min: MIN_ARC_NIGHTS })}
                 </p>
               ) : (
                 <NightParts arcs={arcs} />
@@ -896,7 +936,7 @@ function Progress({
   if (!next) {
     return (
       <div className="text-sm font-bold text-amber-950">
-        {now} {unit} — every milestone passed 🎖️
+        {t('pp.progress.allPassed', { n: now, unit })}
       </div>
     );
   }
@@ -907,7 +947,9 @@ function Progress({
           <span className="font-mono tabular-nums">{now}</span>
           <span className="text-amber-900/40"> / {next.target}</span> {unit}
         </span>
-        <span className="text-xs font-semibold text-amber-900/50">{next.away} to go</span>
+        <span className="text-xs font-semibold text-amber-900/50">
+          {t('pp.progress.toGo', { n: next.away })}
+        </span>
       </div>
       {/* The bar carries the same fact its label does, so it's a real
           progressbar rather than decoration — without the role it was silent
@@ -917,7 +959,7 @@ function Progress({
         aria-valuenow={now}
         aria-valuemin={0}
         aria-valuemax={next.target}
-        aria-label={`${now} of ${next.target} ${unit}`}
+        aria-label={t('pp.progress.aria', { now, target: next.target, unit })}
         className="h-2.5 overflow-hidden rounded-full bg-amber-900/[0.07]"
       >
         <div
