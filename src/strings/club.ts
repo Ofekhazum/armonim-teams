@@ -156,4 +156,6 @@ export const club = {
     he: 'אף אחד מהערבים האלה לא נרשם משחק־משחק, אז אין מאזן ישיר לקרוא.',
     en: 'None of those nights was written down match by match, so there is no head-to-head to read.',
   },
+  'form.place.shared': { he: 'שוויון על מקום {n}', en: 'Level on {n}' },
+  'form.place.finished': { he: 'סיים במקום {n}', en: 'Finished {n}' },
 } as const satisfies Record<string, Entry>;

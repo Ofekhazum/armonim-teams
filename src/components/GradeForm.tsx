@@ -161,7 +161,10 @@ export default function GradeForm({ points }: { points: GradePoint[] }) {
                           the badge. */}
                       {p.place !== null && (
                         <span
-                          title={p.shared ? `Level on ${p.place}` : `Finished ${p.place}`}
+                          title={t(
+                            p.shared ? 'form.place.shared' : 'form.place.finished',
+                            { n: p.place },
+                          )}
                           className={`grid h-4 w-4 shrink-0 place-items-center rounded font-mono text-[9px] font-black ${MEDAL[p.place]}`}
                         >
                           {p.place}
@@ -170,7 +173,7 @@ export default function GradeForm({ points }: { points: GradePoint[] }) {
                       <span className={`rounded px-1.5 py-0.5 text-[11px] font-semibold ${TEAM_META[p.shirt].tile}`}>
                         <Name>{teamLabel(p.shirt)}</Name>
                       </span>
-                      {p.isMvp && <span title="Player of the night">🌟</span>}
+                      {p.isMvp && <span title={t('marks.mvpTitle')}>🌟</span>}
                     </span>
                   </td>
                   <td className="py-1.5 text-end tabular-nums text-amber-900/70">

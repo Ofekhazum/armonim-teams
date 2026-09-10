@@ -38,4 +38,20 @@ export const app = {
     he: 'לא הצלחנו לשתף — השינוי נשמר במכשיר הזה, אבל אחרים עדיין לא יראו אותו.',
     en: "Could not share this — it's saved on this device, but others won't see it yet.",
   },
+
+  // --- Unlocking admin ------------------------------------------------------
+  'admin.prompt': { he: 'הזינו את סיסמת המנהל:', en: 'Enter the admin password:' },
+  'admin.wrong': { he: '❌ סיסמה שגויה.', en: '❌ Wrong password.' },
+  'admin.rateLimited': {
+    he: '❌ יותר מדי סיסמאות שגויות. חכו כמה דקות ונסו שוב.',
+    en: '❌ Too many wrong passwords. Please wait a few minutes and try again.',
+  },
+  'admin.notConfigured': {
+    he: 'הסגל המשותף עוד לא מוגדר (REMOTE_URL ריק ב־remote.ts).',
+    en: 'The shared roster is not set up yet (REMOTE_URL is empty in remote.ts).',
+  },
+  'admin.unreachable': {
+    he: 'לא הצלחנו להגיע לשרת — בדקו את החיבור ונסו שוב.',
+    en: 'Could not reach the server — check your connection and try again.',
+  },
 } as const satisfies Record<string, Entry>;

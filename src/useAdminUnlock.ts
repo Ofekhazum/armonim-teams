@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { verifyWord } from './remote';
 import { TEST_WORD, isTestMode, setTestMode } from './testMode';
+import { t } from './i18n';
 
 // Prompt for the secret word and, if the Worker accepts it, unlock admin mode.
 // The word is verified server-side (and rate-limited there — see §6), never
@@ -13,7 +14,7 @@ export function useAdminUnlock(setAdminWord: (word: string | null) => void) {
   const [unlocking, setUnlocking] = useState(false);
 
   const unlockAdmin = async () => {
-    const word = window.prompt('Enter the admin password:');
+    const word = window.prompt(t('admin.prompt'));
     if (word == null) return; // cancelled
 
     // The sandbox word (§2.32). Checked here and never sent anywhere — the
@@ -31,13 +32,13 @@ export function useAdminUnlock(setAdminWord: (word: string | null) => void) {
     if (result === 'ok') {
       setAdminWord(word.trim());
     } else if (result === 'wrong-word') {
-      alert('❌ Wrong password.');
+      alert(t('admin.wrong'));
     } else if (result === 'rate-limited') {
-      alert('❌ Too many wrong passwords. Please wait a few minutes and try again.');
+      alert(t('admin.rateLimited'));
     } else if (result === 'not-configured') {
-      alert('The shared roster is not set up yet (REMOTE_URL is empty in remote.ts).');
+      alert(t('admin.notConfigured'));
     } else {
-      alert('Could not reach the server — check your connection and try again.');
+      alert(t('admin.unreachable'));
     }
   };
 
