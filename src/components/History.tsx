@@ -15,7 +15,7 @@ import { announceMonth, clearMonth, fetchAwards, type Awards } from '../awards';
 import { shareWrappedImage } from '../wrappedImage';
 import { fetchAllMarks } from '../gradesApi';
 import type { AllMarks } from '../gradeHistory';
-import { mvpCandidates, mvpCounts, winningTeams } from '../mvp';
+import { mvpCandidates, mvpCounts, mvpFromVotes, winningTeams } from '../mvp';
 import {
   getNightsShelfOpen,
   getSectionOpen,
@@ -43,14 +43,25 @@ interface Props {
   onDeleteFixture: (fixtureId: string) => void;
   onEditFixture: (
     fixtureId: string,
-    patch: { wins: TeamWins; date: string; mvpId?: string; note?: string },
+    patch: {
+      wins: TeamWins;
+      date: string;
+      mvpId?: string;
+      mvpVotes?: Record<string, number>;
+      note?: string;
+    },
   ) => void;
 }
 
 interface Draft {
   wins: DraftTeamWins;
   date: string;
+  // The pick, kept alongside the sheet rather than derived on read. It follows
+  // the votes as they are typed (`mvpFromVotes`), and holds the value the
+  // votes cannot supply: the standing pick on a level sheet, and the pick on a
+  // night filed before the sheet existed (§2.46).
   mvpId: string | null;
+  mvpVotes: Record<string, number>;
   note: string;
 }
 
@@ -276,7 +287,13 @@ export default function History({
 
   const startEdit = (fx: FixtureRecord) => {
     setEditId(fx.id);
-    setDraft({ wins: { ...fx.wins }, date: fx.date, mvpId: fx.mvpId ?? null, note: fx.note ?? '' });
+    setDraft({
+      wins: { ...fx.wins },
+      date: fx.date,
+      mvpId: fx.mvpId ?? null,
+      mvpVotes: { ...(fx.mvpVotes ?? {}) },
+      note: fx.note ?? '',
+    });
   };
 
   const cancelEdit = () => {
@@ -299,6 +316,11 @@ export default function History({
       // pick" the patch spread in App.tsx would leave the old id in place
       // instead of clearing it
       mvpId: draft.mvpId ?? undefined,
+      // Same rule as the pick above: always present, so zeroing every row is
+      // how a sheet gets deleted rather than a no-op that leaves the old tally
+      // in place. An empty sheet is stored as absent, not as `{}` — see
+      // FixtureRecord.mvpVotes.
+      mvpVotes: Object.keys(draft.mvpVotes).length > 0 ? draft.mvpVotes : undefined,
       // Emptying the box is how a note is deleted — see the comment above for
       // why this key is always present rather than omitted when there is none.
       note: draft.note.trim() || undefined,
@@ -783,8 +805,39 @@ export default function History({
                   <MvpPicker
                     players={mvpCandidates(editing, draft.wins)}
                     winners={winningTeams(draft.wins)}
+                    votes={draft.mvpVotes}
                     mvpId={draft.mvpId}
-                    onChange={(mvpId) => setDraft((d) => (d ? { ...d, mvpId } : d))}
+                    // The pick is recomputed from the sheet on every keystroke
+                    // rather than stored separately and reconciled later —
+                    // there is no state in which the star and the tally can
+                    // disagree, because there is only one of them.
+                    onChange={(update) =>
+                      setDraft((d) => {
+                        if (!d) return d;
+                        const mvpVotes = update(d.mvpVotes);
+                        // The pick that survives a level sheet is the one on
+                        // *file*, not the one the draft happens to hold. Those
+                        // differ while a sheet is first being typed: the first
+                        // name tapped leads on its own for a keystroke, and
+                        // carrying that forward would let entry order settle a
+                        // 1–1 in its favour. `editing.mvpId` is a real decision
+                        // somebody made; `d.mvpId` mid-typing is an artifact.
+                        return {
+                          ...d,
+                          mvpVotes,
+                          mvpId: mvpFromVotes(mvpVotes, editing.mvpId ?? null),
+                        };
+                      })
+                    }
+                    // Only ever set on a night picked before the sheet existed:
+                    // once anything is voted the tally decides, and this line
+                    // goes away.
+                    legacyPick={
+                      Object.keys(draft.mvpVotes).length === 0 && draft.mvpId
+                        ? (editing.players.find((p) => p.id === draft.mvpId)?.name ?? '?')
+                        : null
+                    }
+                    onClearLegacy={() => setDraft((d) => (d ? { ...d, mvpId: null } : d))}
                   />
                   {/* The organiser's note (§2.27). Written as the night was
                       filed, and editable only here, by an admin — it is never

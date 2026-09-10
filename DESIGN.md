@@ -3816,6 +3816,65 @@ language that phone chose.
 are an API contract, not UI. The Hebrew *vocabulary inside* those prompts did change, so published
 banter uses the same words as the screens around it.
 
+### 2.46 Counting the room, not just the winner (`mvp.ts`, `grades.ts`, `MvpPicker.tsx`)
+
+The player of the night was a dropdown: one name, filed, counted. That threw away everything else
+the room said — a 3–2 and a 5–0 were the identical record, and the player one vote short was filed
+as nobody at all. A night can now carry the whole tally.
+
+**The votes are typed by the organiser, not cast in the app.** The club votes with the hands in the
+room; this is where the result gets written down. `MvpPicker` is a row per candidate with a stepper
+and a box — tapped up one at a time as names are called, or typed in one go from a poll.
+
+**`mvpId` still exists and is still the honour.** The tally sits *beside* it, and exactly one thing
+reads it: the mark out of ten. Team of the Month, the leaderboards, the badges, the milestone
+ladder and the monthly recap all still count one pick a night through `mvpCounts`, untouched.
+Widening the honour itself was not asked for and would quietly re-weight half the app.
+
+**Nothing already filed moves.** Every night from before this has no sheet, and `grades.ts` keeps
+the flat `MVP_BONUS` for those rather than inventing a margin that is not recoverable. The new term
+is calibrated around that number rather than replacing it: `PICK_BONUS` (0.4) for being the pick
+plus `ROOM_W` (0.7) × share of the room, spanning [0.40, 1.10] — and 0.75, what an untallied pick
+has always scored, is its exact midpoint.
+
+**What it actually buys, measured rather than claimed.** On a night won outright:
+
+| the vote | the pick's mark | was |
+|---|---|---|
+| unanimous 5–0 | 9 | 8.5 |
+| clear 4–1 | 9 | 8.5 |
+| narrow 3–2 | 8.5 | 8.5 |
+
+So the winner separates, which is the thing the change is for. **The runner-up does not** — not in
+the number. `WIN_FLOOR` already pins the whole winning team at 8, a runner-up's raw mark is about
+7.6, and 0.28 of a bonus is absorbed before it can move a rung. It shows only on a night that
+finished level, where the floor is `PLAYED_FLOOR` and there is room. That is the floor's known cost,
+stated in `WIN_BONUS` long before this feature: marks inside a winning team compress. Widening
+`ROOM_W` cannot fix it — the floor eats whatever is under it — and moving `WIN_FLOOR` is the
+organiser's call. So the runner-up's real recognition is the tally beside their name and the
+sentence written about them, which say "two of five" at a resolution a half-point scale does not
+have. There are tests asserting both halves of this, including the flattening.
+
+**A level sheet picks nobody, and does not let entry order decide.** Two names on three votes each
+is not a tie the app may break — crowning whichever sorts first would be inventing the one judgement
+this feature exists to record — so the footer says the vote is level and the organiser casts the
+deciding one, the way it is broken at the pitch. The exception is a pick already *on file*: a
+correction that levels the sheet under somebody does not un-name them. The pick that survives is
+`editing.mvpId`, deliberately, not the draft's own — during first entry the first name tapped leads
+for one keystroke on its way to a 1–1, and carrying that forward would let typing order settle it.
+
+**Two things the browser caught that no unit test would have.** Rapid taps on a stepper batch into
+one React render, so computing the next sheet from the `votes` prop dropped all but the last — three
+taps landed as one vote, on the control whose whole purpose is being tapped fast. `onChange` takes an
+updater now. And the footer read "level — add one to settle it" while a star still sat on the
+standing pick, which is two statements about the same night; a tie has two readings and the line
+says which.
+
+**Merging guests adds votes rather than picking one** (`guests.ts`). Every other field on a fixture
+holds one value per person, so merging two ids means choosing a winner. A tally is a count, and the
+same person's counts under two ids are two parts of one number — keeping only the first would delete
+votes really cast, and could hand the night to somebody else.
+
 ## 3. Team generation algorithm
 
 Balancing is a small constrained optimization. With ≤15 players, brute force is too big

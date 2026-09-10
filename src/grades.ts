@@ -9,8 +9,16 @@
 // **What a night actually knows about one player.** `MatchLogEntry` records
 // `{a, b, winner, viaPenalties}` — team colours, not people. Every match, every
 // shootout and every sequence is therefore *identical* for the five players on
-// a shirt. On a single night exactly one thing distinguishes teammates: the MVP
-// pick. Everything else that differs between them is history.
+// a shirt. On a single night exactly one thing distinguishes teammates: what
+// the room said about them. Everything else that differs between them is
+// history.
+//
+// Since §2.46 that is the whole vote rather than one name, which matters here
+// more than anywhere else in the app: a tally is the only per-night input with
+// any *resolution*, so it is the only one that can separate more than two
+// teammates. A 3–2–1 sheet says three different things about three players on
+// the same shirt; a single pick said one thing about one of them and nothing
+// at all about the other four.
 //
 // So the grade is built from four terms, and only two of them can separate
 // teammates at all:
@@ -83,6 +91,7 @@ import { hasResult } from './calibration';
 // valuation formula and its ridge solver into everybody's main bundle.
 import { ratingTier } from './ratingTier';
 import { placeOf, profileNights, shirtOf, type Place } from './playerProfile';
+import { totalVotes } from './mvp';
 
 /**
  * Where an ordinary night lands.
@@ -200,8 +209,68 @@ const PLAYED_FLOOR = 4;
  * one of them on a night their team took 7 of 14 with the runner-up on 5, and
  * **9.5 had never once been awarded**. A rung that never fires is the tell that
  * the scale has a gap rather than a top.
+ *
+ * **Since §2.46 this is the fallback rather than the rule** — what a pick is
+ * worth on a night whose vote was never written down. Every night filed before
+ * the sheet existed is a single name with no tally behind it, and that is not a
+ * gap to be filled in: the room's margin on some Thursday in March is not
+ * recoverable, and guessing at it would be inventing the one fact this formula
+ * is least entitled to invent. Nights with a sheet use the two constants below.
  */
 const MVP_BONUS = 0.75;
+
+/**
+ * Being the pick, once the room has been counted (§2.46).
+ *
+ * From 2026-09-11 a night can carry the whole vote rather than one name, and
+ * the bonus splits along the two different things a vote says. This half is the
+ * honour itself: you were the one, however narrowly. It is flat, because being
+ * picked 3–2 and being picked 5–0 are equally *being picked*, and it is what
+ * `UNPICKED_CAP` still keys off — the top two rungs belong to the pick alone,
+ * not to whoever polled well.
+ */
+const PICK_BONUS = 0.4;
+
+/**
+ * And this half is how much of the room actually said your name.
+ *
+ * `ROOM_W × (your votes ÷ votes cast)`, for everybody on the sheet rather than
+ * only the winner. Two things follow from that, both of them the point:
+ *
+ * **A landslide outmarks a squeaker.** A unanimous pick scores `0.4 + 0.7` =
+ * **1.10**; one that shaded a 3–2 scores `0.4 + 0.42` = **0.82**. Under the old
+ * flat bonus those were the same night. They are not the same night.
+ *
+ * **The runner-up stops being nobody — in the payload, and usually not in the
+ * number.** Two votes of five is 0.28, and where that lands was measured rather
+ * than assumed: on a night won outright it lands nowhere. `WIN_FLOOR` already
+ * has the whole winning team pinned at 8, a typical runner-up's raw mark is
+ * about 7.6, and the bonus is absorbed by the floor before it can move a rung.
+ * It shows on a night that finished level (no outright winner, so the floor is
+ * `PLAYED_FLOOR` and there is room), and on a winner already sitting above 8 on
+ * their own terms.
+ *
+ * That is the floor's known cost, stated in `WIN_BONUS` before this existed:
+ * marks inside a winning team compress, and only the part above 8 survives.
+ * Widening `ROOM_W` would not fix it — the floor eats whatever is under it —
+ * and lowering `WIN_FLOOR` is the organiser's call, not a side effect of adding
+ * a vote. So the runner-up's real recognition is the tally beside their name
+ * (`NightGrades`) and the line written about them, which say "two of five" at a
+ * resolution a half-point scale does not have.
+ *
+ * What the term does guarantee is the ordering: it never moves a runner-up past
+ * the pick. `PICK_BONUS` is a step they cannot climb by polling well, so no
+ * arrangement of votes can have the second name marking above the first.
+ *
+ * **Calibrated so the ordinary night is where it was.** The term spans
+ * [0.40, 1.10] and `MVP_BONUS` — what a night with no sheet still scores — sits
+ * at 0.75, its exact midpoint. A club that never types a tally sees no change
+ * at all, and one that does sees marks move up or down from the same middle
+ * rather than off a new baseline.
+ *
+ * Nothing already filed re-scores, because nothing already filed has a sheet.
+ */
+const ROOM_W = 0.7;
 
 /**
  * Taking the night outright, as a thing in itself rather than as a margin.
@@ -367,6 +436,17 @@ export interface GradeContext {
   /** Whether their team took the night outright — level at the top is nobody. */
   wonNight: boolean;
   isMvp: boolean;
+  /**
+   * Votes this player got, and how many were cast in all — or null on a night
+   * with no sheet, which is every night before §2.46 and any night the
+   * organiser did not tally.
+   *
+   * Null rather than 0 on purpose: "nobody voted for you" and "nobody counted"
+   * are different sentences, and the one thing worse than a reporter ignoring
+   * the vote is one inventing a shut-out from its absence.
+   */
+  votes: number | null;
+  votesCast: number | null;
   /** Nights on record *before* tonight. 0 means this was a debut. */
   nightsBefore: number;
   /** Their own wins per night coming in, or null on a debut. */
@@ -443,6 +523,12 @@ export function nightGrades(history: FixtureRecord[], fixtureId: string): Grade[
   const matches = (['black', 'white', 'blue'] as TeamColor[]).reduce((s, c) => s + (fx.wins[c] ?? 0), 0);
   const fairShare = matches / 3;
 
+  // The room's vote, if it was written down (§2.46). Zero means no sheet —
+  // either the night predates the feature or nobody tallied it — and the pick
+  // falls back to the flat `MVP_BONUS` it has always been worth.
+  const votesCast = totalVotes(fx.mvpVotes);
+  const tallied = votesCast > 0;
+
   const out: Grade[] = [];
   for (const c of ['black', 'white', 'blue'] as TeamColor[]) {
     const teamWins = fx.wins[c] ?? 0;
@@ -480,6 +566,7 @@ export function nightGrades(history: FixtureRecord[], fixtureId: string): Grade[
       }
 
       const isMvp = fx.mvpId === id;
+      const votes = tallied ? (fx.mvpVotes?.[id] ?? 0) : null;
       // The rating as it stood *on that night*, off the fixture's own snapshot
       // rather than off today's roster — the same rule every other term here
       // follows. A player the organiser has since re-rated keeps the marks
@@ -491,7 +578,14 @@ export function nightGrades(history: FixtureRecord[], fixtureId: string): Grade[
       const wonNight = place === 1 && !hasTie(fx, teamWins);
       const parts: GradeParts = {
         night: night + (wonNight ? WIN_BONUS : 0),
-        mvp: isMvp ? MVP_BONUS : 0,
+        // The pick, plus however much of the room said so — see PICK_BONUS and
+        // ROOM_W. Untallied nights keep the flat bonus, so a mark filed before
+        // the sheet existed reads today exactly as it did then.
+        mvp: tallied
+          ? (isMvp ? PICK_BONUS : 0) + ROOM_W * ((votes ?? 0) / votesCast)
+          : isMvp
+            ? MVP_BONUS
+            : 0,
         career,
         momentum,
         tier,
@@ -536,6 +630,8 @@ export function nightGrades(history: FixtureRecord[], fixtureId: string): Grade[
           place,
           wonNight,
           isMvp,
+          votes,
+          votesCast: tallied ? votesCast : null,
           nightsBefore,
           baseline,
           recent,
@@ -562,6 +658,8 @@ export const gradeConstants = {
   NIGHT_W,
   NIGHT_CAP,
   MVP_BONUS,
+  PICK_BONUS,
+  ROOM_W,
   WIN_BONUS,
   UNPICKED_CAP,
   WIN_FLOOR,

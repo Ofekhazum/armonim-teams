@@ -249,6 +249,7 @@ export function testHistory(players: Player[]): FixtureRecord[] {
     const pool = rand() < 0.8 ? teams[top] : present;
     const ranked = [...pool].sort((x, y) => (rating.get(y) ?? 3) - (rating.get(x) ?? 3));
     const mvpId = rand() < 0.9 ? ranked[Math.floor(rand() * Math.min(3, ranked.length))] : undefined;
+    const mvpVotes = mvpId ? inventVote(mvpId, pool, ranked, rand) : undefined;
 
     return {
       id: `${TEST_PREFIX}${date}`,
@@ -262,9 +263,53 @@ export function testHistory(players: Player[]): FixtureRecord[] {
       wins,
       ...(matchLog ? { matchLog } : {}),
       ...(mvpId ? { mvpId } : {}),
+      ...(mvpVotes ? { mvpVotes } : {}),
       ...(night % 7 === 3 ? { note: NOTES[(night / 7) | 0] ?? NOTES[0] } : {}),
     };
   });
+}
+
+/**
+ * A plausible vote sheet behind a pick (§2.46).
+ *
+ * The pick is decided first and the sheet is built to agree with it — the
+ * winner always takes the most votes, so the invented club can never file a
+ * night whose star sits on the wrong name. That is the one invariant here; the
+ * rest is shaped to exercise the feature rather than to model a real room.
+ *
+ * **A fifth of nights get no sheet at all**, which is the case that matters
+ * most: those are what every night filed before the sheet existed looks like,
+ * and the sandbox is where the fallback path gets walked. Of the rest, most are
+ * a genuine contest and about a third are a landslide, so both ends of
+ * `ROOM_W` show up in the marks somebody browsing test mode actually reads.
+ */
+function inventVote(
+  mvpId: string,
+  pool: string[],
+  ranked: string[],
+  rand: () => number,
+): Record<string, number> | undefined {
+  if (rand() < 0.2) return undefined; // a night nobody counted
+
+  const voters = 5 + Math.floor(rand() * 4); // 5–8 hands go up
+  const landslide = rand() < 0.35;
+  // Never below a bare majority on a landslide, and never below two on a
+  // contest — a "winner" on one vote of eight is a sheet nobody would file.
+  const won = landslide
+    ? voters - Math.floor(rand() * 2)
+    : Math.max(2, Math.ceil(voters / 2) - Math.floor(rand() * 2));
+
+  const votes: Record<string, number> = { [mvpId]: won };
+  // Whoever else polled, in rating order and never past the winner's tally —
+  // the runner-up may draw level in the raw draw, so they are held one short.
+  let left = voters - won;
+  for (const id of ranked.filter((p) => p !== mvpId && pool.includes(p))) {
+    if (left <= 0) break;
+    const share = Math.min(left, won - 1, 1 + Math.floor(rand() * 2));
+    if (share > 0) votes[id] = share;
+    left -= share;
+  }
+  return votes;
 }
 
 /**

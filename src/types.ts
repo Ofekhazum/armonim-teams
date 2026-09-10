@@ -147,6 +147,11 @@ export const emptyWins = (): DraftTeamWins => ({ black: null, white: null, blue:
 // first. Enforced on the way in and again on the Worker.
 export const NOTE_MAX = 280;
 
+// The most votes one player can be given on a night. A five-a-side club votes
+// with the hands in the room, so this is generous by an order of magnitude —
+// it is here to bound a typo and the Worker's validator, not to express a rule.
+export const VOTES_MAX = 99;
+
 export interface FixturePlayer {
   id: string;
   name: string;
@@ -170,6 +175,18 @@ export interface FixtureRecord {
   // id from `players` (guests included); see src/mvp.ts for how it's tallied
   // into a count.
   mvpId?: string;
+  // How many votes each player got, keyed by id — the room's tally rather than
+  // one name (§2.46). `mvpId` stays the pick and is what every other feature in
+  // the app counts; this is the margin behind it, and only the marks out of ten
+  // read it.
+  //
+  // Optional, and absent on every night filed before the sheet existed. Those
+  // nights are a single pick and always will be: `grades.ts` keeps the old flat
+  // bonus for them rather than inventing a tally they never had.
+  //
+  // Only players with at least one vote appear. A zero is the same fact as not
+  // being listed, and storing it would make an empty sheet look like a filed one.
+  mvpVotes?: Record<string, number>;
   // Whatever the organiser thought was worth remembering, typed as the night
   // was filed — "Tom put it over the fence five times". The one thing on a
   // fixture that is neither counted nor derived, and the only route by which

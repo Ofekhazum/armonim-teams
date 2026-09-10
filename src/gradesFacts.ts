@@ -34,6 +34,16 @@ export interface GradeFactLine {
   place: 1 | 2 | 3;
   wonNight: boolean;
   isMvp: boolean;
+  /**
+   * How many of the night's votes named this player (§2.46), or null on a night
+   * nobody tallied — which is every night before the sheet existed.
+   *
+   * Here because the margin is the part of the vote that reads as a *story*
+   * rather than as a number. A mark can only move in half-points, so a 3–2 and
+   * a 4–1 often land on the same two figures; the sentence beside them is where
+   * "shaded it by one" and "walked it" are actually different nights.
+   */
+  votes: number | null;
   nightsBefore: number;
   trend: Trend | null;
   runBefore: number;
@@ -70,6 +80,8 @@ export interface GradesFacts {
   matches: number;
   winners: TeamColor[];
   mvp: string | null;
+  /** Votes cast in all, so a player's own count reads as a share. Null if untallied. */
+  votesCast: number | null;
   said: string | null;
   milestones: string[];
   derby: DerbyFact | null;
@@ -102,6 +114,7 @@ export function gradesFacts(
     place: g.context.place,
     wonNight: g.context.wonNight,
     isMvp: g.context.isMvp,
+    votes: g.context.votes,
     nightsBefore: g.context.nightsBefore,
     trend: g.context.trend,
     runBefore: g.context.runBefore,
@@ -164,6 +177,9 @@ export function gradesFacts(
     matches,
     winners: top > 0 && atTop.length === 1 ? atTop : [],
     mvp: fixture.mvpId ? nameOf(fixture.mvpId) : null,
+    // From the graded lines rather than recounted off the fixture, so the
+    // payload cannot disagree with the marks it is sitting next to.
+    votesCast: graded[0]?.context.votesCast ?? null,
     said: fixture.note?.trim() || null,
     milestones,
     derby: derbyFact(fixture, asOf, rosterIds, keyOf),

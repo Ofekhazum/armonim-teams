@@ -11,7 +11,12 @@ let seq = 0;
 const night = (
   teams: { black: string[]; white: string[]; blue: string[] },
   wins: { black: number; white: number; blue: number },
-  extra: { mvpId?: string; matchLog?: MatchLogEntry[]; ratings?: Record<string, number> } = {},
+  extra: {
+    mvpId?: string;
+    mvpVotes?: Record<string, number>;
+    matchLog?: MatchLogEntry[];
+    ratings?: Record<string, number>;
+  } = {},
 ): FixtureRecord => {
   seq++;
   const { ratings, ...rest } = extra;
@@ -470,6 +475,149 @@ describe('the tier shade', () => {
     // is a good mark, not a perfect one.
     const narrow = night(T(['a'], ['b'], ['c']), { black: 5, white: 4, blue: 3 }, { mvpId: 'a' });
     expect(gradeOf(nightGrades([narrow], narrow.id), 'a').grade).toBeLessThan(10);
+  });
+
+  // --- The vote (§2.46) ----------------------------------------------------
+  //
+  // The pick used to be one bit: you were it or you were not. A night can now
+  // carry the whole tally, and these hold the two properties that make the
+  // extra resolution safe to spend on a mark somebody reads about themselves.
+
+  it('marks a landslide above a squeaker, which one bit could never say', () => {
+    const votes = (mvpVotes: Record<string, number>) =>
+      night(T(['a', 'b'], ['x'], ['y']), { black: 6, white: 3, blue: 2 }, { mvpId: 'a', mvpVotes });
+
+    const walked = votes({ a: 5 });
+    const shaded = votes({ a: 3, b: 2 });
+    expect(gradeOf(nightGrades([walked], walked.id), 'a').parts.mvp).toBeGreaterThan(
+      gradeOf(nightGrades([shaded], shaded.id), 'a').parts.mvp,
+    );
+    // and both are still recognisably the same honour, not two different ones
+    expect(gradeOf(nightGrades([shaded], shaded.id), 'a').parts.mvp).toBeGreaterThan(
+      gradeConstants.PICK_BONUS,
+    );
+  });
+
+  it('gives the runner-up something, where before they were nobody', () => {
+    const fx = night(T(['a', 'b', 'c'], ['x'], ['y']), { black: 6, white: 3, blue: 2 }, {
+      mvpId: 'a',
+      mvpVotes: { a: 3, b: 2 },
+    });
+    const gs = nightGrades([fx], fx.id)!;
+    expect(gradeOf(gs, 'b').parts.mvp).toBeGreaterThan(0);
+    // and a teammate nobody named still gets nothing, so the term stays a fact
+    // about the person rather than a participation fee
+    expect(gradeOf(gs, 'c').parts.mvp).toBe(0);
+  });
+
+  it('separates a landslide from a squeaker in the mark itself', () => {
+    // The point of the whole feature, asserted on the printed number rather
+    // than on `parts.mvp` — a term that moves and a mark that does not would
+    // be a formula talking to itself.
+    const votes = (mvpVotes: Record<string, number>) =>
+      night(T(['a', 'b', 'c'], ['x'], ['y']), { black: 6, white: 3, blue: 3 }, {
+        mvpId: 'a',
+        mvpVotes,
+      });
+    const walked = votes({ a: 5 });
+    const shaded = votes({ a: 3, b: 2 });
+    expect(gradeOf(nightGrades([walked], walked.id), 'a').grade).toBeGreaterThan(
+      gradeOf(nightGrades([shaded], shaded.id), 'a').grade,
+    );
+  });
+
+  it('leaves a runner-up on the floor where the floor is what set their mark', () => {
+    // Measured, and worth pinning because it is the limit of what the vote can
+    // do: `WIN_FLOOR` has the winning team at 8 and a runner-up's raw mark is
+    // under it, so 0.28 of a bonus changes nothing. Their recognition is the
+    // tally beside the name and the sentence, not the figure. If this ever
+    // starts failing, the floor moved — which is a decision, not a bug.
+    const fx = night(T(['a', 'b', 'c'], ['x'], ['y']), { black: 6, white: 3, blue: 3 }, {
+      mvpId: 'a',
+      mvpVotes: { a: 3, b: 2 },
+    });
+    const gs = nightGrades([fx], fx.id)!;
+    expect(gradeOf(gs, 'b').parts.mvp).toBeGreaterThan(0);
+    expect(gradeOf(gs, 'b').grade).toBe(gradeOf(gs, 'c').grade); // both on the floor
+    expect(gradeOf(gs, 'b').grade).toBe(gradeConstants.WIN_FLOOR);
+  });
+
+  it('does move a runner-up on a night nobody won outright', () => {
+    // Level at the top means `PLAYED_FLOOR`, which is far below where these
+    // marks land — so the vote has room and the runner-up reads a rung above
+    // the teammate nobody named.
+    const fx = night(T(['a', 'b', 'c'], ['x'], ['y']), { black: 4, white: 4, blue: 4 }, {
+      mvpVotes: { a: 3, b: 3 },
+    });
+    const gs = nightGrades([fx], fx.id)!;
+    expect(gradeOf(gs, 'b').grade).toBeGreaterThan(gradeOf(gs, 'c').grade);
+  });
+
+  it('never lets polling well outrank being picked', () => {
+    // The property `PICK_BONUS` exists for: no arrangement of votes may put the
+    // runner-up's mvp term above the winner's, however close the sheet.
+    for (const [a, b] of [
+      [3, 2],
+      [4, 3],
+      [8, 7],
+      [2, 1],
+    ] as const) {
+      const fx = night(T(['a', 'b'], ['x'], ['y']), { black: 6, white: 3, blue: 2 }, {
+        mvpId: 'a',
+        mvpVotes: { a, b },
+      });
+      const gs = nightGrades([fx], fx.id)!;
+      expect(gradeOf(gs, 'a').parts.mvp).toBeGreaterThan(gradeOf(gs, 'b').parts.mvp);
+    }
+  });
+
+  it('leaves a night with no sheet marked exactly as it always was', () => {
+    // Every night filed before the vote existed. Nothing about them may move,
+    // which is why `MVP_BONUS` is still in the file.
+    const fx = night(T(['a', 'b'], ['x'], ['y']), { black: 6, white: 3, blue: 2 }, { mvpId: 'a' });
+    const gs = nightGrades([fx], fx.id)!;
+    expect(gradeOf(gs, 'a').parts.mvp).toBe(gradeConstants.MVP_BONUS);
+    expect(gradeOf(gs, 'b').parts.mvp).toBe(0);
+    // and the payload says "not counted" rather than "nobody voted for you"
+    expect(gradeOf(gs, 'b').context.votes).toBeNull();
+    expect(gradeOf(gs, 'b').context.votesCast).toBeNull();
+  });
+
+  it('sits an untallied pick between the best and worst a counted one can do', () => {
+    // The calibration claim in ROOM_W, asserted rather than left in a comment:
+    // a club that never types a sheet is not quietly re-scored in either
+    // direction, because the old flat bonus is the midpoint of the new span.
+    const unanimous = gradeConstants.PICK_BONUS + gradeConstants.ROOM_W;
+    expect(gradeConstants.MVP_BONUS).toBeGreaterThan(gradeConstants.PICK_BONUS);
+    expect(gradeConstants.MVP_BONUS).toBeLessThan(unanimous);
+    expect(gradeConstants.MVP_BONUS).toBeCloseTo((gradeConstants.PICK_BONUS + unanimous) / 2, 10);
+  });
+
+  it('still withholds the top two rungs from everyone but the pick', () => {
+    // A runner-up on a rout polls well *and* has every other term going for
+    // them. `UNPICKED_CAP` keys off the pick, not the votes, so they stop at 9.
+    const fx = night(T(['star', 'second'], ['x'], ['y']), { black: 11, white: 1, blue: 0 }, {
+      ratings: { star: 5, second: 5 },
+      mvpId: 'star',
+      mvpVotes: { star: 4, second: 3 },
+    });
+    const gs = nightGrades([fx], fx.id)!;
+    expect(gradeOf(gs, 'second').grade).toBe(gradeConstants.UNPICKED_CAP);
+    expect(gradeOf(gs, 'star').grade).toBeGreaterThan(gradeConstants.UNPICKED_CAP);
+  });
+
+  it('reads the sheet even when the pick is missing from it', () => {
+    // A level sheet leaves `mvpId` unset (see mvpFromVotes) — the votes still
+    // have to reach the marks, or a tied night would grade as an uncounted one.
+    const fx = night(T(['a', 'b'], ['x'], ['y']), { black: 6, white: 3, blue: 2 }, {
+      mvpVotes: { a: 3, b: 3 },
+    });
+    const gs = nightGrades([fx], fx.id)!;
+    expect(gradeOf(gs, 'a').parts.mvp).toBeGreaterThan(0);
+    expect(gradeOf(gs, 'a').parts.mvp).toBe(gradeOf(gs, 'b').parts.mvp);
+    // neither of them is the pick, so neither gets the step or the top rungs
+    expect(gradeOf(gs, 'a').parts.mvp).toBeLessThan(gradeConstants.PICK_BONUS);
+    expect(gradeOf(gs, 'a').grade).toBeLessThanOrEqual(gradeConstants.UNPICKED_CAP);
   });
 
   it('does not charge a beaten player twice for the same losing run', () => {

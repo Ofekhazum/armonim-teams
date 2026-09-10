@@ -109,12 +109,61 @@ export const fixture = {
 
   // --- MVP ------------------------------------------------------------------
   'mvp.title': { he: '🌟 מצטיין המחזור', en: '🌟 MVP' },
-  'mvp.hint': { he: 'רשות — הבחירה שלכם לשחקן הבולט של המחזור.', en: "Optional — your pick for this night's standout player." },
+  'mvp.hint': {
+    he: 'רשות — כמה קולות קיבל כל אחד. מי שקיבל הכי הרבה הוא המצטיין.',
+    en: 'Optional — how many votes each player got. Most votes takes it.',
+  },
   'mvp.from.one': { he: 'מתוך {team}, שניצחו את המחזור.', en: 'From {team}, who won the night.' },
   'mvp.from.level': { he: 'המחזור הסתיים בשוויון, אז כל מי ששיחק.', en: 'The night finished level, so anyone who played.' },
   'mvp.from.tied': { he: 'מתוך {teams}, שוות בראש.', en: 'From {teams}, level at the top.' },
   'mvp.and': { he: 'ו', en: ' and ' },
-  'mvp.noPick': { he: 'ללא בחירה', en: 'No pick' },
+
+  // The vote sheet (§2.46). The footer line has three states and they are three
+  // separate entries rather than one string with holes in it — "level, nobody
+  // picked yet" is a different sentence in Hebrew, not the same sentence with a
+  // word swapped.
+  'mvp.vote.none': { he: 'עוד לא נספרו קולות', en: 'No votes counted yet' },
+  'mvp.vote.cast': {
+    he: {
+      one: '{n} קול · מצטיין המחזור: {name}',
+      other: '{n} קולות · מצטיין המחזור: {name}',
+    },
+    en: {
+      one: '{n} vote · player of the night: {name}',
+      other: '{n} votes · player of the night: {name}',
+    },
+  },
+  'mvp.vote.tied': {
+    he: {
+      one: 'שוויון על {n} קול — הוסיפו קול כדי להכריע',
+      other: 'שוויון על {n} קולות — הוסיפו קול כדי להכריע',
+    },
+    en: {
+      one: 'Level on {n} vote — add one to settle it',
+      other: 'Level on {n} votes — add one to settle it',
+    },
+  },
+  // A level sheet where somebody was already picked. The pick stands rather
+  // than being dropped — correcting a tally is not a reason to un-name
+  // somebody — so the line has to say that, or it would be telling the
+  // organiser nobody has won while a star sits on a row above it.
+  'mvp.vote.tied.holds': {
+    he: {
+      one: 'שוויון על {n} קול — {name} נשאר המצטיין',
+      other: 'שוויון על {n} קולות — {name} נשאר המצטיין',
+    },
+    en: {
+      one: 'Level on {n} vote — {name} keeps it',
+      other: 'Level on {n} votes — {name} keeps it',
+    },
+  },
+  // A night picked before the sheet existed. Says so plainly rather than
+  // showing a zero, which would read as "nobody voted for him".
+  'mvp.vote.legacy': { he: 'נבחר: {name} — ללא ספירת קולות', en: 'Picked: {name} — no tally on file' },
+  'mvp.vote.clear': { he: 'ניקוי הבחירה', en: 'Clear the pick' },
+  'mvp.vote.more': { he: 'קול נוסף ל{name}', en: 'One more vote for {name}' },
+  'mvp.vote.less': { he: 'קול אחד פחות ל{name}', en: 'One fewer vote for {name}' },
+  'mvp.vote.count': { he: 'קולות ל{name}', en: 'Votes for {name}' },
 
   // --- Derby ----------------------------------------------------------------
   'derby.title': { he: '⚔️ הדרבי של המחזור', en: "⚔️ Tonight's derby" },
