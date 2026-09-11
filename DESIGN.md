@@ -3992,13 +3992,18 @@ them. It was briefly a tab-strip control, and that pushed the strip onto two row
 language is named in its own language (`עברית` / `English`), never translated, so the way out is
 readable to somebody who cannot read the language currently showing.
 
+**The `v<hash>` build marker lives at the foot of the header, small and low-opacity, on every
+tab** (§6). It used to sit at the foot of the Roster tab instead — reasonable when that was the
+whole app, wrong once the real club's roster grew to 25 players, since confirming a deploy landed
+then meant scrolling past all of them first. The header renders above every tab, so this is the
+version that is actually always on screen without asking for it — the thing the marker exists for
+in the first place — while staying exactly as easy to ignore as it was before.
 
 1. **Roster** (`src/components/Roster.tsx`) — the permanent squad. In **admin mode**: add/edit
    name, aliases, rating, role (GK toggle, or a 0–100 defence↔attack slider in steps of 5),
    chemistry/avoid links, ✕ to remove, and 📢 Publish. Everyone else sees the squad as a list to
-   read — no Edit, no ✕, no + Add player, and no ratings or keep-apart lists (§2.13). Top-right
-   shows a small `v<hash>` build marker (§6) so you can confirm a deploy actually landed after
-   pushing. **Tapping any row opens that player's page** (§2.18) — badges, every night as a medal,
+   read — no Edit, no ✕, no + Add player, and no ratings or keep-apart lists (§2.13). **Tapping any
+   row opens that player's page** (§2.18) — badges, every night as a medal,
    the milestone ladder, shirts worn, teammates and shootouts — for everyone, not just the
    organiser, since everything on it is already public.
 2. **Match day** (`src/components/MatchDay.tsx`, the main flow):
@@ -4187,8 +4192,9 @@ saved nights accumulate in the History tab (§2.6).
   export had failed halfway.
 - **Build version marker**: `vite.config.ts` runs `git rev-parse --short HEAD` at build time and
   injects it as the `__GIT_HASH__` global (declared in `src/vite-env.d.ts`, falls back to `'dev'`
-  if git isn't available). Shown top-right of the Roster page — since GitHub Pages rebuilds on
-  every push to `main`, a changed hash after refreshing confirms a deploy actually landed.
+  if git isn't available). Shown at the foot of the header (`App.tsx`, above the tab strip) on
+  every tab — since GitHub Pages rebuilds on every push to `main`, a changed hash after refreshing
+  confirms a deploy actually landed.
 - Balancing algorithm (`src/balancer.ts`) is plain TypeScript, runs client-side.
 - Deploy as static files (the Vite build output in `dist/`); the Worker deploys separately
   (see `worker/`).
@@ -4250,7 +4256,7 @@ checks — the nature of a probabilistic estimator, not a style choice to copy f
 Automatic: every push to `main` triggers `.github/workflows/deploy.yml` (build job uploads
 `dist/` as the `github-pages` artifact → deploy job publishes it). Live at
 https://ofekhazum.github.io/armonim-teams/. Confirm a deploy landed by checking the `v<hash>`
-build marker top-right of the Roster page against `git rev-parse --short HEAD`.
+build marker in the header, on any tab, against `git rev-parse --short HEAD`.
 
 **Gotcha worth knowing (cost hours on 2026-08-06):** if a deploy fails, do **not** re-run only the
 failed job (`gh run rerun <id> --failed`). The `deploy` job consumes the artifact built by the

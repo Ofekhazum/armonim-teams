@@ -860,18 +860,6 @@ export default function Roster({
         </ul>
       )}
 
-      {/* Deploy-verification only, for the organiser (§2.41 update) — was the
-          first thing on the tab, ahead of the squad itself; a footer is where
-          build info belongs, not the top of the task. */}
-      <div className="text-end">
-        <span
-          className="font-mono text-[10px] uppercase tracking-wide text-amber-900/40"
-          title={t('roster.version.title')}
-        >
-          v{__GIT_HASH__}
-        </span>
-      </div>
-
       {open && (
         <PlayerPage
           player={open}

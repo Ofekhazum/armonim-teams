@@ -19,11 +19,6 @@ export const roster = {
   'roster.publishing': { he: 'מפרסם…', en: 'Publishing…' },
   'roster.publish.title': { he: 'עדכון הסגל לכולם', en: 'Update the roster for everyone' },
 
-  'roster.version.title': {
-    he: 'גרסת בנייה — משתנה בכל פריסה',
-    en: 'Build version — changes on every deploy',
-  },
-
   // --- The edit form --------------------------------------------------------
   'roster.form.editTitle': { he: 'עריכת שחקן', en: 'Edit player' },
   'roster.form.newTitle': { he: 'שחקן חדש', en: 'New player' },
