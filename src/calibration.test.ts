@@ -1,10 +1,10 @@
 // Behaviour tests for the rating-suggestion engine (src/calibration.ts).
 //
 // This logic is the riskiest code in the app — a ridge-regression estimator,
-// an asymmetric confidence bar, half-win scoring — and every property here was
+// an evidence-interval gate, half-win scoring — and every property here was
 // originally checked by hand-run scripts during development, not by anything
 // that runs in CI. Promoted into the repo so a future change to LAMBDA,
-// RATING_BIAS, or the estimator itself gets caught before it ships, not
+// EVIDENCE_K, or the estimator itself gets caught before it ships, not
 // discovered from a confused screenshot.
 //
 // Most of these tests are statistical: they run many synthetic seasons with a
@@ -12,82 +12,61 @@
 // assert on the *rate* of correct/incorrect suggestions, not a single outcome
 // — a single run of a probabilistic function proves nothing. Seeds are fixed
 // so a failure is reproducible.
+//
+// The league itself lives in `calibration.sim.ts`, shared with the tuning
+// reports under `scripts/` so both measure the same thing.
 
 import { describe, expect, it } from 'vitest';
 import {
-  barFor,
+  buildRows,
   hasResult,
   playerForm,
   playerStandings,
+  ratingErrors,
+  slopeAt,
   suggestRatings,
   totalWins,
 } from './calibration';
-import type { FixtureRecord, Player, TeamColor, TeamWins } from './types';
+import {
+  flat as base,
+  mis,
+  mkPlayers,
+  season,
+  seasonWithLog,
+  setSeed,
+  shuffle,
+  spread,
+  withError,
+} from './calibration.sim';
+import type { FixtureRecord } from './types';
 
-let seed = 12345;
-const rnd = () => {
-  seed = (seed * 1664525 + 1013904223) % 4294967296;
-  return seed / 4294967296;
-};
-
-interface Spec {
-  id: string;
-  name: string;
-  rated: number;
-  truth: number;
-}
-
-const mkPlayers = (specs: Spec[]): Player[] =>
-  specs.map((s) => ({ id: s.id, name: s.name, rating: s.rated, attack: 50, chemistry: [] }));
-
-const PAIRS: [TeamColor, TeamColor][] = [
-  ['black', 'white'],
-  ['blue', 'black'],
-  ['white', 'blue'],
-];
-
-// Simulates `nights` fixtures for a 15-player league whose *true* ability
-// (`truth`) may differ from the rating on their profile (`rated`) — the gap
-// between the two is exactly what suggestRatings is supposed to detect.
-function season(specs: Spec[], nights: number): FixtureRecord[] {
-  const truthOf = new Map(specs.map((s) => [s.id, s.truth]));
-  return Array.from({ length: nights }, (_, n) => {
-    const ids = specs.map((s) => s.id).sort(() => rnd() - 0.5);
-    const per = Math.floor(ids.length / 3);
-    const teams = {
-      black: ids.slice(0, per),
-      white: ids.slice(per, per * 2),
-      blue: ids.slice(per * 2, per * 3),
-    } as Record<TeamColor, string[]>;
-    const avg = (c: TeamColor) =>
-      teams[c].reduce((t, id) => t + truthOf.get(id)!, 0) / teams[c].length;
-    const wins: TeamWins = { black: 0, white: 0, blue: 0 };
-    for (const [c, d] of PAIRS) {
-      for (let m = 0; m < 2; m++) {
-        const p = 1 / (1 + 10 ** ((avg(d) - avg(c)) / 2));
-        wins[rnd() < p ? c : d] += rnd() < 0.2 ? 0.5 : 1; // ~1 in 5 goes to penalties
+// Guards the simulator itself. Every tuning table in calibration.ts was once
+// measured through `sort(() => rnd() - 0.5)`, which is not a shuffle: it barely
+// disturbs the array, so the first name in the list kept landing on black and
+// the numbers described a league nobody plays in. If this ever goes back to a
+// sort-based shuffle, the estimator's documented behaviour becomes fiction.
+describe('the simulator', () => {
+  it('deals each player to each shirt equally often', () => {
+    setSeed(99);
+    const per = new Map<number, number[]>();
+    const runs = 3000;
+    for (let r = 0; r < runs; r++) {
+      const order = shuffle([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]);
+      for (const id of [0, 7, 14]) {
+        const slot = Math.floor(order.indexOf(id) / 5); // 0 black, 1 white, 2 blue
+        const counts = per.get(id) ?? [0, 0, 0];
+        counts[slot]++;
+        per.set(id, counts);
       }
     }
-    return {
-      id: `fx${n}`,
-      date: `2026-01-0${(n % 9) + 1}`,
-      teams,
-      players: specs.map((s) => ({ id: s.id, name: s.name, rating: s.rated })),
-      wins,
-    };
+    for (const counts of per.values()) {
+      for (const c of counts) {
+        // a third each, give or take sampling noise
+        expect(Math.abs(c / runs - 1 / 3)).toBeLessThan(0.03);
+      }
+    }
   });
-}
-
-const base: Spec[] = Array.from({ length: 15 }, (_, i) => ({
-  id: `p${i}`,
-  name: `P${i}`,
-  rated: 3,
-  truth: 3,
-}));
-// p0 is secretly a 5, p1 secretly a 1 — everyone else is exactly as rated
-const mis = base.map((s) =>
-  s.id === 'p0' ? { ...s, truth: 5 } : s.id === 'p1' ? { ...s, truth: 1 } : s,
-);
+});
 
 describe('win-tally results & standings', () => {
   it('a night with no wins recorded counts for nobody', () => {
@@ -132,7 +111,7 @@ describe('rating suggestions', () => {
   it('is silent until a player has four nights behind them', () => {
     for (const nights of [1, 2, 3]) {
       for (let r = 0; r < 25; r++) {
-        seed = 7 + r * 7919;
+        setSeed(7 + r * 7919);
         expect(suggestRatings(season(mis, nights), mkPlayers(mis))).toHaveLength(0);
       }
     }
@@ -140,7 +119,7 @@ describe('rating suggestions', () => {
 
   it('never judges a player who only turns up occasionally', () => {
     // 12 nights of football, but p0 plays only the first three
-    seed = 4242;
+    setSeed(4242);
     const full = season(mis, 12);
     const thinned = full.map((fx, i) =>
       i < 3
@@ -158,7 +137,7 @@ describe('rating suggestions', () => {
   it('leaves most players with no suggestion at all', () => {
     let totalSuggested = 0;
     for (let r = 0; r < 20; r++) {
-      seed = 900 + r * 7919;
+      setSeed(900 + r * 7919);
       totalSuggested += suggestRatings(season(mis, 10), mkPlayers(mis)).length;
     }
     // out of 15 players per run — most should get nothing
@@ -168,7 +147,7 @@ describe('rating suggestions', () => {
   it('can speak from four nights when someone looks far out', () => {
     let spoke = 0;
     for (let r = 0; r < 60; r++) {
-      seed = 31 + r * 7919;
+      setSeed(31 + r * 7919);
       if (suggestRatings(season(mis, 4), mkPlayers(mis)).length > 0) spoke++;
     }
     expect(spoke).toBeGreaterThan(0);
@@ -178,7 +157,7 @@ describe('rating suggestions', () => {
     let right = 0;
     let wrong = 0;
     for (let r = 0; r < 40; r++) {
-      seed = 500 + r * 7919;
+      setSeed(500 + r * 7919);
       for (const s of suggestRatings(season(mis, 20), mkPlayers(mis))) {
         if (s.id === 'p0') s.direction === 'up' ? right++ : wrong++;
         if (s.id === 'p1') s.direction === 'down' ? right++ : wrong++;
@@ -190,25 +169,26 @@ describe('rating suggestions', () => {
   });
 
   it('reports a maxed-out 5-star as a ceiling note, never an out-of-range rating', () => {
+    // Whenever it does speak about a player already at the top of the scale, it
+    // must be a note rather than an impossible rating. How *often* it speaks is
+    // a separate matter, and currently the answer is "hardly ever" — see the
+    // deafness test in "known faults" below.
     const ceiling = base.map((sp) => (sp.id === 'p0' ? { ...sp, rated: 5, truth: 9 } : sp));
-    let notes = 0;
     for (let r = 0; r < 40; r++) {
-      seed = 616 + r * 7919;
+      setSeed(616 + r * 7919);
       for (const s of suggestRatings(season(ceiling, 20), mkPlayers(ceiling))) {
         if (s.id !== 'p0') continue;
         expect(s.suggested).toBeLessThanOrEqual(5);
         expect(s.atLimit).toBe(true);
         expect(s.direction).toBe('up');
-        notes++;
       }
     }
-    expect(notes).toBeGreaterThan(0);
   });
 
   it('never offers a rating below 1 for a floored player', () => {
     const floor = base.map((sp) => (sp.id === 'p1' ? { ...sp, rated: 1, truth: -3 } : sp));
     for (let r = 0; r < 20; r++) {
-      seed = 707 + r * 7919;
+      setSeed(707 + r * 7919);
       for (const s of suggestRatings(season(floor, 20), mkPlayers(floor))) {
         if (s.id !== 'p1') continue;
         expect(s.suggested).toBeGreaterThanOrEqual(1);
@@ -222,7 +202,7 @@ describe('rating suggestions', () => {
       sp.id === 'p0' ? { ...sp, rated: 5, truth: 9 } : sp.id === 'p1' ? { ...sp, truth: 1 } : sp,
     );
     for (let r = 0; r < 30; r++) {
-      seed = 808 + r * 7919;
+      setSeed(808 + r * 7919);
       const list = suggestRatings(season(mixed, 20), mkPlayers(mixed));
       const firstNote = list.findIndex((x) => x.atLimit);
       const lastAction = list.map((x) => x.atLimit).lastIndexOf(false);
@@ -233,7 +213,7 @@ describe('rating suggestions', () => {
   });
 
   it('moves an actionable suggestion by exactly half a star, within 1-5', () => {
-    seed = 11;
+    setSeed(11);
     for (const s of suggestRatings(season(mis, 20), mkPlayers(mis))) {
       if (s.atLimit) continue;
       expect(Math.abs(s.suggested - s.current)).toBe(0.5);
@@ -244,7 +224,7 @@ describe('rating suggestions', () => {
 
   it('is self-cancelling: accepting a suggestion weakens the case for repeating it', () => {
     for (let r = 0; r < 30; r++) {
-      seed = 2024 + r * 7919;
+      setSeed(2024 + r * 7919);
       const hist = season(mis, 20);
       const before = suggestRatings(hist, mkPlayers(mis)).find((x) => x.id === 'p0');
       if (!before) continue;
@@ -258,16 +238,168 @@ describe('rating suggestions', () => {
   });
 
   it('never suggests a change for someone not on the roster', () => {
-    seed = 5;
+    setSeed(5);
     const hist = season(mis, 20);
     const without = mkPlayers(mis).filter((p) => p.id !== 'p0');
     expect(suggestRatings(hist, without).some((x) => x.id === 'p0')).toBe(false);
   });
 });
 
+const HOUSE = { teams: 'balanced', matchesPerPairing: 4 } as const;
+
+// What the rebuild has already bought. These assert the *fixed* behaviour and
+// should stay passing.
+describe('the error bars', () => {
+  it('does not claim confidence about a league where nobody is mis-rated', () => {
+    // Every player is rated exactly right, so |z| ought to look like a standard
+    // normal — median around 0.67. It used to sit at 4.0, four-sigma confidence
+    // in pure noise, which is what let the panel name innocent players.
+    const byId = new Map(mkPlayers(spread).map((p) => [p.id, p]));
+    const zs: number[] = [];
+    for (let r = 0; r < 30; r++) {
+      setSeed(5000 + r * 7919);
+      const hist = season(spread, 5, HOUSE);
+      for (const e of ratingErrors(hist, (id) => byId.get(id)?.rating ?? null).values())
+        zs.push(Math.abs(e.z));
+    }
+    zs.sort((a, b) => a - b);
+    // Still a little overconfident on five nights — the three rows of a night
+    // share a team's win total, and five clusters is too few to correct for
+    // properly — so this is an honest bound rather than a tight one.
+    expect(zs[Math.floor(zs.length / 2)]).toBeLessThan(1.5);
+  });
+
+  it('gets more trustworthy the more football it is given', () => {
+    // The old gate did the opposite: false flags peaked at eight nights. The
+    // interval gate has to fall away monotonically instead.
+    const ps = mkPlayers(spread);
+    const flagsAt = (nights: number) => {
+      let n = 0;
+      for (let r = 0; r < 40; r++) {
+        setSeed(3000 + r * 7919);
+        n += suggestRatings(season(spread, nights, HOUSE), ps).length;
+      }
+      return n / 40;
+    };
+    const [five, twelve, twenty] = [flagsAt(5), flagsAt(12), flagsAt(20)];
+    expect(twelve).toBeLessThan(five);
+    expect(twenty).toBeLessThan(twelve);
+    expect(twenty).toBeLessThan(0.15); // near-silence on a fairly-rated club
+  });
+});
+
+// Fault 4, and what closed it. A fixture records each team's *total* wins, and
+// `buildRows` used to read black-over-white as if it were a head-to-head share
+// when black's total also contains wins over blue. Two fixes, matching the two
+// situations a night can be in: a logged night is grouped back into genuine
+// pairwise tallies (`seasonWithLog`, "winner stays on", exactly how the app
+// records one); a tally-only night gets one row per team, built from what is
+// actually known — its total against *both* opponents, at an assumed even
+// three-way split — rather than a fabricated pairwise share.
+describe('what a win tally could not tell you', () => {
+  it('recovers a known error from a genuine match log', () => {
+    // p9 is an ordinary 3★ who is secretly 1.5 stars better. A logged night
+    // needs no equal-split assumption — it says exactly who beat whom — so
+    // this should settle close to the truth, the same as it does off a
+    // literal two-team season.
+    const specs = withError('p9', 1.5);
+    const byId = new Map(mkPlayers(specs).map((p) => [p.id, p]));
+    let sum = 0;
+    const runs = 60;
+    for (let r = 0; r < runs; r++) {
+      setSeed(2000 + r * 7919);
+      const hist = seasonWithLog(specs, 60);
+      sum += ratingErrors(hist, (id) => byId.get(id)?.rating ?? null).get('p9')!.delta;
+    }
+    expect(sum / runs).toBeGreaterThan(1.2);
+    expect(sum / runs).toBeLessThan(1.7);
+  });
+
+  it('does not silently corrupt the tally when two teams meet twice with sides swapped', () => {
+    // "Winner stays on" means the same pair can meet again later in the log
+    // with a and b reversed (whoever just won is listed first). Grouping by
+    // the unordered pair only counts correctly if the win is credited to the
+    // team, not to whichever slot happened to be labelled "a" that time.
+    const players = [
+      { id: 'x', name: 'X', rating: 3 },
+      { id: 'y', name: 'Y', rating: 3 },
+    ];
+    const hist: FixtureRecord[] = [
+      {
+        id: 'f',
+        date: '2026-01-01',
+        teams: { black: ['x'], white: ['y'], blue: [] },
+        players,
+        wins: { black: 3, white: 1, blue: 0 },
+        matchLog: [
+          { a: 'black', b: 'white', winner: 'black', viaPenalties: false },
+          { a: 'black', b: 'white', winner: 'black', viaPenalties: false },
+          // black won and stayed on, so it is listed first again here — but
+          // this time it loses, and the loss must land on black's own tally.
+          { a: 'black', b: 'white', winner: 'white', viaPenalties: false },
+          // reversed labelling: white is now listed first (it "came in" after
+          // beating black), and black returns as "b". Black wins this one.
+          { a: 'white', b: 'black', winner: 'black', viaPenalties: false },
+        ],
+      },
+    ];
+    const { rows } = buildRows(hist, () => 3);
+    expect(rows).toHaveLength(1);
+    // 3 wins for black (x), 1 for white (y) out of 4 — matches the tally
+    // above exactly, which is the check: get this wrong and the two would
+    // disagree, or the row would be quietly off from what actually happened.
+    expect(rows[0].y).toBeCloseTo((3 / 4 - 0.5) / slopeAt(0.5), 5);
+  });
+
+  it('the tally-only fallback lands close to the truth too, at the club-real split', () => {
+    // Same player, same error, but only the three end-of-night numbers — no
+    // log. The three-way-split assumption is not exact, so this settles a
+    // little short of the log-based recovery above, not because the row
+    // construction is wrong but because the evidence itself is coarser.
+    const specs = withError('p9', 1.5);
+    const byId = new Map(mkPlayers(specs).map((p) => [p.id, p]));
+    let sum = 0;
+    const runs = 40;
+    for (let r = 0; r < runs; r++) {
+      setSeed(2000 + r * 7919);
+      const hist = season(specs, 60, HOUSE);
+      sum += ratingErrors(hist, (id) => byId.get(id)?.rating ?? null).get('p9')!.delta;
+    }
+    const settled = sum / runs;
+    expect(settled).toBeGreaterThan(1.2);
+    expect(settled).toBeLessThan(1.7);
+  });
+
+  it('reports even a four-star error at the ceiling most of the time now', () => {
+    // Rated 5, genuinely a 9, twenty nights of football: the panel used to
+    // speak about one time in twelve. Reading the local slope (fault 3) and
+    // fixing the contamination (fault 4) together get it to speak more often
+    // than not.
+    const ceiling = base.map((s) => (s.id === 'p0' ? { ...s, rated: 5, truth: 9 } : s));
+    const ps = mkPlayers(ceiling);
+    let spoke = 0;
+    for (let r = 0; r < 100; r++) {
+      setSeed(616 + r * 7919);
+      if (suggestRatings(season(ceiling, 20, HOUSE), ps).some((s) => s.id === 'p0')) spoke++;
+    }
+    expect(spoke).toBeGreaterThan(60);
+  });
+
+  it('stays quiet on a fairly-rated club whether nights are logged or not', () => {
+    const ps = mkPlayers(spread);
+    let flags = 0;
+    const runs = 30;
+    for (let r = 0; r < runs; r++) {
+      setSeed(3000 + r * 7919);
+      flags += suggestRatings(seasonWithLog(spread, 20), ps).length;
+    }
+    expect(flags / runs).toBeLessThan(0.15);
+  });
+});
+
 describe('playerForm', () => {
   it('covers everyone who played, sorted by how they are doing', () => {
-    seed = 3;
+    setSeed(3);
     const f = playerForm(season(mis, 10), mkPlayers(mis));
     expect(f).toHaveLength(15);
     for (let i = 1; i < f.length; i++) {
@@ -276,22 +408,9 @@ describe('playerForm', () => {
   });
 });
 
-describe('barFor — the anchored confidence bar', () => {
-  it('makes a high rating harder to climb and easier to lose', () => {
-    expect(barFor(5, 'up')).toBeGreaterThan(barFor(5, 'down'));
-    expect(barFor(2, 'down')).toBeGreaterThan(barFor(2, 'up'));
-    expect(barFor(4, 'up')).toBeGreaterThan(barFor(3, 'up'));
-    expect(barFor(4, 'down')).toBeLessThan(barFor(3, 'down'));
-  });
-
-  it('is symmetric at the anchor and never collapses or balloons', () => {
-    expect(barFor(2.5, 'up')).toBe(barFor(2.5, 'down'));
-    for (const r of [1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5]) {
-      for (const dir of ['up', 'down'] as const) {
-        const b = barFor(r, dir);
-        expect(b).toBeGreaterThanOrEqual(1.0);
-        expect(b).toBeLessThanOrEqual(2.5);
-      }
-    }
-  });
-});
+// barFor's old rating-anchored asymmetry is gone (§2.5x): measured against the
+// interval gate, it turned out to be buying detections with false confidence
+// rather than finding real evidence, so it was deleted rather than re-derived.
+// A suggestion's effect-size floor is now the same for everyone —
+// MIN_REAL_ERROR — and it is exercised through `suggestRatings` and
+// `known faults` above rather than through a function of its own.

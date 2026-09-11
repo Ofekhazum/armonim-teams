@@ -67,6 +67,28 @@ interface Draft {
 
 type SortKey = 'name' | 'nights' | 'wins' | 'fixtures' | 'mvps' | 'perNight' | 'vsRating';
 
+/**
+ * The rating panel and its column stay off — not because the estimator is
+ * broken (it was, and the rebuild is done: §2.49–§2.51), but because this
+ * club's own history is not yet enough evidence for it to speak reliably.
+ *
+ * Measured at this club's actual volume — five fixtures, two of them typed
+ * tallies rather than a logged night — a genuine two-and-a-half-star error is
+ * right about **31% of the time** when the panel does speak off a tally-only
+ * night, and it stays silent off a logged one altogether (a short "winner
+ * stays on" log spreads too thin to say anything yet). By twenty fixtures the
+ * same numbers are 84% and 97% — the estimator gets *more* trustworthy with
+ * more football, which is the property the whole rebuild was for. This club
+ * is not there yet.
+ *
+ * So this is a volume switch, not a correctness one, and the honest thing is
+ * to wait rather than show something that is more often wrong than right.
+ * Flip it once the club has enough nights logged for `scripts/
+ * calibration-report.ts`'s numbers to say the panel is worth reading —
+ * there is no code change needed when that day comes.
+ */
+const RATING_PANEL_READY = false;
+
 // "vs rating" is the one column that is an opinion about a player rather than
 // a count of what happened — it says someone is over- or under-performing the
 // number the organiser gave them. That's a working note for whoever maintains
@@ -79,7 +101,9 @@ const sortColumns = (isAdmin: boolean): { key: SortKey; label: string }[] => [
   { key: 'fixtures', label: t('hist.col.fixtures') },
   { key: 'perNight', label: t('hist.col.perNight') },
   { key: 'mvps', label: t('hist.col.mvps') },
-  ...(isAdmin ? [{ key: 'vsRating' as SortKey, label: t('hist.col.vsRating') }] : []),
+  ...(isAdmin && RATING_PANEL_READY
+    ? [{ key: 'vsRating' as SortKey, label: t('hist.col.vsRating') }]
+    : []),
 ];
 
 // How far the pointer has to travel before it counts as a drag rather than a
@@ -376,7 +400,8 @@ export default function History({
   );
   // leaving admin while sorted by the admin-only column would sort the table
   // by something no longer on screen
-  const sortKey: SortKey = !isAdmin && sort.key === 'vsRating' ? 'perNight' : sort.key;
+  const sortKey: SortKey =
+    (!isAdmin || !RATING_PANEL_READY) && sort.key === 'vsRating' ? 'perNight' : sort.key;
 
   // clicking the same header flips direction; a new column starts in whatever
   // direction is useful first — biggest-first for numbers, A→Z for the name
@@ -938,7 +963,7 @@ export default function History({
           they are derived from is one of its columns. Sitting three sections
           higher, they were an instruction to go and check something further
           down the page. */}
-      {isAdmin && suggestions.length > 0 && (
+      {isAdmin && RATING_PANEL_READY && suggestions.length > 0 && (
         <div className="space-y-2 rounded-2xl border border-orange-600/40 bg-orange-500/10 p-4 shadow-sm">
           <h3 className="font-bold text-amber-950">{t('hist.sugg.title')}</h3>
           <p className="text-xs text-amber-900/60">{t('hist.sugg.body')}</p>
@@ -1099,7 +1124,7 @@ export default function History({
                     <td className={`${cell} text-amber-900/70`}>
                       {mvpById.get(s.id) ? `🌟 ${mvpById.get(s.id)}` : '—'}
                     </td>
-                    {isAdmin && (
+                    {isAdmin && RATING_PANEL_READY && (
                       <td
                         className={`${cell} pe-4 ${
                           !meaningful

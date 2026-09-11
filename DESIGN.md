@@ -3972,6 +3972,217 @@ one win, and every genuinely beaten team still sits well below (the third team's
 apart the night did not separate them, so the person reasonably can — but the winner's own *team*
 mark is still untouchable, because the floor and the `WIN_BONUS` are both still in force.
 
+### 2.49 The rating suggestions are switched off, and the harness that hid why (`calibration.ts`, `calibration.sim.ts`, `scripts/calibration-report.ts`, `History.tsx`)
+
+The "vs rating" column and the suggestion panel proposed changes that did not make sense. Asked to
+check the feature, the honest answer turned out to be that it does not work, and that the evidence
+which said it did was itself faulty. Both are now on the record.
+
+**The harness was measuring a league nobody plays in.** Every tuning table in `calibration.ts` —
+`LAMBDA`, `MIN_IMPLIED_DELTA`, `RATING_BIAS` — was derived from a simulator that drew teams with
+`ids.sort(() => rnd() - 0.5)`. That is not a shuffle. A random comparator leaves an array close to
+where it started, so the first name on the list took the black shirt **46%** of the time instead of a
+third. The simulator is part of the evidence for every constant in the file, so one flaw in it is a
+flaw in all of them at once. It now lives in `src/calibration.sim.ts` — shared with the report script
+so the tests and the tables cannot drift apart — draws with Fisher-Yates, offers a `balanced` team
+mode that keeps the most level of thirty draws (what the balancer actually does, and the harder case,
+because a player rated too high is systematically given weaker team-mates), and defaults the reports
+to **four matches per pairing**, which is the club's real volume (~12 wins a night) rather than the
+two the old harness assumed. A test asserts each shirt comes up a third of the time.
+
+**Re-measured, three faults.** `scripts/calibration-report.ts` re-derives every table; the numbers
+are transcribed into the comments beside the constants they justify.
+
+1. **`delta` is attenuated to about half.** Given unlimited football, a player genuinely 1.5★ above
+   their rating settles at an estimate of ~1.0, and one 2.5★ out settles at ~1.6 — against a bar of
+   1.55. The *converged* estimate for anything short of a gross error never clears
+   `MIN_IMPLIED_DELTA`, however long the club plays.
+2. **So detection gets worse with more evidence.** A 3★ who is really 1.5★ better is flagged 24% of
+   the time at eight nights and 14% at twenty. That is the signature of a noise detector: early on the
+   estimate is scattered enough (sd ~0.84) to cross the bar by accident, and as the scatter shrinks
+   the too-small truth is all that is left. The early hits were never detections.
+3. **`MIN_Z` is inert.** On a league where nobody is mis-rated at all, the median |z| at five nights
+   is **4.0**, and only 14% of players fall below the gate of 1 — four-sigma confidence in pure noise.
+   `fitRidge` scales `sigma2` by total weight, treating each recorded win as independent when the
+   three rows of a night share players with each other and with every other night, and spending no
+   allowance on the parameters already fitted. The one check meant to ask "could this be noise?"
+   answers yes to almost everything, which is why raising it to 2 or 2.5 changes the output by
+   nothing.
+
+Against those, `RATING_BIAS` survives re-measurement in shape (45% of genuinely overrated 5★s
+flagged down, against 10% of correctly-rated ones) but not in standing: the reason a 1.5★ error at
+the top is caught 45% of the time while the same error mid-table is caught 14% is this constant
+lowering the bar, not the evidence being better. It is the tilt doing the detecting.
+
+**What shipped in the first pass.** No behaviour change — a truthful harness, truthful comments, a
+report script, and tests in `calibration.test.ts` that **assert the broken behaviour** on purpose, so
+the day they fail the estimator has improved. Display-side, `RATING_PANEL_READY = false` in
+`History.tsx` hides the column, its sort key and the panel — a display switch rather than an engine
+change, since `suggestRatings` has seven tests requiring it to speak and its constants were about to
+be re-derived.
+
+**Why not simply tune it.** Because no setting of the old bar buys a trustworthy panel while the
+estimate beneath it is wrong: lower it and the panel reports scatter, raise it and the panel is off.
+
+### 2.50 Honest error bars, and a gate that uses them (`calibration.ts`)
+
+Faults 3 and 2 above, closed together — they had to be, because a correct standard error that nothing
+gates on is decoration.
+
+**The error bars.** `sigma2` divided weighted residuals by *total weight* — by the number of wins
+recorded — which treats every win as an independent observation and spends nothing on the fifteen
+parameters already fitted. On a five-night history that inflated the denominator roughly ninefold. It
+now divides by residual degrees of freedom, `rows − tr(inv · XᵀWX)`: a ridge fit does not spend one
+degree of freedom per player, so the trace is measured (about 8.3 of 15 rows on a five-night history)
+rather than assumed. Then, because σ² is itself estimated from as few as seven residual degrees of
+freedom, the interval is widened by the t ratio at those degrees of freedom — a Cornish-Fisher
+expansion, accurate to about 1% and needing no table. On a league where nobody is mis-rated:
+
+| nights | median \|z\| before | after | target |
+|---|---|---|---|
+| 5 | 4.0 | 0.8 | 0.67 |
+| 12 | 2.1 | 0.6 | 0.67 |
+| 40 | 1.2 | 0.4 | 0.67 |
+
+Still a shade overconfident at five nights and conservative past twenty. The residual is understood
+and left: the three rows of a night share each team's *total* wins (`fx.wins[c]` counts wins against
+both opponents, so the black-white and black-blue rows are not independent), and correcting for that
+properly means a cluster-robust estimator, which needs far more than five clusters to be stable.
+Measured: the cluster sandwich is **worse** than the model-based posterior at this size (median \|z\|
+3.3 against 0.8), as is the ridge sampling sandwich. Recorded so nobody reaches for the textbook
+answer again.
+
+**The gate.** `MIN_Z` is gone — it was a separate, weaker version of the same question — and the
+effect-size test no longer looks at the point estimate. A suggestion now requires
+`|delta| − 1.96·se > barFor(rating, direction)`: the *whole* plausible range has to still be a real
+error. That reverses the feature's central defect. For a 3★ who is really 2.5 stars better, with the
+rest of the league rated exactly right:
+
+| | 5n | 8n | 12n | 20n | 40n |
+|---|---|---|---|---|---|
+| old gate, share of flags that were right | 13% | 18% | 30% | 62% | 14% |
+| interval gate | 26% | 35% | 65% | **89%** | **94%** |
+
+and on a club where nobody is mis-rated, flags per history fall from ~1.2 to 0.65 at five nights and
+from ~0.6 to **0.03** at twenty. For the first time the panel is more trustworthy the more football it
+is given; a test asserts that monotonicity directly.
+
+**Casualties.** `MIN_IMPLIED_DELTA` (1.5) becomes `MIN_REAL_ERROR` (0.5) and `MIN_BAR` drops 1.0 → 0.35,
+because a bar that used to be compared against a point estimate is now compared against the near end
+of an interval — the same strictness expressed honestly. `confidence` stops counting nights and reads
+the evidence instead: fifteen lopsided nights can say less about a player than eight close ones.
+`RatingSuggestion` gains `margin`, so anything showing the figure can show its uncertainty.
+
+And `RATING_BIAS` is now nearly inert — turning it off entirely changes detection by a point or two,
+where under the old gate it looked like the star of the file. That is the tell: it had been buying
+detections with false confidence, lowering the bar for highly-rated players rather than finding
+better evidence about them. Kept at 0.10 for now, flagged for deletion if it does not earn its place
+once the attenuation is fixed.
+
+**What is still open.** Fault 1 — the panel is honest but half-deaf. Taken up next.
+
+### 2.51 Reading a result at the odds it was played at — and what a win tally cannot tell you (`calibration.ts`)
+
+**The slope.** `ratingErrors` converted every result through the logistic's slope at 50/50 — the
+steepest the curve ever gets — regardless of where the match actually sat. A night between level teams
+and a night one side was expected to take four wins in five were read at the same exchange rate, and
+the second is much weaker evidence: when a team is *expected* to win 80% of the time, a player being a
+star better than their rating barely shifts the expected result, so taking 80% back says little. The
+fit now linearises at each match's own odds (`slopeAt(p) = ln(10)·p(1−p)/(SCALE·FULL_TEAM)`, floored
+at p = 0.1 so a foregone conclusion cannot divide by almost nothing) and iterates to convergence.
+Three consequences: `delta` comes out in rating points directly, so the trailing `SENSITIVITY` divide
+is gone; the weight falls out as `n·p(1−p)`, the standard logistic weight, which says the same thing
+from the other side — a close match is worth several times a foregone one; and `LAMBDA` had to be
+re-derived from 8 to **0.1**, because the penalty now applies in stars² rather than in probability
+units. 0.1 is the value that leaves `resultStrength` within ~4% of where it was, which matters because
+the market-value price tag (§2.31) is calibrated on it.
+
+Where saturation was worst this is a large gain: a player rated 5 who is genuinely a 9 was estimated
+at ~0.9 stars out and is now estimated at ~1.55.
+
+**And then the real answer.** It did almost nothing for a mid-table player — because a balancer keeps
+matches near 50/50, which is exactly where the correction is a no-op. Iterating the Fisher scoring
+didn't help either. The cause turned out not to be in the estimator at all:
+
+> A fixture records each team's **total** wins. `buildRows` reads `wins[black] / (wins[black] +
+> wins[white])` as a head-to-head share — but black's total also contains its wins over blue. Every
+> comparison is blended with a third team's results.
+
+Re-running the same estimator on synthetic nights where the record genuinely *is* head-to-head
+separates the two cleanly:
+
+| data | estimate of a true 1.5★ | se, 8 → 80 nights |
+|---|---|---|
+| three-team totals (what a fixture stores) | 1.02, stuck | 0.93 → 0.71, stuck |
+| true head-to-head | **1.40** | **3.19 → 0.90** (falls as 1/√n) |
+
+So one fact explains both what is left of the attenuation *and* the floor under the error bars — which
+is why more football stopped buying confidence. Given honest input the estimator is now near-unbiased
+and converges properly; given what a fixture actually stores, it cannot. That reframes the remaining
+work: it is a data-model change, not more statistics — closed next, in §2.52.
+
+### 2.52 Closing the data model: reading a log where one exists (`calibration.ts`, `calibration.sim.ts`)
+
+Checked against the real club's history (`GET /history`, read-only) before doing this: of its five
+fixtures, **three carry a `matchLog` and two are typed tallies**. Both paths had to be built.
+
+**Logged nights.** `buildRows` groups a night's log back into genuine pairwise tallies — for each
+unordered pair of teams that met, how many wins each side actually took off the *other*, not off the
+field in general — and feeds those into the same `pairwiseRow` the two-team case already used. No
+assumption is needed: the log says exactly who beat whom. Validated with `seasonWithLog`
+(`calibration.sim.ts`), which plays a night the way the app actually records one — winner stays on,
+loser sits, the resting team comes in (mirroring `matchLog.ts`'s `nextPairing`) — rather than assuming
+an even split. A player genuinely 1.5★ out settles at **~1.4**, matching the idealised head-to-head
+case in §2.51 almost exactly.
+
+Building this surfaced a real bug, independent of the modelling question: "winner stays on" means the
+same two teams can meet again later in the log with **`a`/`b` reversed** — whoever just won is listed
+first next time. Grouping log entries by the unordered pair without correcting for that credited some
+wins to the wrong side, because the code checked `entry.winner === entry.a` (that entry's own labels)
+rather than against the pair's *canonical* side. Silent and only visible in aggregate — a unit test
+with a hand-built four-match log, sides reversed partway through, now pins the fix.
+
+**Tally-only nights.** No log means no way to recover the true split — as the header of `calibration.ts`
+notes, the three team totals are one degree of freedom short of determining it, not merely omitted.
+Rather than fabricate a pairwise share (the original bug) or throw the night away, each team gets a
+single row built from what the data actually says: its total against *both* opponents at once,
+Gauss-Newton–linearised at an assumed even three-way split of the night's football (each of `c`'s own
+players moves both opponent terms, so their row coefficient is the sum of two slopes; each opponent's
+players move only the one term they are part of). This recovers most of the signal — **~1.4–1.5** of a
+true 1.5★ on an evenly-split night — and is honestly approximate rather than exact: a genuinely lopsided
+real split biases it, measured at 1.28 (even) up to 1.84 (an 8:2:2 split), never back down near the old
+stuck value of ~1.0.
+
+**Where this leaves the panel.** Not broken — early. Precision (of what it says, how much is right),
+measured at the club's own volume by `scripts/calibration-report.ts precision`:
+
+| | 5 nights | 8 | 12 | 20 | 40 |
+|---|---|---|---|---|---|
+| tally-only | 31% | 36% | 60% | 84% | — |
+| logged | — (silent) | 80% | 89% | 97% | — |
+
+A logged night at five fixtures says nothing at all — "winner stays on" spreads a short log too thin to
+clear the evidence gate — which is itself the honest behaviour the whole rebuild was for. `History.tsx`'s
+`RATING_PANEL_READY` stays `false`, but for a volume reason now rather than a correctness one: this
+club has five fixtures, two of them tally-only, well short of where either column above is worth
+reading. The doc comment there records exactly that, and points at this report as the thing to re-run
+before flipping it — no code change is needed when the club's history is long enough, only re-measuring.
+
+### 2.53 Deleting `RATING_BIAS`, and `barFor` with it (`calibration.ts`)
+
+§2.50 flagged it: "kept at 0.10 for now, flagged for deletion if it does not earn its place once the
+attenuation is fixed." It didn't. Re-measured after §2.52's data-model fix, the differential between a
+genuinely overrated player and a correctly-rated one at bias 0 vs 0.10 vs 0.20 is 4%/0%, 4%/0%, and
+4%/0% — turning the tilt off, on, or doubled makes no visible difference any more. `barFor`,
+`ANCHOR_RATING`, and `MIN_BAR` are deleted with it; the gate is now a flat `MIN_REAL_ERROR` for
+everyone, and `suggestRatings` computes `certain` against that directly rather than through a function
+call. `sectionBar` in the report script is gone along with the constant it measured; `sectionConverge`
+drops the now-meaningless "bar" column.
+
+Left behind as the record of *why*: §2.6's original tuning of the tilt (0.20 → 0.10) and §2.49–§2.50's
+measurements of it staying nearly inert once the gate became an interval — history worth keeping even
+though the constant it is about no longer exists.
+
 ## 3. Team generation algorithm
 
 Balancing is a small constrained optimization. With ≤15 players, brute force is too big
