@@ -19,10 +19,12 @@
 import { describe, expect, it } from 'vitest';
 import {
   barFor,
+  buildRows,
   hasResult,
   playerForm,
   playerStandings,
   ratingErrors,
+  slopeAt,
   suggestRatings,
   totalWins,
 } from './calibration';
@@ -31,6 +33,7 @@ import {
   mis,
   mkPlayers,
   season,
+  seasonWithLog,
   setSeed,
   shuffle,
   spread,
@@ -286,20 +289,74 @@ describe('the error bars', () => {
   });
 });
 
-// What a win tally costs, pinned so the day it is paid it shows up in CI rather
-// than in a screenshot. These assert the *limited* behaviour on purpose: when
-// they start failing, the night data has got richer and the panel may be worth
-// switching back on. See fault 4 in the header of calibration.ts.
-//
-// Both of these are the same fact. A fixture records each team's *total* wins,
-// and `buildRows` reads black-over-white as if it were a head-to-head share
-// when black's total also contains wins over blue. Re-run on synthetic nights
-// that genuinely are head-to-head, the estimator recovers 1.40 of a true 1.5
-// and its error bars fall as 1/√n; on three-team totals both stall.
-describe('what a win tally cannot tell you', () => {
-  it('attenuates a known error to about two-thirds of its real size', () => {
-    // p9 is an ordinary 3★ who is secretly 1.5 stars better. Given a great deal
-    // of football the estimate should settle on 1.5; it settles near 1.0.
+// Fault 4, and what closed it. A fixture records each team's *total* wins, and
+// `buildRows` used to read black-over-white as if it were a head-to-head share
+// when black's total also contains wins over blue. Two fixes, matching the two
+// situations a night can be in: a logged night is grouped back into genuine
+// pairwise tallies (`seasonWithLog`, "winner stays on", exactly how the app
+// records one); a tally-only night gets one row per team, built from what is
+// actually known — its total against *both* opponents, at an assumed even
+// three-way split — rather than a fabricated pairwise share.
+describe('what a win tally could not tell you', () => {
+  it('recovers a known error from a genuine match log', () => {
+    // p9 is an ordinary 3★ who is secretly 1.5 stars better. A logged night
+    // needs no equal-split assumption — it says exactly who beat whom — so
+    // this should settle close to the truth, the same as it does off a
+    // literal two-team season.
+    const specs = withError('p9', 1.5);
+    const byId = new Map(mkPlayers(specs).map((p) => [p.id, p]));
+    let sum = 0;
+    const runs = 60;
+    for (let r = 0; r < runs; r++) {
+      setSeed(2000 + r * 7919);
+      const hist = seasonWithLog(specs, 60);
+      sum += ratingErrors(hist, (id) => byId.get(id)?.rating ?? null).get('p9')!.delta;
+    }
+    expect(sum / runs).toBeGreaterThan(1.2);
+    expect(sum / runs).toBeLessThan(1.7);
+  });
+
+  it('does not silently corrupt the tally when two teams meet twice with sides swapped', () => {
+    // "Winner stays on" means the same pair can meet again later in the log
+    // with a and b reversed (whoever just won is listed first). Grouping by
+    // the unordered pair only counts correctly if the win is credited to the
+    // team, not to whichever slot happened to be labelled "a" that time.
+    const players = [
+      { id: 'x', name: 'X', rating: 3 },
+      { id: 'y', name: 'Y', rating: 3 },
+    ];
+    const hist: FixtureRecord[] = [
+      {
+        id: 'f',
+        date: '2026-01-01',
+        teams: { black: ['x'], white: ['y'], blue: [] },
+        players,
+        wins: { black: 3, white: 1, blue: 0 },
+        matchLog: [
+          { a: 'black', b: 'white', winner: 'black', viaPenalties: false },
+          { a: 'black', b: 'white', winner: 'black', viaPenalties: false },
+          // black won and stayed on, so it is listed first again here — but
+          // this time it loses, and the loss must land on black's own tally.
+          { a: 'black', b: 'white', winner: 'white', viaPenalties: false },
+          // reversed labelling: white is now listed first (it "came in" after
+          // beating black), and black returns as "b". Black wins this one.
+          { a: 'white', b: 'black', winner: 'black', viaPenalties: false },
+        ],
+      },
+    ];
+    const { rows } = buildRows(hist, () => 3);
+    expect(rows).toHaveLength(1);
+    // 3 wins for black (x), 1 for white (y) out of 4 — matches the tally
+    // above exactly, which is the check: get this wrong and the two would
+    // disagree, or the row would be quietly off from what actually happened.
+    expect(rows[0].y).toBeCloseTo((3 / 4 - 0.5) / slopeAt(0.5), 5);
+  });
+
+  it('the tally-only fallback lands close to the truth too, at the club-real split', () => {
+    // Same player, same error, but only the three end-of-night numbers — no
+    // log. The three-way-split assumption is not exact, so this settles a
+    // little short of the log-based recovery above, not because the row
+    // construction is wrong but because the evidence itself is coarser.
     const specs = withError('p9', 1.5);
     const byId = new Map(mkPlayers(specs).map((p) => [p.id, p]));
     let sum = 0;
@@ -310,16 +367,15 @@ describe('what a win tally cannot tell you', () => {
       sum += ratingErrors(hist, (id) => byId.get(id)?.rating ?? null).get('p9')!.delta;
     }
     const settled = sum / runs;
-    expect(settled).toBeGreaterThan(0.7); // it does point the right way
-    expect(settled).toBeLessThan(1.3); // ...but well short of the true 1.5
+    expect(settled).toBeGreaterThan(1.2);
+    expect(settled).toBeLessThan(1.7);
   });
 
-  it('is too deaf to report even a four-star error at the ceiling', () => {
-    // Rated 5, genuinely a 9, twenty nights of football: the panel should be
-    // shouting. Reading the local slope rather than the 50/50 one lifted this
-    // estimate from ~0.9 stars to ~1.55, which is most of the way to clearing
-    // the bar — but the error bars stay near 0.8 however long the club plays,
-    // for the reason above, so it still speaks about one time in twelve.
+  it('reports even a four-star error at the ceiling most of the time now', () => {
+    // Rated 5, genuinely a 9, twenty nights of football: the panel used to
+    // speak about one time in twelve. Reading the local slope (fault 3) and
+    // fixing the contamination (fault 4) together get it to speak more often
+    // than not.
     const ceiling = base.map((s) => (s.id === 'p0' ? { ...s, rated: 5, truth: 9 } : s));
     const ps = mkPlayers(ceiling);
     let spoke = 0;
@@ -327,7 +383,18 @@ describe('what a win tally cannot tell you', () => {
       setSeed(616 + r * 7919);
       if (suggestRatings(season(ceiling, 20, HOUSE), ps).some((s) => s.id === 'p0')) spoke++;
     }
-    expect(spoke).toBeLessThan(15);
+    expect(spoke).toBeGreaterThan(60);
+  });
+
+  it('stays quiet on a fairly-rated club whether nights are logged or not', () => {
+    const ps = mkPlayers(spread);
+    let flags = 0;
+    const runs = 30;
+    for (let r = 0; r < runs; r++) {
+      setSeed(3000 + r * 7919);
+      flags += suggestRatings(seasonWithLog(spread, 20), ps).length;
+    }
+    expect(flags / runs).toBeLessThan(0.15);
   });
 });
 

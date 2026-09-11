@@ -40,15 +40,16 @@
 // no head-to-head — so individual attribution is genuinely hard.
 //
 // ---------------------------------------------------------------------------
-// STILL BEING REBUILT. The suggestions are switched off in the UI
-// (RATING_PANEL_READY in History.tsx) until the last fault below is closed.
+// REBUILT. All four faults below are closed; the suggestions are still
+// switched off in the UI (RATING_PANEL_READY in History.tsx) for a narrower
+// reason than any of them — see the note at the end of this block.
 //
 // Every table in this file was once derived through a simulator that drew teams
 // with `sort(() => rnd() - 0.5)`, which is not a shuffle: it leaves the array
 // near where it started, so the first name on the list took the black shirt 46%
 // of the time instead of a third. Re-measured through a Fisher-Yates draw at the
 // club's real match volume (~12 wins a night, i.e. four matches per pairing),
-// three faults came out. `scripts/calibration-report.ts` re-derives all of it.
+// four faults came out. `scripts/calibration-report.ts` re-derives all of it.
 //
 //   1. FIXED. The error bars were far too small — on a league where *nobody*
 //      was mis-rated the median |z| at five nights was 4.0, four-sigma
@@ -75,27 +76,51 @@
 //      (`slopeAt`, FIT_PASSES). For a player rated 5 who is genuinely a 9,
 //      where saturation was worst, the estimate rose from ~0.9 stars to ~1.55.
 //
-//   4. OPEN, and no longer an estimator problem at all — it is the data. A
-//      night records three numbers, each team's *total* wins, and this file
-//      reads `wins[black] / (wins[black] + wins[white])` as if it were a
-//      head-to-head share. It is not: black's total includes wins over blue.
-//      Every comparison is therefore blended with a third team's results, and
-//      that single fact accounts for what is left of the attenuation *and* for
-//      the floor under the error bars. Measured by re-running the estimator on
-//      synthetic nights where the record genuinely is head-to-head:
+//   4. FIXED, in the data model rather than the estimator. A tally-only night
+//      records each team's *total* wins, and this file used to read
+//      `wins[black] / (wins[black] + wins[white])` as if it were a
+//      head-to-head share. It is not: black's total includes wins over blue,
+//      so every comparison was blended with a third team's results. Measured
+//      by re-running the estimator on synthetic nights where the record
+//      genuinely is head-to-head:
 //
 //        data                  │ estimate of a true 1.5★ │ se at 8 → 80 nights
 //        three-team totals     │ 1.02 (stuck)            │ 0.93 → 0.71 (stuck)
 //        true head-to-head     │ 1.40                    │ 3.19 → 0.90 (1/√n)
 //
-//      So given honest input the estimator is now near-unbiased and converges
-//      properly. Given what a fixture actually stores, it cannot. The fix is
-//      in the data model, not here: either read `matchLog` where a night has
-//      one, or model a three-team night as what it is — each team's total
-//      against the combined field — rather than as three independent duels.
+//      `buildRows` now uses the real thing where it exists — a logged night
+//      (`fx.matchLog`) says exactly who beat whom, and is grouped back into
+//      genuine pairwise tallies (the club's own "winner stays on" nights
+//      recover ~1.4 of a true 1.5★, matching the head-to-head row above). For
+//      a tally-only night, instead of fabricating a pairwise split that was
+//      never recorded, each team gets a single row built from what the data
+//      actually says: its total against *both* opponents at once, at an
+//      assumed even three-way split of the night's football — which recovers
+//      most of the rest, ~1.4–1.5 of a true 1.5★, though it is an assumption
+//      rather than a fact and a real, lopsided "winner stays on" split biases
+//      it somewhat (measured: 1.28–1.84 across splits from even to 8:2:2,
+//      never back near the old stuck value). See `pairwiseRow` and the "three
+//      teams, no log" branch below.
+//
+//      One real bug turned up building this: the same two teams can meet twice
+//      in a night with their log roles swapped (whoever won stays listed
+//      first), and grouping by the unordered pair without correcting for that
+//      silently credited some wins to the wrong side. Fixed and pinned by a
+//      test — see "does not silently corrupt the tally..." below.
+//
+// With all four closed, the panel is honest: at the volumes it can now speak
+// at, when it does, it is usually right, and more football only makes that
+// more true. What still keeps `RATING_PANEL_READY` off is not a fault but the
+// club's own history — five fixtures, two without a log — which sits well
+// below where any of this reaches useful precision. Measured at 20 nights, a
+// genuine 2.5★ error: 84% precision off tally-only nights, 97% off logged
+// ones; at 5 nights, the volume this club has today, 31% and — because
+// "winner stays on" spreads a short log too thin to say anything yet — 0%.
+// The estimator no longer needs defending; the panel is just early.
 // ---------------------------------------------------------------------------
 
 import { FULL_TEAM, TEAM_COLORS } from './balancer';
+import { pointsFor } from './matchLog';
 import type { FixtureRecord, Player, TeamColor, TeamWins } from './types';
 
 // A player needs this many nights behind them before anything is suggested
@@ -127,7 +152,10 @@ const SCALE = 2;
 // Reading that at the 50/50 rate divides the real error by two or three, which
 // is why a player rated 5 who was genuinely a 9 could go unreported for a
 // season — at the ceiling, saturation is at its worst.
-const slopeAt = (p: number) => (Math.LN10 * p * (1 - p)) / (SCALE * FULL_TEAM);
+// Exported for the tests and `scripts/calibration-report.ts` — both need to
+// convert a probability-space residual into the same star-space units the fit
+// itself uses, and duplicating the formula is how the two quietly drift apart.
+export const slopeAt = (p: number) => (Math.LN10 * p * (1 - p)) / (SCALE * FULL_TEAM);
 
 // A foregone conclusion divides by almost nothing and would turn one fluke into
 // an enormous implied error, so the slope is never read from further out than
@@ -397,8 +425,8 @@ function tInflation(v: number): number {
   return t / z;
 }
 
-// Turns a history into the pairwise comparisons the fit runs on. Separated out
-// so `scripts/calibration-report.ts` can hold the data fixed and vary only the
+// Turns a history into the comparisons the fit runs on. Separated out so
+// `scripts/calibration-report.ts` can hold the data fixed and vary only the
 // arithmetic — comparing two estimators on two different sets of rows tells you
 // nothing about either.
 export function buildRows(
@@ -416,77 +444,167 @@ export function buildRows(
   };
   const rows: Row[] = [];
 
+  const rated = (fx: FixtureRecord, ids: string[]): number | null => {
+    const vals = ids.map(
+      (id) => ratingOf(id) ?? fx.players.find((p) => p.id === id)?.rating ?? null,
+    );
+    const known = vals.filter((v): v is number => v != null);
+    return known.length ? known.reduce((n, v) => n + v, 0) / known.length : null;
+  };
+
+  // A genuine head-to-head comparison: `wa`/`wb` are this pair's *own* win
+  // count, not a team's total for the whole night, so the share it yields is
+  // never blended with a result against a third team. This is the one honest
+  // building block, shared by the two situations that can actually produce a
+  // pairwise number: a logged night, grouped back into pairs, and a tally-only
+  // night where only two teams turned out at all.
+  const pairwiseRow = (
+    fx: FixtureRecord,
+    night: number,
+    a: string[],
+    bIds: string[],
+    wa: number,
+    wb: number,
+  ): Row | null => {
+    const n = wa + wb;
+    if (!a.length || !bIds.length || n <= 0) return null;
+    const avgA = rated(fx, a);
+    const avgB = rated(fx, bIds);
+    if (avgA == null || avgB == null) return null;
+
+    // Where the fit currently believes this match sat: the ratings, plus
+    // whatever error it has so far attributed to the players on each side.
+    const offA = a.reduce((t, id) => t + offsetOf(id), 0);
+    const offB = bIds.reduce((t, id) => t + offsetOf(id), 0);
+    const eta = avgA + offA / a.length - (avgB + offB / bIds.length);
+    const expected = 1 / (1 + 10 ** (-eta / SCALE));
+
+    // One step of Fisher scoring on the logistic, which is what turns a
+    // surprise in the results into an answer measured in stars. `slope` is how
+    // much one player's star is worth *here*, at the odds this match was
+    // actually played at. Dividing the surprise by it gives the working
+    // response: how many stars of error, summed over the difference between
+    // the two teams, would explain what happened — so `beta` comes out in
+    // rating points directly. The weight is the inverse of that response's
+    // variance, `n · slope² / p(1−p)` ∝ `n · p(1−p)`: the standard logistic
+    // weight, which says the same thing from the other side — a close match is
+    // worth several times a foregone one, and the count of matches still
+    // scales it, so a 4–1 slot still outweighs a 1–0.
+    const p = Math.min(1 - SLOPE_FLOOR, Math.max(SLOPE_FLOOR, expected));
+    const slope = slopeAt(p);
+    return {
+      idx: [...a.map(idx), ...bIds.map(idx)],
+      sign: [...a.map(() => 1), ...bIds.map(() => -1)],
+      // The response carries the offset already believed (`offA - offB`) plus
+      // the surprise still unexplained, so the fit always solves for the
+      // *whole* error rather than for a correction to it. That keeps the
+      // ridge penalty pulling toward "the rating is right" at every
+      // iteration, not toward the previous iteration's answer.
+      y: offA - offB + (wa / n - expected) / slope,
+      w: (n * slope * slope) / (p * (1 - p)),
+      night,
+    };
+  };
+
   let night = -1;
   for (const fx of history) {
+    const populated = TEAM_COLORS.filter((c) => fx.teams[c].length > 0);
+    const log = fx.matchLog;
+
+    if (log && log.length) {
+      // The real thing: who actually played whom. Grouped back into pairs
+      // rather than emitted one row per match — "how much football it took"
+      // is already the weight a pairwise row carries, and does not need
+      // restating match by match.
+      if (populated.length < 2) continue;
+      night++;
+      const byPair = new Map<string, { a: TeamColor; b: TeamColor; wa: number; wb: number }>();
+      for (const entry of log) {
+        const key = [entry.a, entry.b].sort().join('|');
+        const cell = byPair.get(key) ?? { a: entry.a, b: entry.b, wa: 0, wb: 0 };
+        // `entry.a`/`entry.b` name whoever was on the pitch for *this* match —
+        // "winner stays on" means the same two teams can meet again later with
+        // the roles swapped (whoever won last is listed first). So the tally
+        // has to go by which side of `cell` each team landed on when this pair
+        // was first seen, not by the current entry's own a/b labels.
+        const winnerIsCellA = entry.winner === cell.a;
+        if (winnerIsCellA) cell.wa += pointsFor(entry);
+        else cell.wb += pointsFor(entry);
+        byPair.set(key, cell);
+      }
+      for (const { a, b, wa, wb } of byPair.values()) {
+        const row = pairwiseRow(fx, night, fx.teams[a], fx.teams[b], wa, wb);
+        if (row) rows.push(row);
+      }
+      continue;
+    }
+
     if (!hasResult(fx.wins)) continue;
     night++;
 
-    const rated = (ids: string[]) => {
-      const vals = ids.map(
-        (id) => ratingOf(id) ?? fx.players.find((p) => p.id === id)?.rating ?? null,
-      );
-      const known = vals.filter((v): v is number => v != null);
-      return known.length ? known.reduce((n, v) => n + v, 0) / known.length : null;
-    };
-
-    // every pairing of teams that turned out, compared on their share of the
-    // wins the two of them took between them
-    for (let i = 0; i < TEAM_COLORS.length; i++) {
-      for (let j = i + 1; j < TEAM_COLORS.length; j++) {
-        const c = TEAM_COLORS[i];
-        const d = TEAM_COLORS[j];
-        const a = fx.teams[c];
-        const bIds = fx.teams[d];
-        if (!a.length || !bIds.length) continue;
-
-        const wc = fx.wins[c] ?? 0;
-        const wd = fx.wins[d] ?? 0;
-        const n = wc + wd;
-        if (n <= 0) continue; // neither won anything — nothing to compare
-
-        const avgA = rated(a);
-        const avgB = rated(bIds);
-        if (avgA == null || avgB == null) continue;
-
-        // Where the fit currently believes this match sat: the ratings, plus
-        // whatever error it has so far attributed to the players on each side.
-        const offA = a.reduce((t, id) => t + offsetOf(id), 0);
-        const offB = bIds.reduce((t, id) => t + offsetOf(id), 0);
-        const eta = avgA + offA / a.length - (avgB + offB / bIds.length);
-        const expected = 1 / (1 + 10 ** (-eta / SCALE));
-
-        // One step of Fisher scoring on the logistic, which is what turns a
-        // surprise in the results into an answer measured in stars.
-        //
-        // `slope` is how much one player's star is worth *here*, at the odds
-        // this match was actually played at. Dividing the surprise by it gives
-        // the working response: how many stars of error, summed over the
-        // difference between the two teams, would explain what happened. So
-        // `beta` comes out in rating points with no conversion factor left
-        // over, and the `SENSITIVITY` divide that used to sit at the end of
-        // `ratingErrors` — always at the 50/50 rate, whatever the match — is
-        // gone.
-        //
-        // The weight is the inverse of that response's variance, and works out
-        // to `n · slope² / p(1−p)` ∝ `n · p(1−p)`: the standard logistic weight,
-        // which says the same thing from the other side. A close match is worth
-        // several times a foregone one, and the count of matches still scales
-        // it, so a 4–1 night still outweighs a 1–0.
-        const p = Math.min(1 - SLOPE_FLOOR, Math.max(SLOPE_FLOOR, expected));
-        const slope = slopeAt(p);
-        rows.push({
-          idx: [...a.map(idx), ...bIds.map(idx)],
-          sign: [...a.map(() => 1), ...bIds.map(() => -1)],
-          // The response carries the offset already believed (`offA - offB`)
-          // plus the surprise still unexplained, so the fit always solves for
-          // the *whole* error rather than for a correction to it. That keeps
-          // the ridge penalty pulling toward "the rating is right" at every
-          // iteration instead of toward the previous iteration's answer.
-          y: offA - offB + (wc / n - expected) / slope,
-          w: (n * slope * slope) / (p * (1 - p)),
-          night,
-        });
+    if (populated.length < 3) {
+      // Whatever two teams turned out, the tally already *is* their
+      // head-to-head record — nothing to blend, so this is exact.
+      if (populated.length === 2) {
+        const [c, d] = populated;
+        const row = pairwiseRow(fx, night, fx.teams[c], fx.teams[d], fx.wins[c] ?? 0, fx.wins[d] ?? 0);
+        if (row) rows.push(row);
       }
+      continue;
+    }
+
+    // Three teams, no log: the tally is a night's worth of football blended
+    // across two different opponents per team, and there is no way to split
+    // it back apart (see fault 4 in the header). Rather than fabricate a
+    // pairwise share — the original bug — each team gets one row built from
+    // what the data actually says: its total against *both* opponents
+    // combined, at an assumed even three-way split of the night's football.
+    const total = totalWins(fx.wins);
+    if (total <= 0) continue;
+    const nPer = total / 3;
+
+    for (const c of populated) {
+      const [d, e] = populated.filter((x) => x !== c);
+      const teamA = fx.teams[c];
+      const teamD = fx.teams[d];
+      const teamE = fx.teams[e];
+      const avgC = rated(fx, teamA);
+      const avgD = rated(fx, teamD);
+      const avgE = rated(fx, teamE);
+      if (avgC == null || avgD == null || avgE == null) continue;
+
+      const offC = teamA.reduce((t, id) => t + offsetOf(id), 0);
+      const offD = teamD.reduce((t, id) => t + offsetOf(id), 0);
+      const offE = teamE.reduce((t, id) => t + offsetOf(id), 0);
+      const etaCD = avgC + offC / teamA.length - (avgD + offD / teamD.length);
+      const etaCE = avgC + offC / teamA.length - (avgE + offE / teamE.length);
+      const pCD = Math.min(1 - SLOPE_FLOOR, Math.max(SLOPE_FLOOR, 1 / (1 + 10 ** (-etaCD / SCALE))));
+      const pCE = Math.min(1 - SLOPE_FLOOR, Math.max(SLOPE_FLOOR, 1 / (1 + 10 ** (-etaCE / SCALE))));
+      const slopeCD = slopeAt(pCD);
+      const slopeCE = slopeAt(pCE);
+
+      // The Gauss-Newton linearisation of `mu_c = nPer·p(c,d) + nPer·p(c,e)`
+      // around the current belief. Each of c's own players moves *both*
+      // terms, so their coefficient is the sum of the two slopes; d's and e's
+      // players only move the one term they are actually part of. Unlike
+      // `pairwiseRow`, this response stays in raw win-count units rather than
+      // being pre-divided into stars — the row touches two different slopes
+      // at once, so there is no single shared slope left to divide by.
+      const coefC = nPer * (slopeCD + slopeCE);
+      const coefD = -nPer * slopeCD;
+      const coefE = -nPer * slopeCE;
+      const believed = coefC * offC + coefD * offD + coefE * offE;
+      const mu = nPer * pCD + nPer * pCE;
+      const variance = nPer * pCD * (1 - pCD) + nPer * pCE * (1 - pCE);
+      if (variance <= 0) continue;
+
+      rows.push({
+        idx: [...teamA.map(idx), ...teamD.map(idx), ...teamE.map(idx)],
+        sign: [...teamA.map(() => coefC), ...teamD.map(() => coefD), ...teamE.map(() => coefE)],
+        y: believed + ((fx.wins[c] ?? 0) - mu),
+        w: 1 / variance,
+        night,
+      });
     }
   }
 

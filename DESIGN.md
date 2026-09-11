@@ -4119,10 +4119,54 @@ separates the two cleanly:
 So one fact explains both what is left of the attenuation *and* the floor under the error bars — which
 is why more football stopped buying confidence. Given honest input the estimator is now near-unbiased
 and converges properly; given what a fixture actually stores, it cannot. That reframes the remaining
-work: it is a data-model change, not more statistics. Either read `matchLog` where a night has one
-(§2.17 — the club's recent nights do), or model a three-team night as what it is, each team's total
-against the combined field, rather than as three independent duels. Two tests pin the current limit so
-the improvement is visible when it lands.
+work: it is a data-model change, not more statistics — closed next, in §2.52.
+
+### 2.52 Closing the data model: reading a log where one exists (`calibration.ts`, `calibration.sim.ts`)
+
+Checked against the real club's history (`GET /history`, read-only) before doing this: of its five
+fixtures, **three carry a `matchLog` and two are typed tallies**. Both paths had to be built.
+
+**Logged nights.** `buildRows` groups a night's log back into genuine pairwise tallies — for each
+unordered pair of teams that met, how many wins each side actually took off the *other*, not off the
+field in general — and feeds those into the same `pairwiseRow` the two-team case already used. No
+assumption is needed: the log says exactly who beat whom. Validated with `seasonWithLog`
+(`calibration.sim.ts`), which plays a night the way the app actually records one — winner stays on,
+loser sits, the resting team comes in (mirroring `matchLog.ts`'s `nextPairing`) — rather than assuming
+an even split. A player genuinely 1.5★ out settles at **~1.4**, matching the idealised head-to-head
+case in §2.51 almost exactly.
+
+Building this surfaced a real bug, independent of the modelling question: "winner stays on" means the
+same two teams can meet again later in the log with **`a`/`b` reversed** — whoever just won is listed
+first next time. Grouping log entries by the unordered pair without correcting for that credited some
+wins to the wrong side, because the code checked `entry.winner === entry.a` (that entry's own labels)
+rather than against the pair's *canonical* side. Silent and only visible in aggregate — a unit test
+with a hand-built four-match log, sides reversed partway through, now pins the fix.
+
+**Tally-only nights.** No log means no way to recover the true split — as the header of `calibration.ts`
+notes, the three team totals are one degree of freedom short of determining it, not merely omitted.
+Rather than fabricate a pairwise share (the original bug) or throw the night away, each team gets a
+single row built from what the data actually says: its total against *both* opponents at once,
+Gauss-Newton–linearised at an assumed even three-way split of the night's football (each of `c`'s own
+players moves both opponent terms, so their row coefficient is the sum of two slopes; each opponent's
+players move only the one term they are part of). This recovers most of the signal — **~1.4–1.5** of a
+true 1.5★ on an evenly-split night — and is honestly approximate rather than exact: a genuinely lopsided
+real split biases it, measured at 1.28 (even) up to 1.84 (an 8:2:2 split), never back down near the old
+stuck value of ~1.0.
+
+**Where this leaves the panel.** Not broken — early. Precision (of what it says, how much is right),
+measured at the club's own volume by `scripts/calibration-report.ts precision`:
+
+| | 5 nights | 8 | 12 | 20 | 40 |
+|---|---|---|---|---|---|
+| tally-only | 31% | 36% | 60% | 84% | — |
+| logged | — (silent) | 80% | 89% | 97% | — |
+
+A logged night at five fixtures says nothing at all — "winner stays on" spreads a short log too thin to
+clear the evidence gate — which is itself the honest behaviour the whole rebuild was for. `History.tsx`'s
+`RATING_PANEL_READY` stays `false`, but for a volume reason now rather than a correctness one: this
+club has five fixtures, two of them tally-only, well short of where either column above is worth
+reading. The doc comment there records exactly that, and points at this report as the thing to re-run
+before flipping it — no code change is needed when the club's history is long enough, only re-measuring.
 
 ## 3. Team generation algorithm
 

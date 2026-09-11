@@ -68,23 +68,24 @@ interface Draft {
 type SortKey = 'name' | 'nights' | 'wins' | 'fixtures' | 'mvps' | 'perNight' | 'vsRating';
 
 /**
- * The rating panel and its column are off while the estimator behind them is
- * being rebuilt (§2.49). **Interim, and deliberately a display switch rather
- * than a change to `calibration.ts`.**
+ * The rating panel and its column stay off — not because the estimator is
+ * broken (it was, and the rebuild is done: §2.49–§2.51), but because this
+ * club's own history is not yet enough evidence for it to speak reliably.
  *
- * Measured on simulated clubs matching this one's shape — 15 a night, teams
- * built by the balancer, five nights on the board — the panel produces about
- * **one suggestion per history, and roughly nine times in ten it is noise**: a
- * genuinely mis-rated player is caught 11% of the time at a star and a half
- * out, while ~1.1 correctly-rated players are flagged regardless of whether
- * anybody is mis-rated at all. Raising the bar to silence the noise takes the
- * hit rate to 2%. There is no setting of the current gate that is worth
- * reading, so it shows nothing rather than something misleading.
+ * Measured at this club's actual volume — five fixtures, two of them typed
+ * tallies rather than a logged night — a genuine two-and-a-half-star error is
+ * right about **31% of the time** when the panel does speak off a tally-only
+ * night, and it stays silent off a logged one altogether (a short "winner
+ * stays on" log spreads too thin to say anything yet). By twenty fixtures the
+ * same numbers are 84% and 97% — the estimator gets *more* trustworthy with
+ * more football, which is the property the whole rebuild was for. This club
+ * is not there yet.
  *
- * Switched here, not in the engine, for two reasons: `suggestRatings` has
- * tests that require it to speak, and its constants are about to be re-derived
- * from scratch — pre-tuning them now would mean tuning twice against numbers
- * already known to be wrong. Flip this back when the rebuilt estimator lands.
+ * So this is a volume switch, not a correctness one, and the honest thing is
+ * to wait rather than show something that is more often wrong than right.
+ * Flip it once the club has enough nights logged for `scripts/
+ * calibration-report.ts`'s numbers to say the panel is worth reading —
+ * there is no code change needed when that day comes.
  */
 const RATING_PANEL_READY = false;
 

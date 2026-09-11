@@ -15,7 +15,8 @@
 // note.
 
 import { TEAM_COLORS } from './balancer';
-import type { FixtureRecord, Player, TeamColor, TeamWins } from './types';
+import { restingTeam, winsFromLog } from './matchLog';
+import type { FixtureRecord, MatchLogEntry, Player, TeamColor, TeamWins } from './types';
 
 // --- Randomness ------------------------------------------------------------
 
@@ -154,6 +155,46 @@ export function season(specs: Spec[], nights: number, opts: SeasonOpts = {}): Fi
       teams,
       players: specs.map((s) => ({ id: s.id, name: s.name, rating: s.rated })),
       wins,
+    };
+  });
+}
+
+// Simulates `nights` fixtures the way a night is actually played and logged:
+// winner stays on, loser sits, the resting team comes in — so, unlike `season`,
+// the split of matches across the three pairings is whatever the results
+// produce rather than an assumption fed in from outside. Used to check that
+// `buildRows`' log path recovers the true error without needing one, because
+// with a real log it does not have to guess the split at all.
+export function seasonWithLog(
+  specs: Spec[],
+  nights: number,
+  opts: { matchesPerNight?: number; shootoutRate?: number; teams?: TeamMode } = {},
+): FixtureRecord[] {
+  const { matchesPerNight = 12, shootoutRate = 0.2, teams: mode = 'balanced' } = opts;
+  const truthOf = new Map(specs.map((s) => [s.id, s.truth]));
+
+  return Array.from({ length: nights }, (_, n) => {
+    const teams = drawTeams(specs, mode, 30);
+    const avg = (c: TeamColor) =>
+      teams[c].reduce((t, id) => t + truthOf.get(id)!, 0) / teams[c].length;
+
+    const log: MatchLogEntry[] = [];
+    let [a, b] = shuffle(TEAM_COLORS).slice(0, 2) as [TeamColor, TeamColor];
+    for (let m = 0; m < matchesPerNight; m++) {
+      const p = 1 / (1 + 10 ** ((avg(b) - avg(a)) / 2));
+      const winner = rnd() < p ? a : b;
+      const viaPenalties = rnd() < shootoutRate;
+      log.push({ a, b, winner, viaPenalties });
+      [a, b] = [winner, restingTeam(a, b)];
+    }
+
+    return {
+      id: `fx${n}`,
+      date: `2026-01-0${(n % 9) + 1}`,
+      teams,
+      players: specs.map((s) => ({ id: s.id, name: s.name, rating: s.rated })),
+      wins: winsFromLog(log),
+      matchLog: log,
     };
   });
 }

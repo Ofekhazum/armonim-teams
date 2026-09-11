@@ -14,6 +14,7 @@ import {
   mis,
   mkPlayers,
   season,
+  seasonWithLog,
   setSeed,
   spread,
   withError,
@@ -240,6 +241,34 @@ function sectionZ() {
   }
 }
 
+// The question that actually decides `RATING_PANEL_READY`: not "does the
+// estimator work" but "at the number of nights a real club has, is the panel
+// worth reading". Precision — of the suggestions made, how many are right — is
+// the number to hold that decision to, off both kinds of night this club
+// actually has.
+function sectionPrecision() {
+  console.log('\n## Precision at realistic volumes: a genuine 2.5★ error on a 3★\n');
+  console.log('  data          │ nights │ caught │ false/run │ precision');
+  for (const useLog of [false, true]) {
+    for (const nights of [5, 8, 12, 20, 40]) {
+      const specs = withError('p9', 2.5);
+      const ps = mkPlayers(specs);
+      let hit = 0;
+      let other = 0;
+      for (let r = 0; r < RUNS; r++) {
+        setSeed(2000 + r * 7919);
+        const hist = useLog ? seasonWithLog(specs, nights) : season(specs, nights, HOUSE);
+        for (const s of suggestRatings(hist, ps)) (s.id === 'p9' ? hit++ : other++);
+      }
+      const precision = hit + other > 0 ? pct(hit, hit + other) : '—';
+      console.log(
+        `  ${(useLog ? 'logged' : 'tally-only').padEnd(13)} │ ${String(nights).padStart(6)} │ ` +
+          `${pct(hit, RUNS).padStart(6)} │ ${(other / RUNS).toFixed(2).padStart(9)} │ ${precision.padStart(9)}`,
+      );
+    }
+  }
+}
+
 const sections: Record<string, () => void> = {
   volume: sectionVolume,
   size: sectionErrorSize,
@@ -247,6 +276,7 @@ const sections: Record<string, () => void> = {
   z: sectionZ,
   null: sectionNull,
   bar: sectionBar,
+  precision: sectionPrecision,
 };
 
 const want = process.argv.slice(2);
