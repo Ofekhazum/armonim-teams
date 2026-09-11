@@ -3875,6 +3875,41 @@ holds one value per person, so merging two ids means choosing a winner. A tally 
 same person's counts under two ids are two parts of one number — keeping only the first would delete
 votes really cast, and could hand the night to somebody else.
 
+### 2.47 Three things wrong with a real report (`recap.js`, `recapFacts.ts`)
+
+One published recap, screenshotted by the organiser, had three separate faults in a single
+paragraph. Each had a different cause and each got a different fix.
+
+**An Italian word in the middle of the Hebrew.** The report read `יועד שבר בצורת של 4 לילות ללא
+ניצחון, finalmente חנש ניצח את יוני`. The prompt has asked for Hebrew-only since the first version —
+this is a model reaching for flavour in a prompt that spends two hundred lines asking for flavour,
+and asking again was not going to fix it. There is now a rule naming the failure *and* a check on
+the way out: `foreignWords()` finds Latin-script runs in the finished text and allows only words
+that are somebody's name in the record, which is the one legitimate source of Latin letters (a guest
+called "Guy" passes). A report that fails is **refused, not scrubbed** — deleting a word from the
+middle of a sentence leaves a sentence nobody wrote, and "write another one" is a button two
+centimetres away.
+
+**A raw ISO date, `2026-08-06`, printed into Hebrew prose.** Not the model's fault at all:
+`recapFacts.ts` handed it `their last one was ${lastSeen.date}`, and the prompt's own rule says
+every number comes from the record unchanged. The fact no longer carries a date — the count of
+nights missed is what anyone wanted — and there is a test asserting no fact line contains one, plus
+a prompt rule and an output check as backstops for the next one.
+
+**"לילות" for what this club calls a מחזור.** The facts are written in English and counted in
+"nights", so the model translated literally. The prompt now carries the glossary outright: a club
+night is a **מחזור**, never לילה and never ערב.
+
+**And the fourth thing, which is why the paragraph read badly even ignoring the other three.** The
+organiser's words: the events were "being dumped in instead of being as part of the story". They
+were right, and the shape is visible in the sentence — three people's nights, comma-joined, four
+words each, no joke. The facts arrive as bullet lists under section headers and the model had been
+mapping one section to one comma-separated sentence. The prompt now says a fact is raw material
+rather than a sentence, quotes that exact failure back as the thing to avoid, forbids putting two
+people's facts in one list-shaped sentence, and — the part that actually matters — says that
+**dropping a fact is better than reciting it**. There are always more facts than a 380-word report
+can carry; three written properly beat eight announced.
+
 ## 3. Team generation algorithm
 
 Balancing is a small constrained optimization. With ≤15 players, brute force is too big

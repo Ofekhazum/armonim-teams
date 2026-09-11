@@ -152,6 +152,12 @@ export function buildPrompt(facts) {
 
 WRITE IN HEBREW. Every word of the output must be Hebrew, except player names, which are already Hebrew, and which you must copy exactly as given — never translate, transliterate or shorten a name.
 
+NOT ONE WORD OF ANY OTHER LANGUAGE. No English, no Spanish, no Italian, no Latin, no transliteration — not even a single word for flourish, emphasis or rhythm. A report came back with the Italian "finalmente" sitting in the middle of a Hebrew sentence, which reads to this group as a glitch rather than as style. If a word feels like the right flavour and it is not Hebrew, it is the wrong word: write the Hebrew. The ONLY Latin characters permitted anywhere in the output are the letters of a player's name, and only if their name was given to you that way.
+
+NEVER WRITE A DATE. Not the night's own date, not a date from any fact below, in any form — no 2026-08-06, no 6.8, no "באוגוסט". The facts below are counted in *nights*, and a span is said the way a person says it: "חמישה מחזורים", "מאז אמצע הקיץ". A number that looks like a calendar entry has been copied rather than written.
+
+THE WORD FOR A CLUB NIGHT IS "מחזור". Everything below is counted in what it calls "nights" — that is the English for it, and the Hebrew is **מחזור** (plural **מחזורים**), which is what this club has always called one. Never "לילה", never "לילות", never "ערב". "ארבעה מחזורים ללא ניצחון", not "4 לילות ללא ניצחון".
+
 Call the teams by these Hebrew names:
 Black = השחורים
 White = הלבנים
@@ -182,6 +188,14 @@ ${list(facts.moments, '- nothing out of the ordinary happened')}
 
 WHAT PLAYERS REACHED THIS NIGHT
 ${list(facts.milestones, '- nothing was reached')}
+
+A FACT IS RAW MATERIAL, NOT A SENTENCE. Every line in this record is written as a bare clause so that you can build something out of it. Building means giving it a consequence, an accusation, a nickname, a rivalry, a mock-investigation — a reason the group laughs. Copying it means moving it into Hebrew and putting a comma after it.
+
+The failure to avoid, verbatim from a real report: "יועד שבר בצורת של 4 לילות ללא ניצחון, חנש ניצח את יוני, ושי חזר לשחק לראשונה מאז 2026-08-06." Three separate people's nights, flattened into one list, each given four words and no joke. Nobody reading that learns anything they could not have read off the table.
+
+So: **never put two people's facts in the same sentence as a list.** One fact, one sentence at minimum, and the good ones get two or three. A fact you cannot think of anything to say about is a fact to DROP — leaving it out entirely is better than reciting it, and there are always more facts here than a 380-word report can carry. Three facts written properly beat eight facts announced.
+
+The same goes for the shape of the paragraph. A paragraph that is one long chain of "X did this, Y did that, ו-Z did the other" has listed the night rather than reported it, however good each clause is on its own.
 
 PAIRS WORTH MENTIONING
 ${list(facts.duos, '- none')}
@@ -237,7 +251,7 @@ Then five paragraphs, in this order, 280 to 380 words in total:
     facts.said
       ? ' Everything under SOMETHING ELSE THAT HAPPENED TONIGHT belongs here, and it is the best material you have been given — nothing else in this record is an actual event. Give it real room (two or three sentences, and more if it holds more than one event) rather than a passing mention.'
       : ''
-  } Milestones reached, the stories above, the player of the night, and anyone who won a lot or a little. Somebody who played four or more and won nothing gets a sympathetic ribbing rather than a kicking. Superstition is encouraged — if somebody keeps winning in one shirt colour, that is a curse and a blessing, not a coincidence.
+  } Milestones reached, the stories above, the player of the night, and anyone who won a lot or a little — but chosen, not collected: see A FACT IS RAW MATERIAL above. Pick the three or four people whose night is actually worth a sentence and give each of them a real one; the rest of the facts go unused, which is what they are there for. Somebody who played four or more and won nothing gets a sympathetic ribbing rather than a kicking. Superstition is encouraged — if somebody keeps winning in one shirt colour, that is a curse and a blessing, not a coincidence.
 5. THE SIGN-OFF. One or two sentences looking forward to next week, aimed at **people, by name**, called out for **their own results tonight**: who won nothing, who won everything, who is on a run, who has not taken a night since the spring. And never aim it at an event nobody was named for — see WHO IT BELONGS TO above if there is a line up there. This is also the paragraph where the shirt rule gets broken, every time, so read it again before you write this: **next week's teams do not exist yet and nobody is in one.** A threat, a promise or a warning may only be made to a named player about themselves.
 
    Wrong, and the exact mistake to avoid: "נראה אם הכחולים יצליחו להגן על התואר" — the blues of next week are five different people. Also wrong: "השחורים חייבים לחזור חזק", "הלבנים ירצו נקמה", or anything at all about what a colour will do, want, defend or avenge.
@@ -279,6 +293,38 @@ ${CLOSE}`;
  * left here is the one thing that is about reports, which is refusing an answer
  * that did not arrive between the tags.
  */
+/**
+ * Latin-script words in a Hebrew report that are not somebody's name.
+ *
+ * **A rule in the prompt was not enough.** The instruction to write only in
+ * Hebrew has been there from the start, and a report still came back with the
+ * Italian "finalmente" in the middle of a sentence — a model reaching for
+ * flavour, in a prompt that spends two hundred lines asking for flavour. It is
+ * one word in four hundred, which is exactly the kind of thing nobody notices
+ * until it is in the WhatsApp group.
+ *
+ * Names are the one legitimate source of Latin letters here, and the record
+ * names everybody who played, so the check is: every Latin run has to be a name
+ * that was handed to us. A guest called "Guy" passes; "finalmente" does not.
+ *
+ * Returns the offending words, so the caller can say which they were rather
+ * than rejecting the report with a shrug.
+ */
+export function foreignWords(text, facts) {
+  const allowed = new Set(
+    (facts.players ?? [])
+      .flatMap((p) => String(p.name ?? '').split(/\s+/))
+      .map((w) => w.toLowerCase())
+      .filter(Boolean),
+  );
+  return [...new Set(text.match(/[A-Za-z][A-Za-z'’-]*/g) ?? [])].filter(
+    (w) => !allowed.has(w.toLowerCase()),
+  );
+}
+
+/** An ISO date copied out of the record — see NEVER WRITE A DATE in the prompt. */
+const datesIn = (text) => [...new Set(text.match(/\d{4}-\d{2}-\d{2}/g) ?? [])];
+
 export async function writeRecap(env, facts) {
   const said = await callGemini(env, buildPrompt(facts));
   if (said.error) return { error: said.error };
@@ -290,5 +336,19 @@ export async function writeRecap(env, facts) {
   // trust the boundaries of is worse than none.
   const text = between(said.raw);
   if (!text) return { error: 'the model wrote its working out instead of a report' };
+
+  // Refused rather than scrubbed. Deleting a stray word from the middle of a
+  // Hebrew sentence leaves a sentence nobody wrote, and the organiser already
+  // has a "write another one" button two centimetres away — so the honest move
+  // is to say what was wrong and let them press it.
+  const foreign = foreignWords(text, facts);
+  if (foreign.length > 0) {
+    return { error: `the report slipped out of Hebrew: ${foreign.slice(0, 5).join(', ')}` };
+  }
+  const dates = datesIn(text);
+  if (dates.length > 0) {
+    return { error: `the report printed a raw date: ${dates.slice(0, 3).join(', ')}` };
+  }
+
   return { text, model: said.model };
 }
