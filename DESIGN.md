@@ -4079,14 +4079,50 @@ detections with false confidence, lowering the bar for highly-rated players rath
 better evidence about them. Kept at 0.10 for now, flagged for deletion if it does not earn its place
 once the attenuation is fixed.
 
-**What is still open.** Fault 1. The panel is honest but half-deaf: a player rated 5 who is genuinely
-a 9 is reported about one time in thirty at twenty nights, because saturation attenuates the estimate
-even harder than the mid-scale case. `ratingErrors` reads every result through the logistic's slope at
-50/50 (`SENSITIVITY`) regardless of where the match actually sat, so a lopsided night is read as
-weaker evidence than it is. The fix is to weight each row by the local slope — one IRLS step, which
-makes `delta` come out in rating points directly and requires `LAMBDA` to be re-derived, since the
-penalty would then apply in stars rather than in probability units. Two tests pin the current deafness
-so the improvement is visible when it lands.
+**What is still open.** Fault 1 — the panel is honest but half-deaf. Taken up next.
+
+### 2.51 Reading a result at the odds it was played at — and what a win tally cannot tell you (`calibration.ts`)
+
+**The slope.** `ratingErrors` converted every result through the logistic's slope at 50/50 — the
+steepest the curve ever gets — regardless of where the match actually sat. A night between level teams
+and a night one side was expected to take four wins in five were read at the same exchange rate, and
+the second is much weaker evidence: when a team is *expected* to win 80% of the time, a player being a
+star better than their rating barely shifts the expected result, so taking 80% back says little. The
+fit now linearises at each match's own odds (`slopeAt(p) = ln(10)·p(1−p)/(SCALE·FULL_TEAM)`, floored
+at p = 0.1 so a foregone conclusion cannot divide by almost nothing) and iterates to convergence.
+Three consequences: `delta` comes out in rating points directly, so the trailing `SENSITIVITY` divide
+is gone; the weight falls out as `n·p(1−p)`, the standard logistic weight, which says the same thing
+from the other side — a close match is worth several times a foregone one; and `LAMBDA` had to be
+re-derived from 8 to **0.1**, because the penalty now applies in stars² rather than in probability
+units. 0.1 is the value that leaves `resultStrength` within ~4% of where it was, which matters because
+the market-value price tag (§2.31) is calibrated on it.
+
+Where saturation was worst this is a large gain: a player rated 5 who is genuinely a 9 was estimated
+at ~0.9 stars out and is now estimated at ~1.55.
+
+**And then the real answer.** It did almost nothing for a mid-table player — because a balancer keeps
+matches near 50/50, which is exactly where the correction is a no-op. Iterating the Fisher scoring
+didn't help either. The cause turned out not to be in the estimator at all:
+
+> A fixture records each team's **total** wins. `buildRows` reads `wins[black] / (wins[black] +
+> wins[white])` as a head-to-head share — but black's total also contains its wins over blue. Every
+> comparison is blended with a third team's results.
+
+Re-running the same estimator on synthetic nights where the record genuinely *is* head-to-head
+separates the two cleanly:
+
+| data | estimate of a true 1.5★ | se, 8 → 80 nights |
+|---|---|---|
+| three-team totals (what a fixture stores) | 1.02, stuck | 0.93 → 0.71, stuck |
+| true head-to-head | **1.40** | **3.19 → 0.90** (falls as 1/√n) |
+
+So one fact explains both what is left of the attenuation *and* the floor under the error bars — which
+is why more football stopped buying confidence. Given honest input the estimator is now near-unbiased
+and converges properly; given what a fixture actually stores, it cannot. That reframes the remaining
+work: it is a data-model change, not more statistics. Either read `matchLog` where a night has one
+(§2.17 — the club's recent nights do), or model a three-team night as what it is, each team's total
+against the combined field, rather than as three independent duels. Two tests pin the current limit so
+the improvement is visible when it lands.
 
 ## 3. Team generation algorithm
 

@@ -67,15 +67,32 @@
 //      time, make the panel *more* likely to be right the more football is
 //      played (precision 32% at eight nights, 87% at twenty, 94% at forty).
 //
-//   3. OPEN — and the reason the panel is still hidden. `delta` is attenuated
-//      to roughly two-thirds. Given unlimited football, a player genuinely
-//      1.5★ above their rating settles at an estimate of ~1.0 and one 2.5★ out
-//      settles at ~1.6. The estimator is therefore honest but half-deaf: when
-//      it speaks it is now usually right, but it only speaks for gross errors,
-//      because everything it measures comes out too small to clear its own
-//      floor. The fix is to weight each row by the logistic's local slope
-//      rather than the 50/50 slope, and to calibrate the star scale by
-//      injection so `delta` means the stars it claims.
+//   3. FIXED, as far as the estimator can fix it. Every result used to be read
+//      through the logistic's slope at 50/50 — the steepest the curve gets —
+//      so a night between level teams and a night one side was expected to
+//      dominate were converted at the same exchange rate. The fit now
+//      linearises at the odds each match was actually played at, and iterates
+//      (`slopeAt`, FIT_PASSES). For a player rated 5 who is genuinely a 9,
+//      where saturation was worst, the estimate rose from ~0.9 stars to ~1.55.
+//
+//   4. OPEN, and no longer an estimator problem at all — it is the data. A
+//      night records three numbers, each team's *total* wins, and this file
+//      reads `wins[black] / (wins[black] + wins[white])` as if it were a
+//      head-to-head share. It is not: black's total includes wins over blue.
+//      Every comparison is therefore blended with a third team's results, and
+//      that single fact accounts for what is left of the attenuation *and* for
+//      the floor under the error bars. Measured by re-running the estimator on
+//      synthetic nights where the record genuinely is head-to-head:
+//
+//        data                  │ estimate of a true 1.5★ │ se at 8 → 80 nights
+//        three-team totals     │ 1.02 (stuck)            │ 0.93 → 0.71 (stuck)
+//        true head-to-head     │ 1.40                    │ 3.19 → 0.90 (1/√n)
+//
+//      So given honest input the estimator is now near-unbiased and converges
+//      properly. Given what a fixture actually stores, it cannot. The fix is
+//      in the data model, not here: either read `matchLog` where a night has
+//      one, or model a three-team night as what it is — each team's total
+//      against the combined field — rather than as three independent duels.
 // ---------------------------------------------------------------------------
 
 import { FULL_TEAM, TEAM_COLORS } from './balancer';
@@ -95,15 +112,48 @@ export const MIN_NIGHTS = 4;
 // full point of team-average advantage means taking about 76% of them.
 const SCALE = 2;
 
-// How much one player's rating moves their team's expected share, at the point
-// where two teams are even. Derived rather than guessed: the logistic's slope
-// at 50/50 is ln(10)/4, the gap is divided by SCALE, and one player moving a
-// full point shifts a five-a-side average by a fifth of that.
-const SENSITIVITY = Math.LN10 / 4 / (SCALE * FULL_TEAM);
+// How much one player's rating moves their team's expected share of the wins,
+// at an expected share of `p`. The logistic's slope is ln(10)·p(1−p) per point
+// of team-average advantage, the gap is divided by SCALE, and one player moving
+// a full point shifts a five-a-side average by a fifth of that.
+//
+// **The p(1−p) is the whole point, and leaving it out was the last of the three
+// faults.** The estimator used to read every result through the slope at 50/50
+// — the steepest the curve ever gets — so a night between evenly matched teams
+// and a night where one side was expected to win four in five were converted at
+// the same exchange rate. The second kind is much weaker evidence: when a team
+// is expected to take 80% of the wins, a player being a star better than their
+// rating barely moves the expected result, so taking 80% back tells you little.
+// Reading that at the 50/50 rate divides the real error by two or three, which
+// is why a player rated 5 who was genuinely a 9 could go unreported for a
+// season — at the ceiling, saturation is at its worst.
+const slopeAt = (p: number) => (Math.LN10 * p * (1 - p)) / (SCALE * FULL_TEAM);
 
-// Ridge penalty. Larger = more evidence needed before an estimate moves off
-// zero. Tuned by simulating seasons — see `scripts/calibration-report.ts`.
-const LAMBDA = 8;
+// A foregone conclusion divides by almost nothing and would turn one fluke into
+// an enormous implied error, so the slope is never read from further out than
+// this. At 0.1 a team expected to take nine wins in ten is still counted, at
+// about a third of the weight of an even match.
+const SLOPE_FLOOR = 0.1;
+
+// Ridge penalty, in stars² — a player's estimate has to be worth this much
+// evidence before it moves off zero. Re-derived when the local slope landed:
+// the fit now solves for stars directly rather than for a probability shift, so
+// the old value of 8 would have penalised roughly seventy-five times harder.
+// 0.1 is the value that lands `resultStrength` within a few percent of where it
+// was (measured: the spread of its deltas widens by about 4%, the ordering
+// unchanged), which matters because the market-value price tag (§2.31) is
+// calibrated on it. Measured against attenuation and false-flag rate either
+// side of that — see `scripts/calibration-report.ts`. Below about 0.05 the
+// estimates start chasing noise on short histories; above about 0.4 the
+// attenuation the rest of this file is fighting comes back.
+const LAMBDA = 0.1;
+
+// How many rounds of Fisher scoring, and how still the answer has to go before
+// stopping early. A well-conditioned history settles in three or four rounds;
+// the cap is there for the pathological ones, where oscillation is possible and
+// running forever is not.
+const FIT_PASSES = 12;
+const FIT_TOLERANCE = 0.001;
 
 // How much of the uncertainty a suggestion has to survive. The gate is not
 // "does the estimate look big" but "is the *whole* plausible range still a real
@@ -354,6 +404,10 @@ function tInflation(v: number): number {
 export function buildRows(
   history: FixtureRecord[],
   ratingOf: (id: string) => number | null,
+  // The error estimated for each player so far, in stars. Zero on the first
+  // pass; on later ones it moves `expected` toward what the fit now believes,
+  // which is what makes the iteration in `ratingErrors` converge.
+  offsetOf: (id: string) => number = () => 0,
 ): { rows: Row[]; index: Map<string, number> } {
   const index = new Map<string, number>();
   const idx = (id: string) => {
@@ -394,12 +448,42 @@ export function buildRows(
         const avgB = rated(bIds);
         if (avgA == null || avgB == null) continue;
 
-        const expected = 1 / (1 + 10 ** ((avgB - avgA) / SCALE));
+        // Where the fit currently believes this match sat: the ratings, plus
+        // whatever error it has so far attributed to the players on each side.
+        const offA = a.reduce((t, id) => t + offsetOf(id), 0);
+        const offB = bIds.reduce((t, id) => t + offsetOf(id), 0);
+        const eta = avgA + offA / a.length - (avgB + offB / bIds.length);
+        const expected = 1 / (1 + 10 ** (-eta / SCALE));
+
+        // One step of Fisher scoring on the logistic, which is what turns a
+        // surprise in the results into an answer measured in stars.
+        //
+        // `slope` is how much one player's star is worth *here*, at the odds
+        // this match was actually played at. Dividing the surprise by it gives
+        // the working response: how many stars of error, summed over the
+        // difference between the two teams, would explain what happened. So
+        // `beta` comes out in rating points with no conversion factor left
+        // over, and the `SENSITIVITY` divide that used to sit at the end of
+        // `ratingErrors` — always at the 50/50 rate, whatever the match — is
+        // gone.
+        //
+        // The weight is the inverse of that response's variance, and works out
+        // to `n · slope² / p(1−p)` ∝ `n · p(1−p)`: the standard logistic weight,
+        // which says the same thing from the other side. A close match is worth
+        // several times a foregone one, and the count of matches still scales
+        // it, so a 4–1 night still outweighs a 1–0.
+        const p = Math.min(1 - SLOPE_FLOOR, Math.max(SLOPE_FLOOR, expected));
+        const slope = slopeAt(p);
         rows.push({
           idx: [...a.map(idx), ...bIds.map(idx)],
           sign: [...a.map(() => 1), ...bIds.map(() => -1)],
-          y: wc / n - expected,
-          w: n,
+          // The response carries the offset already believed (`offA - offB`)
+          // plus the surprise still unexplained, so the fit always solves for
+          // the *whole* error rather than for a correction to it. That keeps
+          // the ridge penalty pulling toward "the rating is right" at every
+          // iteration instead of toward the previous iteration's answer.
+          y: offA - offB + (wc / n - expected) / slope,
+          w: (n * slope * slope) / (p * (1 - p)),
           night,
         });
       }
@@ -414,12 +498,36 @@ export function ratingErrors(
   ratingOf: (id: string) => number | null,
   lambda: number = LAMBDA,
 ): Map<string, PlayerEstimate> {
-  const { rows, index } = buildRows(history, ratingOf);
-  const { beta, se } = fitRidge(rows, index.size, lambda);
+  // Fisher scoring, iterated. A single pass from "every rating is right" only
+  // travels part of the way to the answer — it linearises the logistic once, at
+  // a starting point that is by assumption wrong — and that shortfall was most
+  // of the attenuation: a player genuinely a star and a half out settled at
+  // about 1.0 after one pass. Re-linearising around the current estimate and
+  // refitting closes the gap in a handful of rounds, and it costs nothing worth
+  // counting: the matrix is fifteen by fifteen.
+  let beta: number[] = [];
+  let se: number[] = [];
+  let index = new Map<string, number>();
+  let offset = new Map<string, number>();
+  for (let pass = 0; pass < FIT_PASSES; pass++) {
+    const built = buildRows(history, ratingOf, (id) => offset.get(id) ?? 0);
+    index = built.index;
+    ({ beta, se } = fitRidge(built.rows, index.size, lambda));
+    const next = new Map<string, number>();
+    let moved = 0;
+    for (const [id, i] of index) {
+      next.set(id, beta[i]);
+      moved = Math.max(moved, Math.abs(beta[i] - (offset.get(id) ?? 0)));
+    }
+    offset = next;
+    if (moved < FIT_TOLERANCE) break;
+  }
+
   const out = new Map<string, PlayerEstimate>();
   for (const [id, i] of index) {
-    const delta = beta[i] / SENSITIVITY;
-    const sd = se[i] / SENSITIVITY;
+    // Already in rating points — the per-row divide by the local slope did the
+    // conversion, at the odds each match was actually played at.
+    const [delta, sd] = [beta[i], se[i]];
     out.set(id, { delta, se: sd, z: sd > 0 ? delta / sd : 0 });
   }
   return out;
@@ -484,17 +592,24 @@ export function playerStandings(history: FixtureRecord[]): PlayerStanding[] {
  * Which constant is irrelevant: only the difference between two team averages
  * reaches the model, and every difference here is zero.
  *
- * **Units.** `delta` comes out of the same `SENSITIVITY` divide as the rating
- * version, so it is still "rating points of advantage this player's presence is
- * worth" — but read against an average player rather than against their own
- * rating. It is *not* a rating and must never be rendered as stars.
+ * **Units.** `delta` is in rating points, like the rating version, so it reads
+ * as "stars of advantage this player's presence is worth" — but against an
+ * average player rather than against their own rating. It is *not* a rating and
+ * must never be rendered as stars.
+ *
+ * **The local-slope weighting passes it by, and that is fine.** With every team
+ * average identical, `expected` is 0.5 for every pairing, so every row is
+ * weighted at the peak slope and none is discounted. That makes this estimator
+ * the one place where the fix changed nothing — which is deliberate: `LAMBDA`
+ * was re-derived to the value that leaves this function's output where it was,
+ * because the market-value price tag (§2.31) is calibrated on it.
  *
  * **Small records need no special case.** The ridge penalty pulls an estimate
  * with little evidence behind it toward zero on its own, so a newcomer lands
  * near "ordinary" rather than at an extreme. That is the whole reason for
  * regularising rather than solving exactly.
  *
- * **Not yet simulated.** The hit-rate table under `MIN_IMPLIED_DELTA` was
+ * **Not simulated in its own right.** The hit-rate tables in this file were
  * measured with a real rating prior; a flat prior is a different estimator and
  * is owed its own pass before anything gates a decision on the number. Nothing
  * currently does — it feeds a price tag (§2.31), where being roughly right is

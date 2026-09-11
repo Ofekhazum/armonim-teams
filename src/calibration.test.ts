@@ -286,17 +286,20 @@ describe('the error bars', () => {
   });
 });
 
-// The fault that still keeps the panel off the screen, pinned so the day
-// someone fixes it, it shows up in CI rather than in a screenshot. These assert
-// the *broken* behaviour on purpose: when they start failing, the estimator has
-// improved and the panel may be worth switching back on.
-// See the header of calibration.ts, and scripts/calibration-report.ts.
-describe('known faults in the estimator', () => {
+// What a win tally costs, pinned so the day it is paid it shows up in CI rather
+// than in a screenshot. These assert the *limited* behaviour on purpose: when
+// they start failing, the night data has got richer and the panel may be worth
+// switching back on. See fault 4 in the header of calibration.ts.
+//
+// Both of these are the same fact. A fixture records each team's *total* wins,
+// and `buildRows` reads black-over-white as if it were a head-to-head share
+// when black's total also contains wins over blue. Re-run on synthetic nights
+// that genuinely are head-to-head, the estimator recovers 1.40 of a true 1.5
+// and its error bars fall as 1/√n; on three-team totals both stall.
+describe('what a win tally cannot tell you', () => {
   it('attenuates a known error to about two-thirds of its real size', () => {
     // p9 is an ordinary 3★ who is secretly 1.5 stars better. Given a great deal
-    // of football the estimate should settle on 1.5; it settles near 1.0,
-    // because the model reads every result through the logistic's slope at
-    // 50/50 rather than the slope where the match actually sat.
+    // of football the estimate should settle on 1.5; it settles near 1.0.
     const specs = withError('p9', 1.5);
     const byId = new Map(mkPlayers(specs).map((p) => [p.id, p]));
     let sum = 0;
@@ -313,8 +316,10 @@ describe('known faults in the estimator', () => {
 
   it('is too deaf to report even a four-star error at the ceiling', () => {
     // Rated 5, genuinely a 9, twenty nights of football: the panel should be
-    // shouting. It speaks about one time in thirty, because saturation
-    // attenuates the estimate far worse than the mid-scale case above.
+    // shouting. Reading the local slope rather than the 50/50 one lifted this
+    // estimate from ~0.9 stars to ~1.55, which is most of the way to clearing
+    // the bar — but the error bars stay near 0.8 however long the club plays,
+    // for the reason above, so it still speaks about one time in twelve.
     const ceiling = base.map((s) => (s.id === 'p0' ? { ...s, rated: 5, truth: 9 } : s));
     const ps = mkPlayers(ceiling);
     let spoke = 0;
