@@ -334,10 +334,14 @@ function nightNotes(fixture: FixtureRecord, history: FixtureRecord[]): string[] 
     if (lastSeen) {
       const missed = before.filter((fx) => fx.date > lastSeen.date).length;
       if (missed >= AWAY_NIGHTS) {
-        add(
-          'return',
-          `${p.name} is back after missing ${missed} nights — their last one was ${lastSeen.date}`,
-        );
+        // **No date here, deliberately.** This used to end "— their last one
+        // was 2026-08-06", and the reporter printed that ISO string verbatim
+        // into a Hebrew sentence, which is exactly what the rule two sections
+        // up in the prompt tells it to do: every number comes from the record
+        // unchanged. The count of nights missed is the fact worth having; the
+        // calendar date is precision nobody in a WhatsApp group wants and the
+        // one shape of number that cannot survive being copied.
+        add('return', `${p.name} is back after missing ${missed} nights`);
       }
     }
 

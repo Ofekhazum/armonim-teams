@@ -60,6 +60,30 @@ describe('buildPrompt', () => {
     expect(p).toContain('השחורים');
   });
 
+  it('names the club’s word for a night, so the model does not translate one', () => {
+    // The facts are counted in "nights" and the model rendered that as "לילות".
+    // This club has always called one a מחזור.
+    expect(p).toContain('מחזור');
+    expect(p).toMatch(/Never "לילה"/);
+  });
+
+  it('bans every other language outright, not just by asking for Hebrew', () => {
+    expect(p).toMatch(/NOT ONE WORD OF ANY OTHER LANGUAGE/);
+    expect(p).toContain('finalmente'); // the real one that got through
+  });
+
+  it('forbids dates in any shape', () => {
+    expect(p).toMatch(/NEVER WRITE A DATE/);
+  });
+
+  it('tells the reporter to build on a fact rather than recite it', () => {
+    expect(p).toMatch(/A FACT IS RAW MATERIAL, NOT A SENTENCE/);
+    expect(p).toMatch(/never put two people's facts in the same sentence as a list/);
+    // dropping is explicitly better than listing — there are always more facts
+    // than a 380-word report can carry
+    expect(p).toMatch(/better than reciting it/);
+  });
+
   it('says what the data does not contain, in as many words', () => {
     // the failure mode is confident invention: a sports-writer prompt with no
     // guard will supply scorers, assists and saves out of nothing
@@ -376,7 +400,7 @@ describe('writeRecap', () => {
     globalThis.fetch = async (_url, init) => {
       sent = JSON.parse(init.body);
       return new Response(
-        JSON.stringify({ candidates: [{ content: { parts: [{ text: '<report>ok</report>' }] } }] }),
+        JSON.stringify({ candidates: [{ content: { parts: [{ text: '<report>דוח תקין</report>' }] } }] }),
       );
     };
     await writeRecap(env, facts());
@@ -401,10 +425,10 @@ describe('writeRecap', () => {
         );
       }
       return new Response(
-        JSON.stringify({ candidates: [{ content: { parts: [{ text: '<report>ok</report>' }] } }] }),
+        JSON.stringify({ candidates: [{ content: { parts: [{ text: '<report>דוח תקין</report>' }] } }] }),
       );
     };
-    expect(await writeRecap(env, facts())).toMatchObject({ text: 'ok' });
+    expect(await writeRecap(env, facts())).toMatchObject({ text: 'דוח תקין' });
     // a different way of asking the second time, not the same request again
     expect(bodies[0].generationConfig.thinkingConfig).not.toEqual(
       bodies[1].generationConfig.thinkingConfig,
@@ -429,6 +453,62 @@ describe('writeRecap', () => {
     expect(calls).toBe(15);
     expect(out.error).toContain('Bad argument');
     globalThis.fetch = original;
+  });
+
+  // --- Staying in Hebrew (§2.47) --------------------------------------------
+  //
+  // The prompt has asked for Hebrew-only from the beginning and a report still
+  // came back with the Italian "finalmente" in the middle of a sentence. One
+  // word in four hundred is exactly what nobody notices until it is in the
+  // group, so the rule has a check behind it now.
+
+  const replies = (text) => {
+    const original = globalThis.fetch;
+    globalThis.fetch = async () =>
+      new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text }] } }] }));
+    return () => {
+      globalThis.fetch = original;
+    };
+  };
+
+  it('refuses a report that slipped into another language', async () => {
+    const restore = replies('<report>יועד שבר את הבצורת, finalmente הוא ניצח.</report>');
+    const out = await writeRecap({ GEMINI_KEY: 'k' }, facts());
+    expect(out.text).toBeUndefined();
+    // and says which word, so the organiser knows what they are pressing again for
+    expect(out.error).toContain('finalmente');
+    restore();
+  });
+
+  it('still allows a player whose name is in Latin letters', async () => {
+    // A guest called "Guy" is a real case, and the record names everybody who
+    // played — so a name that was handed to us is the one legitimate source of
+    // Latin characters in the output.
+    const restore = replies('<report>Guy לקח את המחזור לבדו.</report>');
+    const out = await writeRecap(
+      { GEMINI_KEY: 'k' },
+      facts({ players: [{ name: 'Guy', team: 'Blue', played: 13, won: 7 }] }),
+    );
+    expect(out).toMatchObject({ text: 'Guy לקח את המחזור לבדו.' });
+    restore();
+  });
+
+  it('refuses a report that printed a raw date', async () => {
+    // What the screenshot showed: "ושי חזר לשחק לראשונה מאז 2026-08-06".
+    // The fact no longer carries a date, and this is the backstop for the day
+    // some other fact does.
+    const restore = replies('<report>שי חזר לראשונה מאז 2026-08-06.</report>');
+    const out = await writeRecap({ GEMINI_KEY: 'k' }, facts());
+    expect(out.text).toBeUndefined();
+    expect(out.error).toContain('2026-08-06');
+    restore();
+  });
+
+  it('lets an ordinary Hebrew report through untouched', async () => {
+    const restore = replies('<report>📻 קובי שדרן מדווח\n\nערב פרוע במיוחד.</report>');
+    const out = await writeRecap({ GEMINI_KEY: 'k' }, facts());
+    expect(out.text).toContain('ערב פרוע במיוחד');
+    restore();
   });
 
   // --- The waterfall (§2.24) ------------------------------------------------

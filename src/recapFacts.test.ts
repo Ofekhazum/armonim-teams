@@ -193,6 +193,33 @@ describe('recapFacts', () => {
     expect(f.notes.some((n) => n.startsWith('Most matches won tonight'))).toBe(true);
   });
 
+  it('never hands the reporter a calendar date to copy', () => {
+    // The "back after missing N nights" fact used to end with the ISO date of
+    // the player's last appearance, and the reporter printed it verbatim into
+    // a Hebrew sentence — which is exactly what the prompt's "every number
+    // comes from the record unchanged" rule tells it to do. The count is the
+    // fact worth having; the date was precision nobody wanted.
+    // ניב plays, misses the next four, and is back tonight — the fact this
+    // bug lived in needs a real absence to fire at all (AWAY_NIGHTS = 3).
+    const away = ['2026-07-09', '2026-07-16', '2026-07-23', '2026-07-30'].map((date, i) => ({
+      ...night('AWAWA', { id: `gone${i}`, date }),
+      teams: { black: ['b1'], white: ['w1'], blue: [] },
+      players: [
+        { id: 'b1', name: 'אופק', rating: 4.5 },
+        { id: 'w1', name: 'ירין', rating: 2 },
+      ],
+    }));
+    const first = night('AWAWA', { id: 'f0', date: '2026-07-02' });
+    const tonight = night('AWAWA', { id: 'f1', date: '2026-08-11' });
+    const history = [first, ...away, tonight];
+    const f = recapFacts(tonight, history, roster)!;
+    // the absence really was detected, or this test proves nothing
+    expect(f.notes.some((n) => n.includes('back after missing'))).toBe(true);
+    for (const line of [...f.notes, ...f.milestones, ...f.moments, ...f.duos]) {
+      expect(line).not.toMatch(/\d{4}-\d{2}-\d{2}/);
+    }
+  });
+
   it('quotes a career record from before the night, never including it', () => {
     const fx = night('AWN');
     const f = recapFacts(fx, [fx], roster)!;
