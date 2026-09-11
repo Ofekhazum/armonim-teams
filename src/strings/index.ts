@@ -7,6 +7,7 @@ import { history } from './history';
 import { matchday } from './matchday';
 import { night } from './night';
 import { player } from './player';
+import { postmortem } from './postmortem';
 import { roster } from './roster';
 import { share } from './share';
 
@@ -32,5 +33,6 @@ export const STRINGS = {
   ...club,
   ...history,
   ...player,
+  ...postmortem,
   ...share,
 } as const;

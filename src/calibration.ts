@@ -137,6 +137,14 @@ export const MIN_NIGHTS = 4;
 // full point of team-average advantage means taking about 76% of them.
 const SCALE = 2;
 
+// The club's win model in one line: how often the first team beats the second,
+// given the two team averages. Exported because the post-mortem (§2.54) has to
+// ask the same question in the other direction — *given* a sheet, what result
+// should it have produced — and two files disagreeing about what a rating gap
+// is worth would make that comparison meaningless.
+export const expectedShare = (avgA: number, avgB: number): number =>
+  1 / (1 + 10 ** ((avgB - avgA) / SCALE));
+
 // How much one player's rating moves their team's expected share of the wins,
 // at an expected share of `p`. The logistic's slope is ln(10)·p(1−p) per point
 // of team-average advantage, the gap is divided by SCALE, and one player moving

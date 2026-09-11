@@ -394,6 +394,11 @@ export default function MatchDay({
             blue: session.wins.blue ?? 0,
           },
       ...(matchLog.length ? { matchLog } : {}),
+      // What the balancer was told about keepers when it built this sheet. Kept
+      // so the post-mortem can score the teams the way they were actually
+      // scored — an outfield player in goal is left out of the rating average,
+      // and that is not recoverable from the ratings afterwards (§2.54).
+      ...(session.gkIds.length ? { gkIds: [...session.gkIds] } : {}),
       // Only when there is one. An absent note and an empty one are the same
       // thing, and the reporter's payload should not have to tell them apart.
       ...(note ? { note: note.slice(0, NOTE_MAX) } : {}),
