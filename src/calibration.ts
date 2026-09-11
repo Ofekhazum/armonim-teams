@@ -36,9 +36,44 @@
 // "stars" assumes a model of how ratings drive wins that this data cannot
 // check; simulation shows the sign and ordering hold up while the magnitude
 // can be well out. And a win tally is a coarse record — three numbers a night,
-// no head-to-head — so individual attribution is genuinely hard. See the note
-// on MIN_IMPLIED_DELTA for the measured hit and error rates; the short version
-// is that this is designed to stay quiet and be right when it doesn't.
+// no head-to-head — so individual attribution is genuinely hard.
+//
+// ---------------------------------------------------------------------------
+// KNOWN BROKEN. The suggestions are currently switched off in the UI
+// (RATING_PANEL_READY in History.tsx). Nothing below has changed yet — the
+// measurements have. Every table in this file used to be derived through a
+// simulator that drew teams with `sort(() => rnd() - 0.5)`, which is not a
+// shuffle: it leaves the array near where it started, so the first name on the
+// list took the black shirt 46% of the time instead of a third. Re-measured
+// through a Fisher-Yates draw at the club's real match volume (~12 wins a
+// night, i.e. four matches per pairing), by `scripts/calibration-report.ts`:
+//
+//   1. `delta` is attenuated to roughly half. Given unlimited football, a
+//      player who is genuinely 1.5★ better than their rating settles at an
+//      estimate of ~1.0, and one who is 2.5★ out settles at ~1.6 — against a
+//      bar of 1.55. So the *converged* estimate for anything short of a gross
+//      error never clears MIN_IMPLIED_DELTA, no matter how much is played.
+//
+//   2. Which means detection gets *worse* with more evidence. A 3★ player who
+//      is really 1.5★ better is flagged 24% of the time at eight nights and
+//      14% at twenty. That is the signature of a noise detector: early on the
+//      estimate is scattered enough (sd ~0.84) to cross the bar by accident,
+//      and as the scatter shrinks the (too small) truth is all that is left.
+//      The early hits were never detections.
+//
+//   3. MIN_Z is inert. On a league where *nobody* is mis-rated, the median
+//      |z| at five nights is 4.0 and only 14% of players fall below the gate
+//      of 1 — the estimator reports four-sigma confidence in pure noise,
+//      because `sigma2` below divides by total weight rather than by residual
+//      degrees of freedom and ignores that rows sharing a player are
+//      correlated. The one check meant to ask "could this be noise?" answers
+//      yes to almost everything.
+//
+// Fixing these means a real posterior (so MIN_Z can do its job), weighting
+// each row by the logistic's local slope rather than the 50/50 slope, and
+// calibrating the star scale by injection so `delta` means what it claims.
+// Until then the numbers below record what the code does, not what it should.
+// ---------------------------------------------------------------------------
 
 import { FULL_TEAM, TEAM_COLORS } from './balancer';
 import type { FixtureRecord, Player, TeamColor, TeamWins } from './types';
@@ -46,8 +81,12 @@ import type { FixtureRecord, Player, TeamColor, TeamWins } from './types';
 // A player needs this many nights behind them before anything is suggested
 // about them — counted per player, not per season, so a regular builds up a
 // record while someone who turns up twice a year never gets judged on it.
-// Kept deliberately low so the app can speak up early; what stops that becoming
-// noise is the effect-size bar below, not a long wait.
+// Kept deliberately low so the app can speak up early, on the theory that what
+// stops that becoming noise is the effect-size bar below rather than a long
+// wait. Measurement says otherwise — at four or five nights the bar is crossed
+// mostly by scatter (fault 2 in the header) — so this floor is currently the
+// only thing holding the panel back, and it is not holding it back nearly
+// enough.
 export const MIN_NIGHTS = 4;
 
 // Converts a rating gap into an expected share of the wins. At SCALE = 2, a
@@ -64,28 +103,42 @@ const SENSITIVITY = Math.LN10 / 4 / (SCALE * FULL_TEAM);
 // zero. Tuned by simulating seasons — see the table under MIN_IMPLIED_DELTA.
 const LAMBDA = 8;
 
-// A light sanity check that the estimate isn't merely noise. The real gate is
-// MIN_IMPLIED_DELTA below.
+// Meant as a light sanity check that the estimate isn't merely noise.
+// Measured to be inert: see fault 3 in the header. It rejects ~14% of players
+// on a league where nobody is mis-rated at all, and raising it to 2 or 2.5
+// changes the suggestion list by nothing, because the standard errors it
+// divides by are far too small. Left in place, and left at 1, because the fix
+// is in `fitRidge`, not here — moving this number would only paper over it.
 const MIN_Z = 1;
 
 // The real gate: how far out a player has to *look* before it's worth saying
 // anything. Set high deliberately, and this is the number that makes an early
 // suggestion trustworthy rather than a coin flip.
 //
-// Tuned by simulation (120 runs per setting, one player a full star underrated
-// and one a full star overrated, everyone else exactly right). Measured at this
-// setting, for a genuinely mis-rated player:
+// Re-measured (400 runs per setting, realistically spread roster, balanced
+// teams, four matches per pairing), for a player who is genuinely out by the
+// amount shown — "caught" means flagged in the right direction:
 //
-//   nights │ found │ pointed the wrong way │ fairly-rated players flagged
-//        4 │   ~8% │                   ~7% │  1.6 of 13
-//        6 │  ~18% │                   ~9% │  2.6 of 13
-//       10 │  ~28% │                   ~3% │  3.0 of 13
+//   out by │  5 nights │  8 nights │ 12 nights │ 20 nights
+//     0.5★ │        7% │       11% │        5% │        2%
+//     1.0★ │       10% │       17% │        9% │        5%
+//     1.5★ │       14% │       24% │       18% │       14%
+//     2.5★ │       26% │       47% │       45% │       51%
 //
-// So from three or four nights it *can* speak, but it mostly won't — and that
-// is the intended behaviour, not a shortfall. Dropping this to 0.6 quadruples
-// how often it fires at four nights and simultaneously pushes the wrong-way
-// rate to ~25%: it would be recommending a downgrade for a genuinely good
-// player one time in four. Most players should simply get no suggestion.
+// alongside ~1.2 flags a run for players who are rated exactly right (peaking
+// at ~1.9 around eight nights, falling to ~0.6 by twenty).
+//
+// Read the middle rows across, not down: detection *peaks* at eight nights and
+// then falls away. That is fault 2 in the header — the hits at five and eight
+// nights are mostly scatter crossing the bar, and they disappear once there is
+// enough football for the estimate to settle. Only the 2.5★ row behaves like a
+// real detector, because only a 2.5★ error converges to an estimate (~1.6)
+// that sits above this bar at all.
+//
+// So the value is not wrong so much as beside the point: with the estimator as
+// it stands, no setting of this constant buys a trustworthy panel. Lowering it
+// trades silence for noise; raising it turns the panel off. It is left where
+// it is until the estimate underneath it means something.
 const MIN_IMPLIED_DELTA = 1.5;
 
 // Where the scale's centre of gravity sits. Deliberately lower-mid rather than
@@ -113,20 +166,23 @@ const ANCHOR_RATING = 2.5;
 // Kept gentle deliberately, and tuned down once already (from 0.20): the
 // stronger the tilt, the more it also flags players who are exactly where they
 // should be, and a panel that keeps nagging you to demote your best player
-// trains you to stop reading it. Measured over 120 runs × 20 nights on a
-// realistically spread roster, at this value:
+// trains you to stop reading it. Re-measured over 400 runs × 20 nights on a
+// realistically spread roster with balanced teams, at this value:
 //
 //                                        suggested down
-//   5★ who is really a 3.5 (overrated)          47%   ← the point of the tilt
-//   5★ who really is a 5 (correctly rated)      17%   ← the price of it
-//   4★ who is really a 3 (overrated)             23%
-//   4★ who really is a 4 (correctly rated)       12%
+//   5★ who is really a 3.5 (overrated)          45%   ← the point of the tilt
+//   5★ who really is a 5 (correctly rated)      10%   ← the price of it
+//   4★ who is really a 3 (overrated)            18%
+//   4★ who really is a 4 (correctly rated)       4%
 //
-// Almost three right for every one wrong. A steeper tilt (0.20, the original
-// value) catches more genuine over-ratings — 58% vs 47% here — but very nearly
-// doubles the false-flag rate on a correctly-rated 5★ (28% vs 17%), which is a
-// worse trade than it looks: a wrong "demote your best player" costs more
-// trust than a missed "you should probably drop this one" costs opportunity.
+// The shape survives re-measurement — the tilt does catch several times more
+// real over-ratings than it invents — but note what it is riding on. A 1.5★
+// error at the top of the scale is caught 45% of the time while the same error
+// mid-table is caught 14%, and the difference is this constant lowering the
+// bar, not the evidence being any better. That flatters the tilt: it is doing
+// the detecting, and it would flag a genuinely excellent 5★ on the same
+// evidence if the noise happened to point down. Worth re-deriving once the
+// estimate beneath it is honest, and quite possibly deleting.
 const RATING_BIAS = 0.10;
 
 // However far the bias pushes, never take the bar below this: a suggestion
@@ -245,8 +301,18 @@ function fitRidge(rows: Row[], n: number, lambda: number): { beta: number[]; se:
     wrss += row.w * (row.y - pred) ** 2;
     wsum += row.w;
   }
-  // scale to "per unit weight", so the error bars shrink as real evidence
-  // accumulates rather than as rows are counted
+  // Scales to "per unit weight", so the error bars shrink as real evidence
+  // accumulates rather than as rows are counted.
+  //
+  // This is the bug behind fault 3 in the header. Dividing by total weight
+  // treats each recorded win as an independent observation, when the three
+  // rows of a night share players with each other and with every other night,
+  // and it makes no allowance for the parameters the fit has already spent.
+  // The result is a standard error several times too small — four-sigma
+  // confidence in a league where nobody is mis-rated — which is why MIN_Z
+  // rejects almost nothing. Replacing this with a proper posterior is the
+  // single change that would let the panel decide for itself when it has
+  // enough evidence to speak.
   const sigma2 = wrss / Math.max(1, wsum - 1);
   const se = inv.map((rowI, i) => Math.sqrt(Math.max(0, sigma2 * rowI[i])));
 

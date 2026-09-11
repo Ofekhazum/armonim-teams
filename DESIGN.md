@@ -3972,6 +3972,64 @@ one win, and every genuinely beaten team still sits well below (the third team's
 apart the night did not separate them, so the person reasonably can — but the winner's own *team*
 mark is still untouchable, because the floor and the `WIN_BONUS` are both still in force.
 
+### 2.49 The rating suggestions are switched off, and the harness that hid why (`calibration.ts`, `calibration.sim.ts`, `scripts/calibration-report.ts`, `History.tsx`)
+
+The "vs rating" column and the suggestion panel proposed changes that did not make sense. Asked to
+check the feature, the honest answer turned out to be that it does not work, and that the evidence
+which said it did was itself faulty. Both are now on the record.
+
+**The harness was measuring a league nobody plays in.** Every tuning table in `calibration.ts` —
+`LAMBDA`, `MIN_IMPLIED_DELTA`, `RATING_BIAS` — was derived from a simulator that drew teams with
+`ids.sort(() => rnd() - 0.5)`. That is not a shuffle. A random comparator leaves an array close to
+where it started, so the first name on the list took the black shirt **46%** of the time instead of a
+third. The simulator is part of the evidence for every constant in the file, so one flaw in it is a
+flaw in all of them at once. It now lives in `src/calibration.sim.ts` — shared with the report script
+so the tests and the tables cannot drift apart — draws with Fisher-Yates, offers a `balanced` team
+mode that keeps the most level of thirty draws (what the balancer actually does, and the harder case,
+because a player rated too high is systematically given weaker team-mates), and defaults the reports
+to **four matches per pairing**, which is the club's real volume (~12 wins a night) rather than the
+two the old harness assumed. A test asserts each shirt comes up a third of the time.
+
+**Re-measured, three faults.** `scripts/calibration-report.ts` re-derives every table; the numbers
+are transcribed into the comments beside the constants they justify.
+
+1. **`delta` is attenuated to about half.** Given unlimited football, a player genuinely 1.5★ above
+   their rating settles at an estimate of ~1.0, and one 2.5★ out settles at ~1.6 — against a bar of
+   1.55. The *converged* estimate for anything short of a gross error never clears
+   `MIN_IMPLIED_DELTA`, however long the club plays.
+2. **So detection gets worse with more evidence.** A 3★ who is really 1.5★ better is flagged 24% of
+   the time at eight nights and 14% at twenty. That is the signature of a noise detector: early on the
+   estimate is scattered enough (sd ~0.84) to cross the bar by accident, and as the scatter shrinks
+   the too-small truth is all that is left. The early hits were never detections.
+3. **`MIN_Z` is inert.** On a league where nobody is mis-rated at all, the median |z| at five nights
+   is **4.0**, and only 14% of players fall below the gate of 1 — four-sigma confidence in pure noise.
+   `fitRidge` scales `sigma2` by total weight, treating each recorded win as independent when the
+   three rows of a night share players with each other and with every other night, and spending no
+   allowance on the parameters already fitted. The one check meant to ask "could this be noise?"
+   answers yes to almost everything, which is why raising it to 2 or 2.5 changes the output by
+   nothing.
+
+Against those, `RATING_BIAS` survives re-measurement in shape (45% of genuinely overrated 5★s
+flagged down, against 10% of correctly-rated ones) but not in standing: the reason a 1.5★ error at
+the top is caught 45% of the time while the same error mid-table is caught 14% is this constant
+lowering the bar, not the evidence being better. It is the tilt doing the detecting.
+
+**What shipped.** No behaviour change — the constants are untouched, because moving one would paper
+over a fault in the estimator rather than fix it. What shipped is a truthful harness, truthful
+comments, a report script, and two tests in `calibration.test.ts` that **assert the broken
+behaviour** (the estimate settles under its own bar; the median |z| on a fair league exceeds 2.5).
+They are written that way on purpose: the day they start failing, the estimator has improved and the
+panel may be worth switching back on. Display-side, `RATING_PANEL_READY = false` in `History.tsx`
+hides the column, its sort key and the panel — a display switch rather than an engine change, since
+`suggestRatings` has seven tests that require it to speak and its constants are about to be
+re-derived.
+
+**Why not simply tune it.** Because no setting of `MIN_IMPLIED_DELTA` buys a trustworthy panel while
+fault 1 stands: lower it and the panel reports scatter, raise it and the panel is off. The order of
+work is a correct posterior (so `MIN_Z` can do its job), then weighting each row by the logistic's
+local slope instead of the 50/50 slope, then calibrating the star scale by injection so `delta`
+means what it claims — and only then re-deriving `RATING_BIAS`, which may not survive.
+
 ## 3. Team generation algorithm
 
 Balancing is a small constrained optimization. With ≤15 players, brute force is too big

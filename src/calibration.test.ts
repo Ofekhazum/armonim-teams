@@ -12,6 +12,9 @@
 // assert on the *rate* of correct/incorrect suggestions, not a single outcome
 // — a single run of a probabilistic function proves nothing. Seeds are fixed
 // so a failure is reproducible.
+//
+// The league itself lives in `calibration.sim.ts`, shared with the tuning
+// reports under `scripts/` so both measure the same thing.
 
 import { describe, expect, it } from 'vitest';
 import {
@@ -19,75 +22,49 @@ import {
   hasResult,
   playerForm,
   playerStandings,
+  ratingErrors,
   suggestRatings,
   totalWins,
 } from './calibration';
-import type { FixtureRecord, Player, TeamColor, TeamWins } from './types';
+import {
+  flat as base,
+  mis,
+  mkPlayers,
+  season,
+  setSeed,
+  shuffle,
+  spread,
+  withError,
+} from './calibration.sim';
+import type { FixtureRecord } from './types';
 
-let seed = 12345;
-const rnd = () => {
-  seed = (seed * 1664525 + 1013904223) % 4294967296;
-  return seed / 4294967296;
-};
-
-interface Spec {
-  id: string;
-  name: string;
-  rated: number;
-  truth: number;
-}
-
-const mkPlayers = (specs: Spec[]): Player[] =>
-  specs.map((s) => ({ id: s.id, name: s.name, rating: s.rated, attack: 50, chemistry: [] }));
-
-const PAIRS: [TeamColor, TeamColor][] = [
-  ['black', 'white'],
-  ['blue', 'black'],
-  ['white', 'blue'],
-];
-
-// Simulates `nights` fixtures for a 15-player league whose *true* ability
-// (`truth`) may differ from the rating on their profile (`rated`) — the gap
-// between the two is exactly what suggestRatings is supposed to detect.
-function season(specs: Spec[], nights: number): FixtureRecord[] {
-  const truthOf = new Map(specs.map((s) => [s.id, s.truth]));
-  return Array.from({ length: nights }, (_, n) => {
-    const ids = specs.map((s) => s.id).sort(() => rnd() - 0.5);
-    const per = Math.floor(ids.length / 3);
-    const teams = {
-      black: ids.slice(0, per),
-      white: ids.slice(per, per * 2),
-      blue: ids.slice(per * 2, per * 3),
-    } as Record<TeamColor, string[]>;
-    const avg = (c: TeamColor) =>
-      teams[c].reduce((t, id) => t + truthOf.get(id)!, 0) / teams[c].length;
-    const wins: TeamWins = { black: 0, white: 0, blue: 0 };
-    for (const [c, d] of PAIRS) {
-      for (let m = 0; m < 2; m++) {
-        const p = 1 / (1 + 10 ** ((avg(d) - avg(c)) / 2));
-        wins[rnd() < p ? c : d] += rnd() < 0.2 ? 0.5 : 1; // ~1 in 5 goes to penalties
+// Guards the simulator itself. Every tuning table in calibration.ts was once
+// measured through `sort(() => rnd() - 0.5)`, which is not a shuffle: it barely
+// disturbs the array, so the first name in the list kept landing on black and
+// the numbers described a league nobody plays in. If this ever goes back to a
+// sort-based shuffle, the estimator's documented behaviour becomes fiction.
+describe('the simulator', () => {
+  it('deals each player to each shirt equally often', () => {
+    setSeed(99);
+    const per = new Map<number, number[]>();
+    const runs = 3000;
+    for (let r = 0; r < runs; r++) {
+      const order = shuffle([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]);
+      for (const id of [0, 7, 14]) {
+        const slot = Math.floor(order.indexOf(id) / 5); // 0 black, 1 white, 2 blue
+        const counts = per.get(id) ?? [0, 0, 0];
+        counts[slot]++;
+        per.set(id, counts);
       }
     }
-    return {
-      id: `fx${n}`,
-      date: `2026-01-0${(n % 9) + 1}`,
-      teams,
-      players: specs.map((s) => ({ id: s.id, name: s.name, rating: s.rated })),
-      wins,
-    };
+    for (const counts of per.values()) {
+      for (const c of counts) {
+        // a third each, give or take sampling noise
+        expect(Math.abs(c / runs - 1 / 3)).toBeLessThan(0.03);
+      }
+    }
   });
-}
-
-const base: Spec[] = Array.from({ length: 15 }, (_, i) => ({
-  id: `p${i}`,
-  name: `P${i}`,
-  rated: 3,
-  truth: 3,
-}));
-// p0 is secretly a 5, p1 secretly a 1 — everyone else is exactly as rated
-const mis = base.map((s) =>
-  s.id === 'p0' ? { ...s, truth: 5 } : s.id === 'p1' ? { ...s, truth: 1 } : s,
-);
+});
 
 describe('win-tally results & standings', () => {
   it('a night with no wins recorded counts for nobody', () => {
@@ -132,7 +109,7 @@ describe('rating suggestions', () => {
   it('is silent until a player has four nights behind them', () => {
     for (const nights of [1, 2, 3]) {
       for (let r = 0; r < 25; r++) {
-        seed = 7 + r * 7919;
+        setSeed(7 + r * 7919);
         expect(suggestRatings(season(mis, nights), mkPlayers(mis))).toHaveLength(0);
       }
     }
@@ -140,7 +117,7 @@ describe('rating suggestions', () => {
 
   it('never judges a player who only turns up occasionally', () => {
     // 12 nights of football, but p0 plays only the first three
-    seed = 4242;
+    setSeed(4242);
     const full = season(mis, 12);
     const thinned = full.map((fx, i) =>
       i < 3
@@ -158,7 +135,7 @@ describe('rating suggestions', () => {
   it('leaves most players with no suggestion at all', () => {
     let totalSuggested = 0;
     for (let r = 0; r < 20; r++) {
-      seed = 900 + r * 7919;
+      setSeed(900 + r * 7919);
       totalSuggested += suggestRatings(season(mis, 10), mkPlayers(mis)).length;
     }
     // out of 15 players per run — most should get nothing
@@ -168,7 +145,7 @@ describe('rating suggestions', () => {
   it('can speak from four nights when someone looks far out', () => {
     let spoke = 0;
     for (let r = 0; r < 60; r++) {
-      seed = 31 + r * 7919;
+      setSeed(31 + r * 7919);
       if (suggestRatings(season(mis, 4), mkPlayers(mis)).length > 0) spoke++;
     }
     expect(spoke).toBeGreaterThan(0);
@@ -178,7 +155,7 @@ describe('rating suggestions', () => {
     let right = 0;
     let wrong = 0;
     for (let r = 0; r < 40; r++) {
-      seed = 500 + r * 7919;
+      setSeed(500 + r * 7919);
       for (const s of suggestRatings(season(mis, 20), mkPlayers(mis))) {
         if (s.id === 'p0') s.direction === 'up' ? right++ : wrong++;
         if (s.id === 'p1') s.direction === 'down' ? right++ : wrong++;
@@ -193,7 +170,7 @@ describe('rating suggestions', () => {
     const ceiling = base.map((sp) => (sp.id === 'p0' ? { ...sp, rated: 5, truth: 9 } : sp));
     let notes = 0;
     for (let r = 0; r < 40; r++) {
-      seed = 616 + r * 7919;
+      setSeed(616 + r * 7919);
       for (const s of suggestRatings(season(ceiling, 20), mkPlayers(ceiling))) {
         if (s.id !== 'p0') continue;
         expect(s.suggested).toBeLessThanOrEqual(5);
@@ -208,7 +185,7 @@ describe('rating suggestions', () => {
   it('never offers a rating below 1 for a floored player', () => {
     const floor = base.map((sp) => (sp.id === 'p1' ? { ...sp, rated: 1, truth: -3 } : sp));
     for (let r = 0; r < 20; r++) {
-      seed = 707 + r * 7919;
+      setSeed(707 + r * 7919);
       for (const s of suggestRatings(season(floor, 20), mkPlayers(floor))) {
         if (s.id !== 'p1') continue;
         expect(s.suggested).toBeGreaterThanOrEqual(1);
@@ -222,7 +199,7 @@ describe('rating suggestions', () => {
       sp.id === 'p0' ? { ...sp, rated: 5, truth: 9 } : sp.id === 'p1' ? { ...sp, truth: 1 } : sp,
     );
     for (let r = 0; r < 30; r++) {
-      seed = 808 + r * 7919;
+      setSeed(808 + r * 7919);
       const list = suggestRatings(season(mixed, 20), mkPlayers(mixed));
       const firstNote = list.findIndex((x) => x.atLimit);
       const lastAction = list.map((x) => x.atLimit).lastIndexOf(false);
@@ -233,7 +210,7 @@ describe('rating suggestions', () => {
   });
 
   it('moves an actionable suggestion by exactly half a star, within 1-5', () => {
-    seed = 11;
+    setSeed(11);
     for (const s of suggestRatings(season(mis, 20), mkPlayers(mis))) {
       if (s.atLimit) continue;
       expect(Math.abs(s.suggested - s.current)).toBe(0.5);
@@ -244,7 +221,7 @@ describe('rating suggestions', () => {
 
   it('is self-cancelling: accepting a suggestion weakens the case for repeating it', () => {
     for (let r = 0; r < 30; r++) {
-      seed = 2024 + r * 7919;
+      setSeed(2024 + r * 7919);
       const hist = season(mis, 20);
       const before = suggestRatings(hist, mkPlayers(mis)).find((x) => x.id === 'p0');
       if (!before) continue;
@@ -258,16 +235,59 @@ describe('rating suggestions', () => {
   });
 
   it('never suggests a change for someone not on the roster', () => {
-    seed = 5;
+    setSeed(5);
     const hist = season(mis, 20);
     const without = mkPlayers(mis).filter((p) => p.id !== 'p0');
     expect(suggestRatings(hist, without).some((x) => x.id === 'p0')).toBe(false);
   });
 });
 
+// The two faults that took the suggestions off the screen, pinned so the day
+// someone fixes them it is visible in CI rather than in a screenshot. Both
+// assert the *broken* behaviour on purpose: when these start failing, the
+// estimator has improved and the panel may be worth switching back on.
+// See the header of calibration.ts, and scripts/calibration-report.ts.
+describe('known faults in the estimator', () => {
+  const HOUSE = { teams: 'balanced', matchesPerPairing: 4 } as const;
+
+  it('attenuates a known error to about half, landing under its own bar', () => {
+    // p9 is an ordinary 3★ who is secretly 1.5 stars better. Given a great
+    // deal of football the estimate should settle on 1.5; it settles on ~1.0,
+    // against a bar of 1.55 — so it can never be found, however long you wait.
+    const specs = withError('p9', 1.5);
+    const byId = new Map(mkPlayers(specs).map((p) => [p.id, p]));
+    let sum = 0;
+    const runs = 40;
+    for (let r = 0; r < runs; r++) {
+      setSeed(2000 + r * 7919);
+      const hist = season(specs, 60, HOUSE);
+      sum += ratingErrors(hist, (id) => byId.get(id)?.rating ?? null).get('p9')!.delta;
+    }
+    const settled = sum / runs;
+    expect(settled).toBeGreaterThan(0.7); // it does point the right way
+    expect(settled).toBeLessThan(1.3); // ...at roughly two-thirds size
+    expect(settled).toBeLessThan(barFor(3, 'up')); // ...and under the bar
+  });
+
+  it('reports high confidence about a league where nobody is mis-rated', () => {
+    // Every player is rated exactly right, so every |z| ought to be small.
+    // Instead the median sits around 4, which is why MIN_Z gates nothing.
+    const byId = new Map(mkPlayers(spread).map((p) => [p.id, p]));
+    const zs: number[] = [];
+    for (let r = 0; r < 30; r++) {
+      setSeed(5000 + r * 7919);
+      const hist = season(spread, 5, HOUSE);
+      for (const e of ratingErrors(hist, (id) => byId.get(id)?.rating ?? null).values())
+        zs.push(Math.abs(e.z));
+    }
+    zs.sort((a, b) => a - b);
+    expect(zs[Math.floor(zs.length / 2)]).toBeGreaterThan(2.5);
+  });
+});
+
 describe('playerForm', () => {
   it('covers everyone who played, sorted by how they are doing', () => {
-    seed = 3;
+    setSeed(3);
     const f = playerForm(season(mis, 10), mkPlayers(mis));
     expect(f).toHaveLength(15);
     for (let i = 1; i < f.length; i++) {
