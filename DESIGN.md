@@ -4014,21 +4014,79 @@ flagged down, against 10% of correctly-rated ones) but not in standing: the reas
 the top is caught 45% of the time while the same error mid-table is caught 14% is this constant
 lowering the bar, not the evidence being better. It is the tilt doing the detecting.
 
-**What shipped.** No behaviour change — the constants are untouched, because moving one would paper
-over a fault in the estimator rather than fix it. What shipped is a truthful harness, truthful
-comments, a report script, and two tests in `calibration.test.ts` that **assert the broken
-behaviour** (the estimate settles under its own bar; the median |z| on a fair league exceeds 2.5).
-They are written that way on purpose: the day they start failing, the estimator has improved and the
-panel may be worth switching back on. Display-side, `RATING_PANEL_READY = false` in `History.tsx`
-hides the column, its sort key and the panel — a display switch rather than an engine change, since
-`suggestRatings` has seven tests that require it to speak and its constants are about to be
-re-derived.
+**What shipped in the first pass.** No behaviour change — a truthful harness, truthful comments, a
+report script, and tests in `calibration.test.ts` that **assert the broken behaviour** on purpose, so
+the day they fail the estimator has improved. Display-side, `RATING_PANEL_READY = false` in
+`History.tsx` hides the column, its sort key and the panel — a display switch rather than an engine
+change, since `suggestRatings` has seven tests requiring it to speak and its constants were about to
+be re-derived.
 
-**Why not simply tune it.** Because no setting of `MIN_IMPLIED_DELTA` buys a trustworthy panel while
-fault 1 stands: lower it and the panel reports scatter, raise it and the panel is off. The order of
-work is a correct posterior (so `MIN_Z` can do its job), then weighting each row by the logistic's
-local slope instead of the 50/50 slope, then calibrating the star scale by injection so `delta`
-means what it claims — and only then re-deriving `RATING_BIAS`, which may not survive.
+**Why not simply tune it.** Because no setting of the old bar buys a trustworthy panel while the
+estimate beneath it is wrong: lower it and the panel reports scatter, raise it and the panel is off.
+
+### 2.50 Honest error bars, and a gate that uses them (`calibration.ts`)
+
+Faults 3 and 2 above, closed together — they had to be, because a correct standard error that nothing
+gates on is decoration.
+
+**The error bars.** `sigma2` divided weighted residuals by *total weight* — by the number of wins
+recorded — which treats every win as an independent observation and spends nothing on the fifteen
+parameters already fitted. On a five-night history that inflated the denominator roughly ninefold. It
+now divides by residual degrees of freedom, `rows − tr(inv · XᵀWX)`: a ridge fit does not spend one
+degree of freedom per player, so the trace is measured (about 8.3 of 15 rows on a five-night history)
+rather than assumed. Then, because σ² is itself estimated from as few as seven residual degrees of
+freedom, the interval is widened by the t ratio at those degrees of freedom — a Cornish-Fisher
+expansion, accurate to about 1% and needing no table. On a league where nobody is mis-rated:
+
+| nights | median \|z\| before | after | target |
+|---|---|---|---|
+| 5 | 4.0 | 0.8 | 0.67 |
+| 12 | 2.1 | 0.6 | 0.67 |
+| 40 | 1.2 | 0.4 | 0.67 |
+
+Still a shade overconfident at five nights and conservative past twenty. The residual is understood
+and left: the three rows of a night share each team's *total* wins (`fx.wins[c]` counts wins against
+both opponents, so the black-white and black-blue rows are not independent), and correcting for that
+properly means a cluster-robust estimator, which needs far more than five clusters to be stable.
+Measured: the cluster sandwich is **worse** than the model-based posterior at this size (median \|z\|
+3.3 against 0.8), as is the ridge sampling sandwich. Recorded so nobody reaches for the textbook
+answer again.
+
+**The gate.** `MIN_Z` is gone — it was a separate, weaker version of the same question — and the
+effect-size test no longer looks at the point estimate. A suggestion now requires
+`|delta| − 1.96·se > barFor(rating, direction)`: the *whole* plausible range has to still be a real
+error. That reverses the feature's central defect. For a 3★ who is really 2.5 stars better, with the
+rest of the league rated exactly right:
+
+| | 5n | 8n | 12n | 20n | 40n |
+|---|---|---|---|---|---|
+| old gate, share of flags that were right | 13% | 18% | 30% | 62% | 14% |
+| interval gate | 26% | 35% | 65% | **89%** | **94%** |
+
+and on a club where nobody is mis-rated, flags per history fall from ~1.2 to 0.65 at five nights and
+from ~0.6 to **0.03** at twenty. For the first time the panel is more trustworthy the more football it
+is given; a test asserts that monotonicity directly.
+
+**Casualties.** `MIN_IMPLIED_DELTA` (1.5) becomes `MIN_REAL_ERROR` (0.5) and `MIN_BAR` drops 1.0 → 0.35,
+because a bar that used to be compared against a point estimate is now compared against the near end
+of an interval — the same strictness expressed honestly. `confidence` stops counting nights and reads
+the evidence instead: fifteen lopsided nights can say less about a player than eight close ones.
+`RatingSuggestion` gains `margin`, so anything showing the figure can show its uncertainty.
+
+And `RATING_BIAS` is now nearly inert — turning it off entirely changes detection by a point or two,
+where under the old gate it looked like the star of the file. That is the tell: it had been buying
+detections with false confidence, lowering the bar for highly-rated players rather than finding
+better evidence about them. Kept at 0.10 for now, flagged for deletion if it does not earn its place
+once the attenuation is fixed.
+
+**What is still open.** Fault 1. The panel is honest but half-deaf: a player rated 5 who is genuinely
+a 9 is reported about one time in thirty at twenty nights, because saturation attenuates the estimate
+even harder than the mid-scale case. `ratingErrors` reads every result through the logistic's slope at
+50/50 (`SENSITIVITY`) regardless of where the match actually sat, so a lopsided night is read as
+weaker evidence than it is. The fix is to weight each row by the local slope — one IRLS step, which
+makes `delta` come out in rating points directly and requires `LAMBDA` to be re-derived, since the
+penalty would then apply in stars rather than in probability units. Two tests pin the current deafness
+so the improvement is visible when it lands.
 
 ## 3. Team generation algorithm
 

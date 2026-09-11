@@ -212,11 +212,13 @@ function sectionConverge() {
   }
 }
 
-// Is MIN_Z doing anything? Run a league where nobody is mis-rated and look at
-// how confident the estimator claims to be about pure noise.
+// Are the error bars honest? Run a league where nobody is mis-rated, where the
+// right answer for every player is zero, and see how confident the estimator
+// claims to be about pure noise. A well-calibrated |z| is half-normal: median
+// 0.67, a tenth of players past 1.64, one in twenty past 1.96.
 function sectionZ() {
-  console.log('\n## MIN_Z on a correctly-rated league — how confident is it about nothing?\n');
-  console.log('  nights │ median |z| │ p90 │ max │ below MIN_Z (1) │ below 2.5');
+  console.log('\n## Error bars on a correctly-rated league — confidence about nothing\n');
+  console.log('  nights │ median |z| │ p90 │ max │ below 1 │ below 2.5');
   const byId = new Map(mkPlayers(spread).map((p) => [p.id, p]));
   for (const nights of [5, 8, 12, 20, 40]) {
     const zs: number[] = [];
@@ -233,7 +235,7 @@ function sectionZ() {
     const below = (t: number) => pct(zs.filter((z) => z < t).length, zs.length);
     console.log(
       `  ${String(nights).padStart(6)} │ ${q(0.5).toFixed(1).padStart(10)} │ ${q(0.9).toFixed(1).padStart(4)} │ ` +
-        `${zs[zs.length - 1].toFixed(1).padStart(4)} │ ${below(1).padStart(15)} │ ${below(2.5).padStart(9)}`,
+        `${zs[zs.length - 1].toFixed(1).padStart(4)} │ ${below(1).padStart(7)} │ ${below(2.5).padStart(9)}`,
     );
   }
 }

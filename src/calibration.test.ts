@@ -167,8 +167,11 @@ describe('rating suggestions', () => {
   });
 
   it('reports a maxed-out 5-star as a ceiling note, never an out-of-range rating', () => {
+    // Whenever it does speak about a player already at the top of the scale, it
+    // must be a note rather than an impossible rating. How *often* it speaks is
+    // a separate matter, and currently the answer is "hardly ever" — see the
+    // deafness test in "known faults" below.
     const ceiling = base.map((sp) => (sp.id === 'p0' ? { ...sp, rated: 5, truth: 9 } : sp));
-    let notes = 0;
     for (let r = 0; r < 40; r++) {
       setSeed(616 + r * 7919);
       for (const s of suggestRatings(season(ceiling, 20), mkPlayers(ceiling))) {
@@ -176,10 +179,8 @@ describe('rating suggestions', () => {
         expect(s.suggested).toBeLessThanOrEqual(5);
         expect(s.atLimit).toBe(true);
         expect(s.direction).toBe('up');
-        notes++;
       }
     }
-    expect(notes).toBeGreaterThan(0);
   });
 
   it('never offers a rating below 1 for a floored player', () => {
@@ -242,18 +243,60 @@ describe('rating suggestions', () => {
   });
 });
 
-// The two faults that took the suggestions off the screen, pinned so the day
-// someone fixes them it is visible in CI rather than in a screenshot. Both
-// assert the *broken* behaviour on purpose: when these start failing, the
-// estimator has improved and the panel may be worth switching back on.
+const HOUSE = { teams: 'balanced', matchesPerPairing: 4 } as const;
+
+// What the rebuild has already bought. These assert the *fixed* behaviour and
+// should stay passing.
+describe('the error bars', () => {
+  it('does not claim confidence about a league where nobody is mis-rated', () => {
+    // Every player is rated exactly right, so |z| ought to look like a standard
+    // normal — median around 0.67. It used to sit at 4.0, four-sigma confidence
+    // in pure noise, which is what let the panel name innocent players.
+    const byId = new Map(mkPlayers(spread).map((p) => [p.id, p]));
+    const zs: number[] = [];
+    for (let r = 0; r < 30; r++) {
+      setSeed(5000 + r * 7919);
+      const hist = season(spread, 5, HOUSE);
+      for (const e of ratingErrors(hist, (id) => byId.get(id)?.rating ?? null).values())
+        zs.push(Math.abs(e.z));
+    }
+    zs.sort((a, b) => a - b);
+    // Still a little overconfident on five nights — the three rows of a night
+    // share a team's win total, and five clusters is too few to correct for
+    // properly — so this is an honest bound rather than a tight one.
+    expect(zs[Math.floor(zs.length / 2)]).toBeLessThan(1.5);
+  });
+
+  it('gets more trustworthy the more football it is given', () => {
+    // The old gate did the opposite: false flags peaked at eight nights. The
+    // interval gate has to fall away monotonically instead.
+    const ps = mkPlayers(spread);
+    const flagsAt = (nights: number) => {
+      let n = 0;
+      for (let r = 0; r < 40; r++) {
+        setSeed(3000 + r * 7919);
+        n += suggestRatings(season(spread, nights, HOUSE), ps).length;
+      }
+      return n / 40;
+    };
+    const [five, twelve, twenty] = [flagsAt(5), flagsAt(12), flagsAt(20)];
+    expect(twelve).toBeLessThan(five);
+    expect(twenty).toBeLessThan(twelve);
+    expect(twenty).toBeLessThan(0.15); // near-silence on a fairly-rated club
+  });
+});
+
+// The fault that still keeps the panel off the screen, pinned so the day
+// someone fixes it, it shows up in CI rather than in a screenshot. These assert
+// the *broken* behaviour on purpose: when they start failing, the estimator has
+// improved and the panel may be worth switching back on.
 // See the header of calibration.ts, and scripts/calibration-report.ts.
 describe('known faults in the estimator', () => {
-  const HOUSE = { teams: 'balanced', matchesPerPairing: 4 } as const;
-
-  it('attenuates a known error to about half, landing under its own bar', () => {
-    // p9 is an ordinary 3★ who is secretly 1.5 stars better. Given a great
-    // deal of football the estimate should settle on 1.5; it settles on ~1.0,
-    // against a bar of 1.55 — so it can never be found, however long you wait.
+  it('attenuates a known error to about two-thirds of its real size', () => {
+    // p9 is an ordinary 3★ who is secretly 1.5 stars better. Given a great deal
+    // of football the estimate should settle on 1.5; it settles near 1.0,
+    // because the model reads every result through the logistic's slope at
+    // 50/50 rather than the slope where the match actually sat.
     const specs = withError('p9', 1.5);
     const byId = new Map(mkPlayers(specs).map((p) => [p.id, p]));
     let sum = 0;
@@ -265,23 +308,21 @@ describe('known faults in the estimator', () => {
     }
     const settled = sum / runs;
     expect(settled).toBeGreaterThan(0.7); // it does point the right way
-    expect(settled).toBeLessThan(1.3); // ...at roughly two-thirds size
-    expect(settled).toBeLessThan(barFor(3, 'up')); // ...and under the bar
+    expect(settled).toBeLessThan(1.3); // ...but well short of the true 1.5
   });
 
-  it('reports high confidence about a league where nobody is mis-rated', () => {
-    // Every player is rated exactly right, so every |z| ought to be small.
-    // Instead the median sits around 4, which is why MIN_Z gates nothing.
-    const byId = new Map(mkPlayers(spread).map((p) => [p.id, p]));
-    const zs: number[] = [];
-    for (let r = 0; r < 30; r++) {
-      setSeed(5000 + r * 7919);
-      const hist = season(spread, 5, HOUSE);
-      for (const e of ratingErrors(hist, (id) => byId.get(id)?.rating ?? null).values())
-        zs.push(Math.abs(e.z));
+  it('is too deaf to report even a four-star error at the ceiling', () => {
+    // Rated 5, genuinely a 9, twenty nights of football: the panel should be
+    // shouting. It speaks about one time in thirty, because saturation
+    // attenuates the estimate far worse than the mid-scale case above.
+    const ceiling = base.map((s) => (s.id === 'p0' ? { ...s, rated: 5, truth: 9 } : s));
+    const ps = mkPlayers(ceiling);
+    let spoke = 0;
+    for (let r = 0; r < 100; r++) {
+      setSeed(616 + r * 7919);
+      if (suggestRatings(season(ceiling, 20, HOUSE), ps).some((s) => s.id === 'p0')) spoke++;
     }
-    zs.sort((a, b) => a - b);
-    expect(zs[Math.floor(zs.length / 2)]).toBeGreaterThan(2.5);
+    expect(spoke).toBeLessThan(15);
   });
 });
 
@@ -309,8 +350,10 @@ describe('barFor — the anchored confidence bar', () => {
     for (const r of [1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5]) {
       for (const dir of ['up', 'down'] as const) {
         const b = barFor(r, dir);
-        expect(b).toBeGreaterThanOrEqual(1.0);
-        expect(b).toBeLessThanOrEqual(2.5);
+        // Never below the smallest change the organiser could actually make,
+        // and never so high that only an absurd error could clear it.
+        expect(b).toBeGreaterThanOrEqual(0.35);
+        expect(b).toBeLessThanOrEqual(1.0);
       }
     }
   });
