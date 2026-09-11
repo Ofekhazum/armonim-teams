@@ -4183,6 +4183,65 @@ Left behind as the record of *why*: §2.6's original tuning of the tilt (0.20 �
 measurements of it staying nearly inert once the gate became an interval — history worth keeping even
 though the constant it is about no longer exists.
 
+### 2.54 Why were the teams uneven? (`postMortem.ts`, `PostMortem.tsx`, `FixtureRecord.gkIds`)
+
+The complaint: night after night one team runs away with it, one hangs on, and one is never in it. The
+obvious reading is that the team-making is bad. The first thing this feature did was check that, and
+the obvious reading is mostly wrong.
+
+**The format does most of it.** A night is winner-stays-on. Simulating 4000 nights between *fifteen
+identical players* — where team-making error is zero by construction — gives:
+
+| top-to-bottom win spread | median | p75 | p90 | max |
+|---|---|---|---|---|
+| from teams that are exactly equal | **3.5** | 4.5 | 6 | 11 |
+
+24% of those nights end 5+ apart and 5% end 7+ apart. The most common tallies include `6/3/2` and
+`5/4/2`. The club's own five nights ran 5, 3, 4, 5, 7 apart — every one of them individually
+unremarkable against that. Two things stack to produce it: twelve matches across three teams is ~8
+each, and eight coin flips come out 6–2 often enough to look like a pattern; then the rotation adds a
+feedback loop, because the team that is winning is also *on the pitch more* (median 2 matches more
+than the bottom team). So `8/3/1` is not evidence of anything on its own.
+
+**The decomposition.** `postMortem.ts` puts four nights side by side, all in one unit — wins of spread:
+`equal` (level teams), `paper` (the teams as the balancer rated them), `real` (the same plus each
+player's measured rating error), and `actual`. The gaps between them are the diagnosis and each points
+somewhere different: `paper − equal` is a team-making problem, `real − paper` is a *ratings* problem
+(§2.49–§2.53), `actual − real` is luck and nothing to fix. Each night gets a one-word verdict —
+`format` / `sheet` / `ratings` / `unclear` — and the season gets the headline.
+
+**The season verdict leads**, because a single night is mostly noise and the macro reading is the
+point. Critically it states the baseline beside the count: the "lopsided" threshold is the format's own
+75th percentile, so *a quarter of nights clear it however good the teams are*. Reporting "11 of 40 were
+lopsided" without "where even perfect teams would give about 10" beside it turns an ordinary season
+into an accusation — which is the exact mistake the whole file exists to avoid.
+
+**`gkIds` on the fixture.** `teamStats` leaves an outfield player who is keeping goal out of their
+team's rating average entirely, so a night with a stand-in keeper has a paper balance that is *not
+recoverable from the ratings afterwards*. Without it the tool would quietly grade the balancer against
+a sheet it never saw. Now stored (additive and optional; nights filed before it fall back to a plain
+mean and are labelled approximate). Validated on the Worker like every other field.
+
+**Three states, not two, for the rating bucket.** "We cannot see yet" and "we looked and there is
+nothing there" are different findings. Judging a team by its shakiest member — the first thing tried —
+let one player with a thin record silence a night, so the test is now on the *team-average* error
+against the 95% interval on it, the same gate `suggestRatings` uses. The interval itself is printed
+(`−0.1★ ± 1.3`), so "cannot tell" is a number the organiser can watch narrow rather than a shrug. On a
+forty-night club the margin is still ~1.4★, so this stays honest-but-quiet for a long time.
+
+**Built to be lifted.** `PostMortem.tsx` takes `{ history, players }` and nothing else — no store, no
+callbacks, and no chrome of its own; `History.tsx` supplies the `<Section>` fold and the `isAdmin`
+gate. Moving it to a dedicated Admin Tools page is one JSX line, and stays that way only while the
+component knows nothing about where it lives. It is admin-only by *placement* rather than by an
+internal flag: it reads `players[].rating`, which a public device does not have (§2.28), so on one
+every team would read as level — the precondition is documented at the top of the file rather than
+enforced by a silent early return that would be harder to debug later.
+
+**The lever not pulled.** If the club wants closer *results*, the biggest single change is not better
+teams but the format: a fixed round-robin where every team plays the same number of matches would cut
+the spread substantially. That is a decision about how they play football, not code, so the tool
+explains the effect and leaves it alone.
+
 ## 3. Team generation algorithm
 
 Balancing is a small constrained optimization. With ≤15 players, brute force is too big

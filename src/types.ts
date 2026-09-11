@@ -168,6 +168,20 @@ export interface FixtureRecord {
   // night before this feature existed was only ever a tally, and those records
   // are not going to be invented after the fact.
   matchLog?: MatchLogEntry[];
+  // Who was in goal that night — the same list the balancer was handed when it
+  // built these teams (`Session.gkIds`), stored so the post-mortem (§2.54) can
+  // reconstruct the sheet *exactly as scored* rather than approximately.
+  //
+  // It matters more than it looks: `teamStats` leaves an outfield player who is
+  // keeping goal out of the team's rating average entirely, so a night with a
+  // stand-in keeper has a paper balance that cannot be recovered from the
+  // ratings alone. Without this the tool would quietly grade the balancer
+  // against a sheet it never saw.
+  //
+  // Optional, and absent on every night filed before it was stored — those
+  // nights fall back to a plain average, and the post-mortem says so rather
+  // than pretending the reconstruction is exact.
+  gkIds?: string[];
   // The organiser's pick for the night's standout player — optional, and
   // unlike everything else here, a subjective call rather than something
   // derived from the win tally. Added from the History tab once the night is

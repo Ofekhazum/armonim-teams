@@ -417,6 +417,9 @@ export function isValidFixtures(fixtures) {
     // absent on every night recorded before the log existed, which is fine —
     // those nights are a tally and always will be
     if (fx.matchLog !== undefined && !isValidMatchLog(fx.matchLog)) return false;
+    // Who was in goal (§2.54). Just a list of ids, bounded like every other
+    // one here; absent on nights filed before it was stored.
+    if (fx.gkIds !== undefined && !isIdList(fx.gkIds, MAX_FIXTURE_PLAYERS)) return false;
     return true;
   });
 }

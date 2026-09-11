@@ -28,6 +28,7 @@ import { fmtRating, fmtWins, FoldHeader, Name, TEAM_META, teamLabel } from './ui
 import Leaderboards from './Leaderboards';
 import PlayerCompare from './PlayerCompare';
 import MvpPicker from './MvpPicker';
+import PostMortem from './PostMortem';
 import NightPage from './NightPage';
 import { fmtDate, getLang, t } from '../i18n';
 
@@ -1161,6 +1162,16 @@ export default function History({
       {comparable.length >= 2 && (
         <Section id="compare" title={t('hist.section.compare')} defaultOpen={false}>
           <PlayerCompare history={history} options={comparable} />
+        </Section>
+      )}
+
+      {/* The post-mortem (§2.54). Admin-only — it reads ratings, which a public
+          device does not have — and it supplies no chrome of its own, so the
+          fold lives here rather than inside it. That is the whole arrangement
+          that makes lifting it onto a future Admin Tools page one line. */}
+      {isAdmin && (
+        <Section id="postmortem" title={t('pm.title')} defaultOpen={false}>
+          <PostMortem history={history} players={players} />
         </Section>
       )}
 
