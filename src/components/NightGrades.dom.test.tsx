@@ -110,6 +110,31 @@ describe('NightGrades', () => {
     expect(screen.getByText(/Blue/)).toBeInTheDocument();
   });
 
+  it('never shows a vote count, even on a contested night with a real tally', async () => {
+    // §2.46. The organiser's tally is allowed to move the mark and is not
+    // allowed to be legible from it — no "3🗳", no title text naming a count,
+    // nothing a reader could use to work out how close the room's vote was.
+    const fx = fixture({ mvpVotes: { a: 3, b: 2 } });
+    const graded = nightGrades([fx], fx.id)!;
+    // confirm this is a real case: the tally actually separated the mark
+    expect(graded.find((g) => g.id === 'a')!.parts.mvp).toBeGreaterThan(0.4);
+    const lines = Object.fromEntries(
+      graded.map((g) => [g.id, { text: `line for ${g.id}`, grade: g.grade }]),
+    );
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(JSON.stringify({ lines, at: Date.now() }))),
+    );
+
+    const { container } = render(
+      <NightGrades fixture={fx} history={[fx]} players={roster} adminWord={null} />,
+    );
+
+    await screen.findByText(NAMES.a);
+    expect(container.innerHTML).not.toMatch(/🗳/);
+    expect(container.innerHTML).not.toMatch(/\d\s*(vote|קול)/i);
+  });
+
   it('shows the published mark, not one worked out on this device', async () => {
     // The regression that matters most for a viewer. `grades.ts` reads the
     // organiser's private rating, which the public GET /history strips — so a

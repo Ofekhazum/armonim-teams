@@ -84,23 +84,12 @@ function PlayerRow({ p, grade, line }: { p: GradeFactLine; grade: number; line?:
       <div className="flex items-center justify-between gap-2">
         <span className="flex min-w-0 items-baseline gap-1.5">
           {p.isMvp && <span title={t('marks.mvpTitle')}>🌟</span>}
-          {/* The vote, beside the name it was cast for (§2.46). Only on rows
-              that actually polled, and only on nights that were counted —
-              `votes` is null rather than 0 when there was no sheet, so a night
-              nobody tallied shows nothing here instead of a column of zeroes
-              reading as fifteen shut-outs.
-
-              This is the one place the margin is legible. The mark next to it
-              moves in half-points, so a 3–2 and a 4–1 often print the same two
-              figures; the tally is what says which night it was. */}
-          {p.votes !== null && p.votes > 0 && (
-            <span
-              title={t('marks.votes', { n: p.votes })}
-              className="shrink-0 font-mono text-[10px] font-bold tabular-nums opacity-60"
-            >
-              {t('marks.votes.short', { n: p.votes })}
-            </span>
-          )}
+          {/* Deliberately no vote count here (§2.46). The tally the organiser
+              typed is allowed to move the mark — that's the whole feature —
+              and nothing else: not this card, not the line beneath it. The
+              star already says who the room picked; a number beside it would
+              tell the group how close the room came to picking someone else,
+              which is not something a mark is supposed to say. */}
           {/* No colour of its own: the card's own text-* (TEAM_META.card)
               already reads on that card, light ink on white, light text on
               black and blue — the same thing TeamCards does above it. */}
