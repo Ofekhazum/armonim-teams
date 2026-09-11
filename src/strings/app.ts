@@ -14,6 +14,11 @@ export const app = {
   'app.admin.unlock': { he: 'פתיחת מצב מנהל', en: 'Unlock admin mode' },
   'app.admin.logoff': { he: 'יציאה ממצב מנהל', en: 'Log off admin' },
 
+  'app.version.title': {
+    he: 'גרסת בנייה — משתנה בכל פריסה',
+    en: 'Build version — changes on every deploy',
+  },
+
   'app.live.none.title': { he: 'אין משחק חי כרגע', en: 'No fixture is live right now' },
   'app.live.none.body': {
     he: 'הלשונית הזאת מופיעה מעצמה ברגע שמחזור נפתח.',

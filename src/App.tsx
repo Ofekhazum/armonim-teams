@@ -573,6 +573,21 @@ export default function App() {
             )}
           </nav>
         </div>
+        {/* Deploy verification, small enough to be furniture rather than a
+            headline (§2.41). Used to sit at the foot of the Roster tab, ahead
+            of nothing but the squad list — which meant confirming a deploy
+            landed meant scrolling past the whole roster first, and on the real
+            club's 25 players that stopped being a glance. The header renders
+            on every tab, so this is now genuinely part of "the main page"
+            rather than something buried under Roster's own content. */}
+        <div className="mt-1 text-end">
+          <span
+            className="font-mono text-[10px] uppercase tracking-wide text-amber-900/40"
+            title={t('app.version.title')}
+          >
+            v{__GIT_HASH__}
+          </span>
+        </div>
       </header>
 
       {tab === 'live' ? (
