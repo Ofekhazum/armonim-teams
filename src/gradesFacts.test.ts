@@ -90,6 +90,27 @@ describe('gradesFacts', () => {
     expect(JSON.stringify(facts)).not.toContain('rating');
   });
 
+  it('carries no vote count, for anybody, anywhere — the tally may only move the mark', () => {
+    // §2.46. A margin is allowed to change `grade`; it is not allowed to reach
+    // the model, the payload, or anything a reader other than the organiser
+    // sees. A contested vote (3–2, so the mark is genuinely different from an
+    // untallied pick) is the case that would have shown a leak.
+    const fx = night([m('black', 'white', 'black'), m('white', 'blue', 'black')], {
+      mvpId: 'a',
+      mvpVotes: { a: 3, b: 2 },
+    });
+    const facts = gradesFacts(fx, [fx], roster)!;
+    // the vote did move the mark, so this is a real case and not a no-op
+    const graded = nightGrades([fx], fx.id)!;
+    expect(graded.find((g) => g.id === 'a')!.parts.mvp).toBeGreaterThan(0.4);
+    for (const p of facts.players) {
+      expect(p).not.toHaveProperty('votes');
+      expect(p).not.toHaveProperty('votesCast');
+    }
+    expect(facts).not.toHaveProperty('votesCast');
+    expect(JSON.stringify(facts)).not.toMatch(/votes/i);
+  });
+
   it('names the winners as colours, leaving the Hebrew to the Worker', () => {
     const fx = night([m('black', 'white', 'black'), m('black', 'blue', 'black')]);
     expect(gradesFacts(fx, [fx], roster)!.winners).toEqual(['black']);

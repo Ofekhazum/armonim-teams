@@ -98,17 +98,6 @@ export const club = {
   'marks.written': { he: 'נכתב ב־{date}', en: 'written {date}' },
   'marks.draft': { he: 'טיוטה — אף אחד אחר עוד לא רואה את זה', en: 'draft — nobody else can see this yet' },
   'marks.mvpTitle': { he: 'שחקן המחזור', en: 'Player of the night' },
-  // Hover/long-press on the small tally beside a name (§2.46). The figure on
-  // the row is bare because a name, a mark and a word would not fit on a phone;
-  // this is what says what the figure is.
-  // What actually prints on the row: a count and a ballot box, no words, so it
-  // costs the same width in both languages and needs no bidi thought inside a
-  // line that already mixes a Latin name with Hebrew.
-  'marks.votes.short': { he: '{n}🗳', en: '{n}🗳' },
-  'marks.votes': {
-    he: { one: '{n} קול למצטיין המחזור', other: '{n} קולות למצטיין המחזור' },
-    en: { one: '{n} vote for player of the night', other: '{n} votes for player of the night' },
-  },
   'marks.noLine': { he: 'אין שורה ל{names}', en: 'no line for {names}' },
   'marks.share': { he: '📤 שיתוף', en: '📤 Share' },
   'marks.writing': { he: 'כותב…', en: 'writing…' },

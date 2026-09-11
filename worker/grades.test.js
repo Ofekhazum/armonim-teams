@@ -117,6 +117,19 @@ describe('buildGradesPrompt', () => {
     expect(p).not.toMatch(/rating|כוכב|דירוג/i);
   });
 
+  it('carries no vote count into the payload, even for the pick', () => {
+    // §2.46. The vote the organiser types is allowed to move the numeric
+    // grade — that is the whole feature — and is not allowed to reach the
+    // model or the sentence it writes. There is no field left to carry it
+    // (see gradesFacts.ts), and this pins that the prompt stays clean even if
+    // a future caller starts sending one again.
+    const p = buildGradesPrompt(
+      facts({ mvp: 'ניב', votesCast: 5, players: [player({ isMvp: true, votes: 3 })] }),
+    );
+    expect(p).not.toMatch(/\bvotes?\b/i);
+    expect(p).not.toMatch(/קול|קולות/);
+  });
+
   it('forbids inventing anything that happened on the pitch', () => {
     // The failure the night reporter took four rounds to stop (§2.24), and the
     // one that matters most here because banter invites it.

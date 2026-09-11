@@ -3851,9 +3851,19 @@ the number. `WIN_FLOOR` already pins the whole winning team at 8, a runner-up's 
 finished level, where the floor is `PLAYED_FLOOR` and there is room. That is the floor's known cost,
 stated in `WIN_BONUS` long before this feature: marks inside a winning team compress. Widening
 `ROOM_W` cannot fix it — the floor eats whatever is under it — and moving `WIN_FLOOR` is the
-organiser's call. So the runner-up's real recognition is the tally beside their name and the
-sentence written about them, which say "two of five" at a resolution a half-point scale does not
-have. There are tests asserting both halves of this, including the flattening.
+organiser's call. There are tests asserting both halves of this, including the flattening.
+
+**The count itself is not shown or said anywhere — deliberately, and by design rather than by
+oversight.** The first version put the tally beside the player's name on the marks card (a small
+`3🗳` chip) and let the reporter write about it ("won it by a single vote", "three of five"). The
+organiser's own read, from a published report: it put a number back in front of the group that the
+whole feature was supposed to keep out of view — how contested the room's pick actually was, spelled
+out for everyone rather than left as the one thing a mark can gesture at without stating. Both were
+removed. `gradesFacts.ts` does not put `votes`/`votesCast` on the payload it hands the Worker at all
+— not a prompt rule asking the model to stay quiet about them, because a rule is one generation away
+from being ignored and a field that is never sent cannot leak. `NightGrades.tsx` shows the star for
+who was picked and nothing about the vote behind it. The tally the organiser typed still moves the
+mark; it is not visible or narrated anywhere past that.
 
 **A level sheet picks nobody, and does not let entry order decide.** Two names on three votes each
 is not a tie the app may break — crowning whichever sorts first would be inventing the one judgement

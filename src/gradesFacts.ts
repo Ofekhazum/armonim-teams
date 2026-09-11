@@ -16,6 +16,16 @@
 // **Counts only, no ratings** (§2.28). A grade is a far more pointed thing to
 // publish than a market value, so the payload is held to the same line the
 // recap is: names, shirts, results, and what each player brought in with them.
+//
+// **The vote sheet's own numbers are not in here, on purpose (§2.46).** A
+// night's tally is allowed to move a player's mark — that is the whole
+// feature — and it is meant to stop there. `votes`/`votesCast` used to ride
+// along so the model could say "won it by a single vote" or "three of five",
+// which put a number back in front of the group that the mark itself was
+// built to keep private-ish: how contested the room's pick actually was.
+// Leaving the count out of the payload entirely is the guarantee — a prompt
+// rule saying "don't mention it" is one generation away from being ignored,
+// and a field that was never sent cannot leak.
 
 import type { FixtureRecord, Player, TeamColor, TonightPlayer } from './types';
 import { TEAM_COLORS } from './balancer';
@@ -34,16 +44,6 @@ export interface GradeFactLine {
   place: 1 | 2 | 3;
   wonNight: boolean;
   isMvp: boolean;
-  /**
-   * How many of the night's votes named this player (§2.46), or null on a night
-   * nobody tallied — which is every night before the sheet existed.
-   *
-   * Here because the margin is the part of the vote that reads as a *story*
-   * rather than as a number. A mark can only move in half-points, so a 3–2 and
-   * a 4–1 often land on the same two figures; the sentence beside them is where
-   * "shaded it by one" and "walked it" are actually different nights.
-   */
-  votes: number | null;
   nightsBefore: number;
   trend: Trend | null;
   runBefore: number;
@@ -80,8 +80,6 @@ export interface GradesFacts {
   matches: number;
   winners: TeamColor[];
   mvp: string | null;
-  /** Votes cast in all, so a player's own count reads as a share. Null if untallied. */
-  votesCast: number | null;
   said: string | null;
   milestones: string[];
   derby: DerbyFact | null;
@@ -114,7 +112,6 @@ export function gradesFacts(
     place: g.context.place,
     wonNight: g.context.wonNight,
     isMvp: g.context.isMvp,
-    votes: g.context.votes,
     nightsBefore: g.context.nightsBefore,
     trend: g.context.trend,
     runBefore: g.context.runBefore,
@@ -177,9 +174,6 @@ export function gradesFacts(
     matches,
     winners: top > 0 && atTop.length === 1 ? atTop : [],
     mvp: fixture.mvpId ? nameOf(fixture.mvpId) : null,
-    // From the graded lines rather than recounted off the fixture, so the
-    // payload cannot disagree with the marks it is sitting next to.
-    votesCast: graded[0]?.context.votesCast ?? null,
     said: fixture.note?.trim() || null,
     milestones,
     derby: derbyFact(fixture, asOf, rosterIds, keyOf),
