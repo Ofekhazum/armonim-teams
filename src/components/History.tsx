@@ -67,6 +67,27 @@ interface Draft {
 
 type SortKey = 'name' | 'nights' | 'wins' | 'fixtures' | 'mvps' | 'perNight' | 'vsRating';
 
+/**
+ * The rating panel and its column are off while the estimator behind them is
+ * being rebuilt (§2.49). **Interim, and deliberately a display switch rather
+ * than a change to `calibration.ts`.**
+ *
+ * Measured on simulated clubs matching this one's shape — 15 a night, teams
+ * built by the balancer, five nights on the board — the panel produces about
+ * **one suggestion per history, and roughly nine times in ten it is noise**: a
+ * genuinely mis-rated player is caught 11% of the time at a star and a half
+ * out, while ~1.1 correctly-rated players are flagged regardless of whether
+ * anybody is mis-rated at all. Raising the bar to silence the noise takes the
+ * hit rate to 2%. There is no setting of the current gate that is worth
+ * reading, so it shows nothing rather than something misleading.
+ *
+ * Switched here, not in the engine, for two reasons: `suggestRatings` has
+ * tests that require it to speak, and its constants are about to be re-derived
+ * from scratch — pre-tuning them now would mean tuning twice against numbers
+ * already known to be wrong. Flip this back when the rebuilt estimator lands.
+ */
+const RATING_PANEL_READY = false;
+
 // "vs rating" is the one column that is an opinion about a player rather than
 // a count of what happened — it says someone is over- or under-performing the
 // number the organiser gave them. That's a working note for whoever maintains
@@ -79,7 +100,9 @@ const sortColumns = (isAdmin: boolean): { key: SortKey; label: string }[] => [
   { key: 'fixtures', label: t('hist.col.fixtures') },
   { key: 'perNight', label: t('hist.col.perNight') },
   { key: 'mvps', label: t('hist.col.mvps') },
-  ...(isAdmin ? [{ key: 'vsRating' as SortKey, label: t('hist.col.vsRating') }] : []),
+  ...(isAdmin && RATING_PANEL_READY
+    ? [{ key: 'vsRating' as SortKey, label: t('hist.col.vsRating') }]
+    : []),
 ];
 
 // How far the pointer has to travel before it counts as a drag rather than a
@@ -376,7 +399,8 @@ export default function History({
   );
   // leaving admin while sorted by the admin-only column would sort the table
   // by something no longer on screen
-  const sortKey: SortKey = !isAdmin && sort.key === 'vsRating' ? 'perNight' : sort.key;
+  const sortKey: SortKey =
+    (!isAdmin || !RATING_PANEL_READY) && sort.key === 'vsRating' ? 'perNight' : sort.key;
 
   // clicking the same header flips direction; a new column starts in whatever
   // direction is useful first — biggest-first for numbers, A→Z for the name
@@ -938,7 +962,7 @@ export default function History({
           they are derived from is one of its columns. Sitting three sections
           higher, they were an instruction to go and check something further
           down the page. */}
-      {isAdmin && suggestions.length > 0 && (
+      {isAdmin && RATING_PANEL_READY && suggestions.length > 0 && (
         <div className="space-y-2 rounded-2xl border border-orange-600/40 bg-orange-500/10 p-4 shadow-sm">
           <h3 className="font-bold text-amber-950">{t('hist.sugg.title')}</h3>
           <p className="text-xs text-amber-900/60">{t('hist.sugg.body')}</p>
@@ -1099,7 +1123,7 @@ export default function History({
                     <td className={`${cell} text-amber-900/70`}>
                       {mvpById.get(s.id) ? `🌟 ${mvpById.get(s.id)}` : '—'}
                     </td>
-                    {isAdmin && (
+                    {isAdmin && RATING_PANEL_READY && (
                       <td
                         className={`${cell} pe-4 ${
                           !meaningful
