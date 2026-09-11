@@ -5,7 +5,7 @@
 // keeping its own copy that quietly drifts from the other.
 //
 // Why it's worth a file of its own. Every documented trade-off in
-// `calibration.ts` — LAMBDA, MIN_IMPLIED_DELTA, RATING_BIAS — was measured
+// `calibration.ts` — LAMBDA, EVIDENCE_K, MIN_REAL_ERROR — was measured
 // through a simulator, so the simulator is part of the evidence. A flaw in it
 // is a flaw in all of them at once, and that has happened: the original version
 // drew teams with `sort(() => rnd() - 0.5)`, which is not a shuffle. It leaves

@@ -1,10 +1,10 @@
 // Behaviour tests for the rating-suggestion engine (src/calibration.ts).
 //
 // This logic is the riskiest code in the app — a ridge-regression estimator,
-// an asymmetric confidence bar, half-win scoring — and every property here was
+// an evidence-interval gate, half-win scoring — and every property here was
 // originally checked by hand-run scripts during development, not by anything
 // that runs in CI. Promoted into the repo so a future change to LAMBDA,
-// RATING_BIAS, or the estimator itself gets caught before it ships, not
+// EVIDENCE_K, or the estimator itself gets caught before it ships, not
 // discovered from a confused screenshot.
 //
 // Most of these tests are statistical: they run many synthetic seasons with a
@@ -18,7 +18,6 @@
 
 import { describe, expect, it } from 'vitest';
 import {
-  barFor,
   buildRows,
   hasResult,
   playerForm,
@@ -409,24 +408,9 @@ describe('playerForm', () => {
   });
 });
 
-describe('barFor — the anchored confidence bar', () => {
-  it('makes a high rating harder to climb and easier to lose', () => {
-    expect(barFor(5, 'up')).toBeGreaterThan(barFor(5, 'down'));
-    expect(barFor(2, 'down')).toBeGreaterThan(barFor(2, 'up'));
-    expect(barFor(4, 'up')).toBeGreaterThan(barFor(3, 'up'));
-    expect(barFor(4, 'down')).toBeLessThan(barFor(3, 'down'));
-  });
-
-  it('is symmetric at the anchor and never collapses or balloons', () => {
-    expect(barFor(2.5, 'up')).toBe(barFor(2.5, 'down'));
-    for (const r of [1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5]) {
-      for (const dir of ['up', 'down'] as const) {
-        const b = barFor(r, dir);
-        // Never below the smallest change the organiser could actually make,
-        // and never so high that only an absurd error could clear it.
-        expect(b).toBeGreaterThanOrEqual(0.35);
-        expect(b).toBeLessThanOrEqual(1.0);
-      }
-    }
-  });
-});
+// barFor's old rating-anchored asymmetry is gone (§2.5x): measured against the
+// interval gate, it turned out to be buying detections with false confidence
+// rather than finding real evidence, so it was deleted rather than re-derived.
+// A suggestion's effect-size floor is now the same for everyone —
+// MIN_REAL_ERROR — and it is exercised through `suggestRatings` and
+// `known faults` above rather than through a function of its own.

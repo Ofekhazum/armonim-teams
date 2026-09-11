@@ -200,71 +200,31 @@ const FIT_TOLERANCE = 0.001;
 // costs half the detections.
 const EVIDENCE_K = 1.96;
 
-// ...and how big an error has to be before it is worth a word at all, in the
-// units `delta` is measured in. A statistically certain quarter-star is not
-// news: ratings are set in half-stars, so nothing below that could change one.
-// Set at 0.5 rather than 0.25 because `delta` currently runs about two-thirds
-// of the truth (fault 3 in the header), which makes this floor worth roughly
+// How big an error has to be before it is worth a word at all, in the units
+// `delta` is measured in. A statistically certain quarter-star is not news:
+// ratings are set in half-stars, so nothing below that could change one. Set
+// at 0.5 rather than 0.25 because `delta` currently runs about two-thirds of
+// the truth (fault 3 in the header), which makes this floor worth roughly
 // three-quarters of a real star. When that attenuation is fixed this number
 // has to come down with it, or the panel will quietly get stricter.
-const MIN_REAL_ERROR = 0.5;
-
-// Where the scale's centre of gravity sits. Deliberately lower-mid rather than
-// the arithmetic middle (3): most squads have a few genuinely strong players
-// and a long tail of ordinary ones, and ratings drift upwards over time because
-// nobody enjoys arguing someone down.
-const ANCHOR_RATING = 2.5;
-
-// How much the bar moves per star away from that anchor. A rating is treated as
-// a claim that has to keep being justified: climbing further from the anchor
-// costs more evidence than the base bar, and sliding back toward it costs less.
 //
-//   rating │ to go up │ to come down
-//      1.0 │     0.35 │         0.65
-//      2.0 │     0.45 │         0.55
-//      2.5 │     0.50 │         0.50
-//      3.0 │     0.55 │         0.45
-//      4.0 │     0.65 │         0.35
-//      5.0 │     0.75 │         0.35
-//
-// Symmetric about the anchor — a 1★ has to justify staying down there as much
-// as a 5★ has to justify staying up — but in practice it bites at the top,
-// which is where unearned ratings accumulate.
-//
-// **This tilt used to be doing the detecting, and now it barely does anything.**
-// Under the old point-estimate gate it looked like the star of the file: 45% of
-// genuinely overrated 5★s flagged down against 10% of correctly-rated ones. But
-// the reason a 1.5★ error at the top was caught three times more often than the
-// same error mid-table was this constant lowering the bar, not the evidence
-// being any better — it was buying detections with false confidence. Under the
-// interval gate, measured over 400 runs, turning it off entirely costs almost
-// nothing:
+// Used to move: a rating far from an anchor of 2.5 was harder to nudge further
+// and easier to bring back, on the theory that a rating is a claim that keeps
+// having to justify itself. Under the old point-estimate gate that looked like
+// the star of the file — 45% of genuinely overrated 5★s flagged down against
+// 10% of correctly-rated ones — but the reason a 1.5★ error at the top was
+// caught three times more often than the same error mid-table was the tilt
+// lowering the bar, not the evidence being any better: it was buying
+// detections with false confidence. Under the interval gate (`EVIDENCE_K`
+// above), measured over 400 runs, turning it off cost almost nothing:
 //
 //                                     bias 0 │ 0.10 │ 0.20     (at 12 nights)
 //   5★ who is really a 3.5, caught        5% │   5% │   5%
 //   5★ who really is a 5, falsely flagged 1% │   1% │   1%
 //   3★ who is really a 1.5, caught       11% │  12% │  13%
 //
-// Kept for now at the value it had, because it is cheap and the intent behind
-// it is sound. But it is no longer load-bearing, and if it has not earned its
-// place once the attenuation is fixed it should go.
-const RATING_BIAS = 0.10;
-
-// However far the bias pushes, never take the bar below this: a suggestion
-// still has to rest on a real effect, not merely on someone being highly rated.
-// Half a star is the smallest change the organiser can actually make, so this
-// is the smallest error worth reporting.
-const MIN_BAR = 0.35;
-
-// How much a player has to look out by before it's worth saying anything,
-// given where they currently sit and which way the evidence points.
-export function barFor(rating: number, direction: 'up' | 'down'): number {
-  const distance = rating - ANCHOR_RATING;
-  const movingAway =
-    (direction === 'up' && distance > 0) || (direction === 'down' && distance < 0);
-  const shift = RATING_BIAS * Math.abs(distance) * (movingAway ? 1 : -1);
-  return Math.max(MIN_BAR, MIN_REAL_ERROR + shift);
-}
+// so it is gone, and this is a flat floor for everyone.
+const MIN_REAL_ERROR = 0.5;
 
 // Rating points a suggestion moves by. Deliberately one small step: the app
 // can always suggest again next month if the evidence keeps building.
@@ -786,18 +746,14 @@ export function suggestRatings(
     if (!p || !rec || rec.nights < MIN_NIGHTS) continue;
 
     const direction = est.delta > 0 ? 'up' : 'down';
-    const bar = barFor(p.rating, direction);
 
     // The gate. Not "is the estimate big" — an estimate can be big because the
     // football was strange — but "is the whole plausible range still a real
-    // error", after allowing for what they're already rated. Climbing away from
-    // the anchor costs more evidence than sliding back toward it.
-    //
-    // `certain` is how far the *near* end of the interval sits past that bar.
-    // It is the honest version of the old `impliedDelta > bar` test, and it is
-    // what makes the panel more trustworthy the more football it is given
-    // rather than less.
-    const certain = Math.abs(est.delta) - EVIDENCE_K * est.se - bar;
+    // error". `certain` is how far the *near* end of the interval sits past
+    // `MIN_REAL_ERROR`. It is the honest version of the old
+    // `impliedDelta > bar` test, and it is what makes the panel more
+    // trustworthy the more football it is given rather than less.
+    const certain = Math.abs(est.delta) - EVIDENCE_K * est.se - MIN_REAL_ERROR;
     if (!(certain > 0)) continue;
 
     const suggested = clampRating(p.rating + (direction === 'up' ? STEP : -STEP));

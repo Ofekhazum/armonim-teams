@@ -4168,6 +4168,21 @@ club has five fixtures, two of them tally-only, well short of where either colum
 reading. The doc comment there records exactly that, and points at this report as the thing to re-run
 before flipping it — no code change is needed when the club's history is long enough, only re-measuring.
 
+### 2.53 Deleting `RATING_BIAS`, and `barFor` with it (`calibration.ts`)
+
+§2.50 flagged it: "kept at 0.10 for now, flagged for deletion if it does not earn its place once the
+attenuation is fixed." It didn't. Re-measured after §2.52's data-model fix, the differential between a
+genuinely overrated player and a correctly-rated one at bias 0 vs 0.10 vs 0.20 is 4%/0%, 4%/0%, and
+4%/0% — turning the tilt off, on, or doubled makes no visible difference any more. `barFor`,
+`ANCHOR_RATING`, and `MIN_BAR` are deleted with it; the gate is now a flat `MIN_REAL_ERROR` for
+everyone, and `suggestRatings` computes `certain` against that directly rather than through a function
+call. `sectionBar` in the report script is gone along with the constant it measured; `sectionConverge`
+drops the now-meaningless "bar" column.
+
+Left behind as the record of *why*: §2.6's original tuning of the tilt (0.20 → 0.10) and §2.49–§2.50's
+measurements of it staying nearly inert once the gate became an interval — history worth keeping even
+though the constant it is about no longer exists.
+
 ## 3. Team generation algorithm
 
 Balancing is a small constrained optimization. With ≤15 players, brute force is too big

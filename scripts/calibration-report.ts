@@ -1,7 +1,7 @@
 // Re-derives the tuning tables documented in src/calibration.ts.
 //
 //   npx vite-node scripts/calibration-report.ts            # everything
-//   npx vite-node scripts/calibration-report.ts bar         # one section
+//   npx vite-node scripts/calibration-report.ts precision   # one section
 //
 // Not a test — it takes minutes and prints tables, which is the wrong shape for
 // CI. It exists so the numbers in calibration.ts's comments can be *checked*
@@ -9,7 +9,7 @@
 // what it replaces. The behaviour those tables justify is pinned by
 // calibration.test.ts; this is where the tables themselves come from.
 
-import { barFor, ratingErrors, suggestRatings } from '../src/calibration';
+import { ratingErrors, suggestRatings } from '../src/calibration';
 import {
   mis,
   mkPlayers,
@@ -19,7 +19,6 @@ import {
   spread,
   withError,
   type SeasonOpts,
-  type Spec,
 } from '../src/calibration.sim';
 
 const RUNS = 400;
@@ -158,31 +157,11 @@ function sectionNull() {
   }
 }
 
-function sectionBar() {
-  console.log('\n## RATING_BIAS — does the tilt catch more than it costs? (20 nights)\n');
-  console.log('  case                                  │ suggested down');
-  const cases: [string, Spec[], string][] = [
-    ['5★ who is really a 3.5 (overrated)', withError('p0', -1.5), 'p0'],
-    ['5★ who really is a 5 (correctly rated)', spread, 'p0'],
-    ['4★ who is really a 3 (overrated)', withError('p2', -1), 'p2'],
-    ['4★ who really is a 4 (correctly rated)', spread, 'p2'],
-  ];
-  for (const [label, specs, id] of cases) {
-    let down = 0;
-    for (let r = 0; r < RUNS; r++) {
-      setSeed(4000 + r * 7919);
-      const s = suggestRatings(season(specs, 20, HOUSE), mkPlayers(specs)).find((x) => x.id === id);
-      if (s?.direction === 'down') down++;
-    }
-    console.log(`  ${label.padEnd(37)} │ ${pct(down, RUNS).padStart(14)}`);
-  }
-}
-
 // The one that explains all the others: what does the estimate actually settle
 // on, given unlimited football, for an error of known size?
 function sectionConverge() {
   console.log('\n## What the estimate converges to, for an error of known size\n');
-  console.log('  player      │ off by │ nights │ mean delta │ sd │ mean |z| │ bar');
+  console.log('  player      │ off by │ nights │ mean delta │ sd │ mean |z|');
   for (const [who, id] of [
     ['4★ mid-table', 'p2'],
     ['3★ ordinary', 'p9'],
@@ -205,8 +184,7 @@ function sectionConverge() {
         const sd = Math.sqrt(mean(ds.map((d) => (d - m) ** 2)));
         console.log(
           `  ${who.padEnd(11)} │ ${`+${by}`.padStart(6)} │ ${String(nights).padStart(6)} │ ` +
-            `${m.toFixed(2).padStart(10)} │ ${sd.toFixed(2)} │ ${mean(zs).toFixed(1).padStart(8)} │ ` +
-            `${barFor(byId.get(id)!.rating, 'up').toFixed(2)}`,
+            `${m.toFixed(2).padStart(10)} │ ${sd.toFixed(2)} │ ${mean(zs).toFixed(1).padStart(8)}`,
         );
       }
     }
@@ -275,7 +253,6 @@ const sections: Record<string, () => void> = {
   converge: sectionConverge,
   z: sectionZ,
   null: sectionNull,
-  bar: sectionBar,
   precision: sectionPrecision,
 };
 
