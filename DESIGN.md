@@ -3920,6 +3920,58 @@ people's facts in one list-shaped sentence, and — the part that actually matte
 **dropping a fact is better than reciting it**. There are always more facts than a 380-word report
 can carry; three written properly beat eight announced.
 
+### 2.48 The runner-up on a night decided by half a win (`grades.ts`)
+
+Asked directly: on 4.5–4–2 the teams finish half a win apart and mark **8 and 6.5**, and the second
+team should be closer than that.
+
+**The `night` term was not the problem.** Take the floor away and the same scoreline reads 7 / 6.5 /
+5 — half a rung between teams half a win apart, which is right. The entire 1.5 was `WIN_FLOOR`
+lifting the winner from 7 to 8 with nothing lifting the side that nearly beat them.
+
+**And it was worst where it was least deserved.** The floor only fires when the win was *narrow* — a
+team that runs away with the night clears 8 on the margin alone and never touches it. Measured
+across real scorelines, a night decided by half a win opened a 2.0 gap while a 9–2–1 rout opened
+4.5: **44% of the punishment for 7% of the margin.**
+
+**So the lift is shared instead of given to one team.** Whatever the floor had to add to get the
+winner to 8 is offered to the teams behind them, decaying with how far back they finished — full
+share at the winner's shoulder, nothing at `CLOSE_SPAN × fairShare` behind (one whole share of the
+night's matches, the same unit `night` is measured in). It is its own `close` term in `GradeParts`
+rather than folded into `night`, because it answers a different question — `night` is what this team
+did, `close` is what the team *above* them needed the floor for.
+
+| scoreline | was | now |
+|---|---|---|
+| 4.5 / 4 / 2 | 8 / 6.5 / 5 | 8 / **7** / 5 |
+| 4 / 3.5 / 3 | 8 / 6 / 5.5 | 8 / **7** / **6.5** |
+| 6 / 5 / 4 | 8 / 6 / 5.5 | 8 / **7** / **6** |
+| 5 / 4.5 / 1 | 8 / 6.5 / 4 | 8 / **7** / 4 |
+| 6 / 4 / 2 | 8 / 6 / 4.5 | unchanged |
+| 7 / 3 / 2 | 8.5 / 5.5 / 4.5 | unchanged |
+| 9 / 2 / 1 | 9 / 4.5 / 4 | unchanged |
+
+Three things keep it from becoming a new problem, each with a test:
+
+- **Self-limiting.** A convincing winner was never floored, so there is no lift and the night grades
+  exactly as before — which is why the bottom three rows are untouched. This can only act where the
+  floor was already distorting the sheet.
+- **Winning outright still wins.** As the gap closes the runner-up approaches 7.5 against the
+  winner's 8: the `WIN_BONUS` survives as a permanent half-rung no amount of closeness can erode.
+- **It adds rather than floors.** The obvious implementation is a second floor under the runner-up,
+  and it was rejected: a floor *flattens*, and all five on that team would read one number
+  regardless of their own rating and form — the documented cost of `WIN_FLOOR`, paid twice.
+
+**What it costs, and it is a real crossing.** The file header states that a top-tier player on a
+beaten team marks below a bottom-tier player on the winning one, and that the ordering "should not be
+crossed without them saying so in as many words". On a *near-level* night it now can be, by half a
+rung: measured worst case on 4.5–4–2, a 5-star in form on the second team reads **8.5** against a
+1-star out of form on the winning team at **8**. It takes both extremes at once plus a margin under
+one win, and every genuinely beaten team still sits well below (the third team's best player reads
+6.5 there). The judgement, made explicitly rather than by omission: when two teams finish half a win
+apart the night did not separate them, so the person reasonably can — but the winner's own *team*
+mark is still untouchable, because the floor and the `WIN_BONUS` are both still in force.
+
 ## 3. Team generation algorithm
 
 Balancing is a small constrained optimization. With ≤15 players, brute force is too big

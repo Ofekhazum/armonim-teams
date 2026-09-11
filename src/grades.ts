@@ -24,6 +24,7 @@
 // teammates at all:
 //
 //   night     the team's result, shared by all five, and dominant
+//   close     a share of the winner's floor, for finishing near them (§2.48)
 //   mvp       the one true per-night personal signal
 //   career    where their record sits against the club's
 //   momentum  where their last few nights sit against their own record
@@ -301,6 +302,50 @@ const ROOM_W = 0.7;
  */
 const WIN_BONUS = 0.5;
 
+/**
+ * How far behind the winner a team can be and still be carried up by the
+ * floor that lifted them (§2.48).
+ *
+ * **The problem this fixes is one `WIN_FLOOR` creates, and it is backwards.**
+ * On 4.5–4–2 the teams finish half a win apart and mark 8 and 6.5. Take the
+ * floor away and the same night reads 7 and 6.5 — a half-rung gap for a
+ * half-win margin, which is right. The whole 1.5 is the floor lifting the
+ * winner and nothing lifting the side that nearly beat them.
+ *
+ * Worse, it is largest exactly where it is least deserved. The floor only
+ * fires when the win was *narrow* — a team that ran away with the night clears
+ * 8 on the margin alone and never touches it. So measured across real
+ * scorelines, a night decided by half a win opened a 2.0 gap while a 9–2–1
+ * rout opened 4.5: 44% of the punishment for 7% of the margin.
+ *
+ * **So the lift is shared rather than given to one team.** Whatever the floor
+ * had to add to get the winner to 8 is offered to the teams behind them,
+ * decaying with how far back they finished — full share at the winner's
+ * shoulder, nothing at `CLOSE_SPAN × fairShare` behind. At 1 that is one whole
+ * share of the night's matches, which is the same unit `night` is measured in
+ * and reads as the natural meaning of "out of it": on a 10.5-match night a
+ * team 3.5 wins off the pace gets none of it, and 4.5–4–2 lifts the runner-up
+ * to 7 while leaving the beaten third team on 5.
+ *
+ * Three things keep it honest:
+ *
+ * **It is self-limiting.** A convincing winner clears 8 unaided, so the lift is
+ * zero and the night grades exactly as it always did. This can only act where
+ * the floor was already distorting the sheet — 7–3–2 and 9–2–1 are untouched.
+ *
+ * **Winning outright still wins.** As the gap closes the runner-up approaches
+ * 7.5 against the winner's 8: the `WIN_BONUS` survives as a permanent half-rung
+ * that no amount of closeness can erode. Taking the night is always worth more
+ * than nearly taking it.
+ *
+ * **It adds rather than floors.** The obvious implementation is a second floor
+ * under the runner-up, and it was rejected: a floor *flattens*, and all five on
+ * that team would read one number regardless of their own form and rating —
+ * the documented cost of `WIN_FLOOR` (see `WIN_BONUS`), doubled. Adding to the
+ * raw mark leaves the personal terms spreading people out as they always did.
+ */
+const CLOSE_SPAN = 1;
+
 // Both historical terms are shrunk toward the club mean, the same move
 // `duos.ts` and `marketValue.ts` make: a player three nights into their career
 // should sit near the middle rather than at whichever extreme those three
@@ -415,6 +460,17 @@ const TIER_BUMP: Record<ReturnType<typeof ratingTier>, number> = {
 
 export interface GradeParts {
   night: number;
+  /**
+   * The share of the winner's floor this team was carried up by, for finishing
+   * close to them (§2.48, and see CLOSE_SPAN). Always 0 for the winner, who
+   * gets the floor itself, and 0 on any night the floor did not have to fire.
+   *
+   * Its own term rather than folded into `night` because it answers a different
+   * question — `night` is what this team did, this is what the team *above*
+   * them needed the floor for — and a mark that moved for this reason should
+   * say so when somebody asks why.
+   */
+  close: number;
   mvp: number;
   career: number;
   momentum: number;
@@ -529,16 +585,31 @@ export function nightGrades(history: FixtureRecord[], fixtureId: string): Grade[
   const votesCast = totalVotes(fx.mvpVotes);
   const tallied = votesCast > 0;
 
+  // Relative to the night's own average, then capped. Lifted out of the team
+  // loop because the winner's figure is needed before any team is graded — see
+  // `floorLift` below.
+  const nightTerm = (wins: number) =>
+    clamp(fairShare > 0 ? NIGHT_W * ((wins - fairShare) / fairShare) : 0, -NIGHT_CAP, NIGHT_CAP);
+
+  // How much work `WIN_FLOOR` has to do to get tonight's winner to 8, measured
+  // on the shared part of their mark only — this is a fact about the scoreline,
+  // not about any one player, so their career and rating stay out of it.
+  //
+  // Zero when the night was shared at the top (nobody is floored, so there is
+  // nothing to share) or when the margin already cleared 8 on its own. See
+  // CLOSE_SPAN for the whole argument.
+  const topWins = Math.max(...(['black', 'white', 'blue'] as TeamColor[]).map((c) => fx.wins[c] ?? 0));
+  const soleWinner =
+    (['black', 'white', 'blue'] as TeamColor[]).filter((c) => (fx.wins[c] ?? 0) === topWins).length === 1;
+  const floorLift = soleWinner
+    ? Math.max(0, WIN_FLOOR - (BASE + nightTerm(topWins) + WIN_BONUS))
+    : 0;
+
   const out: Grade[] = [];
   for (const c of ['black', 'white', 'blue'] as TeamColor[]) {
     const teamWins = fx.wins[c] ?? 0;
     const place = placeOf(fx.wins, c);
-    // Relative to the night's own average, then capped.
-    const night = clamp(
-      fairShare > 0 ? NIGHT_W * ((teamWins - fairShare) / fairShare) : 0,
-      -NIGHT_CAP,
-      NIGHT_CAP,
-    );
+    const night = nightTerm(teamWins);
 
     for (const id of fx.teams[c]) {
       const before = profileNights(past, id);
@@ -578,6 +649,15 @@ export function nightGrades(history: FixtureRecord[], fixtureId: string): Grade[
       const wonNight = place === 1 && !hasTie(fx, teamWins);
       const parts: GradeParts = {
         night: night + (wonNight ? WIN_BONUS : 0),
+        // A share of whatever the floor gave the winner, decaying with how far
+        // back this team finished (§2.48). The winner is excluded because they
+        // get the floor itself — adding it here as well would put their mark
+        // above 8 on the strength of a floor that exists to stop it dropping
+        // below it.
+        close:
+          wonNight || floorLift === 0 || fairShare <= 0
+            ? 0
+            : floorLift * Math.max(0, 1 - (topWins - teamWins) / (CLOSE_SPAN * fairShare)),
         // The pick, plus however much of the room said so — see PICK_BONUS and
         // ROOM_W. Untallied nights keep the flat bonus, so a mark filed before
         // the sheet existed reads today exactly as it did then.
@@ -594,7 +674,7 @@ export function nightGrades(history: FixtureRecord[], fixtureId: string): Grade[
       // number it says it is: flooring a rounded 7.5 cannot leave anybody below
       // the mark, where rounding a floored 7.9 could.
       const raw = round(
-        BASE + parts.night + parts.mvp + parts.career + parts.momentum + parts.tier,
+        BASE + parts.night + parts.close + parts.mvp + parts.career + parts.momentum + parts.tier,
       );
       // Floor first, then the ceiling. `UNPICKED_CAP` is inclusive — 9 is an
       // ordinary mark anybody can earn, and only the two rungs above it are
@@ -660,6 +740,7 @@ export const gradeConstants = {
   MVP_BONUS,
   PICK_BONUS,
   ROOM_W,
+  CLOSE_SPAN,
   WIN_BONUS,
   UNPICKED_CAP,
   WIN_FLOOR,

@@ -669,3 +669,103 @@ describe('the tier shade', () => {
     expect(hot.parts.momentum - cold.parts.momentum).toBeGreaterThanOrEqual(0.5);
   });
 });
+
+// --- Finishing close to the winner (§2.48) ---------------------------------
+//
+// `WIN_FLOOR` lifts the winner to 8 and used to lift nobody else, which made
+// the gap between first and second *largest on the closest nights* — the floor
+// only fires when the win was narrow. These cover the fix and, more
+// importantly, the three things that keep it from becoming a new problem.
+
+describe('the closeness carry', () => {
+  const marks = (wins: { black: number; white: number; blue: number }) => {
+    const fx = night(T(['a'], ['b'], ['c']), wins);
+    const gs = nightGrades([fx], fx.id)!;
+    return {
+      first: gradeOf(gs, 'a'),
+      second: gradeOf(gs, 'b'),
+      third: gradeOf(gs, 'c'),
+    };
+  };
+
+  it('closes the gap on a night decided by half a win', () => {
+    // The scoreline that prompted this. Was 8 / 6.5 / 5 — a rung and a half
+    // between teams separated by one half-win out of ten and a half.
+    const { first, second, third } = marks({ black: 4.5, white: 4, blue: 2 });
+    expect(first.grade).toBe(8);
+    expect(second.grade).toBe(7);
+    // and the team that was genuinely beaten is not dragged up with them
+    expect(third.grade).toBe(5);
+  });
+
+  it('leaves a convincing win exactly where it was', () => {
+    // Self-limiting, and the property that keeps the blast radius small: a
+    // winner who clears 8 on the margin alone was never floored, so there is
+    // no lift to share and the night grades as it always did.
+    for (const wins of [
+      { black: 7, white: 3, blue: 2 },
+      { black: 9, white: 2, blue: 1 },
+    ]) {
+      const { first, second, third } = marks(wins);
+      expect(first.parts.close).toBe(0);
+      expect(second.parts.close).toBe(0);
+      expect(third.parts.close).toBe(0);
+    }
+    expect(marks({ black: 9, white: 2, blue: 1 }).second.grade).toBe(4.5);
+  });
+
+  it('never carries anybody past the winner', () => {
+    // The ordering that has to survive: taking the night outright is worth
+    // more than nearly taking it, however thin the margin. At team level the
+    // runner-up tops out half a rung short — the WIN_BONUS, which no amount of
+    // closeness can erode.
+    for (const wins of [
+      { black: 4.5, white: 4, blue: 2 },
+      { black: 4, white: 3.5, blue: 3 },
+      { black: 6, white: 5, blue: 4 },
+      { black: 5, white: 4.5, blue: 1 },
+      { black: 4.5, white: 4, blue: 3.5 },
+    ]) {
+      const { first, second, third } = marks(wins);
+      expect(second.grade).toBeLessThan(first.grade);
+      expect(third.grade).toBeLessThanOrEqual(second.grade);
+    }
+  });
+
+  it('gives the winner nothing — they have the floor itself', () => {
+    // Adding the lift to the winner as well would push them *above* 8 on the
+    // strength of a floor that exists to stop them falling below it.
+    expect(marks({ black: 4.5, white: 4, blue: 2 }).first.parts.close).toBe(0);
+  });
+
+  it('shares nothing when the night was level at the top', () => {
+    // Nobody is floored on a shared night (§2.6), so there is no lift to pass
+    // on — and a team that did not win one cannot hand out a share of it.
+    const { first, second } = marks({ black: 5, white: 5, blue: 2 });
+    expect(first.parts.close).toBe(0);
+    expect(second.parts.close).toBe(0);
+    expect(first.grade).toBe(second.grade);
+  });
+
+  it('fades with distance rather than lifting the whole night', () => {
+    const { second, third } = marks({ black: 4.5, white: 4, blue: 2 });
+    expect(second.parts.close).toBeGreaterThan(third.parts.close);
+    expect(third.parts.close).toBeGreaterThan(0);
+    // a team a full share of the night behind the winner gets none of it
+    const far = marks({ black: 5, white: 4.5, blue: 1 });
+    expect(far.third.parts.close).toBe(0);
+  });
+
+  it('adds rather than floors, so teammates are still told apart', () => {
+    // The reason this is not simply a second floor. A floor flattens: all five
+    // players on the runner-up would read one number regardless of their own
+    // rating and form, which is the known cost of WIN_FLOOR (see WIN_BONUS)
+    // and not one worth paying twice.
+    const fx = night(T(['w1'], ['s1', 's2'], ['c']), { black: 4.5, white: 4, blue: 2 }, {
+      ratings: { s1: 5, s2: 1 },
+    });
+    const gs = nightGrades([fx], fx.id)!;
+    expect(gradeOf(gs, 's1').parts.close).toBe(gradeOf(gs, 's2').parts.close);
+    expect(gradeOf(gs, 's1').grade).toBeGreaterThan(gradeOf(gs, 's2').grade);
+  });
+});
