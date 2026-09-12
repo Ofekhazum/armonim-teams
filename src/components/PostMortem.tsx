@@ -260,19 +260,19 @@ export default function PostMortem({ history, players }: Props) {
         </p>
       </div>
 
-      {/* Night by night, behind a fold (§2.55).
+      {/* Night by night, behind a second fold (§2.55).
 
-          It was not folded while this lived on the Club tab, because the whole
-          post-mortem was — opening it was already a deliberate act. On Admin
-          tools the analysis opens on arrival, which is right for the verdict
-          and wrong for the list: forty nights is a very long page between an
-          organiser and the two tools below it. And the ordering is the point
-          the verdict makes — the season is the reading, a single night is
-          mostly noise — so the noise is what folds.
+          The panel is already folded by its host, so this is a fold inside a
+          fold — which earns its place because the two answer different
+          questions. Opening the analysis should show the verdict; forty
+          night-cards under it would bury that verdict the moment it appeared,
+          and push the tools below this one off the end of the page. The
+          ordering is the point the verdict makes — the season is the reading,
+          a single night is mostly noise — so the noise is what folds.
 
-          `<details>`, matching the format explainer just above rather than the
-          Section component, because this fold is internal to one panel and has
-          no business remembering its own state across visits. */}
+          `<details>` rather than the `Section` component, because this fold is
+          internal to one panel and has no business remembering its own state
+          across visits the way a page's own sections do. */}
       <details className="rounded-lg bg-amber-900/5 p-3">
         <summary className="cursor-pointer text-[11px] font-bold uppercase tracking-wide text-amber-900/50">
           {t('pm.nights.title', { n: String(season.nights.length) })}

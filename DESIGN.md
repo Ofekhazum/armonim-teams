@@ -4275,6 +4275,18 @@ prefix names the screen.
 rendered at all while the switch was off. On a page somebody opens *looking* for it, absent and
 broken read identically — so the heading stays and says why it is quiet.
 
+**Every deep panel folds, including the good one.** The post-mortem is the reason most visits here
+happen and was briefly the exception, which is precisely what made the rule obvious: a page whose
+tools are all closed except the forty-night-tall one is not a page of tools, it is that one tool with
+some headings above it. An organiser arrives for a specific job, and a column of headings is the
+fastest way to see which of them it is. The post-mortem then folds its night list a second time
+inside its own panel, so opening the analysis shows the verdict rather than burying it.
+
+The recap is the one exception, and the exception is what defines the rule: it is a month picker and
+a button, so a fold would hide two controls behind a heading their own size and save nothing. Depth
+is what earns a fold. `Section` only writes a preference when somebody toggles it, so a device that
+has already formed an opinion about a panel keeps it.
+
 **The tab strip had to give.** Measuring at 360px in Hebrew, the strip needed 281 of its 336 available
 pixels for four tabs and the padlock; the fifth took it to 343, and with a fixture live, 405 — which
 did not fit before this tab existed either. It had neither wrap nor scroll, so flexbox was shrinking
