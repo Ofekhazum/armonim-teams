@@ -9,6 +9,12 @@ export const app = {
   'app.tab.roster': { he: 'סגל ({n})', en: 'Roster ({n})' },
   'app.tab.club': { he: 'מועדון', en: 'Club' },
   'app.tab.live': { he: 'חי', en: 'Live' },
+  // One word in both languages, and the shortest honest one. The strip has to
+  // hold five tabs plus the padlock on a phone once an organiser unlocks and a
+  // night is live, and this is the tab that made that a real constraint
+  // (§2.55). "Admin tools" is what the page calls itself; the tab only has to
+  // say which door it is, and it is only ever visible to an organiser.
+  'app.tab.tools': { he: 'כלים', en: 'Tools' },
 
   'app.admin.badge': { he: 'מנהל', en: 'ADMIN' },
   'app.admin.unlock': { he: 'פתיחת מצב מנהל', en: 'Unlock admin mode' },

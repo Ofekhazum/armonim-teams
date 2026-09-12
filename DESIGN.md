@@ -4229,10 +4229,10 @@ against the 95% interval on it, the same gate `suggestRatings` uses. The interva
 (`−0.1★ ± 1.3`), so "cannot tell" is a number the organiser can watch narrow rather than a shrug. On a
 forty-night club the margin is still ~1.4★, so this stays honest-but-quiet for a long time.
 
-**Built to be lifted.** `PostMortem.tsx` takes `{ history, players }` and nothing else — no store, no
-callbacks, and no chrome of its own; `History.tsx` supplies the `<Section>` fold and the `isAdmin`
-gate. Moving it to a dedicated Admin Tools page is one JSX line, and stays that way only while the
-component knows nothing about where it lives. It is admin-only by *placement* rather than by an
+**Built to be lifted — and then lifted.** `PostMortem.tsx` takes `{ history, players }` and nothing
+else: no store, no callbacks, and no chrome of its own, so whichever page hosts it supplies the
+`<Section>` fold and the admin gate. That was the Club tab; it is now Admin tools (§2.55), and the
+move cost the one JSX line it was designed to cost. It is admin-only by *placement* rather than by an
 internal flag: it reads `players[].rating`, which a public device does not have (§2.28), so on one
 every team would read as level — the precondition is documented at the top of the file rather than
 enforced by a silent early return that would be harder to debug later.
@@ -4241,6 +4241,54 @@ enforced by a silent early return that would be harder to debug later.
 teams but the format: a fixed round-robin where every team plays the same number of matches would cut
 the spread substantially. That is a decision about how they play football, not code, so the tool
 explains the effect and leaves it alone.
+
+### 2.55 Admin tools (`AdminTools.tsx`, the fifth tab)
+
+The Club tab had grown an organiser's workbench on top of it: the monthly recap, Team of the Month,
+the rating suggestions and then the post-mortem, all admin-gated, all sitting above the football that
+everybody actually came for. This gives them a page.
+
+**What moved and what did not.** The line is whether a control *acts on the thing you are looking at*
+or is a tool you go somewhere to use:
+
+| Moved to Admin tools | Stayed where it was |
+|---|---|
+| Monthly recap generator | Editing a night (its own drawer in the shelf) |
+| Team of the Month | Add/edit/remove a player, ratings, avoid links (Roster) |
+| Rating suggestions | The "vs rating" column — it is a column in that table |
+| The post-mortem (§2.54) | Night report and grades (the night's own page) |
+| `AlertsCheck` — rendered again at last | Undo and End fixture (the live tab) |
+
+Moving any of the right-hand column would mean navigating away and back to use it. `AlertsCheck` is
+the odd one: built to diagnose a push bug, it found it and was then taken out of the header rather
+than deleted, because the failure it diagnoses is *silence*. It had no home for a year; now it has
+one.
+
+**The move made the lift real.** §2.54 claimed `PostMortem.tsx` could be relocated in one JSX line
+because it takes `{ history, players }` and owns no chrome. It was — that claim is now tested rather
+than asserted. Two things had to be shared on the way: `Section` moved from inside `History.tsx` to
+`ui.tsx`, and `RATING_PANEL_READY` became `ratingPanel.ts`, because the switch now has two readers on
+two pages. The `hist.recap.*` / `hist.totm.*` / `hist.sugg.*` strings became `tools.*`, since a
+prefix names the screen.
+
+**One deliberate difference from the old placement.** On the Club tab the suggestions panel was not
+rendered at all while the switch was off. On a page somebody opens *looking* for it, absent and
+broken read identically — so the heading stays and says why it is quiet.
+
+**The tab strip had to give.** Measuring at 360px in Hebrew, the strip needed 281 of its 336 available
+pixels for four tabs and the padlock; the fifth took it to 343, and with a fixture live, 405 — which
+did not fit before this tab existed either. It had neither wrap nor scroll, so flexbox was shrinking
+the buttons and breaking "Match day" onto two lines inside its own pill. The fix is `flex-wrap` plus
+`shrink-0 whitespace-nowrap` on the tabs, and `rounded-3xl` instead of `rounded-full` so two rows read
+as a rounded rectangle rather than a lozenge that has gone wrong. Wrapping rather than a horizontal
+scroll: this is primary navigation, and a tab you have to swipe sideways to discover is a tab nobody
+finds. On a 390px phone — the common case — the everyday admin strip still fits on one row.
+
+**Gated by placement, twice over.** The tab is only offered when admin is unlocked, and the same
+effect that evicts a locked-out device from Match day evicts it from here. `AdminTools.tsx` therefore
+has no `isAdmin` check of its own — a component that re-checks what its parent already checked
+invites the reader to wonder which is the real gate. It takes `adminWord` rather than a flag, because
+three of its four panels are guarded *writes* on the Worker.
 
 ## 3. Team generation algorithm
 

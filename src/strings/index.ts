@@ -10,6 +10,7 @@ import { player } from './player';
 import { postmortem } from './postmortem';
 import { roster } from './roster';
 import { share } from './share';
+import { tools } from './tools';
 
 // Every string the app can say, in both languages (§2.45).
 //
@@ -35,4 +36,5 @@ export const STRINGS = {
   ...player,
   ...postmortem,
   ...share,
+  ...tools,
 } as const;

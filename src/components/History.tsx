@@ -2,35 +2,19 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { DraftTeamWins, FixtureRecord, Player, TeamColor, TeamWins } from '../types';
 import { NOTE_MAX } from '../types';
 import { TEAM_COLORS } from '../balancer';
-import {
-  MIN_NIGHTS,
-  hasResult,
-  playerForm,
-  playerStandings,
-  suggestRatings,
-} from '../calibration';
+import { MIN_NIGHTS, hasResult, playerForm, playerStandings } from '../calibration';
 import { nightStory } from '../nightStory';
-import { buildWrapped, periodLabel, wrappedPeriods } from '../wrapped';
-import { announceMonth, clearMonth, fetchAwards, type Awards } from '../awards';
-import { shareWrappedImage } from '../wrappedImage';
-import { fetchAllMarks } from '../gradesApi';
-import type { AllMarks } from '../gradeHistory';
+import { RATING_PANEL_READY } from '../ratingPanel';
 import { mvpCandidates, mvpCounts, mvpFromVotes, winningTeams } from '../mvp';
-import {
-  getNightsShelfOpen,
-  getSectionOpen,
-  setNightsShelfOpen,
-  setSectionOpen,
-} from '../storage';
+import { getNightsShelfOpen, setNightsShelfOpen } from '../storage';
 import { playerAchievements } from '../achievements';
 import { leaderboards } from '../leaderboards';
-import { fmtRating, fmtWins, FoldHeader, Name, TEAM_META, teamLabel } from './ui';
+import { fmtWins, FoldHeader, Name, Section, TEAM_META, teamLabel } from './ui';
 import Leaderboards from './Leaderboards';
 import PlayerCompare from './PlayerCompare';
 import MvpPicker from './MvpPicker';
-import PostMortem from './PostMortem';
 import NightPage from './NightPage';
-import { fmtDate, getLang, t } from '../i18n';
+import { t } from '../i18n';
 
 interface Props {
   history: FixtureRecord[];
@@ -40,7 +24,6 @@ interface Props {
   // needs the word rather than the flag: the recap it writes is a guarded
   // write on the worker, not a locally hidden button.
   adminWord?: string | null;
-  onApplyRating: (playerId: string, rating: number) => void;
   onDeleteFixture: (fixtureId: string) => void;
   onEditFixture: (
     fixtureId: string,
@@ -67,28 +50,6 @@ interface Draft {
 }
 
 type SortKey = 'name' | 'nights' | 'wins' | 'fixtures' | 'mvps' | 'perNight' | 'vsRating';
-
-/**
- * The rating panel and its column stay off — not because the estimator is
- * broken (it was, and the rebuild is done: §2.49–§2.51), but because this
- * club's own history is not yet enough evidence for it to speak reliably.
- *
- * Measured at this club's actual volume — five fixtures, two of them typed
- * tallies rather than a logged night — a genuine two-and-a-half-star error is
- * right about **31% of the time** when the panel does speak off a tally-only
- * night, and it stays silent off a logged one altogether (a short "winner
- * stays on" log spreads too thin to say anything yet). By twenty fixtures the
- * same numbers are 84% and 97% — the estimator gets *more* trustworthy with
- * more football, which is the property the whole rebuild was for. This club
- * is not there yet.
- *
- * So this is a volume switch, not a correctness one, and the honest thing is
- * to wait rather than show something that is more often wrong than right.
- * Flip it once the club has enough nights logged for `scripts/
- * calibration-report.ts`'s numbers to say the panel is worth reading —
- * there is no code change needed when that day comes.
- */
-const RATING_PANEL_READY = false;
 
 // "vs rating" is the one column that is an opinion about a player rather than
 // a count of what happened — it says someone is over- or under-performing the
@@ -191,48 +152,11 @@ function useDragScroll() {
 // this reasoning has somewhere to live.
 const MIN_STANDINGS_NIGHTS = 1;
 
-// A folding section of the Club tab (§2.36). `id` is what the fold state is
-// stored under, so renaming one silently reopens it — which is harmless, and
-// the alternative is a migration for a preference about a heading.
-function Section({
-  id,
-  title,
-  defaultOpen = true,
-  children,
-}: {
-  id: string;
-  title: string;
-  // What the section does before anybody has an opinion about it. Admin
-  // tooling starts shut: it is a set of controls for a job done once a month,
-  // and it should not be the first thing between an organiser and the football.
-  defaultOpen?: boolean;
-  children: React.ReactNode;
-}) {
-  const [open, setOpen] = useState(() => getSectionOpen(id, defaultOpen));
-  const toggle = () => {
-    const next = !open;
-    setOpen(next);
-    setSectionOpen(id, next);
-  };
-  return (
-    <div className="space-y-2">
-      <FoldHeader
-        title={title}
-        open={open}
-        onToggle={toggle}
-        className="text-[13px] text-amber-900/70"
-      />
-      {open && children}
-    </div>
-  );
-}
-
 export default function History({
   history,
   players,
   isAdmin,
   adminWord = null,
-  onApplyRating,
   onDeleteFixture,
   onEditFixture,
 }: Props) {
@@ -251,57 +175,10 @@ export default function History({
   );
   const at = storyId === null ? -1 : nights.findIndex((fx) => fx.id === storyId);
   const story = at >= 0 ? nights[at] : null;
-  const periods = useMemo(() => wrappedPeriods(history), [history]);
-  const [wrappedPeriod, setWrappedPeriod] = useState('');
-  const [sharingWrapped, setSharingWrapped] = useState(false);
-  // What has been registered, and which month is mid-write. Read once when an
-  // organiser opens the tab — an award is a record rather than a calculation,
-  // so the only way to know is to ask (§2.25).
-  const [awards, setAwards] = useState<Awards>({});
-  const [busyMonth, setBusyMonth] = useState<string | null>(null);
-  useEffect(() => {
-    if (!isAdmin) return;
-    let live = true;
-    fetchAwards().then((a) => live && setAwards(a));
-    return () => {
-      live = false;
-    };
-  }, [isAdmin]);
-
-  // Published grades for the whole club, the same call PlayerPage makes for
-  // its graph — the recap's grade-based banter stats (Teacher's Pet, Punching
-  // Bag, the Rollercoaster) read from this. Admin-only, same as the recap
-  // button itself; `{}` on any failure just means those three stats say
-  // nothing, same as a club that hasn't graded a month yet.
-  const [marks, setMarks] = useState<AllMarks>({});
-  useEffect(() => {
-    if (!isAdmin) return;
-    let live = true;
-    fetchAllMarks(history).then((all) => {
-      if (live) setMarks(all);
-    });
-    return () => {
-      live = false;
-    };
-  }, [isAdmin, history]);
-
-  // Re-read rather than patch the copy in state. One extra request, and it is
-  // the difference between the panel showing what is stored and the panel
-  // showing what we believe we stored.
-  const afterWrite = async (ok: boolean) => {
-    if (ok) setAwards(await fetchAwards());
-    setBusyMonth(null);
-  };
-  // periods only appear once a month's first night is saved — pick the newest
-  // as soon as one shows up, rather than leaving the picker on nothing
-  useEffect(() => {
-    if (!wrappedPeriod && periods.length > 0) setWrappedPeriod(periods[0]);
-  }, [periods, wrappedPeriod]);
   // Open by default and remembered per device — the shelf is what the tab is
   // for, but forty cards is still forty cards on the way to the numbers, and
   // somebody who only wants the table should be able to say so once.
   const [shelfOpen, setShelfOpen] = useState(getNightsShelfOpen);
-  const [dismissed, setDismissed] = useState<Set<string>>(new Set());
   // the night currently being corrected, and the values as typed so far
   const [editId, setEditId] = useState<string | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
@@ -371,10 +248,6 @@ export default function History({
     [history],
   );
   const form = useMemo(() => playerForm(history, players), [history, players]);
-  const suggestions = useMemo(
-    () => suggestRatings(history, players).filter((s) => !dismissed.has(s.id)),
-    [history, players, dismissed],
-  );
 
   const formById = new Map(form.map((f) => [f.id, f]));
   const mvpById = new Map(mvpCounts(history).map((m) => [m.id, m.count]));
@@ -444,8 +317,8 @@ export default function History({
 
   return (
     <div className="space-y-4">
-      {/* The tab strip says "Club" — short enough to sit beside Match day and
-          Roster (20) on a phone. The page says what it actually is. */}
+      {/* The tab strip says "Club" — short enough to sit beside Match day,
+          Roster (20) and Tools on a phone. The page says what it actually is. */}
       <div className="flex flex-wrap items-baseline gap-x-3 text-sm text-amber-900/60">
         <h2 className="text-lg font-black text-amber-950">{t('hist.title')}</h2>
         <span className="font-semibold text-amber-900/70">
@@ -455,145 +328,6 @@ export default function History({
           <span>{t('hist.noResult', { n: history.length - recordedNights })}</span>
         )}
       </div>
-
-      {/* The recap is a produced thing — a shareable image the organiser sends
-          out when a month is done, complete with the banter records. Leaving
-          the generator on everyone's screen turns it from a monthly moment
-          into a button, so it lives in admin mode (§2.14). */}
-      {isAdmin && periods.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-amber-900/15 bg-[#fffdf4]/70 p-3 shadow-sm">
-          <span className="text-sm font-bold text-amber-950">{t('hist.recap.title')}</span>
-          <select
-            value={wrappedPeriod}
-            onChange={(e) => setWrappedPeriod(e.target.value)}
-            className="rounded-lg border border-amber-900/25 bg-white px-2 py-1.5 text-sm font-semibold text-amber-950 outline-none focus:border-orange-500"
-          >
-            {periods.map((p) => (
-              <option key={p} value={p}>
-                {periodLabel(p)}
-              </option>
-            ))}
-          </select>
-          <button
-            onClick={async () => {
-              if (!wrappedPeriod) return;
-              setSharingWrapped(true);
-              // shirt numbers live on the roster, never in a fixture record —
-              // the Team of the Month card wants them
-              await shareWrappedImage(
-                buildWrapped(history, wrappedPeriod, players, marks),
-                new Map(players.map((p) => [p.id, p.number])),
-              );
-              setSharingWrapped(false);
-            }}
-            disabled={sharingWrapped || !wrappedPeriod}
-            className="rounded-lg bg-orange-600 px-3 py-1.5 text-xs font-bold text-amber-50 shadow-sm transition-transform enabled:hover:scale-105 disabled:opacity-40"
-          >
-            {sharingWrapped ? '…' : t('hist.recap.share')}
-          </button>
-        </div>
-      )}
-
-      {/* Team of the Month (§2.25). The cron on the 1st is the usual registrar
-          and this panel is not a second way of doing its job — it covers the
-          two cases the cron cannot: seeding the archive, which should not have
-          to wait a month for its first entry, and correcting a month the
-          automatic pick got wrong. Since the cron never overwrites, whatever
-          is set here stays set — and removing a month hands it back, so the
-          1st will register it afresh. */}
-      {isAdmin && periods.length > 0 && (
-        <Section id="totm" title={t('hist.totm.title')} defaultOpen={false}>
-        <div className="rounded-2xl border border-amber-900/15 bg-[#fffdf4]/70 p-4 shadow-sm">
-          <p className="mb-1 text-xs text-amber-900/45">
-            {t('hist.totm.hint')}
-          </p>
-          <div className="divide-y divide-amber-900/10">
-            {periods.map((period) => {
-              const award = awards[period];
-              const busy = busyMonth === period;
-              // The month still being played. Registering it is allowed on
-              // purpose — it is the only way to see what the shelf looks like
-              // without waiting for the 1st — but it is worth saying out loud
-              // that the number will move until the month is over.
-              const running = period >= new Date().toISOString().slice(0, 7);
-              return (
-                <div key={period} className="flex flex-wrap items-center gap-x-2 gap-y-1 py-2">
-                  <span className="w-28 shrink-0 text-sm font-bold text-amber-950">
-                    {periodLabel(period)}
-                  </span>
-                  <div className="min-w-[10rem] flex-1 text-xs">
-                    {award ? (
-                      <>
-                        <span className="text-amber-900/70">{award.names.join(', ')}</span>
-                        <span className="text-amber-900/35">
-                          {' '}
-                          {t('hist.totm.registered', {
-                            date: fmtDate(award.at, getLang(), {}),
-                          })}
-                        </span>
-                      </>
-                    ) : (
-                      <span className="text-amber-900/35">
-                        {t('hist.totm.notRegistered')}
-                        {running ? t('hist.totm.stillPlayed') : ''}
-                      </span>
-                    )}
-                  </div>
-                  <button
-                    onClick={async () => {
-                      if (!adminWord) return;
-                      // Registering a month still being played is the way to
-                      // try this out without waiting for the 1st — but the
-                      // cron never overwrites, so a half-month team would sit
-                      // there for good. Said once, here, rather than
-                      // discovered in October.
-                      if (
-                        running &&
-                        !confirm(t('hist.totm.runningConfirm', { period: periodLabel(period) }))
-                      ) {
-                        return;
-                      }
-                      setBusyMonth(period);
-                      await afterWrite(await announceMonth(period, adminWord));
-                    }}
-                    disabled={busy}
-                    title={
-                      award
-                        ? t('hist.totm.reregister.title')
-                        : t('hist.totm.register.title')
-                    }
-                    className="rounded-lg border border-amber-900/25 px-2.5 py-1 text-xs font-bold text-amber-900 transition-colors enabled:hover:border-orange-500 disabled:opacity-40"
-                  >
-                    {busy ? '…' : award ? t('hist.totm.reregister') : t('hist.totm.register')}
-                  </button>
-                  {award && (
-                    <button
-                      onClick={async () => {
-                        if (!adminWord) return;
-                        if (
-                          !confirm(
-                            t('hist.totm.removeConfirm', { period: periodLabel(period) }),
-                          )
-                        ) {
-                          return;
-                        }
-                        setBusyMonth(period);
-                        await afterWrite(await clearMonth(period, adminWord));
-                      }}
-                      disabled={busy}
-                      title={t('hist.totm.remove.title')}
-                      className="rounded-lg border border-red-500/40 px-2.5 py-1 text-xs font-bold text-red-700 transition-colors enabled:hover:bg-red-50 disabled:opacity-40"
-                    >
-                      {t('hist.totm.remove')}
-                    </button>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-        </Section>
-      )}
 
       {/* Above the numbers, because this is what the tab is *for* now — the
           table is reference, a night is a story. And sideways rather than
@@ -959,91 +693,6 @@ export default function History({
         </Section>
       )}
 
-      {/* Rating suggestions live directly above the career table (§2.36) —
-          they are a claim about the numbers in it, and the "vs rating" column
-          they are derived from is one of its columns. Sitting three sections
-          higher, they were an instruction to go and check something further
-          down the page. */}
-      {isAdmin && RATING_PANEL_READY && suggestions.length > 0 && (
-        <div className="space-y-2 rounded-2xl border border-orange-600/40 bg-orange-500/10 p-4 shadow-sm">
-          <h3 className="font-bold text-amber-950">{t('hist.sugg.title')}</h3>
-          <p className="text-xs text-amber-900/60">{t('hist.sugg.body')}</p>
-          <ul className="space-y-2">
-            {suggestions.map((s) => (
-              <li
-                key={s.id}
-                className={`flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border px-3 py-2.5 text-sm ${
-                  s.atLimit
-                    ? 'border-amber-900/10 bg-amber-900/[0.04]'
-                    : 'border-amber-900/10 bg-white/70'
-                }`}
-              >
-                <Name className="font-bold text-amber-950">{s.name}</Name>
-                {s.atLimit ? (
-                  <span className="font-semibold text-amber-900">
-                    {s.direction === 'up' ? '⭐' : '⚓'}{' '}
-                    {t('hist.sugg.staysAt', { r: fmtRating(s.current) })}
-                  </span>
-                ) : (
-                  <span className="font-semibold text-amber-900">
-                    {fmtRating(s.current)} → {fmtRating(s.suggested)}
-                    <span className="ms-1">{s.direction === 'up' ? '⬆️' : '⬇️'}</span>
-                  </span>
-                )}
-                <span className="text-xs text-amber-900/55">
-                  {t('hist.sugg.nights', { n: s.nights })} ·{' '}
-                  {t('hist.sugg.wins', { n: fmtWins(s.wins) })}
-                </span>
-                <span
-                  className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${
-                    s.confidence === 'strong'
-                      ? 'bg-green-600/15 text-green-800'
-                      : s.confidence === 'solid'
-                        ? 'bg-amber-500/25 text-amber-900'
-                        : 'bg-amber-900/10 text-amber-900/70'
-                  }`}
-                  title={
-                    s.confidence === 'building'
-                      ? t('hist.sugg.early.title')
-                      : t('hist.sugg.held.title')
-                  }
-                >
-                  {s.confidence === 'building'
-                    ? t('hist.sugg.early')
-                    : s.confidence === 'solid'
-                      ? t('hist.sugg.solid')
-                      : t('hist.sugg.strong')}
-                </span>
-                <div className="flex-1" />
-                {/* nothing to apply when the scale has run out — only the note */}
-                {!s.atLimit && (
-                  <button
-                    onClick={() => onApplyRating(s.id, s.suggested)}
-                    className="rounded-lg bg-orange-600 px-3 py-1 text-xs font-bold text-amber-50 hover:scale-105"
-                  >
-                    {t('hist.sugg.apply')}
-                  </button>
-                )}
-                <button
-                  onClick={() => setDismissed((d) => new Set(d).add(s.id))}
-                  className="rounded-lg border border-amber-900/25 px-3 py-1 text-xs font-bold text-amber-900 hover:border-orange-500"
-                >
-                  {t('hist.sugg.dismiss')}
-                </button>
-                {s.atLimit && (
-                  <p className="w-full text-xs text-amber-900/60">
-                    {t(
-                      s.direction === 'up' ? 'hist.sugg.atLimit.up' : 'hist.sugg.atLimit.down',
-                      { r: fmtRating(s.current) },
-                    )}
-                  </p>
-                )}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
       <Section id="career" title={t('hist.section.career')}>
         {/* Opaque rather than the usual `/70`, because the name column is sticky:
             a translucent cell lets the rows it is holding still scroll visibly
@@ -1162,16 +811,6 @@ export default function History({
       {comparable.length >= 2 && (
         <Section id="compare" title={t('hist.section.compare')} defaultOpen={false}>
           <PlayerCompare history={history} options={comparable} />
-        </Section>
-      )}
-
-      {/* The post-mortem (§2.54). Admin-only — it reads ratings, which a public
-          device does not have — and it supplies no chrome of its own, so the
-          fold lives here rather than inside it. That is the whole arrangement
-          that makes lifting it onto a future Admin Tools page one line. */}
-      {isAdmin && (
-        <Section id="postmortem" title={t('pm.title')} defaultOpen={false}>
-          <PostMortem history={history} players={players} />
         </Section>
       )}
 

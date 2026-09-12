@@ -45,6 +45,7 @@ export const postmortem = {
   },
 
   // --- A night --------------------------------------------------------------
+  'pm.nights.title': { he: 'מחזור אחר מחזור ({n})', en: 'Night by night ({n})' },
   'pm.night.spread': { he: 'פער {n}', en: '{n} apart' },
   'pm.night.percentile': {
     he: 'אחוזון {n} מול קבוצות שוות',
