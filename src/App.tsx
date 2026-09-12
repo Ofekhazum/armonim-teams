@@ -33,11 +33,12 @@ import MatchDay from './components/MatchDay';
 import History from './components/History';
 import { useAdminUnlock } from './useAdminUnlock';
 import { TEST_WORD, isTestMode } from './testMode';
+import AdminTools from './components/AdminTools';
 import TestModeBanner from './components/TestModeBanner';
 import LangToggle from './components/LangToggle';
 import { t } from './i18n';
 
-type Tab = 'live' | 'match' | 'roster' | 'club';
+type Tab = 'live' | 'match' | 'roster' | 'club' | 'tools';
 
 export default function App() {
   const [state, setState] = useState<AppState>(() => loadState());
@@ -64,8 +65,11 @@ export default function App() {
   // find out who they're playing with, not to run the night. So it's gated,
   // and if admin is switched off while standing on it, the tab goes away
   // underneath and this puts the user somewhere that still exists.
+  //
+  // Admin tools (§2.55) is gated the same way and for the same reason — it is
+  // the rest of the organiser's workbench, the parts with no match to run.
   useEffect(() => {
-    if (!isAdmin && tab === 'match') setTab('roster');
+    if (!isAdmin && (tab === 'match' || tab === 'tools')) setTab('roster');
   }, [isAdmin, tab]);
 
   // The fixture being played right now, polled from the Worker (§2.14). This
@@ -445,7 +449,10 @@ export default function App() {
     <button
       key={t}
       onClick={() => setTab(t)}
-      className={`rounded-full px-4 py-1.5 text-sm font-bold transition-colors ${
+      // `shrink-0 whitespace-nowrap` so a full strip wraps to a second row
+      // rather than squeezing "Match day" onto two lines inside its own pill
+      // — see the note on the nav below.
+      className={`shrink-0 whitespace-nowrap rounded-full px-4 py-1.5 text-sm font-bold transition-colors ${
         tab === t
           ? 'bg-orange-600 text-amber-50 shadow-sm'
           : 'text-amber-900 hover:bg-amber-200/70'
@@ -544,16 +551,34 @@ export default function App() {
           </h1>
           <LangToggle />
         </div>
-        {/* The strip itself is untouched — a pill that hugs its own tabs, in
-            the page's own direction. The wrapper is what keeps it that width
-            now that it sits on its own line rather than as a flex item beside
-            the crest. */}
+        {/* A pill that hugs its own tabs, in the page's own direction. The
+            wrapper is what keeps it that width now that it sits on its own
+            line rather than as a flex item beside the crest.
+
+            **`flex-wrap` and `rounded-3xl`, since Admin tools made five**
+            (§2.55). The strip had neither wrap nor scroll, so once it stopped
+            fitting, flexbox shrank the buttons instead — and a rounded pill
+            full of two-line labels is how it announced that, at the top of
+            every page. Measured in Hebrew on a 360px phone: four tabs and the
+            padlock want 281 of the 336 available, and the fifth tab takes that
+            to 343. With a fixture live it is 405, which did not fit before
+            this tab existed either.
+
+            Wrapping is the honest answer rather than a horizontal scroll: this
+            is the app's primary navigation, a tab you have to swipe sideways
+            to discover is a tab nobody finds, and two tidy rows for the one
+            device-and-language combination that needs them costs a strip of
+            height on the rare night. `rounded-3xl` because a `rounded-full`
+            pill two rows tall reads as a lozenge that has gone wrong; at two
+            rows this is a rounded rectangle on purpose, and at one row the
+            difference is a few pixels of corner nobody will notice. */}
         <div className="mt-3 flex">
-          <nav className="flex items-center gap-1 rounded-full border border-amber-900/20 bg-[#fffdf4]/70 p-1 shadow-sm">
+          <nav className="flex flex-wrap items-center gap-1 rounded-3xl border border-amber-900/20 bg-[#fffdf4]/70 p-1 shadow-sm">
             {(liveFixture || tab === 'live') && liveTabBtn}
             {isAdmin && tabBtn('match', t('app.tab.matchday'))}
             {tabBtn('roster', t('app.tab.roster', { n: state.players.length }))}
             {tabBtn('club', t('app.tab.club'))}
+            {isAdmin && tabBtn('tools', t('app.tab.tools'))}
             {/* Unlocking lives in the header rather than on the Roster tab
                 because what it gates is spread across all of them — Match day,
                 the rating column in History, ending a live fixture — and having
@@ -644,10 +669,22 @@ export default function App() {
           // the word itself, not just the flag: writing a recap is a server
           // call the worker authenticates, the same as publishing a roster
           adminWord={adminWord}
-          onApplyRating={applyRating}
           onDeleteFixture={deleteFixture}
           onEditFixture={editFixture}
         />
+      ) : tab === 'tools' ? (
+        // `adminWord` is non-null on this tab by construction — the button is
+        // only offered when admin is unlocked, and the effect above moves the
+        // user off it the moment that stops being true. The guard is here
+        // rather than an assertion because "the moment" is one render long.
+        adminWord === null ? null : (
+          <AdminTools
+            history={readHistory}
+            players={state.players}
+            adminWord={adminWord}
+            onApplyRating={applyRating}
+          />
+        )
       ) : (
         matchDay
       )}

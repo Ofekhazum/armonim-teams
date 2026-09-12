@@ -1,6 +1,7 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import type { RoleBadge, TeamColor } from '../types';
 import { useScrollLock } from '../scrollLock';
+import { getSectionOpen, setSectionOpen } from '../storage';
 import { t } from '../i18n';
 
 // Gold, silver, bronze — for a team's place on a night and, in exactly the
@@ -227,6 +228,49 @@ export function FoldHeader({
         {open ? t('ui.fold.hide') : t('ui.fold.show')}
       </span>
     </button>
+  );
+}
+
+/**
+ * A remembered folding section — a `FoldHeader` with the open/shut state kept
+ * per device (§2.36).
+ *
+ * Lived inside History.tsx until the Club tab's admin panels moved out to
+ * their own page (§2.55) and both pages needed the same fold. `id` is what the
+ * state is stored under, so renaming one silently reopens it — which is
+ * harmless, and the alternative is a migration for a preference about a
+ * heading.
+ */
+export function Section({
+  id,
+  title,
+  defaultOpen = true,
+  children,
+}: {
+  id: string;
+  title: string;
+  // What the section does before anybody has an opinion about it. Admin
+  // tooling starts shut: it is a set of controls for a job done once a month,
+  // and it should not be the first thing between an organiser and the football.
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(() => getSectionOpen(id, defaultOpen));
+  const toggle = () => {
+    const next = !open;
+    setOpen(next);
+    setSectionOpen(id, next);
+  };
+  return (
+    <div className="space-y-2">
+      <FoldHeader
+        title={title}
+        open={open}
+        onToggle={toggle}
+        className="text-[13px] text-amber-900/70"
+      />
+      {open && children}
+    </div>
   );
 }
 

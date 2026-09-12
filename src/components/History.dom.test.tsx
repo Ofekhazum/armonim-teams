@@ -36,7 +36,6 @@ const shelf = () =>
       history={[night('2026-08-06'), night('2026-08-13'), night('2026-08-20')]}
       players={roster}
       isAdmin={false}
-      onApplyRating={() => {}}
       onDeleteFixture={() => {}}
       onEditFixture={() => {}}
     />,
