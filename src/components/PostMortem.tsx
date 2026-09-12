@@ -260,14 +260,6 @@ export default function PostMortem({ history, players }: Props) {
         </p>
       </div>
 
-      {/* Why the format does this, said once rather than on every night */}
-      <details className="rounded-lg bg-amber-900/5 p-3">
-        <summary className="cursor-pointer text-[11px] font-bold uppercase tracking-wide text-amber-900/50">
-          {t('pm.format.title')}
-        </summary>
-        <p className="mt-2 text-[12px] leading-snug text-amber-900/75">{t('pm.format.body')}</p>
-      </details>
-
       {/* Night by night, behind a fold (§2.55).
 
           It was not folded while this lived on the Club tab, because the whole

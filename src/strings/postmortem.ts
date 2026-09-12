@@ -37,12 +37,11 @@ export const postmortem = {
     en: '✅ Enough nights on record to draw a conclusion.',
   },
 
-  // --- How the format works -------------------------------------------------
-  'pm.format.title': { he: 'למה מחזור נראה חד־צדדי', en: 'Why a night looks one-sided' },
-  'pm.format.body': {
-    he: 'המנצח נשאר על המגרש. זה אומר שהקבוצה שמנצחת גם *משחקת יותר*, ולכן צוברת יותר נצחונות ממה שאחוז הנצחונות שלה לבדו מסביר. בסימולציה של מחזורים בין חמישה־עשר שחקנים זהים לחלוטין, הפער החציוני הוא 3.5 נצחונות, ואחד מכל ארבעה מחזורים נגמר בפער של 5 ומעלה.',
-    en: 'The winner stays on. That means the team that is winning is also *playing more*, so it collects more wins than its win rate alone explains. Simulating nights between fifteen identical players gives a median gap of 3.5 wins, and one night in four ends 5 or more apart.',
-  },
+  // The format explainer that used to sit under the verdict was removed once
+  // the page existed: the verdict's own first line already says what perfectly
+  // equal teams would produce, which is the whole point the explainer was
+  // making at four times the length. The reasoning behind the number lives in
+  // DESIGN.md §2.54, which is where a reader who wants it should be.
 
   // --- A night --------------------------------------------------------------
   'pm.nights.title': { he: 'מחזור אחר מחזור ({n})', en: 'Night by night ({n})' },
