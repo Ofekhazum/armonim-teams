@@ -104,9 +104,13 @@ export default function AdminTools({ history, players, adminWord, onApplyRating 
       </div>
 
       {/* The recap is a produced thing — a shareable image the organiser sends
-          out when a month is done, complete with the banter records. Not
-          folded, and first: it is the one control here with a season's rhythm
-          behind it, and it is two clicks from top to shared. */}
+          out when a month is done, complete with the banter records.
+
+          The one panel here that does not fold, and the exception is the point:
+          it is already only two controls wide, so folding it would hide a month
+          picker and a button behind a heading roughly their own size. Nothing
+          is saved, and a fold that saves nothing is just a tap. Everything
+          below this is a panel deep enough for the fold to earn its place. */}
       {periods.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-amber-900/15 bg-[#fffdf4]/70 p-3 shadow-sm">
           <span className="text-sm font-bold text-amber-950">{t('tools.recap.title')}</span>
@@ -234,10 +238,12 @@ export default function AdminTools({ history, players, adminWord, onApplyRating 
         </Section>
       )}
 
-      {/* The balance analysis (§2.54). Open by default — unlike the panels
-          above it, this one is something you *read* rather than operate, and it
-          is the reason most visits to this page will happen. */}
-      <Section id="postmortem" title={t('pm.title')}>
+      {/* The balance analysis (§2.54). Folded like the rest, despite being the
+          reason most visits here will happen — a page whose tools are shut
+          except for the tall one is not a page of tools, it is that one tool
+          with some headings above it. The verdict is one tap away and it is a
+          tap the reader meant to make. */}
+      <Section id="postmortem" title={t('pm.title')} defaultOpen={false}>
         {history.length > 0 ? (
           <PostMortem history={history} players={players} />
         ) : (

@@ -63,11 +63,29 @@ describe('the organiser’s workbench', () => {
     expect(fold(/Alerts/)).toBeInTheDocument();
   });
 
-  // The post-mortem is the reason most visits happen, so it is the one section
-  // that opens on arrival rather than behind a fold.
-  it('reads the nights without being asked to', () => {
+  // **Every deep panel shut on arrival.** A page of tools where one of them is
+  // already open is that tool with some headings above it, and the one most
+  // likely to be open by accident is the post-mortem, which is forty nights
+  // tall. Asked of the panels' contents rather than of the folds, because a
+  // fold that renders its children while claiming to be closed is exactly the
+  // failure worth catching.
+  //
+  // The recap is the deliberate exception — a month picker and a button, too
+  // shallow for a fold to save anything — so it is asserted *present* here.
+  it('opens nothing deep until it is asked to', () => {
     tools();
+    expect(screen.queryByText(/The big picture/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Register/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Share recap/ })).toBeInTheDocument();
+  });
+
+  it('reads the nights once the analysis is opened', () => {
+    tools();
+    fireEvent.click(fold(/Why were the teams uneven/)!);
     expect(screen.getByText(/The big picture/)).toBeInTheDocument();
+    // …and the forty night-cards stay behind their own fold, so the verdict is
+    // not buried the moment it appears.
+    expect(screen.getByText(/Night by night/)).toBeInTheDocument();
   });
 
   // A club with nothing filed still has a page. The recap and Team of the
@@ -78,6 +96,7 @@ describe('the organiser’s workbench', () => {
     tools([]);
     expect(fold(/Share recap/)).not.toBeInTheDocument();
     expect(fold(/Team of the Month/)).not.toBeInTheDocument();
+    fireEvent.click(fold(/Why were the teams uneven/)!);
     expect(screen.getByText(/No nights to analyse yet/)).toBeInTheDocument();
   });
 });
