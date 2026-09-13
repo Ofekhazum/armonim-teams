@@ -4,6 +4,22 @@ import type { Player } from './types';
 // match's squad — stop reading once we hit it.
 const STOP_HEADERS = new Set(['המתנה', 'רזרבה', 'ממתינים']);
 
+// Headers that divide the squad rather than end it. The names underneath are
+// still playing tonight — "מזמינים" is where the guests go, "שוערים" is where
+// the keepers go — so unlike a waiting list, these are skipped rather than
+// stopped at. They still have to be recognised: left in, a header counts as a
+// line that matched nothing, which drags every majority test below down with
+// it, and in the last-resort branch it becomes a player called "מזמינים".
+const SKIP_HEADERS = new Set([
+  'מזמינים',
+  'מוזמנים',
+  'אורחים',
+  'שוערים',
+  'guests',
+  'keepers',
+  'goalkeepers',
+]);
+
 // Strip Hebrew niqqud/cantillation too, in case a name was copied from
 // somewhere that includes it — it's decoration, not part of the name.
 const normalize = (s: string): string =>
@@ -30,8 +46,14 @@ function stripTrailingNotes(raw: string): string {
   return s.replace(/[,;]+$/, '').trim();
 }
 
+// WhatsApp bold — `*שם*` — survives the copy as literal asterisks. They are
+// formatting, not name, and a leading one is already claimed as a bullet by
+// BULLETED_LINE below, so a bolded name arrives here with a stray `*` on the
+// end whichever route it took.
+const stripEmphasis = (s: string): string => s.replace(/^[*_~]+/, '').replace(/[*_~]+$/, '');
+
 function cleanName(raw: string): string | null {
-  const name = stripTrailingNotes(raw.trim());
+  const name = stripTrailingNotes(stripEmphasis(raw.trim())).trim();
   return name && hasLetter(name) ? name : null;
 }
 
@@ -73,8 +95,9 @@ export function parseImportList(text: string): string[] {
   const lines: string[] = [];
   for (const rawLine of text.split('\n')) {
     const trimmed = rawLine.trim();
-    const header = trimmed.replace(/[^\p{L}]/gu, '');
+    const header = trimmed.replace(/[^\p{L}]/gu, '').toLowerCase();
     if (STOP_HEADERS.has(header)) break;
+    if (SKIP_HEADERS.has(header)) continue;
     if (/\d{1,2}:\d{2}/.test(trimmed)) continue; // e.g. a "19:00" time header
     if (trimmed) lines.push(trimmed);
   }
@@ -87,10 +110,21 @@ export function parseImportList(text: string): string[] {
   // (1, 2, 3, ... — gaps are fine) rather than a stray sentence's digit
   // breaking the run. This is what confirms unpunctuated "1 Name" lines are
   // really a list and not, say, "3 players still needed for Friday".
-  const looksNumbered =
-    isMajority(found.length, lines.length) &&
-    found.every((n, i) => i === 0 || n.n > found[i - 1].n);
-  if (looksNumbered) return found.map((n) => n.name);
+  //
+  // **…or climb again from 1.** A match-day message is usually two lists, not
+  // one: the squad, then a "מזמינים" section that starts its own numbering at
+  // 1. Demanding a single ascending run called that a non-list, and the
+  // fallbacks then failed one by one until the last resort handed back every
+  // line verbatim — with its number still attached, so not one name matched
+  // the roster and all fifteen regulars were imported as guests. Only a reset
+  // to exactly 1 is forgiven: that is a new list starting, whereas "2" after
+  // "15" is a sentence that happens to open with a digit.
+  const climbsOrRestarts = found.every(
+    (n, i) => i === 0 || n.n > found[i - 1].n || n.n === 1,
+  );
+  if (isMajority(found.length, lines.length) && climbsOrRestarts) {
+    return found.map((n) => n.name);
+  }
 
   // Not confidently numbered — only trust the lines that used a real
   // separator, so an unrelated line that happens to start with a digit
@@ -105,9 +139,16 @@ export function parseImportList(text: string): string[] {
     .filter((n): n is string => !!n);
   if (isMajority(bulleted.length, lines.length)) return bulleted;
 
-  // Nothing that looks like a number or a bullet — treat it as a plain
-  // list, one name per line.
-  return lines.map(cleanName).filter((n): n is string => !!n);
+  // Nothing that looks like a number or a bullet — treat it as a plain list,
+  // one name per line. A line that *did* parse as numbered still gives up its
+  // number here: reaching this branch means we were never confident the paste
+  // is a numbered list, which is not the same as believing "12" is part of
+  // somebody's name. Returning the raw line was how a single unrecognised
+  // shape turned every regular into a guest, and there is no paste for which
+  // "12 ירין" is the better answer.
+  return lines
+    .map((l) => matchNumbered(l)?.name ?? cleanName(l))
+    .filter((n): n is string => !!n);
 }
 
 /** Finds a roster player whose name or alias matches, case/whitespace-insensitively. */

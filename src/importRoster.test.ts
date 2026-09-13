@@ -65,6 +65,84 @@ describe('parseImportList', () => {
   it('handles a single unpunctuated numbered line on its own', () => {
     expect(parseImportList('1 עופר')).toEqual(['עופר']);
   });
+
+  // The reported bug, verbatim: a real Thursday message from the group.
+  //
+  // Two lists in one paste — the squad, then "מזמינים" numbered from 1 again.
+  // The old strict-ascending rule read the reset as proof this was not a list
+  // at all, and the last-resort branch then returned every line with its
+  // number still attached, so `matchPlayer` recognised nobody and all fifteen
+  // regulars were imported as guests.
+  it('reads a squad and a guest section that each number from 1', () => {
+    const paste = `*חמישי ערמונים 19:00🏆⚽️🇮🇱*
+1 חנגל
+2 הלחמי
+3 ניב
+4 יוני
+5 עילאי
+6 רותם
+7 שגב
+8 נדב
+9 חנש
+ 10 דור גי
+11 אופק
+12 ירין
+13 יועד
+14 טום
+15 שי
+
+*מזמינים*
+1. זרקא
+2. ארטיום`;
+    expect(parseImportList(paste)).toEqual([
+      'חנגל',
+      'הלחמי',
+      'ניב',
+      'יוני',
+      'עילאי',
+      'רותם',
+      'שגב',
+      'נדב',
+      'חנש',
+      'דור גי',
+      'אופק',
+      'ירין',
+      'יועד',
+      'טום',
+      'שי',
+      'זרקא',
+      'ארטיום',
+    ]);
+  });
+
+  it('skips a section header without ending the list', () => {
+    expect(parseImportList('1. עופר\nמזמינים\n1. דני')).toEqual(['עופר', 'דני']);
+    expect(parseImportList('1. עופר\nשוערים\n1. לירן')).toEqual(['עופר', 'לירן']);
+  });
+
+  // The restart is forgiven only at exactly 1 — a new list beginning. Anything
+  // else that drops is still a sentence that happens to open with a digit, and
+  // the punctuated-only branch is what has to catch it.
+  it('still refuses a mid-list number that drops to something other than 1', () => {
+    const text = '1. עופר\n3 players still needed for Friday\n2. דני\n4. יוסי';
+    expect(parseImportList(text)).toEqual(['עופר', 'דני', 'יוסי']);
+  });
+
+  it('strips WhatsApp bold from a name', () => {
+    expect(parseImportList('1. *עופר*\n2. דני')).toEqual(['עופר', 'דני']);
+  });
+
+  // Defence in depth for the branch that did the damage. Whatever shape of
+  // paste drops through to "plain list", handing back "12 ירין" as a name is
+  // never the right answer.
+  it('never returns a name with its list number still attached', () => {
+    // Deliberately unparseable as a list: numbers that jump around and no
+    // punctuation, so every confident branch declines it.
+    const messy = '7 עופר\n3 דני\n5 יוסי';
+    for (const name of parseImportList(messy)) {
+      expect(name).not.toMatch(/^\d/);
+    }
+  });
 });
 
 describe('matchPlayer', () => {
