@@ -80,10 +80,18 @@ of ticking players one by one:
    players still needed"`) from being swept in as a name, while still reading the shape a real
    match-day message actually has. A trailing note in brackets (`דני (אורח)`, `לירן (שוער)`) and
    WhatsApp emphasis (`*שם*`) are stripped from the name. Time headers (`19:00`-style) are skipped
-   outright; section headers that divide the squad rather than end it (`מזמינים` / `מוזמנים` /
-   `אורחים` / `שוערים`) are skipped too; and reading stops as soon as a waiting-list header is hit
-   (`המתנה` / `רזרבה` / `ממתינים`) — reserves aren't part of today's squad. Covered by
-   `src/importRoster.test.ts`.
+   outright; a header that divides the squad rather than ends it (`שוערים` — keepers are still
+   playing) is skipped too; and reading stops as soon as a waiting-list header is hit (`המתנה` /
+   `רזרבה` / `ממתינים` / **`מזמינים`** / `מוזמנים` / `אורחים`) — reserves aren't part of today's
+   squad. Covered by `src/importRoster.test.ts`.
+
+   **Why `מזמינים` stops rather than imports.** It means *invited*, and the app has a whole guest
+   concept for people who come and play, so skipping-and-importing looks like the obvious reading.
+   It is the wrong one: in practice nobody writes that header until the squad list is already at
+   fifteen, so the names under it are queueing for somebody to drop out. Importing them produced a
+   seventeen-man squad and teams built from two people who were not playing. A reserve who does get
+   the call is added as a guest by hand — which is the moment the organiser actually knows it. The
+   app has no standby concept and this is the cheap way to not need one.
 
    **The two-list bug, and what it taught.** A real message is usually a squad *and* a `מזמינים`
    section, each numbered from 1. The original rule demanded one ascending run across the whole

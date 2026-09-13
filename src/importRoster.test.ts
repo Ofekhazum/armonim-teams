@@ -68,12 +68,14 @@ describe('parseImportList', () => {
 
   // The reported bug, verbatim: a real Thursday message from the group.
   //
-  // Two lists in one paste — the squad, then "מזמינים" numbered from 1 again.
-  // The old strict-ascending rule read the reset as proof this was not a list
-  // at all, and the last-resort branch then returned every line with its
-  // number still attached, so `matchPlayer` recognised nobody and all fifteen
-  // regulars were imported as guests.
-  it('reads a squad and a guest section that each number from 1', () => {
+  // Two things were wrong with it. The old strict-ascending rule read the
+  // restart under "מזמינים" as proof this was not a list at all, and the
+  // last-resort branch then returned every line with its number still
+  // attached, so `matchPlayer` recognised nobody and all fifteen regulars were
+  // imported as guests. And "מזמינים" is a waiting list: by the time anybody
+  // writes that header the squad is already at fifteen, so those two are
+  // queueing for a drop-out rather than playing.
+  it('reads the squad and stops at מזמינים', () => {
     const paste = `*חמישי ערמונים 19:00🏆⚽️🇮🇱*
 1 חנגל
 2 הלחמי
@@ -110,14 +112,25 @@ describe('parseImportList', () => {
       'יועד',
       'טום',
       'שי',
-      'זרקא',
-      'ארטיום',
     ]);
   });
 
-  it('skips a section header without ending the list', () => {
-    expect(parseImportList('1. עופר\nמזמינים\n1. דני')).toEqual(['עופר', 'דני']);
+  it('stops at a guest/waiting header rather than importing reserves', () => {
+    expect(parseImportList('1. עופר\nמזמינים\n1. זרקא')).toEqual(['עופר']);
+    expect(parseImportList('1. עופר\n*מוזמנים*\n1. זרקא')).toEqual(['עופר']);
+  });
+
+  it('skips a keeper header without ending the list — they are still playing', () => {
     expect(parseImportList('1. עופר\nשוערים\n1. לירן')).toEqual(['עופר', 'לירן']);
+  });
+
+  // The numbering fix stands on its own, separately from the header rule: a
+  // paste can restart at 1 under a heading this does not recognise, and it is
+  // still a list. The heading itself falls out for free — it carries no
+  // number, so the numbered branch never picks it up.
+  it('reads two numbered sections under an unrecognised header', () => {
+    const text = '1 עופר\n2 דני\n*קבוצה ב*\n1 יוסי\n2 לירן';
+    expect(parseImportList(text)).toEqual(['עופר', 'דני', 'יוסי', 'לירן']);
   });
 
   // The restart is forgiven only at exactly 1 — a new list beginning. Anything

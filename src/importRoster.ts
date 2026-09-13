@@ -2,23 +2,31 @@ import type { Player } from './types';
 
 // A section like "המתנה" (waiting list) marks reserves who aren't in this
 // match's squad — stop reading once we hit it.
-const STOP_HEADERS = new Set(['המתנה', 'רזרבה', 'ממתינים']);
-
-// Headers that divide the squad rather than end it. The names underneath are
-// still playing tonight — "מזמינים" is where the guests go, "שוערים" is where
-// the keepers go — so unlike a waiting list, these are skipped rather than
-// stopped at. They still have to be recognised: left in, a header counts as a
-// line that matched nothing, which drags every majority test below down with
-// it, and in the last-resort branch it becomes a player called "מזמינים".
-const SKIP_HEADERS = new Set([
+//
+// "מזמינים" belongs here too, which is not obvious from the word. It means
+// *invited*, and the app has a whole guest concept for people who come and
+// play — but in practice the squad list is already capped at fifteen by the
+// time anybody writes that header, so the names under it are queueing for
+// somebody to drop out rather than playing tonight. Same situation as a
+// waiting list, so the same rule: their names are not tonight's squad. If one
+// of them does end up playing, they are added as a guest by hand, which is the
+// moment the organiser actually knows it.
+const STOP_HEADERS = new Set([
+  'המתנה',
+  'רזרבה',
+  'ממתינים',
   'מזמינים',
   'מוזמנים',
   'אורחים',
-  'שוערים',
   'guests',
-  'keepers',
-  'goalkeepers',
 ]);
+
+// Headers that divide the squad rather than end it: everyone under "שוערים" is
+// playing, they just keep goal. Skipped rather than stopped at — and they do
+// have to be recognised as something, because left in the list a header counts
+// as a line that matched nothing, which drags every majority test below it
+// down, and in the last-resort branch it becomes a player named "שוערים".
+const SKIP_HEADERS = new Set(['שוערים', 'keepers', 'goalkeepers']);
 
 // Strip Hebrew niqqud/cantillation too, in case a name was copied from
 // somewhere that includes it — it's decoration, not part of the name.
