@@ -75,12 +75,25 @@ of ticking players one by one:
    `1- Name`, or just `1 Name` with nothing but a space — any punctuation, or none, all work, since
    phones often don't render the dot into copied text), a bulleted list (`• Name` / `- Name`), or a
    plain one-name-per-line list with no prefix at all. For a numbered list, unpunctuated `N Name`
-   lines are only trusted once the numbers across the whole paste actually climb (gaps are fine,
-   e.g. `1, 3, 7`) — that's what stops an unrelated sentence starting with a digit (`"3 players
-   still needed"`) from being swept in as a name. A trailing note in brackets (`דני (אורח)`,
-   `לירן (שוער)`) is stripped from the name. Time headers (`19:00`-style) are skipped outright, and
-   reading stops as soon as a waiting-list header is hit (`המתנה` / `רזרבה` / `ממתינים`) — reserves
-   aren't part of today's squad. Covered by `src/importRoster.test.ts`.
+   lines are only trusted once the numbers actually climb (gaps are fine, e.g. `1, 3, 7`) **or
+   restart from exactly 1** — that's what stops an unrelated sentence starting with a digit (`"3
+   players still needed"`) from being swept in as a name, while still reading the shape a real
+   match-day message actually has. A trailing note in brackets (`דני (אורח)`, `לירן (שוער)`) and
+   WhatsApp emphasis (`*שם*`) are stripped from the name. Time headers (`19:00`-style) are skipped
+   outright; section headers that divide the squad rather than end it (`מזמינים` / `מוזמנים` /
+   `אורחים` / `שוערים`) are skipped too; and reading stops as soon as a waiting-list header is hit
+   (`המתנה` / `רזרבה` / `ממתינים`) — reserves aren't part of today's squad. Covered by
+   `src/importRoster.test.ts`.
+
+   **The two-list bug, and what it taught.** A real message is usually a squad *and* a `מזמינים`
+   section, each numbered from 1. The original rule demanded one ascending run across the whole
+   paste, so the reset read as proof this was not a list at all. Every branch below it then failed
+   its majority test in turn, and the last resort — "treat it as a plain list, one name per line" —
+   handed back every line with its number still attached. `matchPlayer` recognised nobody, and all
+   fifteen regulars were imported as guests. Two fixes, because the first is the cause and the
+   second is why one unhandled shape did so much damage: the numbering check now forgives a reset
+   to 1, and the plain-list branch peels a leading number anyway. Reaching the last resort means we
+   were never confident the paste is numbered; it never meant `12` is part of somebody's name.
 2. `resolveImportedNames(names, players, existingGuests, makeGuest)` matches each name against
    `player.name` or any of `player.aliases` (trim + case-insensitive). Matches become
    `session.availableIds`. Names that match nothing become guests via `makeGuest` — same default
