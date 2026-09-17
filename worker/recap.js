@@ -80,6 +80,8 @@ export function isValidFacts(facts) {
     isStrList(facts.duos, 6) &&
     // absent on a client that predates these; an empty list, not a fault
     (facts.notes === undefined || isStrList(facts.notes, 10)) &&
+    // one settled derby, or absent — see the prompt section
+    (facts.derby === undefined || isStr(facts.derby, 300)) &&
     // the organiser's own line. Capped here as well as in the app: this is the
     // one field in the payload that is prose rather than a counted thing, so
     // it is the one that could arrive as a wall of text.
@@ -197,8 +199,26 @@ So: **never put two people's facts in the same sentence as a list.** One fact, o
 
 The same goes for the shape of the paragraph. A paragraph that is one long chain of "X did this, Y did that, ו-Z did the other" has listed the night rather than reported it, however good each clause is on its own.
 
+NEVER ROLL-CALL A SQUAD. **No sentence anywhere in the report may name more than two players.** A run of names joined by commas is the single most common way this report goes wrong, and it looks like this, verbatim from a real one: "למרות מאמצים כבירים של עילאי, אופק, תמיר, רותם ו-שי". Five people, one clause, nothing said about any of them — the team sheet retyped with a compliment stapled to the front. The reader already knows who was on which team; they are reading this to find out what you made of it.
+
+So when you name somebody, name them because you have a sentence about *them*. One player with a real line beats five with a shared adjective, and the four you left out lose nothing, because being listed was never worth anything to them. This applies to every paragraph including the winners': a winning team is described by what it did and by one or two of the people who did it, never by reciting the five who were there.
+
 PAIRS WORTH MENTIONING
 ${list(facts.duos, '- none')}
+${
+    facts.derby
+      ? `
+TONIGHT'S DERBY
+- ${facts.derby}
+
+**The whole club read this pairing before kick-off.** It is on a banner on the app's front page all week: these two are picked because neither of them can put the other away, and the group is told to watch for it. That makes it the one thing in this record the audience was already waiting on, and a report that does not mention it has left out the only question anybody had going in.
+
+So it gets its own sentences, and it is written as a rivalry rather than as a record. Who came out on top tonight, what that does to a matchup that has been level for years, whether anything is actually settled. If their teams never met, that is the joke — the fixture the whole club turned up for, and the rota never put them on the pitch together.
+
+Both names, no third one. This is the one place two names in a sentence is exactly right.
+`
+      : ''
+  }
 
 ${
     facts.said
@@ -245,13 +265,15 @@ Invent the reporter. A different one every time, and an absurd one: an over-seri
 Then five paragraphs, in this order, 280 to 380 words in total:
 
 1. THE OPENING. What kind of night it was and who won it. Use the shape, the number of matches, the lead changes and the change index. Do not open with the date.
-2. THE WINNERS. The team that took the night: their points, how many matches they played, their longest run, and the players in that team by name.
-3. THE OTHER TWO TEAMS. One or two sentences each, both of them, by name — points, matches played, longest run, and at least one player named from each. Neither team may be skipped, even if their night was quiet. A team that won nothing gets a line about that.
+2. THE WINNERS. The team that took the night: their points, their longest run, and **one or two** of their players named with something actually said about them. Not the squad list — see NEVER ROLL-CALL A SQUAD below.
+3. THE OTHER TWO TEAMS. One or two sentences each, both of them, by name — their points, their longest run, and one player named from each with a reason for naming them. Neither team may be skipped, even if their night was quiet. A team that won nothing gets a line about that.
+
+   MATCHES PLAYED IS USUALLY NOT A STORY. In this format the teams take turns, so their match counts come out close by design and a one- or two-match difference is the rota, not a fact about anybody. Do not report how many matches a team played unless it is genuinely conspicuous — and if it were, it would be sitting in MOMENTS or THE STORIES below, written out for you. If it is not written below, it was not remarkable: say nothing about it. Never tell a team they watched more football than they played on your own initiative, and never dress a normal count up as "strange efficiency" or "they spent the night on the bench". A team that played six of ten in a night that swung constantly was not benched; they were resting one match at a time like everybody else.
 4. THE PEOPLE. This is the heart of the report and it should be the longest paragraph.${
     facts.said
       ? ' Everything under SOMETHING ELSE THAT HAPPENED TONIGHT belongs here, and it is the best material you have been given — nothing else in this record is an actual event. Give it real room (two or three sentences, and more if it holds more than one event) rather than a passing mention.'
       : ''
-  } Milestones reached, the stories above, the player of the night, and anyone who won a lot or a little — but chosen, not collected: see A FACT IS RAW MATERIAL above. Pick the three or four people whose night is actually worth a sentence and give each of them a real one; the rest of the facts go unused, which is what they are there for. Somebody who played four or more and won nothing gets a sympathetic ribbing rather than a kicking. Superstition is encouraged — if somebody keeps winning in one shirt colour, that is a curse and a blessing, not a coincidence.
+  }${facts.derby ? ' The derby belongs here too, and it is the one fact the group was already waiting on — give it real sentences.' : ''} Milestones reached, the stories above, the player of the night, and anyone who won a lot or a little — but chosen, not collected: see A FACT IS RAW MATERIAL above. Pick the three or four people whose night is actually worth a sentence and give each of them a real one; the rest of the facts go unused, which is what they are there for. Somebody who played four or more and won nothing gets a sympathetic ribbing rather than a kicking. Superstition is encouraged — if somebody keeps winning in one shirt colour, that is a curse and a blessing, not a coincidence.
 5. THE SIGN-OFF. One or two sentences looking forward to next week, aimed at **people, by name**, called out for **their own results tonight**: who won nothing, who won everything, who is on a run, who has not taken a night since the spring. And never aim it at an event nobody was named for — see WHO IT BELONGS TO above if there is a line up there. This is also the paragraph where the shirt rule gets broken, every time, so read it again before you write this: **next week's teams do not exist yet and nobody is in one.** A threat, a promise or a warning may only be made to a named player about themselves.
 
    Wrong, and the exact mistake to avoid: "נראה אם הכחולים יצליחו להגן על התואר" — the blues of next week are five different people. Also wrong: "השחורים חייבים לחזור חזק", "הלבנים ירצו נקמה", or anything at all about what a colour will do, want, defend or avenge.

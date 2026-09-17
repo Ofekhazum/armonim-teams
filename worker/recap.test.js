@@ -115,6 +115,52 @@ describe('buildPrompt', () => {
     expect(buildPrompt(facts({ winners: [] }))).toContain('nobody');
   });
 
+  // All three from one reported report.
+  //
+  // The squad roll-call is the failure the reader notices first: "למרות
+  // מאמצים כבירים של עילאי, אופק, תמיר, רותם ו-שי" — five names, one clause,
+  // nothing said about any of them. The prompt was *asking* for it, in two
+  // places, before it got round to forbidding it in a third.
+  it('forbids a squad roll-call, and stops asking for one', () => {
+    expect(p).toMatch(/NEVER ROLL-CALL A SQUAD/);
+    expect(p).toMatch(/no sentence anywhere in the report may name more than two players/i);
+    // the winners' paragraph used to demand "the players in that team by name"
+    expect(p).not.toMatch(/the players in that team by name/i);
+  });
+
+  // The teams take turns, so their match counts are close by design. Reporting
+  // one as a story produced "הלבנים הציגו יעילות משונה... בילו יותר זמן בצפייה
+  // מהצד מאשר במשחק עצמו" about a team that played six of ten and took two and
+  // a half points from them.
+  it('tells the reporter that matches played is usually not a story', () => {
+    expect(p).toMatch(/MATCHES PLAYED IS USUALLY NOT A STORY/);
+    expect(p).toMatch(/never tell a team they watched more football than they played/i);
+  });
+
+  describe('the derby', () => {
+    const line = 'אופק and ירין were tonight’s derby; their teams met 4 times and it finished 1-3';
+
+    it('gets its own section and is pointed at the people paragraph', () => {
+      const d = buildPrompt(facts({ derby: line }));
+      expect(d).toContain("TONIGHT'S DERBY");
+      expect(d).toContain(line);
+      expect(d).toMatch(/the group was already waiting on/i);
+    });
+
+    // A heading with nothing under it is an invitation to invent a rivalry,
+    // and this is the one fact the club reads before kick-off — inventing it
+    // would be worse than omitting it.
+    it('leaves no empty heading on a night that had none', () => {
+      expect(p).not.toContain("TONIGHT'S DERBY");
+    });
+
+    it('is accepted by the payload check, and is optional', () => {
+      expect(isValidFacts(facts({ derby: line }))).toBe(true);
+      expect(isValidFacts(facts())).toBe(true);
+      expect(isValidFacts(facts({ derby: 'x'.repeat(301) }))).toBe(false);
+    });
+  });
+
   it('puts the organiser’s note in the prompt, and says nothing when there is none', () => {
     const said = buildPrompt(facts({ said: 'Tom kicked the ball over the fence 5 times' }));
     expect(said).toContain('SOMETHING ELSE THAT HAPPENED TONIGHT');

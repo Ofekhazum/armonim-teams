@@ -2234,6 +2234,43 @@ refusal, no network — comes back as a message under the page, and the page ren
 today. A tallied night has no recap button at all, because there is no sequence to write about and a
 model asked to describe one anyway would invent it.
 
+#### What a read report sent back
+
+Four complaints on one night's report, and they split cleanly into two kinds: two were facts that
+should never have been in the payload, and two were the prompt asking for the wrong thing.
+
+**A habit is not tonight's news.** `playerArcs` measures whether somebody wins more in the first or
+last matches of a night. Handed over as a note, it produced *"ירין ו-אופק הראו סימני עייפות קשים
+לקראת הסוף כשהם קורסים לתוך הלילה"* — nobody collapsed into anything, and nobody was even tired. The
+reporter is told, correctly, to build a story out of every fact it gets; a career-long lean has no
+story in it that is true of the evening, and there is no wording that stops a sports writer
+dramatising one, because dramatising is the job. It was **removed** rather than reworded. The test
+for whether something belongs in `notes`: did it happen tonight, or did tonight just change it? A
+tendency is neither, and it stays on the player's own page where a tendency reads as one.
+
+**A rest is not a benching.** The bench detector fired on an absolute share — six of ten matches or
+fewer — and announced that a team *"spent more time watching than playing"* on a night that swung so
+constantly the three teams came out 7/7/6. It was untrue, and unkind to a team that had just taken
+two and a half points from those six. Playing less is only a story next to the others, so the test is
+now relative as well: at least `BENCH_GAP = 3` matches behind the busiest team. In this format a rest
+is exactly one match long, so anything smaller is the rota.
+
+**The prompt was asking for the roll-call it then forbade.** *"למרות מאמצים כבירים של עילאי, אופק,
+תמיר, רותם ו-שי"* — five names, one clause, nothing said about any of them. `A FACT IS RAW MATERIAL`
+had banned exactly this since the beginning, but two paragraphs earlier the same prompt demanded "the
+players in that team by name" and "at least one player named from each". The rule was fighting the
+instructions. Both instructions are gone, replaced by one or two players *with something said about
+them*, and by a hard ceiling: **no sentence may name more than two players.** Being listed was never
+worth anything to the three who got left out.
+
+**The derby was never in the payload.** §2.33 puts a derby on a banner the whole club reads before
+kick-off — the two players who cannot put each other away — and then the report never mentioned how
+it went, because `recapFacts` did not send it. That made it the most conspicuous omission available:
+the one thing the audience had been told to watch for. It is recovered the way `gradesFacts` already
+does it — `derbyOnRecord` recomputes the pick the group actually read, `settleDerby` counts what the
+two shirts did to each other — and `met: 0` is kept rather than dropped, because a rivalry the rota
+failed to stage is a better line than most of what is in there.
+
 ### 2.25 Team of the Month, registered (`src/totm.ts`, `worker/awards.js`)
 
 **Counts are derived; awards are registered.** Everything else in this app is worked out at read time

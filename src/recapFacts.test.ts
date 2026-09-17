@@ -245,6 +245,33 @@ describe('recapFacts', () => {
     expect(f.notes.some((n) => n.includes('watched more football than they played'))).toBe(true);
   });
 
+  // The reported complaint. On a night that swings every match the teams come
+  // out at 7/7/6 — the rota, not a story — and the old share-only test called
+  // the 6 a bench night. The report then told a team that had just taken two
+  // and a half points from those six that they had watched more football than
+  // they played.
+  it('does not call a one-match difference a night on the bench', () => {
+    const fx = night('ANNNNNNNNN'); // 10 matches, played 7 / 7 / 6
+    const f = recapFacts(fx, [fx], roster)!;
+    expect(f.notes.some((n) => n.includes('watched more football than they played'))).toBe(false);
+  });
+
+  // Removed rather than reworded. A career-long early/late lean is not
+  // something that happened tonight, and a reporter told to build a story out
+  // of every fact turned it into "they collapsed into the night" — an event
+  // that did not occur. It lives on the player's own page instead.
+  it('never hands over a career habit as if it were tonight’s news', () => {
+    const season = Array.from({ length: 12 }, (_, i) => ({
+      ...night('AWWWWWW'),
+      id: `s${i}`,
+      date: `2026-0${i < 9 ? 6 : 7}-${String((i % 9) + 1).padStart(2, '0')}`,
+    }));
+    const f = recapFacts(season[11], season, roster)!;
+    for (const note of f.notes) {
+      expect(note).not.toMatch(/slow starter|fades/);
+    }
+  });
+
   it('caps how much of any one kind travels', () => {
     // fifteen players all wearing three shirts would otherwise crowd out the
     // once-a-season story before it is even looked at
@@ -278,6 +305,42 @@ describe('recapFacts', () => {
     };
     const f = recapFacts(withGuest, [...past, withGuest], roster)!;
     expect(f.notes.some((n) => n.includes('זרקא') && n.includes('guest'))).toBe(true);
+  });
+
+  // The derby is on a banner the whole club reads before kick-off, so it is
+  // the one fact the audience is already waiting on — and it was missing from
+  // the payload entirely, which is why the report never mentioned it.
+  describe('the derby', () => {
+    // Alternating who holds the pitch, because a derby has a ceiling as well
+    // as a floor: twelve identical nights leave אופק 44-0 up on ירין, which is
+    // a bogey man and gets no banner by design (§2.33). Swapping the dominant
+    // shirt each week lands them at 24-20 over 44 — a real rivalry.
+    const season = Array.from({ length: 12 }, (_, i) => ({
+      ...night(i % 2 === 0 ? 'AWWWWWW' : 'WWWWWWW'),
+      id: `s${i}`,
+      date: `2026-0${i < 9 ? 6 : 7}-${String((i % 9) + 1).padStart(2, '0')}`,
+    }));
+
+    it('travels with how it actually went', () => {
+      const f = recapFacts(season[11], season, roster)!;
+      expect(f.derby).toBeDefined();
+      // both names, the record they were picked on, and tonight's answer
+      expect(f.derby).toContain('אופק');
+      expect(f.derby).toContain('ירין');
+      expect(f.derby).toMatch(/derby/);
+    });
+
+    it('is absent when no pair has enough history to be picked', () => {
+      const fx = night('AWWWWWW');
+      expect(recapFacts(fx, [fx], roster)!.derby).toBeUndefined();
+    });
+
+    it('is absent on a night that was only tallied', () => {
+      // no matchLog at all — recapFacts returns null, so there is nothing to
+      // settle a derby against in the first place
+      const tallied = night('AWWWWWW', { matchLog: undefined });
+      expect(recapFacts(tallied, [...season, tallied], roster)).toBeNull();
+    });
   });
 
   it('passes the organiser’s note through, and omits it when there is none', () => {

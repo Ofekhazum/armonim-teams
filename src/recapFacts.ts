@@ -27,7 +27,7 @@ import { tonightsMilestones } from './milestones';
 import { nightStory, playerNight } from './nightStory';
 import { MIN_FACED, matchups, profileCounts, profileNights } from './playerProfile';
 import { isWinMilestone } from './milestones';
-import { lean, playerArcs } from './playerArcs';
+import { derbyOnRecord, settleDerby } from './derby';
 
 export interface RecapTeam {
   team: string; // 'Black' | 'White' | 'Blue' — named, not coded, so the model reads it
@@ -66,6 +66,11 @@ export interface RecapFacts {
   // says: who had the best of it, and — the one worth having — who ran into
   // the opponent who usually beats them and came out ahead.
   notes: string[];
+  // Tonight's derby and how it actually went (§2.33). The one fact in here the
+  // group was told to watch for *before* kick-off, which is why the report
+  // leaving it out was so conspicuous. Absent on a night with no match log,
+  // and on one where no pair had enough history to be picked.
+  derby?: string;
   // What the organiser typed as they filed the night, if anything. Everything
   // else here was counted; this is the only line the app did not work out for
   // itself, and it is the only route by which something that happened off the
@@ -96,8 +101,11 @@ const SHIRT_GAP = 0.3;
 const AWAY_NIGHTS = 3;
 // A career win milestone this close is worth pointing at.
 const NEAR_MILESTONE = 6;
-// A team that played this share of the night or less spent it watching.
+// A team that played this share of the night or less spent it watching — and
+// has to be at least BENCH_GAP matches behind the busiest team before that is
+// worth saying at all. See the note at the detector.
 const BENCH_SHARE = 0.6;
+const BENCH_GAP = 3;
 
 // English team keys even though the recap is written in Hebrew: these are
 // identifiers the prompt maps to Hebrew names, not copy. Keeping the facts in
@@ -181,6 +189,33 @@ export function recapFacts(
   // exactly this reason) — and the report is about a night, not a season.
   const notes = nightNotes(fixture, history);
 
+  // 🤝 The derby, settled (§2.33).
+  //
+  // The group reads the derby banner before kick-off — two players who cannot
+  // put each other away, named to the whole club — and then the report never
+  // mentioned how it went, because it was never in the payload. That is the
+  // one thing in the night the audience was already told to watch for, so its
+  // absence was the most conspicuous gap in the report.
+  //
+  // Recovered rather than remembered, exactly as `gradesFacts` does it:
+  // `derbyOnRecord` recomputes the pick the group actually read, and
+  // `settleDerby` counts what the two shirts did to each other. `met: 0` is
+  // kept rather than dropped — a rivalry the night failed to stage is a better
+  // line than most of what is here.
+  const derby = (() => {
+    const picked = derbyOnRecord(fixture, asOf, rosterIds);
+    if (!picked) return null;
+    const settled = settleDerby(fixture, picked);
+    if (!settled) return null;
+    const { aName, bName, met, aTook, bTook, faced, aWon, bWon, penalties } = settled;
+    const history_ = `going in, ${aWon}-${bWon} to ${aName} across ${faced} matches — which is why they were picked`;
+    if (met === 0) {
+      return `${aName} and ${bName} were tonight's derby (${history_}) and their teams never met`;
+    }
+    const shootouts = penalties > 0 ? `, ${penalties} of them on penalties` : '';
+    return `${aName} and ${bName} were tonight's derby (${history_}); their teams met ${met} times${shootouts} and it finished ${aTook}-${bTook}`;
+  })();
+
   const players: RecapPlayerLine[] = [];
   for (const p of fixture.players) {
     const n = playerNight(fixture, p.id);
@@ -208,6 +243,7 @@ export function recapFacts(
     milestones,
     duos,
     notes,
+    ...(derby ? { derby } : {}),
     ...(fixture.note?.trim() ? { said: fixture.note.trim() } : {}),
   };
 }
@@ -274,9 +310,23 @@ function nightNotes(fixture: FixtureRecord, history: FixtureRecord[]): string[] 
   }
 
   // 🪑 Bench time — the team that spent the night watching.
+  //
+  // **Relative to the other two, not to the night.** The share test alone
+  // called a team benched for playing 6 of 10 while the others played 7 — a
+  // one-match difference, on an evening that swung so much all three were
+  // barely off the pitch. The report duly announced that they "spent more time
+  // watching than playing", which was both untrue and unkind to a team that
+  // had just taken two and a half points from those six.
+  //
+  // Playing less is only a story when it is conspicuous, and conspicuous means
+  // next to the others: a rest in this format is one match long, so a team has
+  // to be several behind the busiest before anyone in the hall would notice.
+  // Both tests now have to pass.
+  const playedBy = (c: TeamColor) => log.filter((m) => m.a === c || m.b === c).length;
+  const busiest = Math.max(...TEAM_COLORS.map(playedBy));
   for (const c of TEAM_COLORS) {
-    const played = log.filter((m) => m.a === c || m.b === c).length;
-    if (played / log.length <= BENCH_SHARE) {
+    const played = playedBy(c);
+    if (played / log.length <= BENCH_SHARE && busiest - played >= BENCH_GAP) {
       add(
         'bench',
         `${LABEL[c]} were only on the pitch for ${played} of the ${log.length} matches — they watched more football than they played`,
@@ -367,19 +417,21 @@ function nightNotes(fixture: FixtureRecord, history: FixtureRecord[]): string[] 
       }
     }
 
-    // ⏳ Late surge — the half of a night they are actually good in. This is
-    // the one number here that is about a habit rather than an event, which is
-    // why it waits for both halves to be worth comparing (see playerArcs).
-    const arcs = playerArcs(before, p.id);
-    const which = lean(arcs);
-    if (which === 'late' || which === 'early') {
-      add(
-        'halves',
-        which === 'late'
-          ? `${p.name} is a slow starter: ${arcs.early.won} of ${arcs.early.played} in their first matches of a night, ${arcs.late.won} of ${arcs.late.played} in their last`
-          : `${p.name} fades: ${arcs.early.won} of ${arcs.early.played} in their first matches of a night, ${arcs.late.won} of ${arcs.late.played} in their last`,
-      );
-    }
+    // ⏳ The early/late split — `playerArcs` — is deliberately NOT a note.
+    //
+    // It was one, and the reports it produced are why it is not: "ירין ו-אופק
+    // הראו סימני עייפות קשים לקראת הסוף כשהם קורסים לתוך הלילה". Nobody
+    // collapsed into anything. Two players have a mild lean across a career's
+    // worth of nights, and the reporter — correctly told to build a story out
+    // of every fact it is handed — turned a statistical tendency into an event
+    // that did not happen on the evening being reported.
+    //
+    // That is the tell for what belongs here at all: a note has to be
+    // something that happened *tonight*, or a career fact tonight just
+    // changed. A standing habit is neither, and there is no wording of it that
+    // stops a sports reporter dramatising it, because dramatising is the job.
+    // It stays on the player's own page, which is where a tendency reads as a
+    // tendency. See §2.24.
 
     // who, coming into tonight, had the clearest hold over them
     const bogey = matchups(before, p.id)
