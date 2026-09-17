@@ -4469,6 +4469,51 @@ a mark down to make room, and only where the ceiling has left nowhere else to go
 the point the facts are built, so no prompt has to be taught to ignore one and no report can quote a
 `+` back at the group. The event boundaries the organiser drew survive the strip.
 
+### 2.58 The events, edited as a list (`EventsEditor.tsx`)
+
+A fixture stores its note as one string, so both places that edit one handed the organiser a two-row
+textarea holding the raw stored form:
+
+```
+@שאפו לסרן יועד שעשה שינוי בכוחות ברגע האחרון בזמן שהוא עושה מילואים בעזה.@ @מילה
+טובה לשי שהיה מעולה ושם 4 גולים.@
+```
+
+Three things are wrong with that and they compound. The `@` delimiters are load-bearing syntax being
+maintained by hand. In a right-to-left line they render where the eye does not expect them, so which
+`@` closes which event is genuinely hard to see. And with the text wrapping, there is no visual
+boundary between one event and the next — in the screenshot that prompted this, two events read as
+one paragraph.
+
+So the list stopped being something typed and became something seen: **one box per event**, add and
+remove as buttons, delimiters written by `serialiseEvents` on the way out. Nobody has to know `@`
+exists. Notes filed before this still parse, because `parseEvents` is the same function on both
+paths, and a note written by hand in either supported shape round-trips into the `@…@` form.
+
+**The §2.57 markers became a stepper, which is the bigger win.** Typing `+` at the end of an RTL line
+is exactly the kind of instruction people follow wrongly and then cannot see that they followed
+wrongly. The control reads in **points** — `+1.5` — because that is the question the organiser is
+asking; `+++` is merely how the answer is stored. Capped at ±3.0 on the control only: `eventMarks`
+still nets whatever a hand-typed note carries, and three points already outweighs every other term in
+the grade formula put together, so a stepper that kept going would only ever be answering a mis-click.
+
+**A React batching bug shipped twice here, and is worth the paragraph.** Taps in one tick all read
+the same snapshot, so the second wrote what the first had already written: a double tap moved a mark
+half a point instead of a full one, silently. The first fix — a ref assigned during render — did not
+work either, because React 18 batches, so three synchronous clicks all run *before* a single
+re-render and a ref refreshed on render is as stale as the closure was. The ref has to be advanced
+inside the writer, at the moment the edit is made, and on the re-seed path too.
+
+The reason it took two goes is the part to remember: **`fireEvent` flushes React between calls**, so
+three separate `fireEvent.click`s passed against the broken component. The test was green while the
+browser showed `+0.5` for three taps. Only firing them inside one `act` reproduces it — which is what
+the test does now, verified by reverting the fix and watching it fail.
+
+Two smaller things the first rendering got wrong, both caught by looking at it rather than by
+reasoning about it: an em-dash for a zero adjustment reads as a third button between the two square
+ones (it says `0.0`), and the character budget was measured against the words in the box rather than
+against the string they serialise to, which let a full note come back two characters over the limit.
+
 ## 3. Team generation algorithm
 
 Balancing is a small constrained optimization. With ≤15 players, brute force is too big

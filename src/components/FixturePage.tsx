@@ -18,6 +18,7 @@ import TeamCards from './TeamCards';
 import TonightFacts from './TonightFacts';
 import MatchLog from './MatchLog';
 import ScoreBar from './ScoreBar';
+import EventsEditor from './EventsEditor';
 import { useScrollLock } from '../scrollLock';
 import { t } from '../i18n';
 
@@ -232,29 +233,20 @@ export default function FixturePage({
                 Naming a player in the line is also what gives the reporter
                 permission to go after them for it, so the box says that too. */}
             <p className="mt-1 text-xs text-amber-900/50">{t('fx.note.format')}</p>
-            {/* The grade markers (§2.57), set apart from the formatting note
-                above because they do something categorically different: every
-                other thing in this box changes what gets *written* about the
-                night, and this one changes a player's mark. The example is
-                pinned `ltr` so the `++` renders at the end of the line the way
-                it will be typed, rather than being flipped to the front by the
-                surrounding RTL paragraph. */}
-            <p className="mt-0.5 text-xs text-amber-900/50">
-              {t('fx.note.marks')}{' '}
-              <code dir="ltr" className="inline-block rounded bg-amber-900/10 px-1 font-mono">
-                {t('fx.note.marks.example')}
-              </code>
-            </p>
-            <textarea
-              value={note}
-              onChange={(e) => setNote(e.target.value.slice(0, NOTE_MAX))}
-              rows={3}
-              autoFocus
-              placeholder={t('fx.note.placeholder')}
-              className="mt-3 w-full rounded-xl border border-amber-900/25 bg-white px-3 py-2 text-sm text-amber-950 outline-none focus:border-orange-500"
-            />
-            <div className="mt-1 text-end text-[11px] text-amber-900/35">
-              {note.trim().length}/{NOTE_MAX}
+            {/* What the stepper on each event does (§2.57). Still worth a line
+                even though the control is now visible: a button that changes
+                somebody's mark should say so before it is pressed, not after.
+                The `@…@` syntax is no longer explained anywhere, because the
+                editor writes it. */}
+            <p className="mt-0.5 text-xs text-amber-900/50">{t('fx.note.marks')}</p>
+            <div className="mt-3">
+              <EventsEditor
+                value={note}
+                onChange={setNote}
+                max={NOTE_MAX}
+                placeholder={t('fx.note.placeholder')}
+                autoFocus
+              />
             </div>
             <div className="mt-3 flex flex-col gap-2">
               <button

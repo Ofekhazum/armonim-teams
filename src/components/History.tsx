@@ -14,6 +14,7 @@ import Leaderboards from './Leaderboards';
 import PlayerCompare from './PlayerCompare';
 import MvpPicker from './MvpPicker';
 import NightPage from './NightPage';
+import EventsEditor from './EventsEditor';
 import { t } from '../i18n';
 
 interface Props {
@@ -605,24 +606,23 @@ export default function History({
                       handed to the reporter, and a note printed on the page it
                       describes is the punchline printed above the joke.
                       Emptying the box deletes it. */}
-                  <label className="block text-xs text-amber-900/70">
-                    {t('hist.edit.note')}
-                    <textarea
+                  {/* One box per event rather than the raw stored string
+                      (§2.58). This is the editor that prompted the change:
+                      correcting a filed night meant finding the right `@` in a
+                      two-row textarea of wrapped Hebrew, and the two events in
+                      it read as one paragraph. */}
+                  <div className="space-y-1">
+                    <span className="block text-xs text-amber-900/70">{t('hist.edit.note')}</span>
+                    <EventsEditor
                       value={draft.note}
-                      onChange={(e) =>
-                        setDraft((d) =>
-                          d ? { ...d, note: e.target.value.slice(0, NOTE_MAX) } : d,
-                        )
-                      }
-                      rows={2}
+                      onChange={(note) => setDraft((d) => (d ? { ...d, note } : d))}
+                      max={NOTE_MAX}
                       placeholder={t('hist.edit.note.placeholder')}
-                      className="mt-1 w-full rounded-lg border border-amber-900/25 bg-white px-2 py-1.5 text-sm text-amber-950 outline-none focus:border-orange-500"
                     />
-                    <span className="text-[10px] text-amber-900/35">
-                      {draft.note.trim().length}/{NOTE_MAX}
+                    <span className="block text-[10px] text-amber-900/35">
                       {t('hist.edit.note.counter')}
                     </span>
-                  </label>
+                  </div>
                   <p className="text-xs text-amber-900/50">
                     {editingLogged
                       ? t('hist.edit.logged')

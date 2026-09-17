@@ -104,18 +104,42 @@ describe('ending a night', () => {
     expect(screen.getByText('Anything worth remembering?')).toBeInTheDocument();
   });
 
-  // The grade markers (§2.57) are the only thing typed in this box that moves a
-  // number rather than a sentence, and the only way anybody finds out they
-  // exist is this line — there is no other UI for them.
-  it('says how to make a note move a mark, with an example to copy', () => {
+  // The grade markers (§2.57) are the only thing in this box that moves a
+  // number rather than a sentence. They used to be punctuation typed at the end
+  // of an RTL line, with a worked example underneath; since §2.58 they are a
+  // stepper on each event, so the example is gone and the control is the
+  // documentation.
+  it('offers a stepper on the event rather than punctuation to type', () => {
     page();
     click(/End fixture/);
     click(/Save to history/);
     expect(screen.getByText(/Want it to move the mark too/)).toBeInTheDocument();
-    const example = screen.getByText('@שי שם 4 גולים ++@');
-    // Pinned ltr inside an RTL paragraph, or the `++` renders at the wrong end
-    // of the line from the one it has to be typed at.
-    expect(example).toHaveAttribute('dir', 'ltr');
+    expect(screen.getByRole('button', { name: /Half a point up/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Half a point down/ })).toBeInTheDocument();
+  });
+
+  it('files an event the stepper was used on with its markers attached', () => {
+    const { onSaveResults } = page();
+    click(/End fixture/);
+    click(/Save to history/);
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'שי שם 4 גולים' } });
+    click(/Half a point up/);
+    click(/Half a point up/);
+    click(/Save with the note/);
+    expect(onSaveResults).toHaveBeenCalledWith('@שי שם 4 גולים ++@');
+  });
+
+  it('keeps two events apart instead of running them together', () => {
+    const { onSaveResults } = page();
+    click(/End fixture/);
+    click(/Save to history/);
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'first' } });
+    click(/Another event/);
+    const boxes = screen.getAllByRole('textbox');
+    expect(boxes).toHaveLength(2);
+    fireEvent.change(boxes[1], { target: { value: 'second' } });
+    click(/Save with the note/);
+    expect(onSaveResults).toHaveBeenCalledWith('@first@ @second@');
   });
 
   it('files nothing when the night is binned, note step never seen', () => {
@@ -125,6 +149,9 @@ describe('ending a night', () => {
     expect(screen.queryByText('Anything worth remembering?')).not.toBeInTheDocument();
   });
 
+  // Stored in the `@…@` form the editor writes (§2.58), rather than as the bare
+  // words it used to save. The delimiters are what keep an event whole when it
+  // contains a newline, and they are no longer something anybody types.
   it('carries what was typed through to the record', () => {
     const { onSaveResults } = page();
     click(/End fixture/);
@@ -133,7 +160,7 @@ describe('ending a night', () => {
       target: { value: 'הכדור עף מעל הגדר 5 פעמים' },
     });
     click(/Save with the note/);
-    expect(onSaveResults).toHaveBeenCalledWith('הכדור עף מעל הגדר 5 פעמים');
+    expect(onSaveResults).toHaveBeenCalledWith('@הכדור עף מעל הגדר 5 פעמים@');
   });
 
   it('files with no note at all when the box is left empty', () => {
