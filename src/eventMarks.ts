@@ -51,7 +51,7 @@ export function splitEvents(said: string | null | undefined): string[] {
 }
 
 /** One event with its markers peeled off: the words, and what they are worth. */
-interface Marked {
+export interface Marked {
   text: string;
   /** `+0.5` per `+`, `−0.5` per `−`, netted. Zero when the event carries none. */
   delta: number;
@@ -187,6 +187,37 @@ export function eventMarks(fx: FixtureRecord): Map<string, number> {
     }
   }
   return out;
+}
+
+/**
+ * The note, read back as the list of events it is (§2.58).
+ *
+ * The stored form is a string because that is what a `FixtureRecord` has always
+ * carried and what the Worker's prompt builder reads. The *editable* form is a
+ * list, because that is what it actually is — and hand-maintaining `@…@`
+ * delimiters inside a two-row textarea, in Hebrew, was a thing the organiser
+ * was being asked to do that no part of the app needed them to do.
+ *
+ * Round-trips with `serialiseEvents`. Reading a note written by hand in either
+ * supported shape and writing it back always produces the `@…@` form, which is
+ * the one that survives an event containing a newline.
+ */
+export const parseEvents = (note: string | null | undefined): Marked[] =>
+  splitEvents(note).map(peel).filter((e) => e.text.length > 0);
+
+/** The markers for one event, as the organiser would have typed them. */
+const markerFor = (delta: number): string => {
+  const steps = Math.round(Math.abs(delta) / MARK_STEP);
+  return steps === 0 ? '' : (delta > 0 ? '+' : '-').repeat(steps);
+};
+
+/** The list written back to the one string a fixture record stores. */
+export function serialiseEvents(events: Marked[]): string {
+  return events
+    .map((e) => ({ text: e.text.trim(), mark: markerFor(e.delta) }))
+    .filter((e) => e.text.length > 0)
+    .map((e) => `@${e.mark ? `${e.text} ${e.mark}` : e.text}@`)
+    .join(' ');
 }
 
 /**
