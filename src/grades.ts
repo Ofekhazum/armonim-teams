@@ -243,11 +243,25 @@ const LOSER_CAP = WIN_FLOOR - 0.5;
  * using them: on a night where the pick was on a beaten team, the cap stopped
  * others reaching 9.5 without ever lifting the pick above the winners at 9.
  *
- * Applied last, after every floor and cap, and as a *lift only* — it never
- * lowers anybody else to make room. The pick is raised to half a point clear of
- * the best other mark, then clamped to the top of the scale. On a night where
- * somebody else is already at `GRADE_MAX` there is nowhere to go, and the two
- * share the top, which is the honest answer rather than a manufactured gap.
+ * **A ceiling on everybody else, never a lift on the pick.** The first version
+ * did both — raise the pick to half a point clear of the best other mark, then
+ * hold the others below it — and the lift is the half that had to go, because
+ * of what it did once §2.57 let the organiser add markers. Praising somebody
+ * else in the note raised *the pick's* mark: a `+` written about the goalkeeper
+ * pushed the MVP up to stay ahead of them, so a player's grade moved for
+ * something said about a different player. The organiser's words are supposed
+ * to reach the person they name and nobody else.
+ *
+ * So the pick's mark is now whatever the formula and the pick's *own* markers
+ * make it, and that number is the ceiling the rest of the night is held under.
+ * The gap is guaranteed either way; this is the direction that keeps it from
+ * inventing a number nobody earned.
+ *
+ * The cost is real and worth stating: on a night where the pick grades low, the
+ * whole field is compressed under them — a player with several markers can be
+ * pulled down to half a point below a pick who had a quiet game by the
+ * scoreline. That is the same trade the rule was always making, only now it is
+ * paid by the field instead of hidden in the pick's number.
  */
 const MVP_CLEAR = 0.5;
 
@@ -813,21 +827,11 @@ export function nightGrades(history: FixtureRecord[], fixtureId: string): Grade[
     g.grade = clamp(g.grade + mark, GRADE_MIN, GRADE_MAX);
   }
 
-  // The pick, lifted clear of the field (see MVP_CLEAR). Last, because it is
-  // the only rule here that reads other players' finished marks rather than one
-  // player's own inputs — and a lift, never a push-down: nobody else's mark
-  // moves to make room.
+  // The pick's own mark is the field's ceiling (see MVP_CLEAR). Last, because
+  // it is the only rule here that reads other players' finished marks rather
+  // than one player's own inputs.
   const pick = out.find((g) => g.context.isMvp);
   if (pick) {
-    const best = out.reduce((m, g) => (g.context.isMvp ? m : Math.max(m, g.grade)), GRADE_MIN);
-    pick.grade = clamp(Math.max(pick.grade, best + MVP_CLEAR), GRADE_MIN, GRADE_MAX);
-    // **And the pick stays clear from the other direction.** `MVP_CLEAR` above
-    // lifts the pick over the field, which is enough until the field is at the
-    // top of the scale: twenty markers on one player puts them at 10, the lift
-    // asks for 10.5, the clamp refuses, and the night's best mark is shared
-    // with somebody the room did not vote for. So the gap is also enforced
-    // downwards — the only thing that ever pushes a mark down to make room, and
-    // only where the ceiling has left nowhere else to go.
     const ceiling = pick.grade - MVP_CLEAR;
     for (const g of out) if (!g.context.isMvp) g.grade = Math.min(g.grade, ceiling);
   }
