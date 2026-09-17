@@ -195,7 +195,23 @@ describe('buildPrompt', () => {
     it('is accepted by the payload check, and is optional', () => {
       expect(isValidFacts(facts({ derby: line }))).toBe(true);
       expect(isValidFacts(facts())).toBe(true);
-      expect(isValidFacts(facts({ derby: 'x'.repeat(301) }))).toBe(false);
+      expect(isValidFacts(facts({ derby: 'x'.repeat(501) }))).toBe(false);
+    });
+
+    // The line grew when it started naming the winner (§2.33.1), and the cap
+    // is the one place that costs a whole report rather than a few words.
+    // Measured, not estimated: two long Hebrew names with a three-figure
+    // head-to-head and a level finish.
+    it('takes the longest line the app can build', () => {
+      const a = 'מקסימיליאן בן-אברהם';
+      const b = 'אלכסנדר רוזנצוויג';
+      const longest =
+        `${a} and ${b} were tonight's derby (going in, 120-118 to ${a} across 238 matches ` +
+        `— which is why they were picked); their teams met 12 times, 6 of them on penalties, ` +
+        `${a} took 7 and ${b} took 5 — tonight's derby finished level, so neither of them ` +
+        `took it and nothing was settled`;
+      expect(longest.length).toBeGreaterThan(300); // would have been refused before
+      expect(isValidFacts(facts({ derby: longest }))).toBe(true);
     });
 
     // A report went out saying both of them won it. The fact line now carries

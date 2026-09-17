@@ -80,8 +80,15 @@ export function isValidFacts(facts) {
     isStrList(facts.duos, 6) &&
     // absent on a client that predates these; an empty list, not a fault
     (facts.notes === undefined || isStrList(facts.notes, 10)) &&
-    // one settled derby, or absent — see the prompt section
-    (facts.derby === undefined || isStr(facts.derby, 300)) &&
+    // One settled derby, or absent — see the prompt section.
+    //
+    // Raised from 300 when the line started naming the winner outright instead
+    // of ending in a bare scoreline (§2.33.1). It reads long because every
+    // number now travels beside the name that owns it, and two long Hebrew
+    // names with a three-figure head-to-head measured at 348 — over the old
+    // cap, and the failure there is not a truncated derby line, it is
+    // `400 bad facts` and a night with no report at all.
+    (facts.derby === undefined || isStr(facts.derby, 500)) &&
     // the organiser's own line. Capped here as well as in the app: this is the
     // one field in the payload that is prose rather than a counted thing, so
     // it is the one that could arrive as a wall of text.
