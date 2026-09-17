@@ -2234,6 +2234,52 @@ refusal, no network — comes back as a message under the page, and the page ren
 today. A tallied night has no recap button at all, because there is no sequence to write about and a
 model asked to describe one anyway would invent it.
 
+#### What a read report sent back
+
+Four complaints on one night's report, and they split cleanly into two kinds: two were facts that
+should never have been in the payload, and two were the prompt asking for the wrong thing.
+
+**A habit is not tonight's news.** `playerArcs` measures whether somebody wins more in the first or
+last matches of a night. Handed over as a note, it produced *"ירין ו-אופק הראו סימני עייפות קשים
+לקראת הסוף כשהם קורסים לתוך הלילה"* — nobody collapsed into anything, and nobody was even tired. The
+reporter is told, correctly, to build a story out of every fact it gets; a career-long lean has no
+story in it that is true of the evening, and there is no wording that stops a sports writer
+dramatising one, because dramatising is the job. It was **removed** rather than reworded. The test
+for whether something belongs in `notes`: did it happen tonight, or did tonight just change it? A
+tendency is neither, and it stays on the player's own page where a tendency reads as one.
+
+**A rest is not a benching.** The bench detector fired on an absolute share — six of ten matches or
+fewer — and announced that a team *"spent more time watching than playing"* on a night that swung so
+constantly the three teams came out 7/7/6. It was untrue, and unkind to a team that had just taken
+two and a half points from those six. Playing less is only a story next to the others, so the test is
+now relative as well: at least `BENCH_GAP = 3` matches behind the busiest team. In this format a rest
+is exactly one match long, so anything smaller is the rota.
+
+**Events get written about, not announced.** The complaint was that four `@event@` markers produced
+four mentions and nothing made of any of them. Two clauses in the prompt were licensing precisely
+that — *"use as many as you can carry"* and *"dropping one entirely is better than welding it onto
+another"* — and a third made it inevitable: a fixed 280–380 word budget cannot pay for four events at
+two sentences each on top of five paragraphs, so the model met the number it could count and skimped
+on the one it could not. Now every event is written about, none may be dropped, merged or summarised
+away, and **the budget grows by about forty words per extra event**. The prompt also shows the
+difference on an invented fact rather than only naming it, because *announced* and *talked about* are
+the same fact and a rule that only names them leaves the model guessing which side of the line a
+sentence is on.
+
+**The correction worth recording: this was never about names.** A first pass read the complaint about
+the bench line as a complaint about *"עילאי, אופק, תמיר, רותם ו-שי"* and capped every sentence at two
+names, which pulled the squads out of the team paragraphs — the opposite of what the club wants. The
+team sheet is something the group reads the report for. `A FACT IS RAW MATERIAL` is about **facts
+with nothing made of them**, never about how many people a sentence may name, and it now says so.
+
+**The derby was never in the payload.** §2.33 puts a derby on a banner the whole club reads before
+kick-off — the two players who cannot put each other away — and then the report never mentioned how
+it went, because `recapFacts` did not send it. That made it the most conspicuous omission available:
+the one thing the audience had been told to watch for. It is recovered the way `gradesFacts` already
+does it — `derbyOnRecord` recomputes the pick the group actually read, `settleDerby` counts what the
+two shirts did to each other — and `met: 0` is kept rather than dropped, because a rivalry the rota
+failed to stage is a better line than most of what is in there.
+
 ### 2.25 Team of the Month, registered (`src/totm.ts`, `worker/awards.js`)
 
 **Counts are derived; awards are registered.** Everything else in this app is worked out at read time
