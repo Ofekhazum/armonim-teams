@@ -197,6 +197,17 @@ describe('buildPrompt', () => {
       expect(isValidFacts(facts())).toBe(true);
       expect(isValidFacts(facts({ derby: 'x'.repeat(301) }))).toBe(false);
     });
+
+    // A report went out saying both of them won it. The fact line now carries
+    // the verdict outright (see `recapFacts`), so the prompt's job is to stop
+    // the model deriving a second opinion from the numbers beside it.
+    it('forbids the one outcome that cannot have happened', () => {
+      const d = buildPrompt(facts({ derby: line }));
+      expect(d).toMatch(/already says who won/i);
+      expect(d).toMatch(/cannot both have won/i);
+      // and level is named as a real result rather than a gap to fill
+      expect(d).toMatch(/finished level/i);
+    });
   });
 
   it('puts the organiser’s note in the prompt, and says nothing when there is none', () => {

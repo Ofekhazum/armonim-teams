@@ -235,6 +235,8 @@ TONIGHT'S DERBY
 So it gets its own sentences, and it is written as a rivalry rather than as a record. Who came out on top tonight, what that does to a matchup that has been level for years, whether anything is actually settled. If their teams never met, that is the joke — the fixture the whole club turned up for, and the rota never put them on the pitch together.
 
 Both names, no third one. This is the one place two names in a sentence is exactly right.
+
+**THE LINE ABOVE ALREADY SAYS WHO WON. COPY THAT VERDICT — DO NOT WORK ONE OUT FROM THE NUMBERS.** There are exactly three things that can have happened tonight, and you are told which: one of them won it, the other one won it, or it finished level and neither did. **They cannot both have won.** A sentence that puts them both on top of this — "each of them came out on top", "both took the night" — is describing something that did not happen, and it is the one error in this whole report the group will spot on the first read, because they have been waiting on this result all week. If the line says it finished level, that is a real outcome with its own story — years of nothing between them, and tonight settled nothing either — not a reason to hand it to one of them anyway.
 `
       : ''
   }
