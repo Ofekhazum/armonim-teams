@@ -141,11 +141,40 @@ export const emptyWins = (): DraftTeamWins => ({ black: null, white: null, blue:
 // Who played, captured at the time. Guests are one-off and renames happen, so
 // a fixture keeps its own copy of names/ratings rather than pointing at the
 // live roster and going stale.
-// How long the organiser's note may be. Sized for a sentence or two of
-// "what happened that the scoreboard missed" — the reporter is being given a
-// detail to hang a joke on, not a second match report to compete with the
-// first. Enforced on the way in and again on the Worker.
-export const NOTE_MAX = 280;
+// How much room one event gets. A sentence or two of "what happened that the
+// scoreboard missed" — the point of the note has never been to compete with
+// the report, only to hand it the thing nobody could count.
+//
+// **Per event, not per note, and that is the whole fix.** This used to be one
+// number for the entire note, from when the note was one free-text box. Once
+// §2.58 made it a list the shared budget started behaving badly: four events
+// split 280 characters between them, so a long first event silently shortened
+// the fourth, and the box stopped accepting letters mid-word for a reason
+// nothing on screen could explain. A budget you can spend somewhere else is
+// not a limit an organiser can plan around.
+export const EVENT_MAX = 220;
+
+// How many events one night may carry. Six is past the point where the report
+// can still say something about each of them — the Worker's word budget grows
+// by 40 words an event (§2.24), so this is already a 500-word write-up — and a
+// seventh is a sign the note is being used as a match log.
+//
+// A cap on the *button*, like the stepper's: a note that already holds more,
+// however it got there, is read back whole rather than truncated.
+export const EVENTS_MAX = 6;
+
+// What the stored string may come to, delimiters and markers included — the
+// structural consequence of the two caps above rather than a budget of its
+// own. It exists because it is the number the Worker validates and the number
+// a paste is cut against.
+//
+// **Deliberately loose rather than exactly the sum.** A full note serialises
+// to `EVENTS_MAX * (EVENT_MAX + 2)` plus the spaces between, and sizing this to
+// that would make the two constraints bind at the same instant — so the last
+// character of the last event would be refused by the *total*, which is the
+// one with no counter beside it. The slack is what keeps the limit an
+// organiser actually meets the same one the screen is explaining.
+export const NOTE_MAX = EVENTS_MAX * (EVENT_MAX + 2) + 100;
 
 // The most votes one player can be given on a night. A five-a-side club votes
 // with the hands in the room, so this is generous by an order of magnitude —

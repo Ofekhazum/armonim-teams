@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { MARK_STEP, parseEvents, serialiseEvents, type Marked } from '../eventMarks';
+import { EVENTS_MAX, EVENT_MAX } from '../types';
 import { t } from '../i18n';
 
 /**
@@ -103,17 +104,26 @@ export default function EventsEditor({ value, onChange, max, placeholder, autoFo
 
   const edit = (fn: (prev: Marked[]) => Marked[]) => push(fn(latest.current));
 
-  const used = serialiseEvents(rows).length;
-
-  // Trimmed against what the note *serialises to*, not against the words in the
-  // box — the delimiters and the markers are stored too, and budgeting for the
-  // text alone let a full note come back two characters over the limit. Measure
-  // the finished string and give back exactly the excess.
+  // **Each box is trimmed against its own limit, not against a shared pool.**
+  // The first version measured the whole serialised note and gave back the
+  // excess, which is correct arithmetic and a bad control: what an organiser
+  // could type into event four depended on how much they had written in event
+  // one, so the box stopped taking letters part-way through a word with nothing
+  // on screen that could explain why. `EVENT_MAX` is the same number in every
+  // box on every night, which is the property that makes a limit plannable.
+  //
+  // `max` stays as the backstop on the finished string, because `EVENTS_MAX`
+  // only caps the *button* — a note filed before this, or written by hand, can
+  // arrive with more rows than that, and the store must still take what it is
+  // handed whole rather than have `MatchDay` cut it mid-event.
   const setText = (i: number, text: string) =>
     edit((prev) => {
-      const next = prev.map((r, j) => (j === i ? { ...r, text } : r));
+      const clipped = text.slice(0, EVENT_MAX);
+      const next = prev.map((r, j) => (j === i ? { ...r, text: clipped } : r));
       const over = serialiseEvents(next).length - max;
-      if (over > 0) next[i] = { ...next[i], text: text.slice(0, Math.max(0, text.length - over)) };
+      if (over > 0) {
+        next[i] = { ...next[i], text: clipped.slice(0, Math.max(0, clipped.length - over)) };
+      }
       return next;
     });
 
@@ -138,6 +148,32 @@ export default function EventsEditor({ value, onChange, max, placeholder, autoFo
       return next.length > 0 ? next : [{ text: '', delta: 0 }];
     });
 
+  // **Each box grows to its own text.** Two fixed rows was right when an event
+  // was a handful of words and wrong the moment it could be a sentence or two:
+  // a full one scrolled inside a box shorter than itself, which is the same
+  // "I cannot see what I wrote" problem the single textarea had — solved for
+  // the list and reintroduced inside each row.
+  //
+  // In a layout effect rather than on keystroke, so it also catches the two
+  // cases nobody types their way into: the first paint of a night opened with
+  // events already on it, and a re-seed when the drawer is pointed at another.
+  const boxes = useRef<(HTMLTextAreaElement | null)[]>([]);
+  useLayoutEffect(() => {
+    boxes.current.length = rows.length;
+    for (const el of boxes.current) {
+      if (!el) continue;
+      // Collapse first: `scrollHeight` on an already-tall box reports the tall
+      // height, so without this a box that lost text would never shrink back.
+      el.style.height = 'auto';
+      // `scrollHeight` counts padding but not border, and `box-sizing` is
+      // border-box here, so assigning it straight leaves every box exactly its
+      // border short — enough to keep the last line clipped and the scrollbar
+      // live, which is the whole thing this was meant to stop.
+      const border = el.offsetHeight - el.clientHeight;
+      el.style.height = `${el.scrollHeight + border}px`;
+    }
+  }, [rows]);
+
   return (
     <div className="space-y-2">
       {rows.map((row, i) => (
@@ -146,13 +182,18 @@ export default function EventsEditor({ value, onChange, max, placeholder, autoFo
           className="rounded-xl border border-amber-900/20 bg-white/70 p-2 shadow-sm"
         >
           <textarea
+            ref={(el) => {
+              boxes.current[i] = el;
+            }}
             value={row.text}
             onChange={(e) => setText(i, e.target.value)}
             rows={2}
             autoFocus={autoFocus && i === 0}
             placeholder={i === 0 ? placeholder : undefined}
             aria-label={t('ev.event', { n: String(i + 1) })}
-            className="w-full resize-y rounded-lg border border-amber-900/15 bg-white px-2 py-1.5 text-sm text-amber-950 outline-none focus:border-orange-500"
+            // `resize-none`, because the height is the text's to decide now and
+            // a dragged one would be overwritten by the next keystroke anyway.
+            className="w-full resize-none overflow-hidden rounded-lg border border-amber-900/15 bg-white px-2 py-1.5 text-sm text-amber-950 outline-none focus:border-orange-500"
           />
           <div className="mt-1 flex flex-wrap items-center gap-1">
             {/* The stepper reads in points, not in markers. "+1.0" is the
@@ -193,6 +234,20 @@ export default function EventsEditor({ value, onChange, max, placeholder, autoFo
             </button>
             <span className="text-[10px] text-amber-900/40">{t('ev.effect')}</span>
             <div className="flex-1" />
+            {/* Shown only once the box is nearly full. A counter that is always
+                there is read as a target to fill; one that appears at three
+                quarters is the answer to "why did it stop taking letters",
+                arriving just before the question does. */}
+            {row.text.length >= EVENT_MAX * 0.75 && (
+              <span
+                dir="ltr"
+                className={`font-mono text-[10px] ${
+                  row.text.length >= EVENT_MAX ? 'font-bold text-red-700' : 'text-amber-900/40'
+                }`}
+              >
+                {row.text.length}/{EVENT_MAX}
+              </span>
+            )}
             <button
               type="button"
               onClick={() => remove(i)}
@@ -208,15 +263,25 @@ export default function EventsEditor({ value, onChange, max, placeholder, autoFo
       <div className="flex flex-wrap items-center gap-2">
         <button
           type="button"
-          onClick={() => push([...rows, { text: '', delta: 0 }])}
-          disabled={used >= max}
+          // `edit`, not `push([...rows, …])`. No user can reach the difference
+          // — two taps are two tasks and React flushes between them — so this
+          // is consistency rather than a fix: `rows` is the last *rendered*
+          // list and `latest` is the current one, and having one control read
+          // the rendered value is how the stepper's batching bug got in twice.
+          // Every write goes through the ref; there is no second way to one.
+          onClick={() => edit((prev) => [...prev, { text: '', delta: 0 }])}
+          disabled={rows.length >= EVENTS_MAX}
           className="rounded-lg border border-amber-900/25 px-2.5 py-1 text-xs font-bold text-amber-900 enabled:hover:border-orange-500 disabled:opacity-40"
         >
           {t('ev.add')}
         </button>
         <div className="flex-1" />
+        {/* The count, not the character total. How many events the report has
+            to find something to say about is a thing worth knowing; how many
+            characters they serialise to, now that no single box can be starved
+            by another, is the app's arithmetic and not the organiser's. */}
         <span className="text-[10px] text-amber-900/35">
-          {used}/{max}
+          {t('ev.count', { n: String(rows.length), max: String(EVENTS_MAX) })}
         </span>
       </div>
     </div>

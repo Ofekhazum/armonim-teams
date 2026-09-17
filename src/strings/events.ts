@@ -16,4 +16,6 @@ export const events = {
   // Reads in points, because that is the question being asked. How it is
   // stored — as `+` and `−` in the note — is the app's business.
   'ev.effect': { he: 'לציון של מי שמוזכר', en: 'to whoever is named' },
+  // Events, not characters — see the footer's comment in EventsEditor.
+  'ev.count': { he: '{n} מתוך {max} אירועים', en: '{n} of {max} events' },
 } as const satisfies Record<string, Entry>;

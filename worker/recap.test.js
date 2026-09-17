@@ -332,8 +332,19 @@ describe('buildPrompt', () => {
 
   it('accepts a note in the facts, and refuses a wall of text', () => {
     expect(isValidFacts(facts({ said: 'a real thing that happened' }))).toBe(true);
-    expect(isValidFacts(facts({ said: 'x'.repeat(401) }))).toBe(false);
+    expect(isValidFacts(facts({ said: 'x'.repeat(1601) }))).toBe(false);
     expect(isValidFacts(facts({ said: 7 }))).toBe(false);
+  });
+
+  it('takes a full six-event note without calling it bad facts', () => {
+    // The app's own cap is `NOTE_MAX` = 1432: six events of 220 characters,
+    // delimiters and slack. This end has to sit above it, because the failure
+    // mode here is not a shortened note — it is `400 bad facts` and a night
+    // with no report — so a note filed right at the app's limit must pass with
+    // room to spare rather than exactly.
+    const full = Array.from({ length: 6 }, () => `@${'א'.repeat(220)}@`).join(' ');
+    expect(full.length).toBeLessThanOrEqual(1432);
+    expect(isValidFacts(facts({ said: full }))).toBe(true);
   });
 
   it('says the shirts are redrawn, and keeps next week off the colours', () => {
