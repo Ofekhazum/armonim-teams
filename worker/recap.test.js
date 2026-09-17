@@ -115,17 +115,15 @@ describe('buildPrompt', () => {
     expect(buildPrompt(facts({ winners: [] }))).toContain('nobody');
   });
 
-  // All three from one reported report.
-  //
-  // The squad roll-call is the failure the reader notices first: "למרות
-  // מאמצים כבירים של עילאי, אופק, תמיר, רותם ו-שי" — five names, one clause,
-  // nothing said about any of them. The prompt was *asking* for it, in two
-  // places, before it got round to forbidding it in a third.
-  it('forbids a squad roll-call, and stops asking for one', () => {
-    expect(p).toMatch(/NEVER ROLL-CALL A SQUAD/);
-    expect(p).toMatch(/no sentence anywhere in the report may name more than two players/i);
-    // the winners' paragraph used to demand "the players in that team by name"
-    expect(p).not.toMatch(/the players in that team by name/i);
+  // Naming a team's players is the team sheet, and the group wants it. An
+  // earlier pass read a complaint about the bench line as a complaint about
+  // name lists and capped every sentence at two names, which took the squads
+  // out of the team paragraphs — the opposite of what was asked for. The rule
+  // against listing is about *facts* with nothing made of them, never names.
+  it('still asks for the squads by name', () => {
+    expect(p).toMatch(/the players in that team by name/i);
+    expect(p).toMatch(/at least one player named from each/i);
+    expect(p).toMatch(/Naming the five players in a team is not a list/i);
   });
 
   // The teams take turns, so their match counts are close by design. Reporting
@@ -135,6 +133,46 @@ describe('buildPrompt', () => {
   it('tells the reporter that matches played is usually not a story', () => {
     expect(p).toMatch(/MATCHES PLAYED IS USUALLY NOT A STORY/);
     expect(p).toMatch(/never tell a team they watched more football than they played/i);
+  });
+
+  // The reported complaint, and the one the prompt was quietly working
+  // against: with four events it named all four and built on none. Two clauses
+  // were doing the damage — "use as many as you can carry" and "dropping one
+  // entirely is better than welding it onto another" — inside a word budget
+  // that could not have paid for four anyway.
+  describe('the organiser’s events, when there are several', () => {
+    const four = facts({ said: '@over the fence@ @a dog came on@ @the lights failed@ @nets missing@' });
+
+    it('demands writing about each, not a mention of each', () => {
+      const d = buildPrompt(four);
+      expect(d).toMatch(/EVERY EVENT GETS TALKED ABOUT\. NOT ONE OF THEM GETS ANNOUNCED\./);
+      expect(d).toMatch(/must do something with ALL 4/);
+      expect(d).toMatch(/at least two sentences of its own/i);
+      expect(d).toMatch(/do not merge two into one sentence/i);
+      expect(d).toMatch(/do not summarise several/i);
+    });
+
+    // Shows the model the difference rather than asserting it. "Announced" and
+    // "talked about" are the same fact, and a rule that only names them leaves
+    // the model to guess which side of the line a sentence is on.
+    it('shows the failure and the fix on the same invented fact', () => {
+      const d = buildPrompt(four);
+      expect(d).toMatch(/ANNOUNCED, and wrong/);
+      expect(d).toMatch(/TALKED ABOUT, and right/);
+    });
+
+    // A rule asking for eight extra sentences inside an unchanged budget is a
+    // rule the model will break on the side it can count.
+    it('buys the room it just asked for', () => {
+      expect(buildPrompt(facts())).toContain('280 to 380 words');
+      expect(buildPrompt(facts({ said: 'one thing' }))).toContain('280 to 380 words');
+      expect(buildPrompt(four)).toContain('400 to 500 words');
+    });
+
+    it('says how many there are in the paragraph plan too', () => {
+      expect(buildPrompt(four)).toMatch(/There are 4 of them and each gets/);
+      expect(buildPrompt(facts({ said: 'one thing' }))).toMatch(/There is 1 of them and it gets/);
+    });
   });
 
   describe('the derby', () => {
@@ -264,8 +302,14 @@ describe('buildPrompt', () => {
     expect(said).toMatch(/do not merge two of them into one story/i);
     expect(said).toMatch(/never assume the person named in one had anything to do with any of the others/i);
     expect(said).toMatch(/one of them naming a player tells you nothing about who the next one belongs to/i);
-    // dropping one beats welding it onto another
-    expect(said).toMatch(/Dropping one entirely is better than welding it onto another/i);
+    // Dropping one used to be the sanctioned escape hatch — "better than
+    // welding it onto another" — and between that and "use as many as you can
+    // carry", the prompt was licensing exactly the under-service that was
+    // reported: four events, four mentions, nothing made of any of them. Every
+    // event now gets written about, and the word budget grows to pay for it.
+    expect(said).toMatch(/do not drop an event/i);
+    expect(said).toMatch(/every event gets talked about/i);
+    expect(said).toMatch(/must do something with ALL 2/);
   });
 
   it('asks for the note to be built on rather than just reported', () => {

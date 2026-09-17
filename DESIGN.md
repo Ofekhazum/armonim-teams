@@ -2255,13 +2255,22 @@ two and a half points from those six. Playing less is only a story next to the o
 now relative as well: at least `BENCH_GAP = 3` matches behind the busiest team. In this format a rest
 is exactly one match long, so anything smaller is the rota.
 
-**The prompt was asking for the roll-call it then forbade.** *"למרות מאמצים כבירים של עילאי, אופק,
-תמיר, רותם ו-שי"* — five names, one clause, nothing said about any of them. `A FACT IS RAW MATERIAL`
-had banned exactly this since the beginning, but two paragraphs earlier the same prompt demanded "the
-players in that team by name" and "at least one player named from each". The rule was fighting the
-instructions. Both instructions are gone, replaced by one or two players *with something said about
-them*, and by a hard ceiling: **no sentence may name more than two players.** Being listed was never
-worth anything to the three who got left out.
+**Events get written about, not announced.** The complaint was that four `@event@` markers produced
+four mentions and nothing made of any of them. Two clauses in the prompt were licensing precisely
+that — *"use as many as you can carry"* and *"dropping one entirely is better than welding it onto
+another"* — and a third made it inevitable: a fixed 280–380 word budget cannot pay for four events at
+two sentences each on top of five paragraphs, so the model met the number it could count and skimped
+on the one it could not. Now every event is written about, none may be dropped, merged or summarised
+away, and **the budget grows by about forty words per extra event**. The prompt also shows the
+difference on an invented fact rather than only naming it, because *announced* and *talked about* are
+the same fact and a rule that only names them leaves the model guessing which side of the line a
+sentence is on.
+
+**The correction worth recording: this was never about names.** A first pass read the complaint about
+the bench line as a complaint about *"עילאי, אופק, תמיר, רותם ו-שי"* and capped every sentence at two
+names, which pulled the squads out of the team paragraphs — the opposite of what the club wants. The
+team sheet is something the group reads the report for. `A FACT IS RAW MATERIAL` is about **facts
+with nothing made of them**, never about how many people a sentence may name, and it now says so.
 
 **The derby was never in the payload.** §2.33 puts a derby on a banner the whole club reads before
 kick-off — the two players who cannot put each other away — and then the report never mentioned how

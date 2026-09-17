@@ -139,6 +139,19 @@ export function splitEvents(said) {
  * fact about the app, not about its audience.
  */
 export function buildPrompt(facts) {
+  // Split once, up here, because two parts of the prompt need the count: the
+  // section that hands the events over, and the word budget below.
+  //
+  // **The budget has to grow with them, or the rule above is a trap.** Asking
+  // for two sentences about each of four events inside a fixed 380 words is
+  // asking for four events and five paragraphs in the space of three, and what
+  // comes back is the announcing this is trying to stop — the model obeys the
+  // number it can count and skimps on the one it cannot. Roughly forty words
+  // per extra event buys each of them the room it was just promised.
+  const events = splitEvents(facts.said);
+  const extra = Math.max(0, events.length - 1) * 40;
+  const words = `${280 + extra} to ${380 + extra}`;
+
   const teams = facts.teams
     .map(
       (t) =>
@@ -199,9 +212,7 @@ So: **never put two people's facts in the same sentence as a list.** One fact, o
 
 The same goes for the shape of the paragraph. A paragraph that is one long chain of "X did this, Y did that, ו-Z did the other" has listed the night rather than reported it, however good each clause is on its own.
 
-NEVER ROLL-CALL A SQUAD. **No sentence anywhere in the report may name more than two players.** A run of names joined by commas is the single most common way this report goes wrong, and it looks like this, verbatim from a real one: "למרות מאמצים כבירים של עילאי, אופק, תמיר, רותם ו-שי". Five people, one clause, nothing said about any of them — the team sheet retyped with a compliment stapled to the front. The reader already knows who was on which team; they are reading this to find out what you made of it.
-
-So when you name somebody, name them because you have a sentence about *them*. One player with a real line beats five with a shared adjective, and the four you left out lose nothing, because being listed was never worth anything to them. This applies to every paragraph including the winners': a winning team is described by what it did and by one or two of the people who did it, never by reciting the five who were there.
+This is about *facts*, not about names. Naming the five players in a team is not a list — it is the team sheet, the reader wants it, and it belongs in the paragraph about that team. What must not be listed is one person's fact after another with nothing made of any of them.
 
 PAIRS WORTH MENTIONING
 ${list(facts.duos, '- none')}
@@ -223,20 +234,30 @@ Both names, no third one. This is the one place two names in a sentence is exact
 ${
     facts.said
       ? `SOMETHING ELSE THAT HAPPENED TONIGHT
-${(() => {
-  const events = splitEvents(facts.said);
-  return events.length > 1
+${
+  events.length > 1
     ? `${events.length} separate things happened. They have already been separated for you — each numbered line below is its OWN event, with its own owner:\n\n${events
         .map((e, i) => `EVENT ${i + 1}: "${e}"`)
-        .join('\n')}`
-    : `"${events[0] ?? facts.said}"`;
-})()}
+        .join('\n')}\n\nYour report must do something with ALL ${events.length}.`
+    : `"${events[0] ?? facts.said}"`
+}
 
-This is true, and it is the only thing in this record that is an *event* rather than a number — everything else you have been given is a scoreline. So it is the most valuable material in the report and it should read that way: give it **two or three sentences, not one**, and make them the funniest in the piece. Build on it properly — an absurd consequence, a mock investigation, a grand conclusion drawn from it, a callback to it later in the paragraph. A single flat sentence reporting it and moving on is the one way to waste it.
+${events.length > 1 ? `These are true, and they are the only ${events.length} things` : 'This is true, and it is the only thing'} in this record that ${events.length > 1 ? 'are *events*' : 'is an *event*'} rather than ${events.length > 1 ? 'numbers' : 'a number'} — everything else you have been given is a scoreline. So ${events.length > 1 ? 'they are' : 'it is'} the most valuable material in the report and ${events.length > 1 ? 'they' : 'it'} should read that way: **${events.length > 1 ? `each one of the ${events.length} gets its own two or three sentences` : 'give it two or three sentences, not one'}**, and make them the funniest in the piece. Build on ${events.length > 1 ? 'each of them' : 'it'} properly — an absurd consequence, a mock investigation, a grand conclusion drawn from it, a callback to it later in the paragraph. A single flat sentence reporting it and moving on is the one way to waste it.
 
 **WHEN THERE IS MORE THAN ONE EVENT, THEY ARE ALREADY SEPARATED FOR YOU.** If you see EVENT 1, EVENT 2 and so on above, that split is not a suggestion and it is not yours to revisit — do not merge two of them into one story, do not treat one as background for another, and never assume the person named in one had anything to do with any of the others. They are **separate facts with separate owners**, and every ownership rule below is applied to **each event on its own**: one of them naming a player tells you nothing about who the next one belongs to.
 
-Use as many as you can carry. The funniest gets the most room; a smaller one can be a throwaway aside or a callback later in the paragraph. Dropping one entirely is better than welding it onto another.
+**EVERY EVENT GETS TALKED ABOUT. NOT ONE OF THEM GETS ANNOUNCED.** This is the instruction that has been missed most often, so read it twice. If there are four events above, the report contains four separate pieces of *writing* about four things — not four things mentioned. There is no such thing here as an event that was covered in half a clause on the way to the next one.
+
+The difference, on one invented event ("the ball went over the fence four times"):
+
+- ANNOUNCED, and wrong: "והכדור עף מעבר לגדר ארבע פעמים." It is in the report. Nothing has been done with it.
+- TALKED ABOUT, and right: the fence is a recurring opponent. Somebody is accused of aiming for it. A search party is dispatched and does not return. It is described as the most accurate finishing of the evening, which is a joke about the football that never happened. The groundsman is said to be considering legal action.
+
+Same fact, and the second one is why anybody reads this. Do that for **each** event, separately.
+
+Give every event at least two sentences of its own, and give the best one more. They do not have to sit together in one block — one can open the paragraph, another can land as a callback at the end of it — but each one must have something *made* of it somewhere: a consequence, an accusation, a mock investigation, a nickname, a grand conclusion, a rivalry with an inanimate object.
+
+Do not drop an event. Do not merge two into one sentence. Do not summarise several as "ועוד כמה דברים מוזרים קרו". If the word count is tight, take the room from the milestones and the career facts — those are available in the app and this is not.
 
 YOU SAW IT YOURSELF. You were at the pitch tonight. Never say where this came from — no "according to the organisers", no "it was reported that", no mention of anyone having handed you this. You watched it happen, and you write it that way. (This is about not citing a source for something you witnessed. The invented, obviously-ridiculous attribution described further down — "sources close to the changing room say" — is a joke and is still very welcome; it is a different thing entirely.)
 
@@ -262,16 +283,16 @@ Open with a byline on its own line, in this shape:
 
 Invent the reporter. A different one every time, and an absurd one: an over-serious Hebrew sports-broadcaster name, or a ridiculous pun on one, the kind of byline that would never appear in a real newspaper. Never use a real journalist's name, and never use the name of anyone playing tonight.
 
-Then five paragraphs, in this order, 280 to 380 words in total:
+Then five paragraphs, in this order, ${words} words in total:
 
 1. THE OPENING. What kind of night it was and who won it. Use the shape, the number of matches, the lead changes and the change index. Do not open with the date.
-2. THE WINNERS. The team that took the night: their points, their longest run, and **one or two** of their players named with something actually said about them. Not the squad list — see NEVER ROLL-CALL A SQUAD below.
-3. THE OTHER TWO TEAMS. One or two sentences each, both of them, by name — their points, their longest run, and one player named from each with a reason for naming them. Neither team may be skipped, even if their night was quiet. A team that won nothing gets a line about that.
+2. THE WINNERS. The team that took the night: their points, their longest run, and the players in that team by name.
+3. THE OTHER TWO TEAMS. One or two sentences each, both of them, by name — their points, their longest run, and at least one player named from each. Neither team may be skipped, even if their night was quiet. A team that won nothing gets a line about that.
 
    MATCHES PLAYED IS USUALLY NOT A STORY. In this format the teams take turns, so their match counts come out close by design and a one- or two-match difference is the rota, not a fact about anybody. Do not report how many matches a team played unless it is genuinely conspicuous — and if it were, it would be sitting in MOMENTS or THE STORIES below, written out for you. If it is not written below, it was not remarkable: say nothing about it. Never tell a team they watched more football than they played on your own initiative, and never dress a normal count up as "strange efficiency" or "they spent the night on the bench". A team that played six of ten in a night that swung constantly was not benched; they were resting one match at a time like everybody else.
 4. THE PEOPLE. This is the heart of the report and it should be the longest paragraph.${
     facts.said
-      ? ' Everything under SOMETHING ELSE THAT HAPPENED TONIGHT belongs here, and it is the best material you have been given — nothing else in this record is an actual event. Give it real room (two or three sentences, and more if it holds more than one event) rather than a passing mention.'
+      ? ` Everything under SOMETHING ELSE THAT HAPPENED TONIGHT belongs here, and it is the best material you have been given — nothing else in this record is an actual event. There ${events.length === 1 ? 'is 1 of them and it gets' : `are ${events.length} of them and each gets`} at least two sentences of its own, built on rather than announced. That is most of this paragraph, and it should be: it is the only part of the report the reader could not have worked out from the app.`
       : ''
   }${facts.derby ? ' The derby belongs here too, and it is the one fact the group was already waiting on — give it real sentences.' : ''} Milestones reached, the stories above, the player of the night, and anyone who won a lot or a little — but chosen, not collected: see A FACT IS RAW MATERIAL above. Pick the three or four people whose night is actually worth a sentence and give each of them a real one; the rest of the facts go unused, which is what they are there for. Somebody who played four or more and won nothing gets a sympathetic ribbing rather than a kicking. Superstition is encouraged — if somebody keeps winning in one shirt colour, that is a curse and a blessing, not a coincidence.
 5. THE SIGN-OFF. One or two sentences looking forward to next week, aimed at **people, by name**, called out for **their own results tonight**: who won nothing, who won everything, who is on a run, who has not taken a night since the spring. And never aim it at an event nobody was named for — see WHO IT BELONGS TO above if there is a line up there. This is also the paragraph where the shirt rule gets broken, every time, so read it again before you write this: **next week's teams do not exist yet and nobody is in one.** A threat, a promise or a warning may only be made to a named player about themselves.
