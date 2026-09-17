@@ -164,9 +164,14 @@ const WIN_FLOOR = 8;
  * whole reason the MVP is in this formula (§2.39: it is the one genuinely
  * personal signal a night produces).
  *
- * It does **not** hand the MVP the best mark automatically — a pick on a beaten
- * team still marks below a winner, because `night` outweighs `MVP_BONUS` by
- * some distance. It only means the top two rungs cannot be climbed without one.
+ * **It used not to hand the MVP the best mark**, on the reasoning that `night`
+ * outweighs `MVP_BONUS` by some distance and a pick on a beaten team should
+ * still mark below a winner. That was reversed on the organiser's ask: see
+ * `MVP_CLEAR`. Reserving the top two rungs turned out not to be the same as
+ * using them — on a night where the pick came from a beaten team, this cap
+ * stopped everybody else reaching 9.5 without ever lifting the pick above the
+ * winners at 9, so the room's own verdict finished level with or below a mark
+ * the scoreline had already decided.
  *
  * Interaction with {@link WIN_FLOOR} is deliberate and worth reading together:
  * a non-MVP winner now lives in [8, 9], which on a half-point scale is three
@@ -197,6 +202,53 @@ const UNPICKED_CAP = 9;
  * judgement is being made here.
  */
 const PLAYED_FLOOR = 4;
+
+/**
+ * And nobody who *lost* the night reaches the mark that means they won it.
+ *
+ * `WIN_FLOOR` is 8 because 8 is what taking the night is worth, so a player on
+ * a beaten team arriving at 8 by another route erases the one distinction the
+ * scale is built around. That is not hypothetical: on a 2.5 / 2.5 / 3.5 night
+ * the organiser reported a losing player marked 8, and the arithmetic backs
+ * them — a top-tier player with a strong career and a hot run lands on
+ * `6 − 0.31 + 0.57 + 0.50 + 0.25 + 0.80 = 7.81`, which rounds to exactly 8.
+ *
+ * **The interesting part is which terms did it.** The complaint named momentum,
+ * and momentum is the smallest of them at +0.25 — capped, and deliberately so
+ * (see `MOMENTUM_CAP`). The mark was built by `tier` (+0.80), `close` (+0.57)
+ * and `career` (+0.50). Trimming momentum would have fixed this one case by
+ * rounding and left the next one untouched, because none of the three larger
+ * terms know that the night was lost.
+ *
+ * So the fix is a ceiling rather than a reweighting: the terms keep their
+ * meaning, the full spread below still separates players, and the top of a
+ * losing team's range sits one rung under the bottom of a winning team's. What
+ * a mark of 8 means is now unambiguous.
+ *
+ * **The MVP is exempt**, and has to be. The pick is the one genuinely personal
+ * signal a night produces (§2.39), a beaten team can absolutely contain the
+ * best player on the pitch, and `MVP_CLEAR` below would otherwise be fighting
+ * this cap for the same number.
+ */
+const LOSER_CAP = WIN_FLOOR - 0.5;
+
+/**
+ * How far clear of everybody else the player of the night must finish.
+ *
+ * The pick is the room's own verdict and the only per-night fact the scoreboard
+ * cannot supply, so a night where the MVP ties the best mark — or sits below it
+ * — has buried the one thing it was asked to say out loud. `UNPICKED_CAP`
+ * already reserves the top two rungs, but reserving them is not the same as
+ * using them: on a night where the pick was on a beaten team, the cap stopped
+ * others reaching 9.5 without ever lifting the pick above the winners at 9.
+ *
+ * Applied last, after every floor and cap, and as a *lift only* — it never
+ * lowers anybody else to make room. The pick is raised to half a point clear of
+ * the best other mark, then clamped to the top of the scale. On a night where
+ * somebody else is already at `GRADE_MAX` there is nowhere to go, and the two
+ * share the top, which is the honest answer rather than a manufactured gap.
+ */
+const MVP_CLEAR = 0.5;
 
 /**
  * The only thing on this list that is about a person rather than a team.
@@ -680,7 +732,12 @@ export function nightGrades(history: FixtureRecord[], fixtureId: string): Grade[
       // ordinary mark anybody can earn, and only the two rungs above it are
       // reserved for the pick.
       const floored = Math.max(raw, wonNight ? WIN_FLOOR : PLAYED_FLOOR);
-      const capped = isMvp ? floored : Math.min(floored, UNPICKED_CAP);
+      // Two ceilings, and the lower one only applies to a beaten team: a mark
+      // of 8 means the night was won, so nobody who lost it arrives there by
+      // another route (see LOSER_CAP). The pick is exempt from both.
+      const capped = isMvp
+        ? floored
+        : Math.min(floored, UNPICKED_CAP, wonNight ? UNPICKED_CAP : LOSER_CAP);
       const grade = clamp(capped, GRADE_MIN, GRADE_MAX);
 
       // Coming in: a live winning run, or nights since their team last took one.
@@ -724,6 +781,16 @@ export function nightGrades(history: FixtureRecord[], fixtureId: string): Grade[
     }
   }
 
+  // The pick, lifted clear of the field (see MVP_CLEAR). Last, because it is
+  // the only rule here that reads other players' finished marks rather than one
+  // player's own inputs — and a lift, never a push-down: nobody else's mark
+  // moves to make room.
+  const pick = out.find((g) => g.context.isMvp);
+  if (pick) {
+    const best = out.reduce((m, g) => (g.context.isMvp ? m : Math.max(m, g.grade)), GRADE_MIN);
+    pick.grade = clamp(Math.max(pick.grade, best + MVP_CLEAR), GRADE_MIN, GRADE_MAX);
+  }
+
   return out.sort((a, b) => b.grade - a.grade || a.name.localeCompare(b.name, 'he'));
 }
 
@@ -745,6 +812,8 @@ export const gradeConstants = {
   UNPICKED_CAP,
   WIN_FLOOR,
   PLAYED_FLOOR,
+  LOSER_CAP,
+  MVP_CLEAR,
   CAREER_W,
   CAREER_CAP,
   MOMENTUM_W,

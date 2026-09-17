@@ -4369,6 +4369,50 @@ has no `isAdmin` check of its own — a component that re-checks what its parent
 invites the reader to wonder which is the real gate. It takes `adminWord` rather than a flag, because
 three of its four panels are guarded *writes* on the Worker.
 
+### 2.56 A mark of 8 means you won the night (`LOSER_CAP`, `MVP_CLEAR` in `grades.ts`)
+
+Two complaints about the same sheet, and the first one's diagnosis was wrong in a way worth keeping.
+
+**"Momentum is weighted too heavily."** On a 2.5 / 2.5 / 3.5 night a player on a beaten team marked
+**8**. The reported cause was their hot run. The arithmetic says otherwise:
+
+| term | value | |
+|---|---|---|
+| `tier` | **+0.80** | the organiser's own rating |
+| `close` | **+0.57** | §2.48 — a share of the winner's floor, *because* the night was close |
+| `career` | **+0.50** | at its cap |
+| `momentum` | **+0.25** | at its cap, and the smallest positive term |
+| `night` | −0.31 | they lost |
+| | **7.81 → 8.0** | |
+
+Momentum spans ±0.25 — half a rung end to end, by deliberate design (`MOMENTUM_CAP`, trimmed
+precisely because `night` and `momentum` were double-counting form). Zeroing it entirely would have
+dropped this mark to 7.56 and fixed the complaint **by rounding**, leaving the next case untouched,
+because none of the three larger terms know the night was lost.
+
+**So the fix is a ceiling, not a reweighting.** `WIN_FLOOR` is 8 because 8 is what taking the night
+is worth; a beaten player arriving there by another route erases the only distinction the scale is
+built around. `LOSER_CAP = WIN_FLOOR − 0.5` closes it. Every term keeps its meaning, the spread below
+still separates players by tier and form, and the top of a losing range sits one rung under the
+bottom of a winning one.
+
+This also retires the crossing §2.48 flagged as its own cost — "a 5-star in form on the second team
+reads 8.5 against a 1-star out of form on the winning team at 8". That section's stated intent was
+that a near-level runner-up *approaches 7.5 against the winner's 8*; `tier` and `career` were
+carrying it past its own target. It now lands where §2.48 said it should.
+
+**The pick finishes clear of the field.** `UNPICKED_CAP` already reserved 9.5 and 10 for the player
+of the night, but reserving rungs is not the same as using them: where the pick came from a beaten
+team, the cap stopped everybody else reaching 9.5 without ever lifting the pick above the winners at
+9, so the room's own verdict finished level with or below a mark the scoreline had already decided.
+`MVP_CLEAR = 0.5` is applied last, after every floor and cap, as a **lift only** — nobody else is
+pushed down to make room, and on a night where somebody is already at 10 the two share the top, which
+is the honest answer rather than a manufactured gap.
+
+**This reverses an explicit earlier decision**, which had its own test asserting that "a pick on a
+beaten team still marks below a winner, because `night` outweighs `MVP_BONUS` by some distance". That
+is defensible arithmetic, and it buried the one fact a night produces that a scoreline cannot.
+
 ## 3. Team generation algorithm
 
 Balancing is a small constrained optimization. With ≤15 players, brute force is too big
