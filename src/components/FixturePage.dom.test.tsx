@@ -104,6 +104,20 @@ describe('ending a night', () => {
     expect(screen.getByText('Anything worth remembering?')).toBeInTheDocument();
   });
 
+  // The grade markers (§2.57) are the only thing typed in this box that moves a
+  // number rather than a sentence, and the only way anybody finds out they
+  // exist is this line — there is no other UI for them.
+  it('says how to make a note move a mark, with an example to copy', () => {
+    page();
+    click(/End fixture/);
+    click(/Save to history/);
+    expect(screen.getByText(/Want it to move the mark too/)).toBeInTheDocument();
+    const example = screen.getByText('@שי שם 4 גולים ++@');
+    // Pinned ltr inside an RTL paragraph, or the `++` renders at the wrong end
+    // of the line from the one it has to be typed at.
+    expect(example).toHaveAttribute('dir', 'ltr');
+  });
+
   it('files nothing when the night is binned, note step never seen', () => {
     page();
     click(/End fixture/);

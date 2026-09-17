@@ -4413,6 +4413,62 @@ is the honest answer rather than a manufactured gap.
 beaten team still marks below a winner, because `night` outweighs `MVP_BONUS` by some distance". That
 is defensible arithmetic, and it buried the one fact a night produces that a scoreline cannot.
 
+### 2.57 The organiser's thumb on the scale (`eventMarks.ts`)
+
+שי scored four goals on a beaten team and marked **4.5**. The organiser called that abysmal and was
+right: nothing in a night's data can see a goal. `MatchLogEntry` records team colours, not people, so
+every match is identical for the five players on a shirt, and §2.39 can only separate teammates by
+the MVP vote, the private rating and their own history — none of which know what happened on the
+pitch. The person on the touchline does.
+
+**The route has to be arithmetic over stored data, and that decided the design.** A mark is
+recomputed from history every time a night is opened, so anything that moves it must be recoverable
+from the fixture record forever. The alternative considered was asking the grades model to return a
+bounded adjustment from the note it already receives; it was rejected for two reasons, and the first
+is fatal: nothing about a grade is persisted, so the model's opinion would have to be **written into
+the fixture** (a schema change) or the mark would revert on reload. The second: two drafts of one
+night could disagree, and a mark you cannot explain is a mark you cannot defend to the player it is
+about.
+
+So the organiser marks the event they already write for the reporter:
+
+```
+@שי שם 4 גולים ++@      →  שי +1.0
+@חנגל החמיץ פנדל -@      →  חנגל −0.5
+@יוני ויועד שיחקו מצוין בשער +@   →  both +0.5
+```
+
+- **Half a point per marker**, netted, with no ceiling of its own — twenty `+` is ten points, bounded
+  only by the scale and by the pick.
+- **Either end.** The note is Hebrew, and in an RTL line "put it at the end" is advice nobody can
+  follow with confidence. `@+ שי …@` and `@שי … +@` are the same thing.
+- **Two names in one event move both marks fully**, rather than splitting one marker between them.
+  Splitting would make a marker worth less when two people are praised in one sentence than on two
+  lines, which is not something a person writing a note in a hurry should have to think about.
+- **An event naming nobody moves nobody** — the same attribution rule the report follows (§2.24).
+- Applied **after** every floor and cap, which is the point: a player who scored four on a beaten
+  team has to clear `LOSER_CAP` (§2.56) or the feature does not do its job.
+
+**Hebrew glues its function words onto the next one, and that nearly shipped broken.** "יוני ויועד
+שיחקו מצוין" tokenises as `יוני` and **`ויועד`** — "and" is the letter ו stuck to the front of the
+name. Whole-token matching found Yoni and silently missed Yoad: half the instruction obeyed, no
+error, and one mark that did not move for reasons invisible to whoever wrote the line. A token now
+matches a name behind at most two of **ו ב ל ה מ כ ש**, which is the whole set that behaves this way
+(two, because they stack: "וכשדור"). The length bound is what keeps it honest — "אישי" ends in "שי"
+but reaches it past letters that are not prefixes, so it matches nobody. A first name alone works
+only when one player on the sheet answers to it; with two דור, writing "דור" moves neither, because
+moving the wrong player's mark is worse than moving none.
+
+**The pick stays clear from both directions.** `MVP_CLEAR` (§2.56) lifts the pick over the field,
+which is enough until the field reaches the top of the scale: twenty markers puts a player on 10, the
+lift asks for 10.5, the clamp refuses, and the night's best mark is shared with somebody the room did
+not vote for. So the gap is enforced downwards too — the only thing in this formula that ever pushes
+a mark down to make room, and only where the ceiling has left nowhere else to go.
+
+**Markers never reach a reader.** `stripMarks` takes them off in `recapFacts` and `gradesFacts`, at
+the point the facts are built, so no prompt has to be taught to ignore one and no report can quote a
+`+` back at the group. The event boundaries the organiser drew survive the strip.
+
 ## 3. Team generation algorithm
 
 Balancing is a small constrained optimization. With ≤15 players, brute force is too big

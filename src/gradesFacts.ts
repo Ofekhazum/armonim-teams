@@ -31,6 +31,7 @@ import type { FixtureRecord, Player, TeamColor, TonightPlayer } from './types';
 import { TEAM_COLORS } from './balancer';
 import { derbyOnRecord, settleDerby } from './derby';
 import { nightGrades, type Trend } from './grades';
+import { stripMarks } from './eventMarks';
 import { tonightsMilestones } from './milestones';
 
 /** One player's row: the mark, and the material the joke has to be built from. */
@@ -174,7 +175,9 @@ export function gradesFacts(
     matches,
     winners: top > 0 && atTop.length === 1 ? atTop : [],
     mvp: fixture.mvpId ? nameOf(fixture.mvpId) : null,
-    said: fixture.note?.trim() || null,
+    // Stripped of its grade markers (§2.57) — the model is writing a sentence
+    // about what happened, and the `+` already did its work in the number.
+    said: stripMarks(fixture.note),
     milestones,
     derby: derbyFact(fixture, asOf, rosterIds, keyOf),
     players,

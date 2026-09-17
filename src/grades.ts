@@ -93,6 +93,7 @@ import { hasResult } from './calibration';
 import { ratingTier } from './ratingTier';
 import { placeOf, profileNights, shirtOf, type Place } from './playerProfile';
 import { totalVotes } from './mvp';
+import { eventMarks } from './eventMarks';
 
 /**
  * Where an ordinary night lands.
@@ -528,6 +529,20 @@ export interface GradeParts {
   momentum: number;
   /** The organiser's rating, coarsened — see TIER_BUMP and the file header. */
   tier: number;
+  /**
+   * What the organiser marked in the night's own note (§2.57): half a point per
+   * `+`, netted against any `−`, for every event that named this player.
+   *
+   * Absent rather than 0 on the ordinary night, because unlike every other term
+   * here this one is not always in play — a note with no markers in it should
+   * leave no trace in the breakdown at all, rather than a row of zeroes
+   * inviting the reader to wonder what they missed.
+   *
+   * It sits outside the sum that produces the raw mark, and is added after the
+   * floors and caps, so it is the one term that can carry a player past a
+   * ceiling the scoreline set. See `nightGrades`.
+   */
+  events?: number;
 }
 
 /**
@@ -657,6 +672,10 @@ export function nightGrades(history: FixtureRecord[], fixtureId: string): Grade[
     ? Math.max(0, WIN_FLOOR - (BASE + nightTerm(topWins) + WIN_BONUS))
     : 0;
 
+  // What the organiser wrote on the night, read once (§2.57). Empty on every
+  // note that carries no markers, which is most of them.
+  const marks = eventMarks(fx);
+
   const out: Grade[] = [];
   for (const c of ['black', 'white', 'blue'] as TeamColor[]) {
     const teamWins = fx.wins[c] ?? 0;
@@ -781,6 +800,19 @@ export function nightGrades(history: FixtureRecord[], fixtureId: string): Grade[
     }
   }
 
+  // What the organiser said they saw (§2.57). Applied *after* every floor and
+  // cap, which is the whole point of it: the night's own ceilings are built
+  // from the scoreline, and this is the one input that knows something the
+  // scoreline does not. A player who scored four on a beaten team has to be
+  // able to pass `LOSER_CAP`, or the feature does not do the job it was asked
+  // for.
+  for (const g of out) {
+    const mark = marks.get(g.id) ?? 0;
+    if (mark === 0) continue;
+    g.parts.events = mark;
+    g.grade = clamp(g.grade + mark, GRADE_MIN, GRADE_MAX);
+  }
+
   // The pick, lifted clear of the field (see MVP_CLEAR). Last, because it is
   // the only rule here that reads other players' finished marks rather than one
   // player's own inputs — and a lift, never a push-down: nobody else's mark
@@ -789,6 +821,15 @@ export function nightGrades(history: FixtureRecord[], fixtureId: string): Grade[
   if (pick) {
     const best = out.reduce((m, g) => (g.context.isMvp ? m : Math.max(m, g.grade)), GRADE_MIN);
     pick.grade = clamp(Math.max(pick.grade, best + MVP_CLEAR), GRADE_MIN, GRADE_MAX);
+    // **And the pick stays clear from the other direction.** `MVP_CLEAR` above
+    // lifts the pick over the field, which is enough until the field is at the
+    // top of the scale: twenty markers on one player puts them at 10, the lift
+    // asks for 10.5, the clamp refuses, and the night's best mark is shared
+    // with somebody the room did not vote for. So the gap is also enforced
+    // downwards — the only thing that ever pushes a mark down to make room, and
+    // only where the ceiling has left nowhere else to go.
+    const ceiling = pick.grade - MVP_CLEAR;
+    for (const g of out) if (!g.context.isMvp) g.grade = Math.min(g.grade, ceiling);
   }
 
   return out.sort((a, b) => b.grade - a.grade || a.name.localeCompare(b.name, 'he'));

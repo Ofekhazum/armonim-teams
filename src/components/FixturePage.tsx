@@ -232,6 +232,19 @@ export default function FixturePage({
                 Naming a player in the line is also what gives the reporter
                 permission to go after them for it, so the box says that too. */}
             <p className="mt-1 text-xs text-amber-900/50">{t('fx.note.format')}</p>
+            {/* The grade markers (§2.57), set apart from the formatting note
+                above because they do something categorically different: every
+                other thing in this box changes what gets *written* about the
+                night, and this one changes a player's mark. The example is
+                pinned `ltr` so the `++` renders at the end of the line the way
+                it will be typed, rather than being flipped to the front by the
+                surrounding RTL paragraph. */}
+            <p className="mt-0.5 text-xs text-amber-900/50">
+              {t('fx.note.marks')}{' '}
+              <code dir="ltr" className="inline-block rounded bg-amber-900/10 px-1 font-mono">
+                {t('fx.note.marks.example')}
+              </code>
+            </p>
             <textarea
               value={note}
               onChange={(e) => setNote(e.target.value.slice(0, NOTE_MAX))}
