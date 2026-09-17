@@ -85,7 +85,15 @@ export function isValidFacts(facts) {
     // the organiser's own line. Capped here as well as in the app: this is the
     // one field in the payload that is prose rather than a counted thing, so
     // it is the one that could arrive as a wall of text.
-    (facts.said === undefined || isStr(facts.said, 400)) &&
+    //
+    // Raised from 400 when the note became a list of up to six events with a
+    // real sentence each (`NOTE_MAX`, now 1432). This is the *receiving* end,
+    // so it is the number that has to move first: a Worker still holding 400
+    // does not shorten a longer note, it answers `400 bad facts` and the night
+    // gets no report at all. Deliberately above the app's own cap rather than
+    // equal to it, so the limit an organiser meets is always the one with a
+    // counter next to it.
+    (facts.said === undefined || isStr(facts.said, 1600)) &&
     // sent by one build and taken back out; accepted so an older client is not
     // refused, ignored by the prompt
     (facts.table === undefined || isStrList(facts.table, 5))

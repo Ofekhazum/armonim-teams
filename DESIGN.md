@@ -2389,8 +2389,9 @@ and nowhere else.
 
 **A second step rather than a box on the ending panel**, because it only applies to a night being
 kept: one being thrown away has nothing worth remembering. Empty is the normal answer and costs one
-tap. `NOTE_MAX` is 280 — the reporter is being given a detail to hang a joke on, not a second match
-report to compete with the first.
+tap. The reporter is being given a detail to hang a joke on, not a second match report to compete
+with the first — though "how long is a detail" turned out to be the wrong question once the note
+became a list of them, and the budget moved per-event in §2.58.1.
 
 **It is never rendered.** Not on the fixture page, not on the night page, not for an admin. A note
 printed on the page it describes is the report's punchline printed above the report — and the whole
@@ -4513,6 +4514,47 @@ Two smaller things the first rendering got wrong, both caught by looking at it r
 reasoning about it: an em-dash for a zero adjustment reads as a third button between the two square
 ones (it says `0.0`), and the character budget was measured against the words in the box rather than
 against the string they serialise to, which let a full note come back two characters over the limit.
+
+#### 2.58.1 Room to write in (`EVENT_MAX`, `EVENTS_MAX`)
+
+The list shipped still holding §2.27's budget — **280 characters for the whole note**, sized back when
+a note was one free-text box. Split four ways that is about sixty characters an event, and the
+organiser hit it immediately: *"why is it limiting me with the event i want to add? i can write more
+than a few words."*
+
+**A shared pool is the wrong shape for a list**, separately from being too small. What could be typed
+into event four depended on how much had been written into event one, and it ran out mid-word with
+nothing on screen that could explain why. So the budget is now **per event** — `EVENT_MAX` is 220, the
+same number in every box on every night, which is the property that makes a limit plannable — with
+`EVENTS_MAX` = 6 capping the count. Six is already a ~500-word report, since the Worker's word budget
+grows by 40 words an event (§2.24); a seventh is the note being used as a match log. Like the
+stepper's ±3.0 it caps the *button*, so a longer note is still read back whole.
+
+`NOTE_MAX` survives as the stored-string guard — the number the Worker validates and a paste is cut
+against — derived from the two caps **plus slack, deliberately rather than exactly**. Sized to the
+precise sum, the two constraints would bind at the same instant and the last character of the last
+event would be refused by the *total*, which is the one with no counter beside it.
+
+**The Worker's cap had to move first.** `isValidFacts` capped `facts.said` at 400, and the failure
+mode there is not a shortened note — it is `400 bad facts` and a night with no report at all. It is
+the receiving end, so it is deployed ahead of the app, and sits above `NOTE_MAX` rather than equal to
+it.
+
+Two things the browser corrected afterwards, neither visible from the code:
+
+- **The boxes still had to grow.** `rows={2}` was right for a handful of words; with a real sentence
+  in it, a full event scrolled inside a box shorter than itself — the same "I cannot see what I
+  wrote" problem the single textarea had, solved for the list and reintroduced inside each row. Each
+  box now sizes to its own text in a layout effect (not on keystroke, so it also catches a night
+  opened with events already on it). `scrollHeight` counts padding but not border, and `box-sizing`
+  is border-box, so assigning it straight leaves every box exactly its border short — enough to keep
+  the last line clipped and the scrollbar live, which is the whole thing it was meant to stop.
+- **A bug that was not there.** Driving the editor from a script made the first event appear to
+  vanish, which read as the same staleness the stepper had. Stepping through it, `.click()` does not
+  flush React synchronously, so the harness had typed into the *old* last box before the added one
+  rendered. Nothing was dropped. The `add` handler was moved onto the ref anyway — no user can reach
+  the difference, since two taps are two tasks, but having one control read the rendered list while
+  every other reads the current one is how the batching bug got in twice.
 
 ## 3. Team generation algorithm
 

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { useState } from 'react';
-import { NOTE_MAX } from '../types';
+import { EVENTS_MAX, EVENT_MAX, NOTE_MAX } from '../types';
 import EventsEditor from './EventsEditor';
 
 // The events editor (§2.58). What it replaced was a two-row textarea holding
@@ -106,6 +106,11 @@ describe('editing the night’s events', () => {
     expect(stored()).toBe('@שי שם 4 גולים +++@');
   });
 
+  // The third instance of the same bug, found in the browser rather than here:
+  // "add" was the one control still building its next list from `rows` — the
+  // last *rendered* value — instead of the ref. Typing into a box and adding an
+  // event in one tick appended to the list as it stood before the typing, so
+  // the text that had just been entered was dropped on the floor.
   it('applies an edit made straight after the parent swapped the note', () => {
     // The same staleness from the other direction: a re-seed replaces the rows,
     // and an edit landing before the next render must act on the new list.
@@ -136,5 +141,78 @@ describe('editing the night’s events', () => {
     render(<Harness onNote={onNote} />);
     type(0, 'x'.repeat(NOTE_MAX + 50));
     expect(stored()!.length).toBeLessThanOrEqual(NOTE_MAX);
+  });
+
+  // The complaint that produced the per-event budget: "why is it limiting me
+  // with the event i want to add? i can write more than a few words."
+  //
+  // One shared pool meant a long first event shortened the fourth, so what an
+  // organiser could type depended on what was in a different box — and it ran
+  // out silently, mid-word. Every box now gets `EVENT_MAX` on every night.
+  //
+  // **What separates the two rules is a box on its own, not a full note.**
+  // `NOTE_MAX` is now sized to fit six full events, so filling all six passes
+  // either way — worth knowing, because the obvious version of this test proves
+  // nothing. The rule is pinned by the test below it instead: one event stops
+  // at `EVENT_MAX` and not at whatever is left of the note.
+  it('gives the last event the same room as the first', () => {
+    render(<Harness />);
+    for (let i = 0; i < EVENTS_MAX - 1; i++) {
+      type(i, 'א'.repeat(EVENT_MAX));
+      click(/Another event/);
+    }
+    type(EVENTS_MAX - 1, 'ב'.repeat(EVENT_MAX));
+    const filled = boxes() as HTMLTextAreaElement[];
+    expect(filled).toHaveLength(EVENTS_MAX);
+    for (const box of filled) expect(box.value).toHaveLength(EVENT_MAX);
+    expect(stored()!.length).toBeLessThanOrEqual(NOTE_MAX);
+  });
+
+  it('cuts one event at its own limit, not at what is left of the note', () => {
+    // The discriminating case. A shared budget would let a lone event run to
+    // nearly `NOTE_MAX` — six times the room every other box gets — so the
+    // limit would depend on how many events the night happened to have.
+    render(<Harness />);
+    type(0, 'א'.repeat(NOTE_MAX));
+    expect((boxes()[0] as HTMLTextAreaElement).value).toHaveLength(EVENT_MAX);
+  });
+
+  it('holds a real sentence per event, not a handful of words', () => {
+    // The two events from the screenshot that prompted §2.58, both of which
+    // used to eat most of the old 280-character note between them.
+    const first = 'שאפו לסרן יועד שעשה שינוי בכוחות ברגע האחרון בזמן שהוא עושה מילואים בעזה.';
+    const second = 'מילה טובה לשי שהיה מעולה ושם 4 גולים.';
+    render(<Harness />);
+    type(0, first);
+    click(/Another event/);
+    type(1, second);
+    expect(stored()).toBe(`@${first}@ @${second}@`);
+  });
+
+  it('shows the count only once a box is nearly full', () => {
+    render(<Harness />);
+    type(0, 'א'.repeat(10));
+    expect(screen.queryByText(new RegExp(`/${EVENT_MAX}`))).not.toBeInTheDocument();
+    type(0, 'א'.repeat(EVENT_MAX));
+    expect(screen.getByText(`${EVENT_MAX}/${EVENT_MAX}`)).toBeInTheDocument();
+  });
+
+  it('stops offering more events once the report cannot cover them', () => {
+    render(<Harness />);
+    for (let i = 0; i < EVENTS_MAX - 1; i++) {
+      type(i, `event ${i}`);
+      click(/Another event/);
+    }
+    expect(boxes()).toHaveLength(EVENTS_MAX);
+    expect(screen.getByRole('button', { name: /Another event/ })).toBeDisabled();
+  });
+
+  it('reads back a longer note than the button would let you build', () => {
+    // `EVENTS_MAX` caps the control, not the record — a note filed before this
+    // or written by hand comes back whole rather than truncated, the same way
+    // the stepper's ±3.0 caps the buttons and not `eventMarks`.
+    const many = Array.from({ length: EVENTS_MAX + 2 }, (_, i) => `@event ${i}@`).join(' ');
+    render(<Harness initial={many} />);
+    expect(boxes()).toHaveLength(EVENTS_MAX + 2);
   });
 });
