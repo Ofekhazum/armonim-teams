@@ -28,6 +28,7 @@ import { nightStory, playerNight } from './nightStory';
 import { MIN_FACED, matchups, profileCounts, profileNights } from './playerProfile';
 import { isWinMilestone } from './milestones';
 import { derbyOnRecord, settleDerby } from './derby';
+import { stripMarks } from './eventMarks';
 
 export interface RecapTeam {
   team: string; // 'Black' | 'White' | 'Blue' — named, not coded, so the model reads it
@@ -244,7 +245,10 @@ export function recapFacts(
     duos,
     notes,
     ...(derby ? { derby } : {}),
-    ...(fixture.note?.trim() ? { said: fixture.note.trim() } : {}),
+    // Markers taken off first (§2.57): a `+` is punctuation addressed to the
+    // grade formula, and quoting one back at the group in a match report would
+    // be the app talking to itself in public.
+    ...(stripMarks(fixture.note) ? { said: stripMarks(fixture.note)! } : {}),
   };
 }
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { FixtureRecord, MatchLogEntry } from './types';
-import { BASE, MIN_RECENT, gradeConstants, nightGrades } from './grades';
+import { BASE, GRADE_MAX, MIN_RECENT, gradeConstants, nightGrades } from './grades';
 
 // The mark out of ten (§2.39). What matters here is that the number is
 // arithmetic a reader could check: that teammates share the part of it which
@@ -16,6 +16,7 @@ const night = (
     mvpVotes?: Record<string, number>;
     matchLog?: MatchLogEntry[];
     ratings?: Record<string, number>;
+    note?: string;
   } = {},
 ): FixtureRecord => {
   seq++;
@@ -229,6 +230,98 @@ describe('nightGrades', () => {
     for (const id of ['x', 'z']) {
       expect(gradeOf(gs, id).grade).toBeGreaterThanOrEqual(gradeConstants.PLAYED_FLOOR);
     }
+  });
+
+  // The reported case, reconstructed. On a 2.5 / 2.5 / 3.5 night a player on a
+  // beaten team came out on 8 — the mark that means you took the night.
+  //
+  // Worth keeping the arithmetic here, because the complaint named momentum and
+  // momentum was the smallest term in it: tier +0.80, close +0.57, career
+  // +0.50, momentum +0.25, night −0.31. Trimming momentum would have fixed this
+  // one case by rounding and left the next one alone, since none of the three
+  // larger terms know the night was lost. A ceiling does know.
+  it('never marks a beaten team as high as a winner', () => {
+    const past = Array.from({ length: 6 }, () =>
+      night(T(['hot'], ['w'], ['b']), { black: 6, white: 3, blue: 2 }),
+    );
+    const fx = night(T(['hot'], ['w'], ['b']), { black: 2.5, white: 2.5, blue: 3.5 }, {
+      ratings: { hot: 5 }, // top tier, hot form, strong career — every term but `night`
+    });
+    const gs = nightGrades([...past, fx], fx.id)!;
+    const g = gradeOf(gs, 'hot');
+    expect(g.context.wonNight).toBe(false);
+    expect(g.context.trend).toBe('hot'); // the form is real and still counted
+    expect(g.grade).toBeLessThan(gradeConstants.WIN_FLOOR);
+    expect(g.grade).toBeLessThanOrEqual(gradeConstants.LOSER_CAP);
+    // …and the winners are still above them, which is the point of the line
+    for (const id of ['b']) {
+      expect(gradeOf(gs, id).grade).toBeGreaterThanOrEqual(gradeConstants.WIN_FLOOR);
+    }
+  });
+
+  it('leaves the spread below the cap alone', () => {
+    // A ceiling, not a flattening: the losing side still separates by tier.
+    const fx = night(T(['top', 'low'], ['w', 'w2'], ['b', 'b2']), { black: 2, white: 3, blue: 7 }, {
+      ratings: { top: 5, low: 1 },
+    });
+    const gs = nightGrades([fx], fx.id)!;
+    expect(gradeOf(gs, 'top').grade).toBeGreaterThan(gradeOf(gs, 'low').grade);
+  });
+
+  describe('what the organiser wrote on the night (§2.57)', () => {
+    // The reported case: שי scored four on a beaten team and marked 4.5, which
+    // the organiser called abysmal and was right about — nothing in a night's
+    // data can see a goal.
+    it('lifts a player the note praised, past the losing team’s ceiling', () => {
+      const plain = night(T(['שי', 'b'], ['w'], ['z']), { black: 2.5, white: 2.5, blue: 3.5 });
+      const marked = night(T(['שי', 'b'], ['w'], ['z']), { black: 2.5, white: 2.5, blue: 3.5 }, {
+        note: '@שי שם 4 גולים ++@',
+      });
+      const before = gradeOf(nightGrades([plain], plain.id), 'שי').grade;
+      const after = gradeOf(nightGrades([marked], marked.id), 'שי').grade;
+      expect(after).toBe(before + 1);
+      // and their teammate, who was not named, has not moved
+      expect(gradeOf(nightGrades([marked], marked.id), 'b').grade).toBe(
+        gradeOf(nightGrades([plain], plain.id), 'b').grade,
+      );
+    });
+
+    it('shows its working in the breakdown', () => {
+      const fx = night(T(['שי'], ['w'], ['z']), { black: 2.5, white: 2.5, blue: 3.5 }, {
+        note: '@שי שם 4 גולים +@',
+      });
+      const g = gradeOf(nightGrades([fx], fx.id), 'שי');
+      expect(g.parts.events).toBe(0.5);
+      // absent, not zero, on the ordinary night
+      const quiet = night(T(['שי'], ['w'], ['z']), { black: 2.5, white: 2.5, blue: 3.5 });
+      expect(gradeOf(nightGrades([quiet], quiet.id), 'שי').parts.events).toBeUndefined();
+    });
+
+    // The organiser's own words: "even if i add 20 +s make sure the cap is 0.5
+    // below the MVP". MVP_CLEAR lifts the pick over the field, which is enough
+    // until the field reaches the top of the scale — then the clamp refuses the
+    // lift and the gap has to be enforced downwards instead.
+    it('keeps the pick clear however many markers somebody collects', () => {
+      const fx = night(T(['loud'], ['pick'], ['z']), { black: 2.5, white: 2.5, blue: 3.5 }, {
+        note: `@loud was everywhere ${'+'.repeat(20)}@`,
+        mvpId: 'pick',
+      });
+      const gs = nightGrades([fx], fx.id)!;
+      const mvp = gradeOf(gs, 'pick').grade;
+      const loud = gradeOf(gs, 'loud').grade;
+      expect(mvp).toBe(GRADE_MAX);
+      expect(loud).toBe(mvp - gradeConstants.MVP_CLEAR);
+    });
+
+    it('marks a player down when the note says so', () => {
+      const plain = night(T(['a'], ['w'], ['z']), { black: 5, white: 3, blue: 2 });
+      const marked = night(T(['a'], ['w'], ['z']), { black: 5, white: 3, blue: 2 }, {
+        note: '@a scored an own goal --@',
+      });
+      expect(gradeOf(nightGrades([marked], marked.id), 'a').grade).toBeLessThan(
+        gradeOf(nightGrades([plain], plain.id), 'a').grade,
+      );
+    });
   });
 
   it('never marks anybody who turned up below the played floor', () => {
@@ -459,15 +552,39 @@ describe('the tier shade', () => {
     );
   });
 
-  it('does not hand the pick the best mark of the night regardless', () => {
-    // The cap reserves the top rungs; it does not make the MVP win the sheet.
-    // A pick on a beaten team still marks below somebody who took the night,
-    // because `night` outweighs the MVP bonus by some distance.
+  // **This reverses a deliberate earlier decision, on the organiser's ask.**
+  // It used to assert the opposite — that a pick on a beaten team still marked
+  // below whoever took the night, because `night` outweighs the MVP bonus by
+  // some distance. That is defensible arithmetic and it buried the one fact a
+  // night produces that a scoreline cannot: the room's own verdict. Reserving
+  // the top two rungs for the pick was never the same as using them.
+  it('lifts the pick clear of the field, even from a beaten team', () => {
     const fx = night(T(['picked'], ['winner'], ['z']), { black: 1, white: 8, blue: 3 }, {
       mvpId: 'picked',
     });
     const gs = nightGrades([fx], fx.id)!;
-    expect(gradeOf(gs, 'picked').grade).toBeLessThan(gradeOf(gs, 'winner').grade);
+    const best = Math.max(...gs.filter((g) => !g.context.isMvp).map((g) => g.grade));
+    expect(gradeOf(gs, 'picked').grade).toBe(best + gradeConstants.MVP_CLEAR);
+    expect(gradeOf(gs, 'picked').grade).toBeGreaterThan(gradeOf(gs, 'winner').grade);
+  });
+
+  it('never pushes anybody down to make room for the pick', () => {
+    const fx = night(T(['picked'], ['winner'], ['z']), { black: 1, white: 8, blue: 3 }, {
+      mvpId: 'picked',
+    });
+    const withPick = nightGrades([fx], fx.id)!;
+    const without = nightGrades([{ ...fx, mvpId: undefined }], fx.id)!;
+    expect(gradeOf(withPick, 'winner').grade).toBe(gradeOf(without, 'winner').grade);
+  });
+
+  // Nowhere left to go is the honest answer, not a reason to demote the field.
+  it('shares the top when somebody else is already on it', () => {
+    const fx = night(T(['picked'], ['winner'], ['z']), { black: 1, white: 12, blue: 1 }, {
+      ratings: { winner: 5, picked: 5 },
+      mvpId: 'picked',
+    });
+    const gs = nightGrades([fx], fx.id)!;
+    expect(gradeOf(gs, 'picked').grade).toBeLessThanOrEqual(10);
   });
 
   it('needs the night as well as the pick to reach the very top', () => {

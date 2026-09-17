@@ -25,6 +25,20 @@ export const night = {
     he: 'יותר מדבר אחד? כתבו כל אחד בשורה נפרדת, או עטפו כל אחד ב־@…@. אם תזכירו שחקן בשם — הוא יחטוף על זה; בלי שם, זה שייך לאף אחד.',
     en: "More than one thing? Put each on its own line, or wrap each in @…@. Name a player and they'll get the blame — leave the name out and it belongs to nobody.",
   },
+  // The grade markers (§2.57). Its own line rather than another clause on the
+  // one above, because it is the only thing an organiser can type here that
+  // changes a *number* — everything else in this box only changes what gets
+  // written about the night.
+  'fx.note.marks': {
+    he: 'רוצים שזה ישפיע גם על הציון? הוסיפו + בקצה האירוע (חצי נקודה לכל +), או − להורדה. שני שחקנים באותו אירוע — שניהם מקבלים.',
+    en: 'Want it to move the mark too? Put a + at either end of the event — half a point each, or − to go down. Two players in one event and both get it.',
+  },
+  // Hebrew in both languages, like the placeholder above and for the same
+  // reason: it shows the shape of a line somebody actually types.
+  'fx.note.marks.example': {
+    he: '@שי שם 4 גולים ++@',
+    en: '@שי שם 4 גולים ++@',
+  },
   // Stays Hebrew in both languages, like the pasted-list example: it shows the
   // shape of what somebody actually writes here, and they write it in Hebrew.
   'fx.note.placeholder': {
