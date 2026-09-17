@@ -330,6 +330,40 @@ describe('recapFacts', () => {
       expect(f.derby).toMatch(/derby/);
     });
 
+    // A report went out announcing that both of them won the derby. The line
+    // ended "and it finished 3-2" — no verdict, and the 3 had to be attributed
+    // positionally from two names a clause earlier, next to a second,
+    // similar-looking pair for the head-to-head going in. So the line now says
+    // it, rather than leaving the one result the club waited all week for to be
+    // reconstructed at the far end.
+    it('says who won in words, not as a score to be decoded', () => {
+      const f = recapFacts(season[11], season, roster)!;
+      expect(f.derby).toMatch(/won tonight's derby|finished level/);
+      // every count is written next to the name that owns it
+      expect(f.derby).toMatch(/אופק took \d+ and ירין took \d+/);
+      // and the bare trailing scoreline is gone
+      expect(f.derby).not.toMatch(/it finished \d+-\d+/);
+    });
+
+    it('calls a split derby level instead of handing it to somebody', () => {
+      // Two meetings, one each — the outcome with no winner, which is exactly
+      // the one a model reaches for a name to fill.
+      const split = {
+        ...night('AWWWWWW', {
+          matchLog: [
+            { a: 'black', b: 'white', winner: 'black', viaPenalties: false },
+            { a: 'black', b: 'white', winner: 'white', viaPenalties: false },
+          ],
+        }),
+        id: 'split',
+        date: '2026-08-01',
+      };
+      const f = recapFacts(split, [...season, split], roster)!;
+      expect(f.derby).toContain('finished level');
+      // no name is attached to a win on a night that had none
+      expect(f.derby).not.toMatch(/(אופק|ירין) won tonight's derby/);
+    });
+
     it('is absent when no pair has enough history to be picked', () => {
       const fx = night('AWWWWWW');
       expect(recapFacts(fx, [fx], roster)!.derby).toBeUndefined();

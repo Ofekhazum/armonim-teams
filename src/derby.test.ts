@@ -334,4 +334,51 @@ describe('settleDerby', () => {
     expect(settled.aWon).toBe(6);
     expect(settled.bWon).toBe(6);
   });
+
+  // A report went out saying both of them won the derby. The counts were right
+  // — what was missing is a field that says which of the three things happened,
+  // leaving the verdict to be inferred downstream from a bare "3-2" sitting
+  // next to a similar-looking head-to-head pair.
+  describe('who won, as a fact rather than an inference', () => {
+    it('names the side that took more', () => {
+      const fx = night([m('black', 'white', 'black'), m('black', 'white', 'black')]);
+      expect(settleDerby(fx, pick(fx))!.winner).toBe('a');
+    });
+
+    it('names the other side just the same', () => {
+      const fx = night([m('black', 'white', 'white'), m('black', 'white', 'white')]);
+      expect(settleDerby(fx, pick(fx))!.winner).toBe('b');
+    });
+
+    it('says level when they split it, rather than picking one', () => {
+      const fx = night([m('black', 'white', 'black'), m('black', 'white', 'white')]);
+      expect(settleDerby(fx, pick(fx))!.winner).toBeNull();
+    });
+
+    it('says level for a night the two never met', () => {
+      const fx = night([m('black', 'blue', 'black'), m('white', 'blue', 'white')]);
+      expect(settleDerby(fx, pick(fx))!.winner).toBeNull();
+    });
+
+    // The one thing that must not be expressible: whatever the log says, the
+    // winner is one side, the other, or neither.
+    it('never answers both', () => {
+      const logs = [
+        [m('black', 'white', 'black')],
+        [m('black', 'white', 'white')],
+        [m('black', 'white', 'black'), m('black', 'white', 'white')],
+        [m('black', 'white', 'black'), m('black', 'white', 'black'), m('black', 'white', 'white')],
+        [{ a: 'black' as const, b: 'white' as const, winner: 'white' as const, viaPenalties: true }],
+      ];
+      for (const log of logs) {
+        const fx = night(log);
+        const settled = settleDerby(fx, pick(fx))!;
+        expect(['a', 'b', null]).toContain(settled.winner);
+        // and it agrees with the counts it was derived from
+        if (settled.winner === 'a') expect(settled.aTook).toBeGreaterThan(settled.bTook);
+        if (settled.winner === 'b') expect(settled.bTook).toBeGreaterThan(settled.aTook);
+        if (settled.winner === null) expect(settled.aTook).toBe(settled.bTook);
+      }
+    });
+  });
 });

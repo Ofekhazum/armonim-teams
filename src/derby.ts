@@ -250,6 +250,19 @@ export interface DerbySettled extends Derby {
   bTook: number;
   /** How many of the meetings needed a shootout — good material, nothing more. */
   penalties: number;
+  /**
+   * Who actually won tonight: `'a'`, `'b'`, or `null` for level — including the
+   * level that is `met: 0`, where nothing was contested at all.
+   *
+   * **Settled here rather than left to the reader**, and the reader that made
+   * this necessary is the model writing the report. It was handed the two
+   * names and a bare `3-2` and asked to work out whose 3 it was, next to a
+   * second, similar-looking pair for the head-to-head going in — and it wrote
+   * a report saying *both* of them won the derby. There are three possible
+   * outcomes and one of them is arithmetically impossible; a field that can
+   * only hold the three is how that stops being a thing a sentence can say.
+   */
+  winner: 'a' | 'b' | null;
 }
 
 /**
@@ -285,5 +298,6 @@ export function settleDerby(fx: FixtureRecord, derby: Derby): DerbySettled | nul
     else bTook++;
   }
 
-  return { ...derby, met, aTook, bTook, penalties };
+  const winner = aTook === bTook ? null : aTook > bTook ? 'a' : 'b';
+  return { ...derby, met, aTook, bTook, penalties, winner };
 }

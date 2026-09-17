@@ -2891,6 +2891,29 @@ teams came out*; next week they will probably be on the same side. And the card 
 opposite sides"** underneath, because `7–7` beside two names is exactly what a goal tally looks like,
 and this app has never counted a goal in its life (§2.9).
 
+#### 2.33.1 Who won it is a field, not an inference (`DerbySettled.winner`)
+
+A report went out **announcing that both of them won the derby** — which is not a near-miss or a
+matter of taste, it is the one outcome that cannot have happened, in the one result the whole club
+had been waiting on since the banner went up.
+
+Nothing was wrong with the counting. `settleDerby` had `aTook` and `bTook` right; what it did not
+have was a field saying *which of the three things happened*. The recap's fact line ended `…and it
+finished 3-2`, so the verdict had to be reconstructed at the far end — attributing the 3 positionally
+to one of two names given a clause earlier, immediately alongside a second, similar-looking pair for
+the head-to-head they came in on. That is a decoding task handed to a language model in a
+right-to-left target language, and the failure it produces is a confident sentence, not an error.
+
+So `winner: 'a' | 'b' | null` is computed where the counts are, and the fact line says it in words —
+with each count written next to the name that owns it, and `null` phrased as the real result it is
+rather than a gap wanting a name. The prompt then forbids re-deriving one. **Three states, one of
+which is "level", and none of which is "both".**
+
+The grades prompt had been doing this correctly all along — `derbySection` in `worker/grades.js`
+picks the verdict in code and writes "came out ahead" or "they split it". The recap was the one place
+the arithmetic was left to the reader, which is the general lesson: any fact the model must *combine*
+to state is a fact it can state wrongly, and the fix is to combine it before it goes in the payload.
+
 ### 2.34 Folding the match-night panels (`TonightFacts.tsx`, `ui.tsx`)
 
 A match night carries three panels of facts — **🎯 On the line tonight**, **⚔️ Tonight's derby**, and
@@ -4406,13 +4429,32 @@ carrying it past its own target. It now lands where §2.48 said it should.
 of the night, but reserving rungs is not the same as using them: where the pick came from a beaten
 team, the cap stopped everybody else reaching 9.5 without ever lifting the pick above the winners at
 9, so the room's own verdict finished level with or below a mark the scoreline had already decided.
-`MVP_CLEAR = 0.5` is applied last, after every floor and cap, as a **lift only** — nobody else is
-pushed down to make room, and on a night where somebody is already at 10 the two share the top, which
-is the honest answer rather than a manufactured gap.
+`MVP_CLEAR = 0.5` is applied last, after every floor and cap.
 
 **This reverses an explicit earlier decision**, which had its own test asserting that "a pick on a
 beaten team still marks below a winner, because `night` outweighs `MVP_BONUS` by some distance". That
 is defensible arithmetic, and it buried the one fact a night produces that a scoreline cannot.
+
+#### 2.56.1 The gap is a ceiling on the field, not a lift on the pick
+
+The first version enforced the gap from both directions: raise the pick to half a point above the
+best other mark, *then* hold everybody else below it. The lift was the half that had to go, and §2.57
+is what exposed it — once the note could move marks, **praising somebody else raised the pick's own
+grade**. A `+` written about the goalkeeper pushed the MVP up to stay ahead of them. The organiser
+caught it and named the rule they wanted: *"i want the MVP raiting to be the cap for the other
+players. not the MVP gets pushed because other players got improved."*
+
+That is the right rule for a reason beyond this bug. The whole contract of §2.57 is that the
+organiser's words reach **the person they name**; a mechanism that moves a second player's number as
+a side effect breaks it silently, in the direction nobody audits, because a mark going *up* never
+looks like a complaint. The pick's grade is now whatever the formula and the pick's **own** markers
+make it, and that number is the ceiling the rest of the night is held under.
+
+The cost is real and belongs here rather than in a surprised bug report: on a night where the pick
+grades low, the field is compressed under them, and a player carrying several markers can be pulled
+to half a point below a pick who had a quiet game by the scoreline. The gap was always going to be
+paid for by somebody — this puts the cost on the field instead of hiding it inside the pick's number,
+where it was being paid by a player who had nothing to do with it.
 
 ### 2.57 The organiser's thumb on the scale (`eventMarks.ts`)
 

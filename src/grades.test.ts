@@ -298,9 +298,8 @@ describe('nightGrades', () => {
     });
 
     // The organiser's own words: "even if i add 20 +s make sure the cap is 0.5
-    // below the MVP". MVP_CLEAR lifts the pick over the field, which is enough
-    // until the field reaches the top of the scale — then the clamp refuses the
-    // lift and the gap has to be enforced downwards instead.
+    // below the MVP" — enforced downwards onto the field, never by lifting the
+    // pick to stay ahead of it. See the test below for why that half went.
     it('keeps the pick clear however many markers somebody collects', () => {
       const fx = night(T(['loud'], ['pick'], ['z']), { black: 2.5, white: 2.5, blue: 3.5 }, {
         note: `@loud was everywhere ${'+'.repeat(20)}@`,
@@ -308,9 +307,28 @@ describe('nightGrades', () => {
       });
       const gs = nightGrades([fx], fx.id)!;
       const mvp = gradeOf(gs, 'pick').grade;
-      const loud = gradeOf(gs, 'loud').grade;
-      expect(mvp).toBe(GRADE_MAX);
-      expect(loud).toBe(mvp - gradeConstants.MVP_CLEAR);
+      expect(gradeOf(gs, 'loud').grade).toBe(mvp - gradeConstants.MVP_CLEAR);
+    });
+
+    // **This reverses the rule as it was first built**, on the organiser's
+    // instruction: "i want the MVP raiting to be the cap for the other players.
+    // not the MVP gets pushed because other players got improved."
+    //
+    // The original MVP_CLEAR lifted the pick to half a point above the best
+    // other mark. Harmless until §2.57 let the note move marks — and then a `+`
+    // written about somebody else raised *the pick's* grade, so a player's mark
+    // moved for words about a different player.
+    it('does not move the pick for something said about somebody else', () => {
+      const teams = T(['pick'], ['loud'], ['z']);
+      const score = { black: 2.5, white: 2.5, blue: 3.5 };
+      const quiet = night(teams, score, { mvpId: 'pick' });
+      const praised = night(teams, score, {
+        note: '@loud was everywhere ++++@',
+        mvpId: 'pick',
+      });
+      expect(gradeOf(nightGrades([praised], praised.id), 'pick').grade).toBe(
+        gradeOf(nightGrades([quiet], quiet.id), 'pick').grade,
+      );
     });
 
     it('marks a player down when the note says so', () => {
@@ -558,7 +576,11 @@ describe('the tier shade', () => {
   // some distance. That is defensible arithmetic and it buried the one fact a
   // night produces that a scoreline cannot: the room's own verdict. Reserving
   // the top two rungs for the pick was never the same as using them.
-  it('lifts the pick clear of the field, even from a beaten team', () => {
+  //
+  // The *guarantee* survived the rewrite below — the pick still finishes half a
+  // point clear — but it is now reached by holding the field down rather than
+  // by raising the pick, so this reads the gap and not the mechanism.
+  it('finishes the pick clear of the field, even from a beaten team', () => {
     const fx = night(T(['picked'], ['winner'], ['z']), { black: 1, white: 8, blue: 3 }, {
       mvpId: 'picked',
     });
@@ -568,13 +590,23 @@ describe('the tier shade', () => {
     expect(gradeOf(gs, 'picked').grade).toBeGreaterThan(gradeOf(gs, 'winner').grade);
   });
 
-  it('never pushes anybody down to make room for the pick', () => {
+  // **Reversed too, and this is the one that changed behaviour** — it used to
+  // assert that naming a pick left everybody else's mark untouched. The gap is
+  // now paid for by the field: whoever the room did not vote for finishes under
+  // the pick, rather than the pick climbing over them. The reason is §2.57 —
+  // see "does not move the pick for something said about somebody else".
+  it('holds the field under the pick rather than climbing over it', () => {
     const fx = night(T(['picked'], ['winner'], ['z']), { black: 1, white: 8, blue: 3 }, {
       mvpId: 'picked',
     });
     const withPick = nightGrades([fx], fx.id)!;
     const without = nightGrades([{ ...fx, mvpId: undefined }], fx.id)!;
-    expect(gradeOf(withPick, 'winner').grade).toBe(gradeOf(without, 'winner').grade);
+    // the pick's own mark is the same either way — the vote moves it through
+    // PICK_BONUS, not through anybody else's grade
+    expect(gradeOf(withPick, 'winner').grade).toBeLessThan(gradeOf(without, 'winner').grade);
+    expect(gradeOf(withPick, 'winner').grade).toBe(
+      gradeOf(withPick, 'picked').grade - gradeConstants.MVP_CLEAR,
+    );
   });
 
   // Nowhere left to go is the honest answer, not a reason to demote the field.

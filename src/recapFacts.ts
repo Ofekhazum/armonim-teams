@@ -208,13 +208,23 @@ export function recapFacts(
     if (!picked) return null;
     const settled = settleDerby(fixture, picked);
     if (!settled) return null;
-    const { aName, bName, met, aTook, bTook, faced, aWon, bWon, penalties } = settled;
+    const { aName, bName, met, aTook, bTook, faced, aWon, bWon, penalties, winner } = settled;
     const history_ = `going in, ${aWon}-${bWon} to ${aName} across ${faced} matches — which is why they were picked`;
     if (met === 0) {
       return `${aName} and ${bName} were tonight's derby (${history_}) and their teams never met`;
     }
     const shootouts = penalties > 0 ? `, ${penalties} of them on penalties` : '';
-    return `${aName} and ${bName} were tonight's derby (${history_}); their teams met ${met} times${shootouts} and it finished ${aTook}-${bTook}`;
+    // **Each number is written next to the name that owns it, and the verdict
+    // is spelled out.** The previous line ended "and it finished 3-2" and left
+    // the model to attribute the 3 positionally, from two names given a clause
+    // earlier and next to a second, similar-looking pair for the head-to-head
+    // going in. It got it wrong in the way that is hardest to miss and hardest
+    // to defend: a report announcing that both of them won the derby.
+    const verdict =
+      winner === null
+        ? `tonight's derby finished level, so neither of them took it and nothing was settled`
+        : `${winner === 'a' ? aName : bName} won tonight's derby`;
+    return `${aName} and ${bName} were tonight's derby (${history_}); their teams met ${met} times${shootouts}, ${aName} took ${aTook} and ${bName} took ${bTook} — ${verdict}`;
   })();
 
   const players: RecapPlayerLine[] = [];

@@ -80,8 +80,15 @@ export function isValidFacts(facts) {
     isStrList(facts.duos, 6) &&
     // absent on a client that predates these; an empty list, not a fault
     (facts.notes === undefined || isStrList(facts.notes, 10)) &&
-    // one settled derby, or absent — see the prompt section
-    (facts.derby === undefined || isStr(facts.derby, 300)) &&
+    // One settled derby, or absent — see the prompt section.
+    //
+    // Raised from 300 when the line started naming the winner outright instead
+    // of ending in a bare scoreline (§2.33.1). It reads long because every
+    // number now travels beside the name that owns it, and two long Hebrew
+    // names with a three-figure head-to-head measured at 348 — over the old
+    // cap, and the failure there is not a truncated derby line, it is
+    // `400 bad facts` and a night with no report at all.
+    (facts.derby === undefined || isStr(facts.derby, 500)) &&
     // the organiser's own line. Capped here as well as in the app: this is the
     // one field in the payload that is prose rather than a counted thing, so
     // it is the one that could arrive as a wall of text.
@@ -235,6 +242,8 @@ TONIGHT'S DERBY
 So it gets its own sentences, and it is written as a rivalry rather than as a record. Who came out on top tonight, what that does to a matchup that has been level for years, whether anything is actually settled. If their teams never met, that is the joke — the fixture the whole club turned up for, and the rota never put them on the pitch together.
 
 Both names, no third one. This is the one place two names in a sentence is exactly right.
+
+**THE LINE ABOVE ALREADY SAYS WHO WON. COPY THAT VERDICT — DO NOT WORK ONE OUT FROM THE NUMBERS.** There are exactly three things that can have happened tonight, and you are told which: one of them won it, the other one won it, or it finished level and neither did. **They cannot both have won.** A sentence that puts them both on top of this — "each of them came out on top", "both took the night" — is describing something that did not happen, and it is the one error in this whole report the group will spot on the first read, because they have been waiting on this result all week. If the line says it finished level, that is a real outcome with its own story — years of nothing between them, and tonight settled nothing either — not a reason to hand it to one of them anyway.
 `
       : ''
   }
