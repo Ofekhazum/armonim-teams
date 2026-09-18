@@ -73,6 +73,14 @@ export const roster = {
     en: 'Prefer on separate teams (admin only)',
   },
   'roster.rel.noMatch': { he: 'אף שחקן לא תואם ל״{q}״.', en: 'No players match “{q}”.' },
+  // Worded as what it buys rather than as what it forbids: the player is not
+  // objecting to keepers, they want the gloves to still be going spare so they
+  // can take a breather in goal (§2.59).
+  'roster.rel.nogk': { he: 'בקבוצה בלי שוער', en: 'On a team with no keeper' },
+  'roster.rel.nogk.hint': {
+    he: 'משאיר לו את האפשרות לרדת לשער לנוח · המלצה, לא חוק — למנהל בלבד',
+    en: 'Keeps going in goal available as a rest · a nudge, not a rule — admin only',
+  },
 
   // --- The row --------------------------------------------------------------
   'roster.row.open': { he: 'פתיחת {name}', en: 'Open {name}' },

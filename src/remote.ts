@@ -72,20 +72,21 @@ for (const legacy of ['armonim-roster-version', 'armonim-history-version']) {
   }
 }
 
-// What the *public* roster read carries. The worker strips the five fields that
+// What the *public* roster read carries. The worker strips the six fields that
 // are the organiser's opinion of somebody rather than a fact about football —
-// `avoid` (who won't play with whom), `chemistry`, `aliases`, and the two that
+// `avoid` (who won't play with whom), `chemistry`, `aliases`, `noGkTeammate`
+// (who needs the gloves kept free so they can rest, §2.59), and the two that
 // matter most, `rating` and `attack`. GET /roster is unauthenticated and the
 // worker URL ships in the public bundle, so anything it returns is readable by
 // anyone with the address, not just by the club.
 //
-// The app already treated all five as admin-only everywhere it rendered them
+// The app already treated all of them as admin-only everywhere it rendered them
 // (§2.9); this makes the wire agree with the UI. Devices keep their own copy
 // locally, and an organiser setting up a new device pulls them back with
 // fetchFullRoster().
 export type PublicPlayer = Omit<
   Player,
-  'chemistry' | 'avoid' | 'aliases' | 'rating' | 'attack'
+  'chemistry' | 'avoid' | 'aliases' | 'rating' | 'attack' | 'noGkTeammate'
 > & { rating?: number; attack?: number };
 
 export interface RemoteRoster {

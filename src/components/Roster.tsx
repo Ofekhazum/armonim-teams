@@ -44,6 +44,7 @@ interface Draft {
   attack: number;
   chemistry: string[];
   avoid: string[];
+  noGkTeammate: boolean;
   number: string; // as typed, so the field can be empty; parsed on save
 }
 
@@ -196,6 +197,7 @@ export default function Roster({
       attack: ATTACK_DEFAULT,
       chemistry: [],
       avoid: [],
+      noGkTeammate: false,
       number: '',
     });
     setRelOpen(false);
@@ -212,11 +214,14 @@ export default function Roster({
       attack: p.attack,
       chemistry: [...p.chemistry],
       avoid: [...(p.avoid ?? [])],
+      noGkTeammate: !!p.noGkTeammate,
       number: p.number != null ? String(p.number) : '',
     });
     // Already-set relationships stay visible — editing a player shouldn't
     // hide the very thing being edited behind an extra tap.
-    setRelOpen(p.chemistry.length > 0 || (p.avoid ?? []).length > 0);
+    setRelOpen(
+      p.chemistry.length > 0 || (p.avoid ?? []).length > 0 || !!p.noGkTeammate,
+    );
     setRelFilter('');
   };
 
@@ -326,6 +331,7 @@ export default function Roster({
       attack: ATTACK_DEFAULT,
       chemistry: [],
       avoid: [],
+      noGkTeammate: false,
       number: '',
     });
     setRelOpen(false);
@@ -489,7 +495,17 @@ export default function Roster({
             {t('roster.form.role')}
           </span>
           <button
-            onClick={() => setDraft({ ...draft, isGk: !draft.isGk })}
+            onClick={() =>
+              setDraft({
+                ...draft,
+                isGk: !draft.isGk,
+                // Made a keeper, so the request to have one kept off their team
+                // is about themselves and can never be met — cleared rather
+                // than left set behind a hidden control, where it would keep
+                // counting on the fold's badge with nothing there to explain it.
+                ...(draft.isGk ? {} : { noGkTeammate: false }),
+              })
+            }
             aria-pressed={draft.isGk}
             className={`rounded-lg border px-3 py-1.5 text-sm font-semibold transition-colors ${
               draft.isGk
@@ -542,8 +558,8 @@ export default function Roster({
         <div className="rounded-lg border border-amber-900/15 bg-white/60 px-3 py-2.5">
           <FoldHeader
             title={`${t('roster.rel.title')}${
-              draft.chemistry.length + draft.avoid.length > 0
-                ? ` (${draft.chemistry.length + draft.avoid.length})`
+              draft.chemistry.length + draft.avoid.length + (draft.noGkTeammate ? 1 : 0) > 0
+                ? ` (${draft.chemistry.length + draft.avoid.length + (draft.noGkTeammate ? 1 : 0)})`
                 : ''
             }`}
             open={relOpen}
@@ -552,6 +568,30 @@ export default function Roster({
           />
           {relOpen && (
             <div className="mt-3 space-y-2">
+              {/* Above the per-player list, because it is the one thing here
+                  that names nobody: it is about this player and the gloves,
+                  not about who they are put next to (§2.59). Admin-only, like
+                  avoid — "I need to be able to rest" is the same kind of thing
+                  to say about somebody as who they would rather not play with,
+                  and a keeper is only ever a keeper for one evening anyway. */}
+              {isAdmin && !draft.isGk && (
+                <button
+                  onClick={() => setDraft({ ...draft, noGkTeammate: !draft.noGkTeammate })}
+                  aria-pressed={draft.noGkTeammate}
+                  className={`flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-start transition-colors ${
+                    draft.noGkTeammate
+                      ? 'border-sky-600 bg-sky-600/15 text-sky-900'
+                      : 'border-amber-900/20 bg-white text-amber-900/70 hover:border-sky-600/50'
+                  }`}
+                >
+                  <span className="text-base">{draft.noGkTeammate ? '🧤' : '·'}</span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-semibold">{t('roster.rel.nogk')}</span>
+                    <span className="block text-xs opacity-70">{t('roster.rel.nogk.hint')}</span>
+                  </span>
+                </button>
+              )}
+
               {eligibleForRelationships.length > 8 && (
                 <input
                   dir="auto"
