@@ -25,6 +25,23 @@ export interface Player {
   invitedBy?: string; // player id — guests stick with their inviter
   chemistry: string[]; // ids of players they play well with
   avoid?: string[]; // ids of players they clash with — keep on different teams
+  /**
+   * Keep this player off a team that already has somebody in goal.
+   *
+   * Going in goal is how a tired player gets a rest without sitting out, and a
+   * team that already has a keeper has nowhere to offer them — the gloves are
+   * taken for the night. So this is a request for the *option*, not a request
+   * to keep goal: it buys a team where stepping back is still available.
+   *
+   * **A preference, not a rule**, because it is not always satisfiable: three
+   * keepers across three teams leaves nowhere keeper-free to put anybody, and
+   * the answer then is the honest one rather than a redrawn night. Below three
+   * it should win — see `W.noGkTeammate` for the weight and what it beats.
+   *
+   * One-sided, unlike chemistry and avoid: it is a fact about this player and
+   * names nobody, so there is no mirror link to keep in step.
+   */
+  noGkTeammate?: boolean;
   // shirt number, purely cosmetic — shown only on the edit form and printed
   // onto the shirt-image export (see shirtImage.ts). Optional; duplicates
   // across players are fine, nothing depends on it being unique.

@@ -58,6 +58,18 @@ describe('publicPlayer', () => {
     publicPlayer(stored);
     expect(stored.avoid).toEqual(['p2']);
   });
+
+  // Who needs the gloves kept free so they can take a breather (§2.59). It
+  // reads as a scheduling flag and it is not one — it says a player cannot get
+  // through a night without a rest, which is exactly the kind of thing this
+  // endpoint exists to stop handing to anyone who knows the URL.
+  it('strips who asked not to be put with a keeper', () => {
+    const clean = publicPlayer(player({ noGkTeammate: true, isGk: false }));
+    expect(clean.noGkTeammate).toBeUndefined();
+    expect(JSON.stringify(clean)).not.toContain('noGkTeammate');
+    // and the thing it is next to, which genuinely is public, still travels
+    expect(publicPlayer(player({ isGk: true })).isGk).toBe(true);
+  });
 });
 
 describe('isValidPlayers', () => {
@@ -65,6 +77,14 @@ describe('isValidPlayers', () => {
     expect(isValidPlayers([player(), player({ id: 'p2', name: 'ירין', aliases: ['חזום'] })])).toBe(
       true,
     );
+  });
+
+  it('takes the keeper-free request as a boolean and nothing else', () => {
+    expect(isValidPlayers([player({ noGkTeammate: true })])).toBe(true);
+    expect(isValidPlayers([player({ noGkTeammate: false })])).toBe(true);
+    expect(isValidPlayers([player()])).toBe(true); // absent is the normal case
+    expect(isValidPlayers([player({ noGkTeammate: 'yes' })])).toBe(false);
+    expect(isValidPlayers([player({ noGkTeammate: ['p2'] })])).toBe(false);
   });
 
   it('rejects a name that is an object — truthy, but not a name', () => {

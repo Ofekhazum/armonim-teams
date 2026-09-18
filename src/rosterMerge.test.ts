@@ -17,6 +17,35 @@ const local = (over: Partial<Player> = {}): Player => ({
 const shared = (over: Partial<PublicPlayer> = {}): PublicPlayer =>
   ({ id: 'p1', name: 'אופק', rating: 4, attack: 50, ...over }) as PublicPlayer;
 
+// The keeper-free request (§2.59) is stripped on the wire like the rest of the
+// organiser's notes, which makes the merge the only thing keeping it alive on
+// the device that set it. A pull wiping it is silent: the flag is invisible
+// until a night is drawn, so the first sign would be the player quietly landing
+// on a keeper's team again weeks later.
+describe('the keeper-free request survives a roster pull', () => {
+  it('is kept through a public merge, which cannot carry it', () => {
+    const merged = mergePublicRoster([local({ noGkTeammate: true })], [shared()]);
+    expect(merged[0].noGkTeammate).toBe(true);
+  });
+
+  it('is not invented for somebody who never asked', () => {
+    const merged = mergePublicRoster([local()], [shared()]);
+    expect(merged[0].noGkTeammate).toBeUndefined();
+  });
+
+  it('is taken from the admin read once that arrives, in both directions', () => {
+    // set on the shared copy, absent locally
+    expect(
+      mergePrivateFields([local()], [local({ noGkTeammate: true })])[0].noGkTeammate,
+    ).toBe(true);
+    // and cleared there, which has to clear it here — an unchecked box that
+    // stays checked on one device is the same bug as a lost one
+    expect(
+      mergePrivateFields([local({ noGkTeammate: true })], [local()])[0].noGkTeammate,
+    ).toBe(false);
+  });
+});
+
 describe('mergePublicRoster', () => {
   it('keeps the keep-apart list the public read is not allowed to carry', () => {
     // the whole point of stripping `avoid` server-side is undone if pulling

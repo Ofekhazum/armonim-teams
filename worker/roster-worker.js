@@ -190,7 +190,19 @@ const ROOM_PATH = /^\/room\/([A-Za-z0-9_-]{1,64})$/;
 //
 // They are still *stored*, so an organiser setting up a new device gets them
 // back — via POST /roster/full, which costs the secret word.
-const PRIVATE_PLAYER_FIELDS = ['avoid', 'chemistry', 'aliases', 'rating', 'attack'];
+// `noGkTeammate` joined them for the same reason rather than a new one: it
+// records that somebody needs to be able to drop into goal for a breather,
+// which is a statement about a person's condition and not a fact about
+// football. It is also the only one of these the app can work entirely without
+// on a viewer's device — nothing outside the balancer reads it.
+const PRIVATE_PLAYER_FIELDS = [
+  'avoid',
+  'chemistry',
+  'aliases',
+  'rating',
+  'attack',
+  'noGkTeammate',
+];
 
 export function publicPlayer(p) {
   const clean = { ...p };
@@ -248,6 +260,7 @@ export function isValidPlayers(players) {
     if (p.invitedBy !== undefined && !isStr(p.invitedBy, MAX_ID_CHARS)) return false;
     if (p.chemistry !== undefined && !isIdList(p.chemistry, MAX_PLAYERS)) return false;
     if (p.avoid !== undefined && !isIdList(p.avoid, MAX_PLAYERS)) return false;
+    if (p.noGkTeammate !== undefined && typeof p.noGkTeammate !== 'boolean') return false;
     if (p.aliases !== undefined) {
       if (!Array.isArray(p.aliases) || p.aliases.length > MAX_ALIASES) return false;
       if (!p.aliases.every((a) => isStr(a, MAX_NAME_CHARS))) return false;

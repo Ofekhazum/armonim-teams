@@ -36,6 +36,24 @@ const W = {
   // a preference, not a rule: nudges a pair onto separate teams, but yields
   // when keeping them apart would cost real balance (~0.15 of rating spread)
   avoid: 18,
+  // Per player who asked not to share a team with a keeper, on a team that has
+  // one (`Player.noGkTeammate`).
+  //
+  // **Much heavier than `avoid`, deliberately, and the reason is that the two
+  // are not the same kind of request.** Keeping two people apart is a social
+  // preference that can be traded away against a better night's football.
+  // Wanting the gloves available is a tired player asking for the one way this
+  // format lets them rest without going home, and the organiser's own standard
+  // for it was that it should simply happen: below three keepers, that player
+  // is on the keeper-free team.
+  //
+  // A full point of rating spread is what it takes to be that reliable.
+  // Swapping one player between teams typically moves the spread by 0.2–0.4 (24
+  // to 48 here) and the shape terms add less again, so at 120 this wins every
+  // ordinary trade while still yielding to `size` and `gkStack`, which are
+  // structural. It is priced per player, so two of them on a keeper's team
+  // costs twice as much as one and the balancer separates them in order.
+  noGkTeammate: 120,
   unknown: 20,
 };
 
@@ -46,6 +64,8 @@ interface Ctx {
   gkIds: Set<string>;
   chemPairs: Set<string>;
   avoidPairs: Set<string>;
+  /** Who asked for a team with the gloves still going spare. */
+  noGkIds: Set<string>;
   targets: Record<TeamColor, number>;
   total: number;
 }
@@ -66,6 +86,7 @@ function buildCtx(
   const byId = new Map(players.map((p) => [p.id, p]));
   const chemPairs = new Set<string>();
   const avoidPairs = new Set<string>();
+  const noGkIds = new Set<string>();
   for (const p of players) {
     for (const other of p.chemistry ?? []) {
       if (byId.has(other)) chemPairs.add(pairKey(p.id, other));
@@ -73,8 +94,28 @@ function buildCtx(
     for (const other of p.avoid ?? []) {
       if (byId.has(other)) avoidPairs.add(pairKey(p.id, other));
     }
+    // A keeper who wants the gloves free is asking for something they are
+    // themselves the reason nobody can have, so the flag is ignored on one —
+    // it would otherwise be an unsatisfiable penalty following them around
+    // every arrangement and quietly distorting the rest of the night.
+    if (p.noGkTeammate && !gkIds.has(p.id)) noGkIds.add(p.id);
   }
-  return { byId, gkIds, chemPairs, avoidPairs, targets, total: players.length };
+
+  // **With a keeper for every team, the request is dropped rather than paid.**
+  // One keeper per side is what `gkStack` is already pushing towards, so at
+  // three there is no keeper-free team to ask for and the penalty would apply
+  // to every arrangement equally — except for the one arrangement it does
+  // change, which is the bad one: stacking two keepers on a team to empty
+  // another is worth 300, and three disappointed players are worth 360, so the
+  // balancer would start quietly wasting a keeper to buy the preference.
+  //
+  // That is not the organiser's rule. Theirs is that three keepers is simply
+  // how the night is — "if there are 3 permanent GK in the squad so it is what
+  // it is" — and a preference that reshapes where the *keepers* go has stopped
+  // being a preference about where this player goes.
+  if (gkIds.size >= TEAM_COLORS.length) noGkIds.clear();
+
+  return { byId, gkIds, chemPairs, avoidPairs, noGkIds, targets, total: players.length };
 }
 
 export interface TeamStats {
@@ -154,6 +195,13 @@ function scoreTeams(teams: Teams, ctx: Ctx): number {
     score += Math.abs(s.size - ctx.targets[color]) * W.size;
     score += Math.max(0, s.gkCount - 1) * W.gkStack;
     score += Math.max(0, s.unknowns - 1) * W.unknown;
+    // Somebody who wanted the gloves available, on a team where they are not.
+    // Counted per player rather than per team, so a team holding two of them is
+    // twice as bad as one holding a single — otherwise the balancer would have
+    // no reason to rescue the second once the first was stuck.
+    if (ctx.noGkIds.size && s.gkCount > 0) {
+      for (const id of teams[color]) if (ctx.noGkIds.has(id)) score += W.noGkTeammate;
+    }
   }
 
   const avgs = stats.filter((x) => x.s.size > 0).map((x) => x.s.avg);

@@ -32,6 +32,10 @@ export function mergePublicRoster(prev: Player[], remote: PublicPlayer[]): Playe
       chemistry: had?.chemistry ?? [],
       avoid: had?.avoid ?? [],
       aliases: had?.aliases ?? [],
+      // Stripped on the wire like the rest of the organiser's notes (§2.59):
+      // it says a player needs to be able to rest, which is nobody else's
+      // business to read off a public endpoint.
+      ...(had?.noGkTeammate ? { noGkTeammate: true } : {}),
       // `rating` and `attack` no longer travel on the public read either, so
       // they are held the same way: keep whatever this device already had,
       // and fall back to the middle of the scale for a player it is meeting
@@ -69,6 +73,7 @@ export function mergePrivateFields(prev: Player[], full: Player[]): Player[] {
       chemistry: remote.chemistry ?? [],
       avoid: remote.avoid ?? [],
       aliases: remote.aliases ?? [],
+      noGkTeammate: !!remote.noGkTeammate,
       rating: remote.rating ?? p.rating,
       attack: remote.attack ?? p.attack,
     };

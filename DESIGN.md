@@ -4598,6 +4598,69 @@ Two things the browser corrected afterwards, neither visible from the code:
   the difference, since two taps are two tasks, but having one control read the rendered list while
   every other reads the current one is how the batching bug got in twice.
 
+### 2.59 "Put me on a team with no keeper" (`Player.noGkTeammate`)
+
+A third thing the organiser can record about a player, alongside chemistry and keep-apart — and the
+first one that names nobody.
+
+**What it is actually asking for.** Going in goal is how a tired player rests without going home: five
+a side, no substitutes, and the one position where you can stand still for a few minutes and still be
+playing. A team that already has a keeper cannot offer that — the gloves are spoken for — so the
+request is for the *option*, not for the job. Somebody carrying a knock wants to be somewhere they can
+step back if they need to.
+
+**A preference, not a rule, because it is not always satisfiable.** Three keepers across three teams
+leaves nowhere keeper-free to put anyone. The organiser set the standard themselves: *"if there are 3
+permanent GK in the squad so it is what it is, but if there's less than 3 GKs then that player will be
+in the team without a GK."* So `W.noGkTeammate` is priced at **120 — a full point of rating spread**,
+which is far heavier than `avoid` at 18 and deliberately so. The two are not the same kind of request:
+keeping two people apart is a social preference that can be traded away for a better night's football,
+while this one is somebody asking for the only rest the format has. Moving one player between teams
+typically shifts the rating spread by 0.2–0.4 (24 to 48 in this scale), so 120 wins every ordinary
+trade while still yielding to `size` and `gkStack`.
+
+Priced **per player**, so a team holding two of them costs twice a team holding one — otherwise the
+balancer has no reason to rescue the second once the first is stuck.
+
+**Measured rather than assumed** (`scripts/gk-pref-report.ts`, 60 random rosters a row):
+
+| keepers | asking | honoured | rating spread |
+|---------|--------|----------|---------------|
+| 1 | 1–6 | **100%** | 0.15–0.19 |
+| 2 | 1–3 | **100%** | 0.16–0.18 |
+| 2 | 6 | 83% — *the arithmetic maximum*, one free team of five | 0.26 |
+| 3 | any | 0% — by design | 0.13 |
+
+The balance column is the point of including it: honouring this costs essentially nothing, because a
+keeper-free team is usually two thirds of the pitch and the balancer has plenty of freedom to even the
+ratings around the one player it had to place.
+
+#### The failure that the measurement caught
+
+At 120 a point with three keepers, the first version honoured **85%** of requests — which is
+impossible, since no team can be keeper-free. It was **stacking two keepers onto one team to empty
+another**: worth 300 in `gkStack`, against three disappointed players at 360. A net win by the
+scoring, and completely wrong. Two keepers on one side wastes one of them and leaves a third team
+improvising in goal, and — more to the point — a preference that reshapes where the *keepers* go has
+stopped being a preference about where this player goes.
+
+No weight fixes that, because any fixed price is outvoted by enough askers. The fix is structural:
+**when there are at least as many keepers as teams, the request is dropped rather than paid.** That is
+the organiser's own rule restated, and it removes the stacking incentive precisely where it arises.
+
+**Two players it deliberately ignores.** A keeper who sets the flag on themselves is asking for
+something they are the reason nobody can have; left in, it would be an unsatisfiable constant on every
+arrangement, quietly distorting the terms that matter. And the UI clears the flag when a player is
+made a permanent keeper, so it cannot sit set behind a hidden control still counting on the fold's
+badge with nothing on screen to explain it.
+
+**Private, like the rest of the organiser's notes** (§2.9). It is stripped by
+`PRIVATE_PLAYER_FIELDS` on `GET /roster`, which reads as a scheduling flag and is not one: it says a
+player cannot get through a night without a rest. Nothing outside the balancer reads it, so a viewer's
+device loses nothing by never seeing it — but that makes `mergePublicRoster` the only thing keeping it
+alive on the device that set it, and a pull wiping it would be silent, surfacing weeks later as the
+player quietly landing on a keeper's team again. Hence a test on both merge directions.
+
 ## 3. Team generation algorithm
 
 Balancing is a small constrained optimization. With ≤15 players, brute force is too big
@@ -4621,6 +4684,7 @@ instantly and is easy to reason about:
 | Role strength | medium | spread between teams' **defensive** and **attacking** strength (both ends scored separately). Each outfield player splits their *rating* across the two ends in proportion to their spectrum position — a 5★ at `attack: 0` contributes 5 defence, a 3★ contributes 3 — so quality is balanced *per role*, not just overall. This is what stops one team getting the 5★ defender while another makes do with the 3★ one; the aggregate rating term can't see where a team's strength sits, and badge counts treat both defenders as one head each. Anyone in goal today (permanent or temporary) is excluded from both pools, matching how their rating is already handled. With equal ratings this reduces to plain mean-attack balance, so it generalises rather than replaces that idea |
 | Chemistry | medium | bonus for each prefer-together pair on the same team |
 | Keep apart | medium | penalty for a "prefer on separate teams" pair landing together. Weight 18 (was 40) — deliberately a nudge that yields rather than a near-hard constraint. In practice a single pair is separated ~100% of the time anyway (with 15 players across 3 teams it costs almost nothing); the weight only bites when preferences conflict with each other, where the balancer now accepts the unavoidable clash rather than wrecking rating balance chasing an impossible split |
+| Keeper-free team | 120 | penalty per player who asked not to share a team with anybody in goal (`noGkTeammate`, §2.59), on a team that has one. A full point of rating spread, because it is somebody asking for the only rest this format offers rather than a social preference — it beats every ordinary trade and yields only to `size` and `gkStack`. Dropped entirely once there are as many keepers as teams: nothing is satisfiable there, and paying it would buy nothing except keeper-stacking |
 | Unknown spread | medium | avoid two unknown-rating guests on the same team (unless glued to the same inviter) |
 | Variety (later) | low | penalize repeating last week's exact teammates, so teams rotate over the season |
 
