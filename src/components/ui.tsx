@@ -42,8 +42,13 @@ export const MEDAL: Record<1 | 2 | 3, string> = {
  * steps a disc has no use for. Two reading tasks, two ramps, one top rung.
  */
 export const PERFECT_GRADE = 10;
+// One step deeper than the 500s it shipped as, which is a readability fix and
+// not a restyle: white on `fuchsia-500` measures 3.46:1, and the numeral is
+// 11px — bold, but nowhere near WCAG's "large text", so it wants 4.5. The 600s
+// are the same three hues at 4.71, 5.70 and 6.29. Side by side the difference
+// reads as the same purple, slightly richer.
 export const PERFECT_FILL =
-  'bg-gradient-to-br from-fuchsia-500 via-violet-500 to-indigo-500 text-white';
+  'bg-gradient-to-br from-fuchsia-600 via-violet-600 to-indigo-600 text-white';
 
 export const STYLE_ICON: Record<RoleBadge, string> = {
   defensive: '🛡️',

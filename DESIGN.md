@@ -4753,6 +4753,36 @@ The form strip's square gets the fill too, not only the pill. A purple square am
 peak, which is exactly what it was: without it, the one night somebody was perfect is indistinguishable
 from a night they were merely good.
 
+### 2.62 The marks had to be readable on a dark shirt
+
+The grade discs were tinted rather than filled — `bg-emerald-500/10`, `bg-rose-500/10`,
+`bg-white/60` — so most of each chip's colour came from the card *behind* it. Two of the three team
+cards are `stone-900` and `blue-900`. Measured:
+
+| band | black card | blue card | cream card |
+|---|---|---|---|
+| standout (7–8.9), green | 1.97 | **1.18** | 6.86 |
+| rough (≤4), red | 1.97 | **1.24** | 6.91 |
+| ordinary (5–6.9), neutral | 2.46 | 2.72 | 4.15 |
+
+1.18:1 is not "hard to read", it is invisible. The tones had been chosen against the one card they
+worked on, and the other two were never checked — the organiser spotted it on the green, which is the
+band that appears most.
+
+**The fix is opacity, not hue.** A tinted chip inherits the card's contrast problem; an opaque one
+carries its own, so the same chip now reads identically on all three cards: **8.57**, **13.45** and
+**7.97**, all clearing AAA. Green still means a good night — only the fill changed, from a tint of the
+card to a colour of its own.
+
+`GradeForm`'s ramp is left tinted on purpose. It only ever renders on the profile's cream card, where
+the same tints measure 6.86 and pass; sharing a palette across two backgrounds is what caused this in
+the first place.
+
+**`PERFECT_FILL` went one step deeper** while this was open. White on `fuchsia-500` measures 3.46:1,
+and an 11px numeral is not WCAG "large text" however bold it is, so it wants 4.5. The 600s are the
+same three hues at 4.71, 5.70 and 6.29 — side by side it reads as the same purple, slightly richer.
+The §2.61 sharing is what made that a one-line change reaching both pages.
+
 ## 3. Team generation algorithm
 
 Balancing is a small constrained optimization. With ≤15 players, brute force is too big

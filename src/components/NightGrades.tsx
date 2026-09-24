@@ -44,9 +44,26 @@ const GRADE_TONE = {
   perfect: `border-transparent ${PERFECT_FILL} shadow-[inset_0_0_0_1px_rgba(255,255,255,0.45)]`,
   premium:
     'border-amber-500/40 bg-gradient-to-br from-amber-300 to-yellow-500 text-amber-950 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.5)]',
-  standout: 'border-emerald-600/30 bg-emerald-500/10 text-emerald-800',
-  ordinary: 'border-amber-900/15 bg-white/60 text-amber-900/70',
-  rough: 'border-rose-600/25 bg-rose-500/10 text-rose-800',
+  // **Opaque fills, and that is the fix rather than a restyle.** These three
+  // were translucent — `bg-emerald-500/10` and friends — so the card behind
+  // them supplied most of the colour, and the cards are `stone-900` and
+  // `blue-900`. Measured, the number against its own chip came out at:
+  //
+  //     band       black   blue    cream
+  //     standout   1.97    1.18    6.86
+  //     rough      1.97    1.24    6.91
+  //     ordinary   2.46    2.72    4.15
+  //
+  // 1.18:1 is not "hard to read", it is invisible; the marks were only ever
+  // legible on the one card the tones were picked against. An opaque fill
+  // carries its own contrast, so a chip now reads identically on all three —
+  // 8.57, 13.45 and 7.97, all clearing AAA.
+  //
+  // Same hues deliberately: green still means a good night. It is the *fill*
+  // that changed, from a tint of the card to a colour of its own.
+  standout: 'border-emerald-600/30 bg-emerald-100 text-emerald-900',
+  ordinary: 'border-amber-900/20 bg-amber-100 text-amber-950',
+  rough: 'border-rose-600/30 bg-rose-100 text-rose-900',
 } as const;
 
 const toneOf = (grade: number) =>

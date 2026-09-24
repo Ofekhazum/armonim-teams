@@ -3,6 +3,7 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 import { playerGradeSeries, type AllMarks } from '../gradeHistory';
 import type { FixtureRecord } from '../types';
 import GradeForm from './GradeForm';
+import { PERFECT_FILL } from './ui';
 
 // The form panel (§2.40). The windowing is tested in gradeHistory.test.ts;
 // what matters here is what a reader gets — that the default really is the
@@ -236,7 +237,9 @@ describe('a perfect mark looks perfect here too', () => {
     const fills = fillsOf('10');
     expect(fills).toHaveLength(2);
     for (const fill of fills) {
-      expect(fill).toContain('from-fuchsia-500');
+      // the shared constant, not a literal hue step — the point is that both
+      // pages read from one place, not which purple it currently is
+      expect(fill).toContain(PERFECT_FILL);
       expect(fill).not.toContain('bg-emerald-500/15');
     }
   });
@@ -254,8 +257,8 @@ describe('a perfect mark looks perfect here too', () => {
     );
     for (const fill of fillsOf('9')) {
       expect(fill).toContain('emerald');
-      expect(fill).not.toContain('fuchsia');
+      expect(fill).not.toContain(PERFECT_FILL);
     }
-    for (const fill of fillsOf('6.5')) expect(fill).not.toContain('fuchsia');
+    for (const fill of fillsOf('6.5')) expect(fill).not.toContain(PERFECT_FILL);
   });
 });
