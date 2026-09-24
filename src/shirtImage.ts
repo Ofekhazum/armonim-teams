@@ -15,6 +15,8 @@ import blackShirtUrl from './shirt_images/black_team_shirt.webp';
 import whiteShirtUrl from './shirt_images/white_team_shirt.webp';
 import blueShirtUrl from './shirt_images/blue_team_shirt.webp';
 import goldShirtUrl from './shirt_images/gold_team_shirt.webp';
+// The sixth/seventh shirt, supplied separately — see the mentions block below.
+import mentionShirtUrl from './shirt_images/mention_shirt.webp';
 
 // The three shirts a night is played in, plus the gold one nobody wears: the
 // Team of the Month card (§2.21). Same artwork, same five-shirt pentagon, same
@@ -82,43 +84,47 @@ const NUMBER_BOXES: Box[] = [
 // the gold card only. **They are not in the team**: nothing here is registered,
 // announced or shown on a profile — see `teamOfMonth` in totm.ts.
 //
-// There is no sixth shirt in the artwork, so one of the five is borrowed. The
-// bottom-left shirt is copied out of the template and redrawn small, which
-// keeps the mentions in exactly the same hand-drawn style as the team above
-// them rather than introducing a vector approximation of it.
+// Their shirt is its own asset rather than one of the five borrowed from the
+// template, which is what the organiser asked for and is also the reason this
+// file no longer carries a luminance key. An earlier version cut a shirt out of
+// the gold template by brightness, because every rectangular crop of that
+// artwork has a bright border and lands a visible box. `mention_shirt.webp`
+// arrives with a real alpha channel — corners measured at 0 — so it is simply
+// drawn, and the mention is a whole shirt instead of an outline.
 
-/** The bottom-left shirt's outline in design coordinates — the one that gets copied. */
-const SHIRT_SOURCE: Box = { x: 183, y: 684, width: 224, height: 240 };
+/**
+ * The part of the asset that is actually artwork, in its own pixels.
+ *
+ * Measured off the alpha channel rather than assumed: the file is 1024×921 and
+ * the shirt occupies x 102–872, y 48–858. Positioning against the file's centre
+ * instead would sit every mention 25px right of where it belongs, since the
+ * padding is not symmetric.
+ */
+const MENTION_ART = { x: 102, y: 48, width: 770, height: 810 };
 
-/** How big a borrowed shirt is drawn, against the source it was cut from. */
-const MENTION_SCALE = 0.52;
+/** Name and number on that shirt, in the asset's own pixels. */
+const MENTION_NAME_BOX: Box = { x: 487, y: 322, width: 340, height: 86 };
+const MENTION_NUMBER_BOX: Box = { x: 487, y: 500, width: 250, height: 150 };
+
+/** How wide a mention shirt is drawn, in design units. */
+const MENTION_WIDTH = 104;
+
+/**
+ * The font range for a mention, as a fraction of a full-size shirt's.
+ *
+ * **Deliberately not tied to `MENTION_WIDTH`.** Scaling the type with the
+ * artwork is the obvious thing and gives a name about 2.4px tall — the shirt
+ * can shrink freely, a name cannot. So the art has a scale and the type has a
+ * floor, and they are allowed to disagree.
+ */
+const MENTION_TEXT_SCALE = 0.5;
 
 /** The centre of the strip the mentions sit in, and how far apart they sit. */
 const MENTION_ROW_Y = 878;
-const MENTION_GAP = 116;
+const MENTION_GAP = 122;
 
 /** Where the label goes, above the row. */
 const MENTION_LABEL_Y = 806;
-
-// Luminance below `KEY_FLOOR` is dropped, above `KEY_CEIL` is kept, and the
-// band between fades — the key that turns a rectangular crop into a shirt.
-//
-// **Measured rather than guessed, and the first two attempts were wrong.** The
-// background immediately outside the shirt reads 0.027 at its median and never
-// exceeds 0.055, so a floor of 0.06 looked sufficient — and was not, because
-// the *crop's own border* runs to 0.20–0.26 wherever the surrounding nebula is
-// bright. Widening the crop does not help: every candidate box from 172×196 out
-// to 250×260 has an edge peak in that same range. There is no rectangle of this
-// artwork with a dark border, so no low key can avoid a visible box.
-//
-// A floor above that band is therefore the only honest option, and it sets what
-// the mention *is*: at 0.30 the shirt's interior (median 0.054, p90 0.152) goes
-// with the background and only the outline survives, which reads at 0.76.
-// The mentions are the glowing shirt outline with the card's own sky inside —
-// not a smaller copy of a team shirt, and deliberately so. It is also why the
-// name and number below are drawn by hand rather than cut with the shirt.
-const KEY_FLOOR = 0.3;
-const KEY_CEIL = 0.55;
 
 const font = (size: number, weight = '800') =>
   `${weight} ${size}px system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif`;
@@ -188,80 +194,28 @@ export interface ShirtPlayer {
 }
 
 /**
- * A shirt cut out of the template by brightness, small, on a transparent field.
- *
- * **Why not just `drawImage` the crop.** The source rectangle contains nebula
- * as well as shirt, and the destination is textured rather than flat, so a
- * straight copy lands a visible rectangle. Additive compositing was tried first
- * and is better but not good enough — the source's own background still *adds*
- * to the destination's, and the patch reads as a brighter box. Measured by
- * looking at it, which is the only instrument that applies.
- *
- * So the copy is keyed on luminance instead: near-black goes fully
- * transparent, the bright outline stays opaque, and everything between fades.
- * The artwork being a glowing line on a dark sky is what makes that work — the
- * key follows the glow, so the shirt keeps its halo instead of acquiring a cut
- * edge, and the interior lets the *destination's* sky through rather than
- * carrying a second copy of the source's.
- *
- * Falls back to the additive draw if the pixels cannot be read — a tainted
- * canvas would otherwise throw and take the whole card with it, and a faint
- * seam is a far better outcome than no Team of the Month image.
- */
-function cutoutShirt(
-  img: HTMLImageElement,
-  scale: number,
-  width: number,
-  height: number,
-): HTMLCanvasElement | null {
-  const c = document.createElement('canvas');
-  c.width = Math.max(1, Math.round(width));
-  c.height = Math.max(1, Math.round(height));
-  const g = c.getContext('2d');
-  if (!g) return null;
-  g.drawImage(
-    img,
-    (SHIRT_SOURCE.x - SHIRT_SOURCE.width / 2) * scale,
-    (SHIRT_SOURCE.y - SHIRT_SOURCE.height / 2) * scale,
-    SHIRT_SOURCE.width * scale,
-    SHIRT_SOURCE.height * scale,
-    0,
-    0,
-    c.width,
-    c.height,
-  );
-  let frame: ImageData;
-  try {
-    frame = g.getImageData(0, 0, c.width, c.height);
-  } catch {
-    return null; // tainted canvas — caller falls back
-  }
-  const px = frame.data;
-  for (let i = 0; i < px.length; i += 4) {
-    const lum = (px[i] * 0.299 + px[i + 1] * 0.587 + px[i + 2] * 0.114) / 255;
-    const a = (lum - KEY_FLOOR) / (KEY_CEIL - KEY_FLOOR);
-    px[i + 3] = Math.round(255 * Math.min(1, Math.max(0, a)));
-  }
-  g.putImageData(frame, 0, 0);
-  return c;
-}
-
-/**
  * Draws the near-misses into the empty strip under the pentagon.
+ *
+ * `shirt` is `mention_shirt.webp`, already loaded; it has its own alpha, so this
+ * is an ordinary composite with nothing clever in it.
  */
 function drawMentions(
   ctx: CanvasRenderingContext2D,
-  img: HTMLImageElement,
+  shirt: HTMLImageElement,
   mentions: ShirtPlayer[],
   style: { fill: string; stroke: string },
   scale: number,
   label: string,
 ) {
-  const w = SHIRT_SOURCE.width * MENTION_SCALE;
-  const h = SHIRT_SOURCE.height * MENTION_SCALE;
-  // Cut once and stamped for each mention — the key is a per-pixel pass and
-  // both shirts are the same shirt.
-  const cut = cutoutShirt(img, scale, w * scale, h * scale);
+  // design units per pixel of the asset
+  const k = MENTION_WIDTH / MENTION_ART.width;
+  const w = MENTION_WIDTH;
+  const h = MENTION_ART.height * k;
+  const artCx = MENTION_ART.x + MENTION_ART.width / 2;
+  const artCy = MENTION_ART.y + MENTION_ART.height / 2;
+  /** An asset-space box's centre, in design units, relative to a shirt centred at 0. */
+  const offset = (box: Box) => ({ dx: (box.x - artCx) * k, dy: (box.y - artCy) * k });
+
   const centreX = DESIGN_WIDTH / 2;
   // one shirt sits centred; two straddle the centre line
   const xs =
@@ -282,53 +236,44 @@ function drawMentions(
   ctx.fillStyle = style.fill;
   ctx.fillText(label, centreX * scale, MENTION_LABEL_Y * scale);
 
+  const nameAt = offset(MENTION_NAME_BOX);
+  const numberAt = offset(MENTION_NUMBER_BOX);
+  const textScale = MENTION_TEXT_SCALE * scale;
+
   mentions.forEach((player, i) => {
-    const left = (xs[i] - w / 2) * scale;
-    const top = (MENTION_ROW_Y - h / 2) * scale;
+    // Only the artwork is drawn, not the file — the asset's padding is not
+    // symmetric, so sizing off the whole image would shift every shirt right.
+    ctx.drawImage(
+      shirt,
+      MENTION_ART.x,
+      MENTION_ART.y,
+      MENTION_ART.width,
+      MENTION_ART.height,
+      (xs[i] - w / 2) * scale,
+      (MENTION_ROW_Y - h / 2) * scale,
+      w * scale,
+      h * scale,
+    );
 
-    ctx.save();
-    if (cut) {
-      ctx.drawImage(cut, left, top, w * scale, h * scale);
-    } else {
-      // Pixels unreadable — additive keeps the shirt visible with a faint seam.
-      ctx.globalCompositeOperation = 'lighter';
-      ctx.drawImage(
-        img,
-        (SHIRT_SOURCE.x - SHIRT_SOURCE.width / 2) * scale,
-        (SHIRT_SOURCE.y - SHIRT_SOURCE.height / 2) * scale,
-        SHIRT_SOURCE.width * scale,
-        SHIRT_SOURCE.height * scale,
-        left,
-        top,
-        w * scale,
-        h * scale,
-      );
-    }
-    ctx.restore();
-
-    // The name and number sit where they would on a full-size shirt, scaled
-    // by the same factor — so a mention reads as the same shirt, smaller,
-    // rather than as a different card with its own typography.
-    const nameY = top + (NAME_BOXES[3].y - (SHIRT_SOURCE.y - SHIRT_SOURCE.height / 2)) * MENTION_SCALE * scale;
-    const numberY = top + (NUMBER_BOXES[3].y - (SHIRT_SOURCE.y - SHIRT_SOURCE.height / 2)) * MENTION_SCALE * scale;
     const cx = xs[i] * scale;
 
     ctx.direction = 'rtl';
     const { lines, size } = fitName(
       ctx,
       player.name,
-      NAME_BOXES[3].width * MENTION_SCALE * scale,
-      MENTION_SCALE * scale,
+      MENTION_NAME_BOX.width * k * scale,
+      textScale,
     );
     ctx.font = font(size);
     const lineHeight = size * 1.15;
+    const nameY = (MENTION_ROW_Y + nameAt.dy) * scale;
     const startY = nameY - ((lines.length - 1) * lineHeight) / 2;
     lines.forEach((line, li) => {
       ctx.lineWidth = size * 0.22;
       ctx.strokeStyle = style.stroke;
-      ctx.strokeText(line, cx, startY + li * lineHeight);
+      ctx.strokeText(line, cx + nameAt.dx * scale, startY + li * lineHeight);
       ctx.fillStyle = style.fill;
-      ctx.fillText(line, cx, startY + li * lineHeight);
+      ctx.fillText(line, cx + nameAt.dx * scale, startY + li * lineHeight);
     });
 
     ctx.direction = 'ltr';
@@ -336,16 +281,16 @@ function drawMentions(
     const numSize = fitNumberSize(
       ctx,
       text,
-      NUMBER_BOXES[3].width * MENTION_SCALE * scale,
-      NUMBER_BOXES[3].height * MENTION_SCALE * scale,
-      MENTION_SCALE * scale,
+      MENTION_NUMBER_BOX.width * k * scale,
+      MENTION_NUMBER_BOX.height * k * scale,
+      textScale,
     );
     ctx.font = font(numSize, '900');
     ctx.lineWidth = numSize * 0.16;
     ctx.strokeStyle = style.stroke;
-    ctx.strokeText(text, cx, numberY);
+    ctx.strokeText(text, cx + numberAt.dx * scale, (MENTION_ROW_Y + numberAt.dy) * scale);
     ctx.fillStyle = style.fill;
-    ctx.fillText(text, cx, numberY);
+    ctx.fillText(text, cx + numberAt.dx * scale, (MENTION_ROW_Y + numberAt.dy) * scale);
   });
 
   ctx.restore();
@@ -423,7 +368,10 @@ export async function renderShirtImage(
   // anything drawn above. It cuts from `img`, the untouched template, so the
   // borrowed shirt never picks up a name written onto the canvas.
   if (mentions && mentions.players.length > 0) {
-    drawMentions(ctx, img, mentions.players, style, scale, mentions.label);
+    // A failed load must not cost the card the team it is actually about, so
+    // the mentions are skipped rather than allowed to reject.
+    const shirt = await loadImage(mentionShirtUrl).catch(() => null);
+    if (shirt) drawMentions(ctx, shirt, mentions.players, style, scale, mentions.label);
   }
 
   return canvas;

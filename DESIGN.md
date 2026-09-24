@@ -5142,39 +5142,49 @@ one strip of empty background below them: two small shirts sit there comfortably
 edge. There is no argument that a month's sixth and seventh players are meaningfully different from
 its eighth — this is the podium's bottom step, printed because there was room.
 
-**There is no sixth shirt in the artwork, so one is borrowed — and the borrowing is the whole
-problem.** A straight `drawImage` of a crop brings a rectangle of nebula with it and lands a visible
-box on a textured background. Additive compositing (`lighter`) was the second attempt and is better,
-but the source's own background still adds to the destination's and the patch still reads as a
-brighter box. What works is a luminance key: cut the crop to a transparent canvas, set each pixel's
-alpha from its brightness, and stamp that.
+**The mentions have their own shirt**, `mention_shirt.webp` — supplied by the organiser rather than
+taken from the template, so a near-miss is visibly a different thing from a place in the team.
 
-Where to put the threshold was measured, and the first guess was wrong in an instructive way:
+That asset replaced a piece of machinery worth recording, because the shape of the problem is general.
+There is no sixth shirt in the gold template, so the first version borrowed one of the five: crop it,
+redraw it small. A plain `drawImage` of a crop lands a visible rectangle on a textured background;
+additive compositing (`lighter`) is better but the source's own background still adds to the
+destination's. What worked was a luminance key — set each pixel's alpha from its brightness — and
+choosing the threshold was measured:
 
-| sampled region | median | p90 | max |
-|---|---|---|---|
-| background just outside the shirt | 0.027 | 0.036 | **0.055** |
-| shirt interior | 0.054 | 0.152 | — |
-| outline peaks | **0.762** | 0.791 | — |
+| sampled region | median | max |
+|---|---|---|
+| background just outside the shirt | 0.027 | **0.055** |
+| shirt interior | 0.054 | — |
+| outline peaks | **0.762** | — |
 
-A floor of 0.06 clears the background by that table and still produced a box, because the figure that
-matters is not the background near the shirt but **the crop's own border**, which runs 0.20–0.26
-wherever the surrounding nebula happens to be bright. Widening the crop does not fix it: every
-candidate from 172×196 out to 250×260 has an edge peak in the same band. *There is no rectangle of
-this artwork with a dark border.*
+A floor of 0.06 clears the background by that table and *still* produced a box, because the number
+that matters is not the background near the shirt but **the crop's own border**, which runs 0.20–0.26
+wherever the surrounding nebula is bright — and every candidate crop from 172×196 out to 250×260 has
+an edge peak in that band. *There is no rectangle of that artwork with a dark border.* The floor had
+to sit at 0.30, above the band, which meant the shirt's interior went with the background and a
+mention became a glowing outline rather than a shirt.
 
-So the floor sits at **0.30**, above that band — which decides what a mention *is*. The shirt's
-interior goes with the background and only the outline survives, so a mention is the glowing shirt
-outline with the card's own sky showing through it, rather than a shrunken copy of a team shirt. The
-name and number are drawn by hand at the same relative positions, scaled by `MENTION_SCALE`, so it
-reads as the same shirt smaller rather than as a different card.
+None of that survives, and it should not: `mention_shirt.webp` ships with a real alpha channel —
+corners measured at 0 — so it is simply drawn. The lesson worth keeping is that keying an asset out
+of a busy background is a workaround for not having the asset, and it is visibly a workaround.
 
-If the pixels cannot be read — a tainted canvas — it falls back to the additive draw. A faint seam is
-a much better outcome than an exception taking the whole card with it.
+**Two things about the asset are measured rather than assumed.** Its padding is not symmetric — the
+artwork sits at x 102–872 of a 1024-wide file — so `MENTION_ART` is the alpha bounding box and
+everything is positioned against *its* centre; using the file's would shift every mention 25px right.
+And it arrived as a 911KB PNG, converted to a 94KB WebP (`cwebp -q 88 -alpha_q 100`), alpha verified
+unchanged at the corners and the bounding box identical afterwards.
+
+`MENTION_TEXT_SCALE` is deliberately not tied to `MENTION_WIDTH`. Scaling the type with the artwork is
+the obvious move and produces a name about 2.4px tall: **the shirt can shrink freely, a name cannot.**
+So the art has a scale and the type has a floor, and they are allowed to disagree.
+
+A failed load of the mention asset skips the mentions rather than rejecting, so it can never cost the
+card the team it is actually about.
 
 Verified by rendering against the live club rather than by unit test, since a PNG is not something an
-assertion can read: September's card shows יועד/שגב/ירין/חנש/עילאי in the pentagon and אופק/יוני
-underneath it.
+assertion can read: September's card shows יועד/שגב/ירין/חנש/עילאי in the pentagon and אופק/יוני on
+the yellow shirts underneath it.
 
 ## 3. Team generation algorithm
 
