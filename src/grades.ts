@@ -376,13 +376,27 @@ const ROOM_W = 0.7;
  * today exactly as they always have, and nights from it use the two constants
  * below.
  *
+ * **Why this particular date is the club's last night rather than the day
+ * after it.** "Not yet graded" is not the same question as "not yet played".
+ * A mark is only fixed once a sheet is published: `NightGrades` renders
+ * `shown[id]?.grade ?? p.grade`, so a saved or drafted line pins the number and
+ * the computed one is merely the fallback. On 2026-09-24 the night had been
+ * played and re-rolled but never published, so it was still unfixed, and the
+ * organiser asked for it to be included. Every night before it had a published
+ * sheet and is frozen.
+ *
+ * That also means a change like this one has an ordering: ship the arithmetic
+ * first, re-roll second. A sheet drafted before the change carries the old
+ * number *and* a sentence written to justify it, and re-rolling is what brings
+ * the two back into agreement.
+ *
  * The cost is real and worth stating: a night in August and an identical night
  * in October can mark differently, and no amount of reading the formula will
  * explain it — only this constant will. That is the price of not re-scoring
  * marks people have already been given, and it was judged the cheaper of the
  * two.
  */
-export const VOTE_AFTER_FLOOR_FROM = '2026-09-25';
+export const VOTE_AFTER_FLOOR_FROM = '2026-09-24';
 
 /**
  * The honour half, once the floor is no longer competing with it.

@@ -780,7 +780,7 @@ describe('the tier shade', () => {
     const before = night(T(['a', 'b', 'c'], ['x', 'y'], ['z']), { black: 4, white: 3, blue: 3 }, {
       mvpId: 'a',
       mvpVotes: { a: 8, b: 1 },
-      date: '2026-09-24',
+      date: '2026-09-23',
     });
     const after = night(T(['a', 'b', 'c'], ['x', 'y'], ['z']), { black: 4, white: 3, blue: 3 }, {
       mvpId: 'a',
