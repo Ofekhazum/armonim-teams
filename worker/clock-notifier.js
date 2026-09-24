@@ -156,6 +156,42 @@ const SHIRTS = {
   blue: { emoji: '🔵', he: 'הכחולים', en: 'Blue' },
 };
 
+// The ways a result can be said, one line each (§2.63).
+//
+// **Rotated rather than random**, on the match's own number in the log: a night
+// never hears the same phrasing twice running, and the same match always
+// produces the same words — so a retry that somehow got through would be
+// identical rather than a second, differently-worded buzz.
+//
+// Every line is one short shout with an exclamation mark and nothing else. No
+// second sentence: a result is not a cue to do anything, and the squad is
+// looking at the pitch. And nothing claims a run — "another one", a tally, a
+// streak — because the only input here is this one match, so a line implying
+// more would eventually be wrong about a night it cannot see.
+//
+// `the` is השחורים, `bare` is שחורים: Hebrew wants the article dropped after ל.
+const WINS = {
+  he: [
+    (s) => `ניצחון ל${s.bare}!`,
+    (s) => `${s.the} לקחו את זה!`,
+    (s) => `${s.the} ניצחו!`,
+  ],
+  en: [(s) => `${s.en} take it!`, (s) => `${s.en} win it!`, (s) => `That's ${s.en}!`],
+};
+
+const SHOOTOUTS = {
+  he: [
+    (s) => `ניצחון ל${s.bare} בפנדלים!`,
+    (s) => `${s.the} לקחו בפנדלים!`,
+    (s) => `פנדלים — ו${s.the} ניצחו!`,
+  ],
+  en: [
+    (s) => `${s.en} take it on penalties!`,
+    (s) => `${s.en} win it on penalties!`,
+    (s) => `Penalties — ${s.en} take it!`,
+  ],
+};
+
 /**
  * A match just went in the book (§2.63).
  *
@@ -163,45 +199,30 @@ const SHIRTS = {
  * the alerts above are built on. The line-up is not a lock screen's business;
  * a colour is already on the pitch in front of anybody who can see it.
  *
- * Title carries the result, penalties included, because that is the half that
- * survives truncation on a watch and a shootout is part of what happened
- * rather than a footnote to it.
+ * The whole message is the title. A shootout says so, because that is part of
+ * what happened rather than a footnote to it, and the title is the half that
+ * survives truncation on a watch.
  *
- * **The body is the one place this raises its voice, and only a little.** The
- * first version used it for an instruction — which shirt comes on next — on
- * the grounds that the clock alerts' bodies all earn their place that way. The
- * organiser cut it: a result is not a cue to do anything, the squad is looking
- * at the pitch, and the line was answering a question nobody had asked. What
- * belongs there instead is the half-second of noise a result actually makes.
- *
- * A shootout gets the louder of the two, because a shootout *is* the louder of
- * the two. Neither line claims anything beyond this match — no "another one",
- * no run, no tally — since the only input here is the match itself, and a
- * notification that invents a streak is a notification that will eventually be
- * wrong.
+ * @param seq which match of the night this is, for picking the phrasing.
  */
-export function resultMessage(match, lang = 'he') {
+export function resultMessage(match, lang = 'he', seq = 0) {
   const tongue = lang === 'en' ? 'en' : 'he';
-  const winner = SHIRTS[match?.winner];
-  if (!winner) return null;
-  const pens = !!match.viaPenalties;
-  const title =
-    tongue === 'en'
-      ? `${winner.emoji} ${winner.en} take it${pens ? ' on penalties' : ''}`
-      : `${winner.emoji} ניצחון ל${winner.he.replace(/^ה/, '')}${pens ? ' בפנדלים' : ''}`;
-  const body =
-    tongue === 'en'
-      ? pens
-        ? 'Drama from the spot.'
-        : 'On the board. Nice one.'
-      : pens
-        ? 'דרמה מהנקודה הלבנה.'
-        : 'נרשם על הלוח. יפה!';
-  // Its own tag, so a result and a clock cue do not replace one another on the
-  // lock screen — but successive results still collapse, for the reason the
-  // service worker gives: a phone asleep through three of them should wake to
-  // where the night actually is, not to a stack of history.
-  return { title, body, tag: 'armonim-result' };
+  const shirt = SHIRTS[match?.winner];
+  if (!shirt) return null;
+  const lines = (match.viaPenalties ? SHOOTOUTS : WINS)[tongue];
+  const say = lines[((seq % lines.length) + lines.length) % lines.length];
+  return {
+    title: `${shirt.emoji} ${say({ ...shirt, bare: shirt.he.replace(/^ה/, ''), the: shirt.he })}`,
+    // Explicitly empty rather than absent: the service worker falls back to
+    // "Match update" for a payload with no body, and a title that says it all
+    // deserves silence under it rather than filler.
+    body: '',
+    // Its own tag, so a result and a clock cue do not replace one another on
+    // the lock screen — but successive results still collapse, for the reason
+    // the service worker gives: a phone asleep through three of them should
+    // wake to where the night actually is, not to a stack of history.
+    tag: 'armonim-result',
+  };
 }
 
 export class ClockNotifier {
@@ -333,7 +354,10 @@ export class ClockNotifier {
       // settles every endpoint rather than throwing — a push service having a
       // bad night cannot fail the write it followed.
       if (added?.winner) {
-        await this.broadcastBuilt((lang) => resultMessage(added, lang)).catch(() => []);
+        // `stored.length` is this match's own index — the 1st, 2nd, 3rd of the
+        // night — which is what rotates the phrasing.
+        const seq = stored.length;
+        await this.broadcastBuilt((lang) => resultMessage(added, lang, seq)).catch(() => []);
       }
 
       return Response.json({ ok: true, version, matchLog: body.matchLog });

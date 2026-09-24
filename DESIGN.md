@@ -4829,19 +4829,25 @@ have. A colour is already on the pitch in front of whoever can see it. There is 
 — the builder's entire input is `{a, b, winner, viaPenalties}` — and a test pins that the words stay
 inside the shirt vocabulary as well.
 
-The title carries the result with the shootout in it, because the title is the half that survives
-truncation on a watch and "on penalties" is part of what happened rather than a footnote to it.
+**The whole message is the title**, and it took two passes to get there. It first carried a body with
+an *instruction* — which shirt comes on next — on the grounds that every clock alert's body earns its
+place that way. That was wrong for this one: a result is not a cue to do anything, the squad is
+looking at the pitch, and the line answered a question nobody had asked. A replacement body with a
+bit of flavour under it was wrong for the same reason, just more quietly. The body is now explicitly
+empty (absent would make the service worker fall back to "Match update"), and the shout is the title.
 
-**The body is the one place this raises its voice, and only a little.** It first carried an
-*instruction* — which shirt comes on next — on the grounds that every clock alert's body earns its
-place that way. The organiser cut it: a result is not a cue to do anything, the squad is looking at
-the pitch, and the line was answering a question nobody had asked. What belongs there is the
-half-second of noise a result actually makes, and a shootout gets the louder of the two because a
-shootout *is* the louder of the two.
+**Three phrasings each, rotated on the match's number in the log.** Hearing "Blue take it!" five
+times in an evening is a notification the club stops reading, so the 1st, 2nd and 3rd matches of a
+night each get different words. Rotated rather than random for two reasons: a night never hears the
+same line twice running, and the same match always produces the same words — so a retry that somehow
+got past the guard above would be identical rather than a second, differently-worded buzz. The index
+is taken modulo the list length with the sign normalised, so a count that grows all night can never
+read past the end of it.
 
-Neither line claims anything beyond this one match — no "another", no run, no tally. The builder's
-only input is the match itself, so a body implying a streak would eventually be wrong about a night
-it cannot see. There is a test for that, and the removal of `restingAfter` with it.
+One exclamation mark, one line, nothing else — and nothing that claims a run ("another one", a tally,
+a streak), because the builder's only input is this one match and a line implying more would
+eventually be wrong about a night it cannot see. Both are pinned by tests, across every variant
+rather than just the first.
 
 **Its own `tag`.** A result and a clock cue must not replace one another on the lock screen, but
 successive results still collapse, for the reason the service worker already gives: a phone asleep

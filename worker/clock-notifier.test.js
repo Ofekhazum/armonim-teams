@@ -173,11 +173,54 @@ describe('resultMessage', () => {
     }
   });
 
-  it('raises its voice a little, and louder for a shootout', () => {
-    expect(resultMessage(m(), 'he').body).toBe('נרשם על הלוח. יפה!');
-    expect(resultMessage(m({ viaPenalties: true }), 'he').body).toBe('דרמה מהנקודה הלבנה.');
-    expect(resultMessage(m(), 'en').body).toBe('On the board. Nice one.');
-    expect(resultMessage(m({ viaPenalties: true }), 'en').body).toBe('Drama from the spot.');
+  it('is a title and nothing else', () => {
+    // Explicitly empty rather than absent: the service worker falls back to
+    // "Match update" for a payload with no body.
+    for (const lang of ['he', 'en']) {
+      expect(resultMessage(m(), lang).body).toBe('');
+      expect(resultMessage(m({ viaPenalties: true }), lang).body).toBe('');
+    }
+  });
+
+  it('shouts, once', () => {
+    for (const lang of ['he', 'en']) {
+      for (const seq of [0, 1, 2]) {
+        for (const over of [{}, { viaPenalties: true }]) {
+          const title = resultMessage(m(over), lang, seq).title;
+          expect(title.endsWith('!')).toBe(true);
+          expect(title.match(/!/g)).toHaveLength(1);
+        }
+      }
+    }
+  });
+
+  it('does not say it the same way every time', () => {
+    // Rotated on the match's number, so a night never hears one phrasing twice
+    // running — and the same match always produces the same words.
+    for (const lang of ['he', 'en']) {
+      const said = [0, 1, 2].map((seq) => resultMessage(m(), lang, seq).title);
+      expect(new Set(said).size).toBe(3);
+      // deterministic: the 4th match wraps back to the 1st phrasing
+      expect(resultMessage(m(), lang, 3).title).toBe(said[0]);
+      // and every one of them still names the winner
+      for (const t of said) expect(t).toMatch(lang === 'en' ? /Black/ : /שחורים/);
+    }
+  });
+
+  it('varies the shootout lines too, and each still says penalties', () => {
+    for (const lang of ['he', 'en']) {
+      const said = [0, 1, 2].map((seq) => resultMessage(m({ viaPenalties: true }), lang, seq).title);
+      expect(new Set(said).size).toBe(3);
+      for (const t of said) expect(t).toMatch(lang === 'en' ? /penalties/i : /פנדלים/);
+    }
+  });
+
+  it('never reads past the end of its own list', () => {
+    // `seq` is a match count and grows all night; a negative would be a bug
+    // elsewhere, but neither may produce `undefined is not a function`.
+    for (const seq of [0, 7, 99, -1, -4]) {
+      expect(resultMessage(m(), 'he', seq).title).toContain('!');
+    }
   });
 
   it('claims nothing beyond this one match', () => {
@@ -198,19 +241,24 @@ describe('resultMessage', () => {
     // input here is `{a, b, winner, viaPenalties}`, which holds no name to
     // leak. This pins that the *words* stay inside the shirt vocabulary too.
     const allowed = {
-      he: ['ניצחון', 'לשחורים', 'ללבנים', 'לכחולים', 'בפנדלים', 'נרשם', 'על', 'הלוח', 'יפה!', 'דרמה', 'מהנקודה', 'הלבנה'],
-      en: ['take', 'it', 'on', 'penalties', 'black', 'white', 'blue', 'the', 'board', 'nice', 'one', 'drama', 'from', 'spot'],
+      he: ['ניצחון', 'לשחורים', 'ללבנים', 'לכחולים', 'השחורים', 'הלבנים', 'הכחולים',
+        'לקחו', 'את', 'זה', 'ניצחו', 'בפנדלים', 'פנדלים', 'ושחורים', 'והשחורים', 'והלבנים', 'והכחולים'],
+      en: ['take', 'takes', 'win', 'it', 'on', 'penalties', 'black', 'white', 'blue', "that's", 'penalties —', '—'],
     };
     for (const lang of ['he', 'en']) {
       for (const over of [{}, { viaPenalties: true }, { winner: 'white' }, { a: 'white', b: 'blue', winner: 'blue' }]) {
-        const r = resultMessage(m(over), lang);
+        // every phrasing, not just the first — an unchecked variant is exactly
+        // where a stray word would hide
+        for (const seq of [0, 1, 2]) {
+        const r = resultMessage(m(over), lang, seq);
         const words = `${r.title} ${r.body}`
-          .replace(/[⚫⚪🔵.]/gu, ' ')
+          .replace(/[⚫⚪🔵.!—]/gu, ' ')
           .split(/\s+/)
           .filter(Boolean)
           // case is the sentence's business, not the vocabulary's
           .map((w) => (lang === 'en' ? w.toLowerCase() : w));
         for (const w of words) expect(allowed[lang]).toContain(w);
+        }
       }
     }
   });
