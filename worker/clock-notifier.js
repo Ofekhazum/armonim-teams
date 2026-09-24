@@ -147,6 +147,63 @@ export function messageFor(kind, period, lang = 'he') {
   return period === 'added' ? group.added : group.regulation;
 }
 
+// The three shirts, in both languages, with the emoji the app puts on them.
+// Local to this Worker for the same reason `MESSAGES` is: the alternative is
+// shipping the app's dictionary to the edge to use six words of it.
+const SHIRTS = {
+  black: { emoji: '⚫', he: 'השחורים', en: 'Black' },
+  white: { emoji: '⚪', he: 'הלבנים', en: 'White' },
+  blue: { emoji: '🔵', he: 'הכחולים', en: 'Blue' },
+};
+
+const COLOURS = ['black', 'white', 'blue'];
+
+/**
+ * Who sits out the next one: the shirt that was not in the match just played.
+ *
+ * Three teams, two on the pitch, so the third is the answer — and this is the
+ * only thing about the result an announcement can say that a reader does not
+ * already know by looking at the pitch.
+ */
+export const restingAfter = (a, b) => COLOURS.find((c) => c !== a && c !== b) ?? null;
+
+/**
+ * A match just went in the book (§2.63).
+ *
+ * **This names shirts, never people**, which is what keeps it inside the rule
+ * the alerts above are built on. The line-up is not a lock screen's business;
+ * a colour is already on the pitch in front of anybody who can see it.
+ *
+ * Title carries the result, penalties included, because that is the half that
+ * survives truncation on a watch and a shootout is part of what happened
+ * rather than a footnote to it. The body follows the same rule as the clock
+ * alerts and earns its place by being an *instruction* — the winner stays on,
+ * so the only thing anyone needs to do is get the resting shirt onto the
+ * pitch.
+ */
+export function resultMessage(match, lang = 'he') {
+  const tongue = lang === 'en' ? 'en' : 'he';
+  const winner = SHIRTS[match?.winner];
+  if (!winner) return null;
+  const next = SHIRTS[restingAfter(match.a, match.b)];
+  const title =
+    tongue === 'en'
+      ? `${winner.emoji} ${winner.en} take it${match.viaPenalties ? ' on penalties' : ''}`
+      : `${winner.emoji} ניצחון ל${winner.he.replace(/^ה/, '')}${match.viaPenalties ? ' בפנדלים' : ''}`;
+  const body = next
+    ? tongue === 'en'
+      ? `${next.en} come on.`
+      : `${next.he} נכנסים.`
+    : tongue === 'en'
+      ? 'Next match.'
+      : 'למשחק הבא.';
+  // Its own tag, so a result and a clock cue do not replace one another on the
+  // lock screen — but successive results still collapse, for the reason the
+  // service worker gives: a phone asleep through three of them should wake to
+  // where the night actually is, not to a stack of history.
+  return { title, body, tag: 'armonim-result' };
+}
+
 export class ClockNotifier {
   constructor(state, env) {
     this.state = state;
@@ -253,11 +310,32 @@ export class ClockNotifier {
         // says, so the sender can adopt it now rather than wait for a poll
         return Response.json({ error: 'stale log', matchLog: stored }, { status: 409 });
       }
+      // **Only a match that was actually added gets announced.** `isLogStep`
+      // lets three shapes through and two of them must stay silent: a retry is
+      // the same list sent twice by a phone that did not hear the first answer,
+      // and announcing it would buzz the club again for a match they were
+      // already told about; an undo is a correction, and a result being taken
+      // back is not news anybody needs on a lock screen.
+      const added =
+        body.matchLog.length === stored.length + 1
+          ? body.matchLog[body.matchLog.length - 1]
+          : null;
+
       const version = Date.now();
       await this.state.storage.put('live', {
         version,
         fixture: { ...current.fixture, matchLog: body.matchLog },
       });
+
+      // After the write, and awaited: the announcement is a consequence of the
+      // result being on record, so a push must never go out for a match the
+      // storage then refused. The fan-out is a club, not a stadium, and `send`
+      // settles every endpoint rather than throwing — a push service having a
+      // bad night cannot fail the write it followed.
+      if (added?.winner) {
+        await this.broadcastBuilt((lang) => resultMessage(added, lang)).catch(() => []);
+      }
+
       return Response.json({ ok: true, version, matchLog: body.matchLog });
     }
 
@@ -379,6 +457,17 @@ export class ClockNotifier {
    * this is at most two sends.
    */
   async broadcastByLang(kind, period) {
+    return this.broadcastBuilt((lang) => messageFor(kind, period, lang));
+  }
+
+  /**
+   * The same grouping, for a message that is built rather than looked up.
+   *
+   * `build` is called once per language present among the subscribers, not
+   * once per device — a result announcement is the same sentence for every
+   * Hebrew phone in the club.
+   */
+  async broadcastBuilt(build) {
     const subs = await this.subscriptions();
     const byLang = new Map();
     for (const s of subs) {
@@ -388,7 +477,8 @@ export class ClockNotifier {
     }
     const rows = [];
     for (const [lang, targets] of byLang) {
-      rows.push(...(await this.send(targets, messageFor(kind, period, lang))));
+      const message = build(lang);
+      if (message) rows.push(...(await this.send(targets, message)));
     }
     return rows;
   }
@@ -403,7 +493,9 @@ export class ClockNotifier {
     const subject = this.env.VAPID_SUBJECT ?? 'mailto:armonim@example.com';
     if (targets.length === 0) return [];
 
-    const payload = JSON.stringify({ ...message, tag: 'armonim-clock' });
+    // A message may carry its own tag; the clock's is the default, so the
+    // alerts that predate tagging keep collapsing together as they always did.
+    const payload = JSON.stringify({ tag: 'armonim-clock', ...message });
     const results = await Promise.allSettled(
       targets.map((s) => sendPush(s, payload, JSON.parse(jwk), subject)),
     );

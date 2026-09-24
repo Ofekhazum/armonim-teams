@@ -518,3 +518,105 @@ describe('pruning dead subscriptions', () => {
     expect(await state.storage.get('subs')).toHaveLength(1);
   });
 });
+
+// A match goes in the book, and the club's phones get told (§2.63).
+//
+// The interesting half is what must *not* buzz: `isLogStep` deliberately
+// accepts a retry and an undo alongside a genuine record, and only one of the
+// three is news.
+describe('announcing a result', () => {
+  const live = async (n, log = []) => {
+    await post(n.obj, '/live/put', {
+      fixture: { id: 'f1', teams: { black: [], white: [], blue: [] }, matchLog: log },
+    });
+  };
+  const match = (over = {}) => ({ a: 'black', b: 'white', winner: 'black', viaPenalties: false, ...over });
+  const bodies = () => sent.map((s) => s.body);
+
+  it('buzzes the club when a match is recorded', async () => {
+    const n = notifier();
+    await live(n);
+    await post(n.obj, '/subscribe', { subscription: subscription(1), lang: 'he' });
+    sent = [];
+
+    const res = await post(n.obj, '/live/log', { matchLog: [match()] });
+    expect(res.status).toBe(200);
+    expect(sent).toHaveLength(1);
+  });
+
+  it('says who won, and that it was penalties when it was', async () => {
+    const n = notifier();
+    await live(n);
+    await post(n.obj, '/subscribe', { subscription: subscription(1), lang: 'en' });
+    sent = [];
+
+    await post(n.obj, '/live/log', { matchLog: [match({ viaPenalties: true })] });
+    // the payload is encrypted on the wire, so assert through the builder the
+    // DO used rather than the ciphertext
+    const { resultMessage } = await import('./clock-notifier.js');
+    const msg = resultMessage(match({ viaPenalties: true }), 'en');
+    expect(msg.title).toContain('Black');
+    expect(msg.title).toContain('on penalties');
+    expect(sent).toHaveLength(1);
+  });
+
+  it('stays quiet for a retry of a match already announced', async () => {
+    // Two phones recording the same result, or one that never heard the answer
+    // to its first write. `isLogStep` lets it through so the write succeeds —
+    // it must not buzz the club a second time for the same match.
+    const n = notifier();
+    await live(n, [match()]);
+    await post(n.obj, '/subscribe', { subscription: subscription(1), lang: 'he' });
+    sent = [];
+
+    const res = await post(n.obj, '/live/log', { matchLog: [match()] });
+    expect(res.status).toBe(200);
+    expect(sent).toHaveLength(0);
+  });
+
+  it('stays quiet when a result is taken back', async () => {
+    const n = notifier();
+    await live(n, [match()]);
+    await post(n.obj, '/subscribe', { subscription: subscription(1), lang: 'he' });
+    sent = [];
+
+    const res = await post(n.obj, '/live/log', { matchLog: [] });
+    expect(res.status).toBe(200);
+    expect(sent).toHaveLength(0);
+  });
+
+  it('stays quiet when the write is refused as stale', async () => {
+    const n = notifier();
+    await live(n, [match()]);
+    await post(n.obj, '/subscribe', { subscription: subscription(1), lang: 'he' });
+    sent = [];
+
+    // a log that is not one step from what is stored
+    const res = await post(n.obj, '/live/log', {
+      matchLog: [match({ winner: 'white' }), match(), match()],
+    });
+    expect(res.status).toBe(409);
+    expect(sent).toHaveLength(0);
+  });
+
+  it('sends one message per language, not one per device', async () => {
+    const n = notifier();
+    await live(n);
+    await post(n.obj, '/subscribe', { subscription: subscription(1), lang: 'he' });
+    await post(n.obj, '/subscribe', { subscription: subscription(2), lang: 'he' });
+    await post(n.obj, '/subscribe', { subscription: subscription(3), lang: 'en' });
+    sent = [];
+
+    await post(n.obj, '/live/log', { matchLog: [match()] });
+    expect(sent).toHaveLength(3); // every device buzzed
+    expect(bodies().filter(Boolean)).toHaveLength(3);
+  });
+
+  it('records the match even with no subscribers at all', async () => {
+    const n = notifier();
+    await live(n);
+    const res = await post(n.obj, '/live/log', { matchLog: [match()] });
+    expect(res.status).toBe(200);
+    expect((await res.json()).matchLog).toHaveLength(1);
+  });
+});

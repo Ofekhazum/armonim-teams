@@ -4802,6 +4802,50 @@ and an 11px numeral is not WCAG "large text" however bold it is, so it wants 4.5
 same three hues at 4.71, 5.70 and 6.29 — side by side it reads as the same purple, slightly richer.
 The §2.61 sharing is what made that a one-line change reaching both pages.
 
+### 2.63 A result is worth a buzz (`resultMessage`)
+
+The clock alerts told the club when a match was *about to* end. Nothing told them how one actually
+went — so a phone in a pocket learned that one minute was left and then nothing at all.
+
+**The hook is `/live/log`, and that is the whole reason this was small.** The Durable Object that
+holds the push subscriptions is already the one that takes the match log, because the write is a
+compare-and-swap that cannot be split across a KV read and a KV write. So the moment a result is
+accepted is the moment the subscriber list is in hand, with the previous log sitting right there to
+compare against.
+
+**Only a match that was *added* is announced.** `isLogStep` deliberately accepts three shapes and two
+of them must stay silent: a **retry** is the same list sent twice by a phone that never heard the
+answer to its first write — announcing it buzzes the club again for a match they were already told
+about — and an **undo** is a correction, which is not news anybody needs on a lock screen. A write
+refused as stale (409) announces nothing either, since no result went on record.
+
+The broadcast is awaited *after* the storage write, so a push can never go out for a match the
+storage then refused. `send` settles every endpoint rather than throwing, so a push service having a
+bad night cannot fail the write it followed.
+
+**It names shirts, never people**, which is what keeps it inside the rule the clock alerts are built
+on: these land on screens anyone standing nearby can read, and tonight's line-up is not theirs to
+have. A colour is already on the pitch in front of whoever can see it. There is also no name to leak
+— the builder's entire input is `{a, b, winner, viaPenalties}` — and a test pins that the words stay
+inside the shirt vocabulary as well.
+
+The title carries the result with the shootout in it, because the title is the half that survives
+truncation on a watch and "on penalties" is part of what happened rather than a footnote to it. The
+body keeps the clock alerts' rule that it must earn its place by being an *instruction*: the winner
+stays on, so the one thing anyone has to do is get the resting shirt onto the pitch — and which shirt
+that is, is the only thing about the result a reader cannot work out by looking at the pitch.
+
+**Its own `tag`.** A result and a clock cue must not replace one another on the lock screen, but
+successive results still collapse, for the reason the service worker already gives: a phone asleep
+through three of them should wake to where the night actually is rather than to a stack of history.
+`send` now defaults the tag instead of hard-coding it, so every alert that predates this keeps
+collapsing exactly as it did.
+
+**Language was already solved.** The subscription carries the `lang` the device opted in with, and
+the fan-out groups by it — so this needed a builder per language, not a mechanism. `broadcastByLang`
+became a thin wrapper over `broadcastBuilt(build)`, which calls `build` once per language present
+among the subscribers rather than once per device.
+
 ## 3. Team generation algorithm
 
 Balancing is a small constrained optimization. With ≤15 players, brute force is too big

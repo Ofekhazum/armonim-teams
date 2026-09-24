@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { messageFor, triggersFor } from './clock-notifier.js';
+import { messageFor, restingAfter, resultMessage, triggersFor } from './clock-notifier.js';
 
 const NOW = 1_700_000_000_000;
 const MIN = 60_000;
@@ -139,5 +139,65 @@ describe('messageFor', () => {
     const add = messageFor('one-minute', 'added');
     expect(reg.title).toBe(add.title);
     expect(reg.body).not.toBe(add.body);
+  });
+});
+
+// What a result says when it lands on a lock screen (§2.63).
+describe('resultMessage', () => {
+  const m = (over = {}) => ({ a: 'black', b: 'white', winner: 'black', viaPenalties: false, ...over });
+
+  it('names the winning shirt in both languages', () => {
+    expect(resultMessage(m(), 'he').title).toContain('שחורים');
+    expect(resultMessage(m(), 'en').title).toContain('Black');
+  });
+
+  it('says penalties when it was penalties, and not when it was not', () => {
+    expect(resultMessage(m({ viaPenalties: true }), 'he').title).toContain('בפנדלים');
+    expect(resultMessage(m({ viaPenalties: true }), 'en').title).toMatch(/on penalties/i);
+    expect(resultMessage(m(), 'he').title).not.toContain('פנדלים');
+    expect(resultMessage(m(), 'en').title).not.toMatch(/penalt/i);
+  });
+
+  it('tells the resting shirt to come on, which is the only instruction there is', () => {
+    // black beat white, so blue is the shirt that was not on the pitch
+    expect(restingAfter('black', 'white')).toBe('blue');
+    expect(resultMessage(m(), 'he').body).toContain('הכחולים');
+    expect(resultMessage(m(), 'en').body).toContain('Blue');
+  });
+
+  it('is built only out of shirts, so it cannot leak a line-up', () => {
+    // The rule the clock alerts are built on: these land on screens anyone
+    // standing nearby can read, and tonight's line-up is not theirs to have.
+    // A shirt is already visible on the pitch; a name is not — and the only
+    // input here is `{a, b, winner, viaPenalties}`, which holds no name to
+    // leak. This pins that the *words* stay inside the shirt vocabulary too.
+    const allowed = {
+      he: ['ניצחון', 'לשחורים', 'ללבנים', 'לכחולים', 'בפנדלים', 'השחורים', 'הלבנים', 'הכחולים', 'נכנסים', 'למשחק', 'הבא'],
+      en: ['take', 'it', 'on', 'penalties', 'Black', 'White', 'Blue', 'come', 'Next', 'match'],
+    };
+    for (const lang of ['he', 'en']) {
+      for (const over of [{}, { viaPenalties: true }, { winner: 'white' }, { a: 'white', b: 'blue', winner: 'blue' }]) {
+        const r = resultMessage(m(over), lang);
+        const words = `${r.title} ${r.body}`
+          .replace(/[⚫⚪🔵.]/gu, ' ')
+          .split(/\s+/)
+          .filter(Boolean);
+        for (const w of words) expect(allowed[lang]).toContain(w);
+      }
+    }
+  });
+
+  it('carries its own tag so a result and a clock cue do not replace each other', () => {
+    expect(resultMessage(m(), 'he').tag).toBe('armonim-result');
+    expect(messageFor('one-minute', 'regulation', 'he').tag).toBeUndefined();
+  });
+
+  it('says nothing at all for a match with no winner', () => {
+    expect(resultMessage({ a: 'black', b: 'white' }, 'he')).toBeNull();
+    expect(resultMessage(null, 'he')).toBeNull();
+  });
+
+  it('falls back to Hebrew for a language it does not know', () => {
+    expect(resultMessage(m(), 'fr').title).toBe(resultMessage(m(), 'he').title);
   });
 });
