@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildPrompt, isValidFacts, recapKey, splitEvents, writeRecap } from './recap.js';
+import { foreignScript } from './gemini.js';
 
 // The reporter's job is to write, and its one hard constraint is to write only
 // about what happened. These tests are mostly about the guard rails: what the
@@ -896,5 +897,38 @@ describe('recapKey', () => {
     // a recap is generated prose that can be thrown away and written again;
     // the fixture record is what happened. They do not share a schema.
     expect(recapKey('f123')).toBe('recap:f123');
+  });
+});
+
+// The gap the screenshot found: `foreignWords` reads `[A-Za-z]`, so for as
+// long as it has existed it could only ever catch the scripts it was looking
+// for. A word in Arabic or Cyrillic walked straight past it.
+describe('foreignScript', () => {
+  it('finds Arabic welded onto the end of a Hebrew word', () => {
+    // the real line, from a grade card that went out to the club
+    expect(foreignScript('הלחמי כבר הספיק לשכוח איך מרגיש הריח של ניצחון אחרי חמש פעמים ברֵيف.'))
+      .toEqual(['يف']);
+  });
+
+  it('finds other scripts too, and reports each run once', () => {
+    expect(foreignScript('ערב של привет ו-привет')).toEqual(['привет']);
+    expect(foreignScript('ערב של 你好')).toEqual(['你好']);
+  });
+
+  it('leaves ordinary Hebrew alone, niqqud and punctuation included', () => {
+    expect(foreignScript('ניב ספר שערים בזמן שהשחורים טבעו בתחתית.')).toEqual([]);
+    expect(foreignScript('בְּרֵאשִׁית — 3:1, 50%')).toEqual([]);
+  });
+
+  it('leaves Latin alone, because that is foreignWords’ question', () => {
+    // A guest's name is the one legitimate source of Latin letters, and which
+    // Latin runs are names is decided by the record, not by the alphabet.
+    expect(foreignScript('Guy הגיע והביא ניצחון.')).toEqual([]);
+  });
+
+  it('is unbothered by an empty or absent answer', () => {
+    expect(foreignScript('')).toEqual([]);
+    expect(foreignScript(null)).toEqual([]);
+    expect(foreignScript(undefined)).toEqual([]);
   });
 });

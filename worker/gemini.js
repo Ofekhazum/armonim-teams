@@ -227,3 +227,38 @@ export async function callGemini(env, prompt, config = {}) {
   if (failures.every((f) => f.includes(': 429'))) return { error: 'quota' };
   return { error: `every model refused — ${failures.join(' · ').slice(0, 400)}` };
 }
+
+/**
+ * Letters in a model's answer that belong to neither Hebrew nor Latin.
+ *
+ * **The prompts ask for Hebrew, and asking is not enough.** `foreignWords` in
+ * `recap.js` already exists because a report came back with an Italian word in
+ * it — but that check reads `[A-Za-z]`, so it only ever saw the scripts it was
+ * looking for. A grade line went out reading "…חמש פעמים ברֵيف", with two
+ * Arabic letters welded onto the end of a Hebrew word, and nothing in the app
+ * so much as noticed: the recap's guard cannot see Arabic, and the grades path
+ * had no language guard at all.
+ *
+ * So this is the complement — every letter that is not Hebrew and not Latin,
+ * which is Arabic, Cyrillic, Greek, CJK and everything else at once. Latin is
+ * spared here because it is legitimately how a guest's name might be spelled,
+ * and `foreignWords` is what decides whether a particular Latin run is a name
+ * we were given or a word the model reached for.
+ *
+ * Returned as the offending runs rather than a boolean, so a caller can name
+ * what was wrong instead of failing with a shrug.
+ */
+export function foreignScript(text) {
+  const runs = [];
+  let run = '';
+  for (const ch of String(text ?? '')) {
+    const odd = /\p{L}/u.test(ch) && !/[\p{Script=Hebrew}\p{Script=Latin}]/u.test(ch);
+    if (odd) run += ch;
+    else if (run) {
+      runs.push(run);
+      run = '';
+    }
+  }
+  if (run) runs.push(run);
+  return [...new Set(runs)];
+}
