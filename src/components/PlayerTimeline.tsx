@@ -183,56 +183,81 @@ export default function PlayerTimeline({
           const runNights = event.runNights ?? [];
           const hasRun = onOpenNight && runNights.length > 0;
           const runOpen = openRun === key;
+          // What tapping the card does. A run card has two things it could
+          // mean — open the night that broke it, or show the nights it was made
+          // of — and a card with two meanings has none, so the run wins: that
+          // is what the card is about, and it is what was asked for. Every
+          // other card opens the night it is dated to.
+          const act = hasRun
+            ? () => setOpenRun(runOpen ? null : key)
+            : onOpenNight && event.fixtureId
+              ? () => onOpenNight(event.fixtureId!)
+              : null;
+
+          const body = (
+            <div className="flex items-start gap-2.5">
+              <span className="text-base leading-5">{icon}</span>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-black leading-5 text-amber-950">{head}</p>
+                {detail && (
+                  <p className="mt-0.5 text-[11px] leading-4 text-amber-900/50">{detail}</p>
+                )}
+                {hasRun && (
+                  <span className="mt-1 block text-[11px] font-bold text-orange-700/80">
+                    {runOpen ? t('tl.run.hide') : t('tl.run.show')}
+                  </span>
+                )}
+              </div>
+              {/* Tabular so a column of dates lines up, and shrink-0 so a long
+                  headline never squeezes the date onto two lines. Plain text
+                  now: the whole card is the target, so an underline here would
+                  be marking one word of a button as the button. */}
+              <span className="shrink-0 pt-0.5 font-mono text-[10px] font-bold tabular-nums text-amber-900/40">
+                {when(event)}
+              </span>
+            </div>
+          );
+
           return (
             <li key={key} className="relative">
               <span
                 aria-hidden
                 className={`absolute -start-[22px] top-[15px] h-2.5 w-2.5 rounded-full ring-4 ${tone.dot} ${tone.ring}`}
               />
-              <div className="rounded-xl border border-amber-900/10 bg-white/70 px-3 py-2.5 shadow-sm">
-                <div className="flex items-start gap-2.5">
-                  <span className="text-base leading-5">{icon}</span>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-black leading-5 text-amber-950">{head}</p>
-                    {detail && (
-                      <p className="mt-0.5 text-[11px] leading-4 text-amber-900/50">{detail}</p>
-                    )}
-                    {hasRun && (
-                      <button
-                        onClick={() => setOpenRun(runOpen ? null : key)}
-                        aria-expanded={runOpen}
-                        className="mt-1 text-[11px] font-bold text-orange-700/80 underline decoration-dotted underline-offset-2 hover:text-orange-700"
-                      >
-                        {runOpen ? t('tl.run.hide') : t('tl.run.show')}
-                      </button>
-                    )}
-                  </div>
-                  {/* Tabular so a column of dates lines up, and shrink-0 so a
-                      long headline never squeezes the date onto two lines.
-                      On a card that has a night, the date is the way into it —
-                      for a `streak-ended` that is the night which *broke* the
-                      run, which is what the card is dated to and about. */}
-                  {onOpenNight && event.fixtureId ? (
-                    <button
-                      onClick={() => onOpenNight(event.fixtureId!)}
-                      aria-label={t('tl.openNight', { date: when(event) })}
-                      className="shrink-0 rounded pt-0.5 font-mono text-[10px] font-bold tabular-nums text-amber-900/50 underline decoration-amber-900/25 decoration-dotted underline-offset-2 transition-colors hover:text-orange-700 hover:decoration-orange-600"
-                    >
-                      {when(event)}
-                    </button>
-                  ) : (
-                    <span className="shrink-0 pt-0.5 font-mono text-[10px] font-bold tabular-nums text-amber-900/40">
-                      {when(event)}
-                    </span>
-                  )}
-                </div>
+              {/* **The padding lives on the button, not on the card.** The
+                  whole card is the tap target, and a button inset inside a
+                  padded box is a target with a dead border around it — the
+                  exact miss a thumb makes on a phone.
+
+                  The run's chips are siblings of that button rather than
+                  inside it, because a button within a button is invalid and
+                  would swallow their clicks. */}
+              <div
+                className={`overflow-hidden rounded-xl border border-amber-900/10 bg-white/70 shadow-sm transition-colors ${
+                  act ? 'hover:border-orange-500/50' : ''
+                }`}
+              >
+                {act ? (
+                  <button
+                    onClick={act}
+                    {...(hasRun ? { 'aria-expanded': runOpen } : {})}
+                    aria-label={hasRun ? undefined : t('tl.openNight', { date: when(event) })}
+                    // `w-full text-start` because a button otherwise centres
+                    // its content and shrink-wraps, neither of which a card may do.
+                    className="w-full px-3 py-2.5 text-start transition-colors hover:bg-orange-50/40"
+                  >
+                    {body}
+                  </button>
+                ) : (
+                  <div className="px-3 py-2.5">{body}</div>
+                )}
 
                 {/* The nights the run was made of, newest first so they read
                     the same direction as the feed around them. */}
                 {hasRun && runOpen && (
                   <ul
                     aria-label={t('tl.run.aria')}
-                    className="mt-2 flex flex-wrap gap-1.5 border-t border-amber-900/10 pt-2"
+                    className="flex flex-wrap gap-1.5 border-t border-amber-900/10 px-3 pb-2.5 pt-2"
                   >
                     {[...runNights].reverse().map((n) => (
                       <li key={n.fixtureId}>

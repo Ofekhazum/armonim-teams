@@ -191,3 +191,33 @@ describe('getting from a form row to its night', () => {
     expect(screen.getAllByRole('row')).toHaveLength(2);
   });
 });
+
+describe('the whole form row is the target', () => {
+  it('opens the night from anywhere in the row, not only the date', () => {
+    const seen: string[] = [];
+    render(
+      <GradeForm
+        points={build([{ id: 'the-night', days: 2, grade: 8 }])}
+        onOpenNight={(id) => seen.push(id)}
+      />,
+    );
+    // the grade cell, at the far end of the row from the date
+    const row = screen.getAllByRole('row')[1];
+    fireEvent.click(within(row).getByText('8'));
+    expect(seen).toEqual(['the-night']);
+  });
+
+  it('fires once when the date itself is pressed, not twice', () => {
+    // The cell's button is what makes the row reachable by keyboard, and its
+    // click bubbles to the row handler unless it is stopped.
+    const seen: string[] = [];
+    render(
+      <GradeForm
+        points={build([{ id: 'the-night', days: 2, grade: 8 }])}
+        onOpenNight={(id) => seen.push(id)}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: /Open the night of/ }));
+    expect(seen).toEqual(['the-night']);
+  });
+});

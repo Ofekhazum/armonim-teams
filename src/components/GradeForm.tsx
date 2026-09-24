@@ -153,17 +153,33 @@ export default function GradeForm({
             </thead>
             <tbody>
               {visible.map((p) => (
-                <tr key={p.fixtureId} className="border-t border-amber-900/[0.07]">
-                  {/* The date is the row's handle on its night. A plain cell
-                      when there is nowhere to go — this component is also
-                      rendered where no night record is reachable — so the
-                      underline never promises something that does nothing. */}
+                <tr
+                  key={p.fixtureId}
+                  // **The whole row opens the night, not just the date.** A
+                  // date cell is a few millimetres of a phone screen; the row
+                  // is the thing a reader is already pointing at.
+                  //
+                  // The button in that cell stays, unstyled, and is what makes
+                  // the row reachable without a mouse — a `tr` takes no focus
+                  // and announces nothing. It stops its own click from
+                  // bubbling so the handler fires once rather than twice.
+                  {...(onOpenNight
+                    ? {
+                        onClick: () => onOpenNight(p.fixtureId),
+                        className:
+                          'cursor-pointer border-t border-amber-900/[0.07] transition-colors hover:bg-orange-50/50',
+                      }
+                    : { className: 'border-t border-amber-900/[0.07]' })}
+                >
                   <td className="py-1.5 tabular-nums text-amber-900/60">
                     {onOpenNight ? (
                       <button
-                        onClick={() => onOpenNight(p.fixtureId)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onOpenNight(p.fixtureId);
+                        }}
                         aria-label={t('form.openNight', { date: shortDate(p.date) })}
-                        className="rounded underline decoration-amber-900/25 decoration-dotted underline-offset-2 transition-colors hover:text-orange-700 hover:decoration-orange-600"
+                        className="rounded tabular-nums"
                       >
                         {shortDate(p.date)}
                       </button>

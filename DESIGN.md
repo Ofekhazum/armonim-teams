@@ -4682,6 +4682,27 @@ says that and everything else, and the date was already on the square's `title` 
 anyone who only wanted to know which night it was. The caption mechanism stays for the badges, which
 have no page to go to.
 
+#### The block is the target, not the date
+
+The first version made only the date clickable, underlined to say so. Both halves of that were wrong
+on a phone: a 10px date is a miss waiting to happen, and a page of dotted underlines reads as a page
+of footnotes. So **the whole card, and the whole table row, is the control** — and with the target
+that obvious, the underlines came off.
+
+The padding moved onto the `<button>` rather than staying on the card around it. A button inset
+inside a padded box is a target with a dead border, which is exactly where a thumb lands.
+
+A table row cannot be a button, so the form table keeps `onClick` on the `<tr>` **and** a real button
+in the date cell — unstyled, but focusable and announced, since a `<tr>` takes neither. That button
+stops its own click bubbling, or the handler fires twice for one press.
+
+**A run card had to pick a meaning.** With the block clickable it could either open the night that
+broke the run or show the nights the run was made of, and a card with two meanings has none. The run
+wins: it is what the card is about and what was asked for. The breaking night is still *named* by the
+date on the card, just no longer reachable from it — a small loss, and the alternative was a second
+button inside the first, which is invalid markup as well as an ambiguous tap. For the same reason the
+run's chips are siblings of the card button rather than nested inside it.
+
 #### A run card is about several nights, so it opens into a list
 
 `streak-ended` is the one event in the feed whose headline covers more than the night it is dated to

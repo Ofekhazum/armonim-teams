@@ -149,11 +149,35 @@ describe('getting from the feed to a night', () => {
     expect(seen).not.toContain('broke-it');
   });
 
-  it('still lets the card’s own date open the night that ended the run', () => {
+  // **Reversed deliberately.** The first version made the card's date open the
+  // night that broke the run, alongside a separate toggle for the run's own
+  // nights. Once the whole card became the target, that card had two meanings
+  // and a card with two meanings has none — so the run wins, which is what was
+  // asked for and what the card is about. The breaking night is no longer
+  // reachable from here, only named by the date on the card.
+  it('opens the run rather than the night that ended it', () => {
     const seen: string[] = [];
     render(<PlayerTimeline events={[run]} onOpenNight={(id) => seen.push(id)} />);
-    fireEvent.click(screen.getByRole('button', { name: /Open the night of/ }));
-    expect(seen).toEqual(['broke-it']);
+    fireEvent.click(screen.getByRole('button', { name: /Which nights/ }));
+    expect(seen).toEqual([]); // nothing opened — it expanded
+    expect(screen.getByRole('list', { name: /nights the run was made of/ })).toBeInTheDocument();
+  });
+
+  it('puts the whole card in the tap target, not just the date', () => {
+    // The headline is inside the same control as the date, which is the thing
+    // that was wrong before: a 10px date is a miss waiting to happen.
+    const seen: string[] = [];
+    render(
+      <PlayerTimeline
+        events={[ev({ kind: 'nth-win', at: '2026-08-06', fixtureId: 'f1', n: 100 })]}
+        onOpenNight={(id) => seen.push(id)}
+      />,
+    );
+    const card = screen.getByRole('button', { name: /Open the night of/ });
+    expect(card).toHaveTextContent('100th match win');
+    expect(card).toHaveTextContent('6 Aug 26'); // headline and date, one control
+    fireEvent.click(card);
+    expect(seen).toEqual(['f1']);
   });
 
   it('offers no run list on a card that is not about a run', () => {
