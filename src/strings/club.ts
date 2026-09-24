@@ -25,8 +25,18 @@ export const club = {
     he: 'מגיע — וזה {n} מחזורים ברצף',
     en: 'makes it {n} nights in a row by turning up',
   },
+  // **The one line here that carries its own join, in both languages.** The
+  // other two are joined by a `{' '}` in the markup; this one cannot be,
+  // because English attaches to the name with a possessive — "חנש's team wins"
+  // — and a space there would be wrong. So the English string has always begun
+  // with its own separator, and the Hebrew now does the same: it is a clause
+  // starting a new thought, and welded to the name it shipped as "חנשהקבוצה".
+  //
+  // Both sides therefore start with whatever punctuation joins them to the
+  // name, and `TonightFacts` renders them straight after it with nothing in
+  // between. Keep the leading characters.
   'facts.line.winStreak': {
-    he: 'הקבוצה שלו מנצחת וזה {n} מחזורים ברצף',
+    he: ' - הקבוצה שלו מנצחת וזה {n} מחזורים ברצף',
     en: "'s team wins and that's {n} nights running",
   },
   'facts.bounty': {

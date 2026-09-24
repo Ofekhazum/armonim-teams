@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
-import type { TonightPlayer } from '../types';
+import type { FixtureRecord, Player, TonightPlayer } from '../types';
+import { MIN_WIN_STREAK } from '../milestones';
+import { setCurrentLang } from '../i18n';
 import { buildTestClub } from '../testData';
 import TonightFacts, { MilestoneStrip } from './TonightFacts';
 
@@ -79,5 +81,46 @@ describe('folding the match-night panels', () => {
     );
     expect(screen.getByText(/50th win/)).toBeInTheDocument();
     expect(screen.queryByRole('button')).not.toBeInTheDocument();
+  });
+});
+
+// The win-streak line joins its name differently in each language, which is
+// the sort of thing that reads fine in the language the tests are pinned to
+// and ships broken in the one the club actually uses. It went out as
+// "חנשהקבוצה שלו מנצחת" — no separator at all — because the English is a
+// possessive and has to stay welded to the name.
+describe('the win-streak line joins its name per language', () => {
+  const streak: Player[] = [
+    { id: 'a', name: 'חנש', rating: 3, attack: 50, chemistry: [] },
+    { id: 'b', name: 'ניב', rating: 3, attack: 50, chemistry: [] },
+  ];
+  // one night short of the line, so tonight is what would complete it
+  const won = Array.from({ length: MIN_WIN_STREAK - 1 }, (_, i) => ({
+    id: `s${i}`,
+    date: `2026-03-0${i + 1}`,
+    teams: { black: ['a'], white: ['b'], blue: [] },
+    players: [
+      { id: 'a', name: 'חנש', rating: 3 },
+      { id: 'b', name: 'ניב', rating: 3 },
+    ],
+    wins: { black: 4, white: 1, blue: 0 },
+  })) as unknown as FixtureRecord[];
+
+  const line = () => {
+    render(<TonightFacts players={streak.map((p) => ({ id: p.id, name: p.name }))} history={won} />);
+    return screen.getByText(/nights running|מחזורים ברצף/).closest('span')!.textContent!;
+  };
+
+  it('welds the name to the possessive in English', () => {
+    expect(line()).toContain("חנש's team wins");
+  });
+
+  it('separates the name with a dash in Hebrew', () => {
+    setCurrentLang('he');
+    const text = line();
+    expect(text).toContain('חנש - הקבוצה שלו מנצחת');
+    // the bug itself: the name running straight into the clause
+    expect(text).not.toContain('חנשהקבוצה');
+    setCurrentLang('en');
   });
 });
