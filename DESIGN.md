@@ -800,6 +800,27 @@ gets flung to the far end. `iso()`/`isoPair()` wrap each half in a Unicode first
 order it was written whichever way round its halves happen to be. A bare Hebrew name is unaffected —
 it is one isolated RTL run either way.
 
+**And the letter-spacing helper could not be allowed to keep its own loop.** Canvas has no
+`letter-spacing` property in its 2D drawing state — or had none when `spacedCaps()` was written — so
+the helper drew the label a glyph at a time, advancing `cx` rightwards. That is an implicit
+left-to-right assumption baked into a loop, and for Hebrew it renders the string **backwards**:
+`ספטמבר` came out `רבמטפס`, and every eyebrow on the breakdown page was mirrored. Nobody reading the
+English pages could have seen it.
+
+Reversing the character array is the obvious repair and is also wrong, because these labels mix
+scripts — `ספטמבר 2026` would become `6202 רבמטפס`. The only thing that orders mixed runs correctly
+is the bidi algorithm, so a label containing any RTL character is now handed to it whole in a single
+`fillText` with `direction: 'rtl'`, and its tracking comes from `ctx.letterSpacing` (widely supported
+since 2024) rather than from the loop. Latin labels keep the glyph-at-a-time path exactly, because
+the English pages are tuned around that tracking and fixing Hebrew must not restyle them.
+
+`align` stays *physical* on both paths — `'left'`/`'right'` rather than `'start'`/`'end'`, which
+would flip with the direction and put every left-aligned eyebrow on the wrong side of its card.
+Verified by measuring ink extents in a real browser rather than by eye: a Hebrew label asked for
+`x = 24` inks from 24, and one asked for `align: 'right'` at 700 inks to 698, matching the Latin path
+to within a pixel. `canvasKit.test.ts` pins the contract against a stub context — the first test
+these canvas modules have had, since a PNG is not something an assertion can read.
+
 **Every card's height is measured, not guessed.** A tile grid, a leaderboard, the attendance list —
 each has a `*Height`/`leaderboardHeight`/`wrapNames`-driven size computed before the canvas exists, so
 a quiet month (few stats) produces a short image and a busy one a tall one, never dead space or

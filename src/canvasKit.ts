@@ -279,9 +279,28 @@ export const iso = (s: string) => `⁨${s}⁩`;
 /** A `name · detail` label, safe for any mix of Hebrew, Latin and digits. */
 export const isoPair = (name: string, detail: string) => `${iso(name)} · ${iso(detail)}`;
 
+/**
+ * Anything that lays itself out right-to-left. Hebrew is the only one the app
+ * ships, but a guest's name is whatever the organiser typed.
+ */
+const HAS_RTL = /[\p{Script=Hebrew}\p{Script=Arabic}]/u;
+
 /** Small spaced caps — the label above a number. Canvas has no letter-spacing,
  *  so it is drawn a character at a time. Truncates at `maxWidth` if given,
- *  which is what stops a long award name reaching the card's corner emoji. */
+ *  which is what stops a long award name reaching the card's corner emoji.
+ *
+ *  **Except in Hebrew, where a glyph at a time is exactly wrong.** The loop
+ *  below advances `cx` rightwards in logical order, which for a right-to-left
+ *  run draws it backwards: `ספטמבר` came out `רבמטפס`, and every eyebrow on the
+ *  breakdown page was mirrored. Reversing the array is not the fix either —
+ *  these labels mix scripts (`ספטמבר 2026`), and hand-reversing turns the year
+ *  into `6202`. The only thing that gets mixed runs right is the bidi
+ *  algorithm, so RTL text is handed to it whole, in one `fillText`.
+ *
+ *  Tracking then has to come from `ctx.letterSpacing` rather than from the
+ *  loop. Where that is missing the label simply draws untracked, which is a
+ *  visual difference of a couple of pixels and not a legibility one — where
+ *  drawing it backwards was the whole word. */
 export function spacedCaps(
   ctx: CanvasRenderingContext2D,
   text: string,
@@ -299,11 +318,33 @@ export function spacedCaps(
   const tracking = opts.tracking ?? 1.6;
   ctx.save();
   ctx.font = font(size, '800');
-  ctx.direction = 'ltr';
-  ctx.textAlign = 'left';
   ctx.fillStyle = opts.color ?? INK.muted;
 
-  let chars = [...text.toUpperCase()];
+  // A no-op on Hebrew, which has no case — kept ahead of the split so both
+  // paths measure and draw exactly the string they were handed.
+  const upper = text.toUpperCase();
+
+  if (HAS_RTL.test(upper)) {
+    ctx.direction = 'rtl';
+    // Physical rather than 'start'/'end', which would flip with the direction
+    // and put every left-aligned label on the wrong side of its card.
+    ctx.textAlign = opts.align === 'right' ? 'right' : 'left';
+    if ('letterSpacing' in ctx) ctx.letterSpacing = `${tracking}px`;
+    let s = upper;
+    // From the logical end, the same end the loop below pops — which on a
+    // right-to-left line is the glyph furthest left.
+    if (opts.maxWidth != null) {
+      while (s.length > 1 && ctx.measureText(s).width > opts.maxWidth) s = s.slice(0, -1);
+    }
+    const total = ctx.measureText(s).width;
+    ctx.fillText(s, x, y);
+    ctx.restore();
+    return total;
+  }
+
+  ctx.direction = 'ltr';
+  ctx.textAlign = 'left';
+  let chars = [...upper];
   const widthOf = (cs: string[]) =>
     cs.reduce((w, ch) => w + ctx.measureText(ch).width + tracking, -tracking);
   if (opts.maxWidth != null) {
