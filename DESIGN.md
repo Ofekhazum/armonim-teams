@@ -4778,6 +4778,25 @@ card to a colour of its own.
 the same tints measure 6.86 and pass; sharing a palette across two backgrounds is what caused this in
 the first place.
 
+**Then the opposite complaint, and the same measurement answered it.** Opaque chips were legible and
+*glaring*: on a 0–100 brightness scale the cards sit at 1 (black) and 5 (blue), and the 100-level
+fills came out at 82–89 — near-white discs on a near-black card. The 200s land at 69–79 and still
+clear AAA (7.58, 12.03, 6.78), so this is glare dropped with contrast kept rather than one traded for
+the other. `premium`'s gradient lost its `yellow-500` end for `amber-400`: the yellow was the one acid
+note in the set, and three 9s in a column of it is a lot of shouting for a mark that is not the top one.
+
+#### The numerals were half a pixel high
+
+Also spotted by eye, also true. `place-items-center` centres the *line box*, which is not the same as
+centring the digits: the face reports an ascent of 10 and a descent of 3, so the box's middle sits
+3.5px above the baseline, while digits — having no descenders — have their ink centred 4.0px above it.
+Every numeral rode 0.5px high, consistently enough to read as wrong down a column of fifteen.
+
+Line-height cannot fix it. Measured at 11, 12, 16 and 16.5px the offset is −0.504 every time, because
+where the ink sits *within* the line box is a font metric, not a layout one. One pixel of top padding
+moves a centred grid item down half a pixel, which is exactly the correction: measured again after,
+the offset is +0.07.
+
 **`PERFECT_FILL` went one step deeper** while this was open. White on `fuchsia-500` measures 3.46:1,
 and an 11px numeral is not WCAG "large text" however bold it is, so it wants 4.5. The 600s are the
 same three hues at 4.71, 5.70 and 6.29 — side by side it reads as the same purple, slightly richer.
