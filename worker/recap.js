@@ -167,6 +167,31 @@ export function buildPrompt(facts) {
   const extra = Math.max(0, events.length - 1) * 40;
   const words = `${280 + extra} to ${380 + extra}`;
 
+  // **One total across five paragraphs is not a budget, it is an average.**
+  // The organiser's note, on a report that read correctly but thin: it "talks a
+  // bit too much on the part before the specific events, which causes lacking
+  // in the storytelling of the following parts".
+  //
+  // That is what a single number buys. Paragraphs 1–3 are made of *counted*
+  // facts — the shape, the points, the runs, the squads — which are the
+  // cheapest sentences in the piece to write and the easiest to pad. Paragraph
+  // 4 has to invent something. Told only "380 words, five paragraphs, and the
+  // fourth should be the longest", a model spends what it can produce easily
+  // and arrives at the hard paragraph with the budget half gone. "Longest" is
+  // satisfied by a small margin over three short ones.
+  //
+  // So the setup is capped and the rest is handed to the events. `SETUP_WORDS`
+  // is deliberately fixed rather than a share: the opening does not get bigger
+  // because the night had four things happen in it, and the whole point of
+  // `extra` is that it was bought for the events — which it now demonstrably
+  // reaches rather than being spread across a paragraph about who has the
+  // longest run.
+  const SETUP_WORDS = 140; // paragraphs 1-3 together: three short paragraphs
+  const SIGNOFF_WORDS = 30; // paragraph 5: one or two sentences, as it says
+  const peopleWords = `${280 + extra - SETUP_WORDS - SIGNOFF_WORDS} to ${
+    380 + extra - SETUP_WORDS - SIGNOFF_WORDS
+  }`;
+
   const teams = facts.teams
     .map(
       (t) =>
@@ -300,7 +325,13 @@ Open with a byline on its own line, in this shape:
 
 Invent the reporter. A different one every time, and an absurd one: an over-serious Hebrew sports-broadcaster name, or a ridiculous pun on one, the kind of byline that would never appear in a real newspaper. Never use a real journalist's name, and never use the name of anyone playing tonight.
 
-Then five paragraphs, in this order, ${words} words in total:
+Then five paragraphs, in this order, ${words} words in total.
+
+**HOW THE WORDS ARE SPLIT, AND IT IS NOT EVENLY.** Paragraphs 1, 2 and 3 are **${SETUP_WORDS} words together** — three short paragraphs, and that is a ceiling rather than a target. Paragraph 4 is **${peopleWords} words on its own**. Paragraph 5 is about ${SIGNOFF_WORDS}.
+
+The reason is worth knowing, because it decides what a good report is here. Everything in paragraphs 1–3 is a *number* the reader can already see in the app — the shape of the night, the points, the runs, the squads. They are the easiest sentences in this whole piece to write, which is exactly why they run away with the report if you let them. Paragraph 4 is the only part nobody could have worked out for themselves. A report that arrives at it with the words spent has told the reader what they already knew at length, and the thing they didn't know in a hurry.
+
+So: say the setup and move on. If paragraph 3 is running long, cut it — it is a team's points and a name, not a story.
 
 1. THE OPENING. What kind of night it was and who won it. Use the shape, the number of matches, the lead changes and the change index. Do not open with the date.
 2. THE WINNERS. The team that took the night: their points, their longest run, and the players in that team by name.
