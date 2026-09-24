@@ -169,6 +169,54 @@ export function mergeGuestIdentities(
 }
 
 /**
+ * For each roster player, the name that is *currently holding their guest-era
+ * nights on* — and which renaming them would therefore throw away.
+ *
+ * **The hole this plugs.** Absorption matches the name a guest was filed under
+ * against the roster player's name today. Fixture rows are immutable snapshots,
+ * so renaming the roster entry cuts that link and the guest nights re-collapse
+ * into a separate person — measured on the real club, renaming זרקא orphaned
+ * all three of their guest nights and re-stranded two published marks. Nothing
+ * warned, and the nights do not disappear so much as reappear as somebody else,
+ * which is the kind of thing noticed a month later through a wrong total.
+ *
+ * Only the player's **primary name** is reported, never an alias: an alias
+ * survives a rename by definition, so a guest matched through one was never at
+ * risk. And only names with guest rows actually behind them, which is what
+ * makes this safe to act on automatically — a rename with nothing riding on it
+ * returns nothing and changes nothing, so correcting a typo does not silt the
+ * roster up with permanent aliases of the typo.
+ *
+ * Reads **raw** history, as stored. Merged history has already rewritten these
+ * ids onto the roster player, which is precisely the evidence being looked for.
+ */
+export function loadBearingNames(
+  history: FixtureRecord[],
+  players: GuestAbsorber[],
+): Map<string, string> {
+  const absorbers = guestAbsorbers(players);
+  if (absorbers.size === 0) return new Map();
+  const rosterIds = new Set(players.map((p) => p.id));
+  const byId = new Map(players.map((p) => [p.id, p]));
+  const out = new Map<string, string>();
+
+  for (const fx of history) {
+    for (const p of fx.players) {
+      if (rosterIds.has(p.id)) continue;
+      const key = guestKey(p.name);
+      if (!key) continue;
+      const owner = absorbers.get(key);
+      if (owner === undefined) continue;
+      const player = byId.get(owner);
+      // matched through an alias, which a rename cannot take away
+      if (!player || guestKey(player.name) !== key) continue;
+      out.set(owner, player.name);
+    }
+  }
+  return out;
+}
+
+/**
  * Anything keyed by player id — a night's grade lines, a night's marks — with
  * those keys moved onto canonical ids (§2.6).
  *

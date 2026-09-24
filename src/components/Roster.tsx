@@ -28,6 +28,10 @@ interface Props {
   // every recorded night, for the player page — the roster itself doesn't need
   // it, but the page a roster row opens is entirely built from it
   history: FixtureRecord[];
+  // roster player id → the name currently holding their guest-era nights on
+  // (§2.68). Renaming them would orphan those nights, so the old name is kept
+  // as an alias. Computed in App, which has the raw archive this needs.
+  guestNameHolds: Map<string, string>;
   onChange: (players: Player[]) => void;
   adminWord: string | null;
   setAdminWord: (word: string | null) => void;
@@ -73,6 +77,7 @@ const parseAliases = (raw: string): string[] =>
 export default function Roster({
   players,
   history,
+  guestNameHolds,
   onChange,
   adminWord,
   setAdminWord,
@@ -230,15 +235,36 @@ export default function Roster({
     setEditingId(null);
   };
 
+  // The old name, if saving this draft would otherwise orphan guest-era nights.
+  // Takes the aliases as parsed so a name the organiser has already typed into
+  // the box is not added twice.
+  const renameWouldOrphan = (parsedAliases: string[]): string | null => {
+    const held = editingId ? guestNameHolds.get(editingId) : undefined;
+    if (!held || !draft) return null;
+    const next = guestKey(draft.name);
+    if (!next || guestKey(held) === next) return null;
+    return parsedAliases.some((a) => guestKey(a) === guestKey(held)) ? null : held;
+  };
+
+  // Same question, for the note under the name field — so the alias is offered
+  // before the save rather than discovered in the list afterwards.
+  const keptOnRename = draft ? renameWouldOrphan(parseAliases(draft.aliases)) : null;
+
   const save = () => {
     if (!draft || !draft.name.trim()) return;
     const { aliases, number, ...rest } = draft;
     const trimmedNumber = number.trim();
     const parsedNumber = trimmedNumber === '' ? NaN : Number(trimmedNumber);
+    const parsedAliases = parseAliases(aliases);
+    // A rename would cut this player loose from the nights they played as a
+    // guest, which are matched on the name rather than on an id (§2.68). Keep
+    // the old name so they stay one person. Only fires when history actually
+    // has nights riding on it, so correcting a typo leaves no trace.
+    const keep = renameWouldOrphan(parsedAliases);
     const data = {
       ...rest,
       name: draft.name.trim(),
-      aliases: parseAliases(aliases),
+      aliases: keep ? [...parsedAliases, keep] : parsedAliases,
       // explicit undefined (rather than omitting the key) so saving a
       // cleared field actually erases a previously-set number
       number: Number.isFinite(parsedNumber) ? parsedNumber : undefined,
@@ -428,6 +454,11 @@ export default function Roster({
         {duplicateName && (
           <p className="mt-1 text-xs text-orange-700">
             ⚠️ <Name>{duplicateName.name}</Name> {t('roster.form.duplicate')}
+          </p>
+        )}
+        {keptOnRename && (
+          <p className="mt-1 text-xs text-emerald-800">
+            💾 {t('roster.form.keepsOldName', { name: keptOnRename })}
           </p>
         )}
       </div>

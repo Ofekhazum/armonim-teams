@@ -13,7 +13,7 @@ import { kickoffLabel, useKickedOff } from './kickoff';
 import { emptySession, loadState, saveState } from './storage';
 import { mergePrivateFields, mergePublicRoster } from './rosterMerge';
 import { preserveMvp } from './mvp';
-import { guestAbsorbers, mergeGuestIdentities } from './guests';
+import { guestAbsorbers, loadBearingNames, mergeGuestIdentities } from './guests';
 import { publishLive, useLiveFixture } from './live';
 import LiveFixtureView from './components/LiveFixtureView';
 import {
@@ -352,6 +352,16 @@ export default function App() {
     [state.history, state.players],
   );
 
+  // Which roster players are having their guest-era nights held on by their
+  // *name* rather than by an id (§2.68) — so the roster form can keep that name
+  // as an alias when it is renamed, instead of silently orphaning those nights.
+  // Off the raw archive on purpose: `readHistory` has already rewritten the ids
+  // this looks for.
+  const guestNameHolds = useMemo(
+    () => loadBearingNames(state.history, state.players),
+    [state.history, state.players],
+  );
+
   // History is shared, like the roster — but unlike the roster's manual
   // "📢 Publish" button, every admin write here pushes immediately, since
   // asking someone to separately publish after recording every night's scores
@@ -656,6 +666,7 @@ export default function App() {
         <Roster
           players={state.players}
           history={readHistory}
+          guestNameHolds={guestNameHolds}
           onChange={setPlayers}
           adminWord={adminWord}
           setAdminWord={setAdminWord}

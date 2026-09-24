@@ -5,6 +5,7 @@ import {
   guestIdentities,
   guestKey,
   knownGuests,
+  loadBearingNames,
   mergeGuestIdentities,
   remapPlayerKeys,
 } from './guests';
@@ -299,5 +300,74 @@ describe('remapPlayerKeys', () => {
     const rows = { a: 6, b: 7 };
     expect(remapPlayerKeys(rows, new Map())).toBe(rows);
     expect(remapPlayerKeys(rows, new Map([['g1', 'r1']]))).toBe(rows);
+  });
+});
+
+describe('loadBearingNames', () => {
+  // Absorption matches a guest's filed name against the roster player's name
+  // *today*. Rename the roster entry and the link is cut, because the fixture
+  // rows are snapshots and still carry the old name. These are the names that
+  // must not be lost on a rename.
+
+  it('names the player whose guest nights hang on their current name', () => {
+    const history = [
+      night(['g1', 'a'], ['b'], { g1: 'זרקא' }),
+      night(['r1', 'a'], ['b'], { r1: 'זרקא' }),
+    ];
+    const held = loadBearingNames(history, [{ id: 'r1', name: 'זרקא' }]);
+    expect(held.get('r1')).toBe('זרקא');
+  });
+
+  it('says nothing about a player who never played as a guest', () => {
+    const history = [night(['r1', 'a'], ['b'], { r1: 'זרקא' })];
+    expect(loadBearingNames(history, [{ id: 'r1', name: 'זרקא' }]).size).toBe(0);
+  });
+
+  it('says nothing when the match runs through an alias', () => {
+    // An alias survives a rename by definition, so nothing is at risk — and
+    // reporting it would have the form offering to keep a name it already has.
+    const history = [night(['g1', 'a'], ['b'], { g1: 'זרקא' })];
+    const held = loadBearingNames(history, [{ id: 'r1', name: 'Zarka', aliases: ['זרקא'] }]);
+    expect(held.size).toBe(0);
+  });
+
+  it('says nothing when two roster players share the name', () => {
+    // Ambiguous names absorb nobody, so a rename cannot orphan anything.
+    const history = [night(['g1', 'a'], ['b'], { g1: 'אופק' })];
+    const held = loadBearingNames(history, [
+      { id: 'r1', name: 'אופק' },
+      { id: 'r2', name: 'אופק' },
+    ]);
+    expect(held.size).toBe(0);
+  });
+
+  it('reads raw history, and finds nothing in already-merged history', () => {
+    // The evidence it looks for is a guest id, and merging is what removes
+    // them. Passing the merged copy here would silently disarm the whole
+    // feature, so this pins which one the caller must hand over.
+    const history = [night(['g1', 'a'], ['b'], { g1: 'זרקא' })];
+    const players = [{ id: 'r1', name: 'זרקא' }];
+    expect(loadBearingNames(history, players).get('r1')).toBe('זרקא');
+    const merged = mergeGuestIdentities(history, roster('a', 'b', 'r1'), guestAbsorbers(players));
+    expect(loadBearingNames(merged, players).size).toBe(0);
+  });
+
+  it('keeps a rename from splitting the player, when the name is carried over', () => {
+    // The end-to-end property: the whole point of reporting the name at all.
+    const history = [
+      night(['g1', 'a'], ['b'], { g1: 'זרקא' }),
+      night(['g2', 'a'], ['b'], { g2: 'זרקא' }),
+      night(['r1', 'a'], ['b'], { r1: 'זרקא' }),
+    ];
+    const before = [{ id: 'r1', name: 'זרקא' }];
+    const held = loadBearingNames(history, before).get('r1')!;
+
+    const naive = [{ id: 'r1', name: 'זרקא כהן' }];
+    const lost = mergeGuestIdentities(history, roster('a', 'b', 'r1'), guestAbsorbers(naive));
+    expect(lost.filter((fx) => fx.teams.black.includes('r1'))).toHaveLength(1);
+
+    const kept = [{ id: 'r1', name: 'זרקא כהן', aliases: [held] }];
+    const safe = mergeGuestIdentities(history, roster('a', 'b', 'r1'), guestAbsorbers(kept));
+    expect(safe.filter((fx) => fx.teams.black.includes('r1'))).toHaveLength(3);
   });
 });

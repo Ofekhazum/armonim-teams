@@ -26,6 +26,13 @@ export const roster = {
   // a Hebrew reader may well want to type English, and the other way round.
   'roster.form.name.placeholder': { he: 'שם (עברית או English)', en: 'Name (עברית or English)' },
   'roster.form.duplicate': { he: 'כבר נמצא בסגל תחת השם הזה.', en: 'is already on the roster under this name.' },
+  // Shown when renaming somebody who played nights as a guest before joining:
+  // those nights are matched by name, so the old one is kept as an alias or
+  // they would quietly split back into two people (§2.68).
+  'roster.form.keepsOldName': {
+    he: '״{name}״ יישמר ככינוי, כדי שהמחזורים שבהם שיחק כאורח יישארו שלו.',
+    en: '“{name}” will be kept as an alias, so the nights they played as a guest stay theirs.',
+  },
   'roster.form.aliases.placeholder': {
     he: 'שמות נוספים שקוראים לו, מופרדים בפסיק (רשות)',
     en: 'Other names people call them, comma-separated (optional)',
