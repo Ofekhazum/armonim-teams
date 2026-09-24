@@ -4991,10 +4991,21 @@ traded away for a vote share.
 **Nothing already graded re-scores, and that is a dated cutover rather than a flag.** Marks are
 computed on demand rather than stored, so a change to the arithmetic is retroactive by default and
 every mark the club had already read would have moved. Asked for directly: the new rule applies to
-nights not yet graded. `VOTE_AFTER_FLOOR_FROM = '2026-09-25'` — the day after the last filed night —
-and nights before it keep `PICK_BONUS`/`ROOM_W` inside the sum. Verified against the live
-`GET /history`: **104 marks across 7 nights, 0 moved.** Re-dated to October, that same 24 Sep sheet
-moves exactly one mark, יועד 8.5 → 9.0.
+nights not yet graded. `VOTE_AFTER_FLOOR_FROM = '2026-09-24'`, and nights before it keep
+`PICK_BONUS`/`ROOM_W` inside the sum. Verified against the live `GET /history`: **104 marks across 7
+nights, 1 moved** — יועד 8.5 → 9.0, the pick whose sheet prompted all of this.
+
+**"Not yet graded" is not "not yet played", which is what set that date.** A mark is only fixed once
+a sheet is published: `NightGrades` renders `shown[id]?.grade ?? p.grade`, so a saved or drafted line
+pins the number and the computed one is only the fallback. The 24 Sep night had been played and
+re-rolled but never published, so it was still unfixed and was asked to be included; the six before
+it had published sheets and are frozen. The first cutover shipped at `'2026-09-25'` on the assumption
+that "played" meant "graded", and was moved back a day once that turned out to be wrong.
+
+That gives a change like this one an **ordering: ship the arithmetic first, re-roll second.** A sheet
+drafted before the change carries the old number *and* a Hebrew line written to justify it — the
+prompt is handed `ציון ${p.grade}`, so the sentence argues for the mark it was given — and re-rolling
+is what brings the two back into agreement.
 
 The cost is real and stated in the constant's own doc comment: an August night and an identical
 October night can mark differently, and only this constant explains it. That was judged cheaper than
