@@ -181,6 +181,11 @@ export default function TonightFacts({
                     </span>
                   );
                 case 'win-streak':
+                  // No `{' '}` here, unlike the two above: this string carries
+                  // its own separator in both languages, because English joins
+                  // with a possessive and Hebrew with a dash. Adding a space
+                  // would break the English; leaving one out of the string
+                  // broke the Hebrew, which is how it shipped as "חנשהקבוצה".
                   return (
                     <span key={`s${f.id}`}>
                       📈 <Name className="font-bold">{f.name}</Name>
