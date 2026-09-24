@@ -4830,10 +4830,18 @@ have. A colour is already on the pitch in front of whoever can see it. There is 
 inside the shirt vocabulary as well.
 
 The title carries the result with the shootout in it, because the title is the half that survives
-truncation on a watch and "on penalties" is part of what happened rather than a footnote to it. The
-body keeps the clock alerts' rule that it must earn its place by being an *instruction*: the winner
-stays on, so the one thing anyone has to do is get the resting shirt onto the pitch — and which shirt
-that is, is the only thing about the result a reader cannot work out by looking at the pitch.
+truncation on a watch and "on penalties" is part of what happened rather than a footnote to it.
+
+**The body is the one place this raises its voice, and only a little.** It first carried an
+*instruction* — which shirt comes on next — on the grounds that every clock alert's body earns its
+place that way. The organiser cut it: a result is not a cue to do anything, the squad is looking at
+the pitch, and the line was answering a question nobody had asked. What belongs there is the
+half-second of noise a result actually makes, and a shootout gets the louder of the two because a
+shootout *is* the louder of the two.
+
+Neither line claims anything beyond this one match — no "another", no run, no tally. The builder's
+only input is the match itself, so a body implying a streak would eventually be wrong about a night
+it cannot see. There is a test for that, and the removal of `restingAfter` with it.
 
 **Its own `tag`.** A result and a clock cue must not replace one another on the lock screen, but
 successive results still collapse, for the reason the service worker already gives: a phone asleep

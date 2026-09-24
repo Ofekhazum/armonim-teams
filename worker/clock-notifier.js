@@ -156,17 +156,6 @@ const SHIRTS = {
   blue: { emoji: '🔵', he: 'הכחולים', en: 'Blue' },
 };
 
-const COLOURS = ['black', 'white', 'blue'];
-
-/**
- * Who sits out the next one: the shirt that was not in the match just played.
- *
- * Three teams, two on the pitch, so the third is the answer — and this is the
- * only thing about the result an announcement can say that a reader does not
- * already know by looking at the pitch.
- */
-export const restingAfter = (a, b) => COLOURS.find((c) => c !== a && c !== b) ?? null;
-
 /**
  * A match just went in the book (§2.63).
  *
@@ -176,27 +165,38 @@ export const restingAfter = (a, b) => COLOURS.find((c) => c !== a && c !== b) ??
  *
  * Title carries the result, penalties included, because that is the half that
  * survives truncation on a watch and a shootout is part of what happened
- * rather than a footnote to it. The body follows the same rule as the clock
- * alerts and earns its place by being an *instruction* — the winner stays on,
- * so the only thing anyone needs to do is get the resting shirt onto the
- * pitch.
+ * rather than a footnote to it.
+ *
+ * **The body is the one place this raises its voice, and only a little.** The
+ * first version used it for an instruction — which shirt comes on next — on
+ * the grounds that the clock alerts' bodies all earn their place that way. The
+ * organiser cut it: a result is not a cue to do anything, the squad is looking
+ * at the pitch, and the line was answering a question nobody had asked. What
+ * belongs there instead is the half-second of noise a result actually makes.
+ *
+ * A shootout gets the louder of the two, because a shootout *is* the louder of
+ * the two. Neither line claims anything beyond this match — no "another one",
+ * no run, no tally — since the only input here is the match itself, and a
+ * notification that invents a streak is a notification that will eventually be
+ * wrong.
  */
 export function resultMessage(match, lang = 'he') {
   const tongue = lang === 'en' ? 'en' : 'he';
   const winner = SHIRTS[match?.winner];
   if (!winner) return null;
-  const next = SHIRTS[restingAfter(match.a, match.b)];
+  const pens = !!match.viaPenalties;
   const title =
     tongue === 'en'
-      ? `${winner.emoji} ${winner.en} take it${match.viaPenalties ? ' on penalties' : ''}`
-      : `${winner.emoji} ניצחון ל${winner.he.replace(/^ה/, '')}${match.viaPenalties ? ' בפנדלים' : ''}`;
-  const body = next
-    ? tongue === 'en'
-      ? `${next.en} come on.`
-      : `${next.he} נכנסים.`
-    : tongue === 'en'
-      ? 'Next match.'
-      : 'למשחק הבא.';
+      ? `${winner.emoji} ${winner.en} take it${pens ? ' on penalties' : ''}`
+      : `${winner.emoji} ניצחון ל${winner.he.replace(/^ה/, '')}${pens ? ' בפנדלים' : ''}`;
+  const body =
+    tongue === 'en'
+      ? pens
+        ? 'Drama from the spot.'
+        : 'On the board. Nice one.'
+      : pens
+        ? 'דרמה מהנקודה הלבנה.'
+        : 'נרשם על הלוח. יפה!';
   // Its own tag, so a result and a clock cue do not replace one another on the
   // lock screen — but successive results still collapse, for the reason the
   // service worker gives: a phone asleep through three of them should wake to

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { messageFor, restingAfter, resultMessage, triggersFor } from './clock-notifier.js';
+import { messageFor, resultMessage, triggersFor } from './clock-notifier.js';
 
 const NOW = 1_700_000_000_000;
 const MIN = 60_000;
@@ -158,11 +158,37 @@ describe('resultMessage', () => {
     expect(resultMessage(m(), 'en').title).not.toMatch(/penalt/i);
   });
 
-  it('tells the resting shirt to come on, which is the only instruction there is', () => {
-    // black beat white, so blue is the shirt that was not on the pitch
-    expect(restingAfter('black', 'white')).toBe('blue');
-    expect(resultMessage(m(), 'he').body).toContain('הכחולים');
-    expect(resultMessage(m(), 'en').body).toContain('Blue');
+  // **Reversed on the organiser's instruction.** The body used to name the
+  // shirt coming on next, on the grounds that the clock alerts' bodies all
+  // earn their place as instructions. A result is not a cue to do anything —
+  // the squad is looking at the pitch — so the body carries the noise instead.
+  it('says only who won, never who is on next', () => {
+    for (const lang of ['he', 'en']) {
+      const r = resultMessage(m(), lang);
+      const all = `${r.title} ${r.body}`;
+      // black beat white, so blue was the shirt off the pitch — and must not
+      // be mentioned at all
+      expect(all).not.toMatch(/Blue|כחולים/);
+      expect(all).not.toMatch(/come on|נכנסים/);
+    }
+  });
+
+  it('raises its voice a little, and louder for a shootout', () => {
+    expect(resultMessage(m(), 'he').body).toBe('נרשם על הלוח. יפה!');
+    expect(resultMessage(m({ viaPenalties: true }), 'he').body).toBe('דרמה מהנקודה הלבנה.');
+    expect(resultMessage(m(), 'en').body).toBe('On the board. Nice one.');
+    expect(resultMessage(m({ viaPenalties: true }), 'en').body).toBe('Drama from the spot.');
+  });
+
+  it('claims nothing beyond this one match', () => {
+    // The only input is the match itself, so a body implying a run or a tally
+    // would eventually be wrong about a night it cannot see.
+    for (const lang of ['he', 'en']) {
+      for (const over of [{}, { viaPenalties: true }]) {
+        const r = resultMessage(m(over), lang);
+        expect(`${r.title} ${r.body}`).not.toMatch(/another|streak|רצף|עוד אחד|\d/i);
+      }
+    }
   });
 
   it('is built only out of shirts, so it cannot leak a line-up', () => {
@@ -172,8 +198,8 @@ describe('resultMessage', () => {
     // input here is `{a, b, winner, viaPenalties}`, which holds no name to
     // leak. This pins that the *words* stay inside the shirt vocabulary too.
     const allowed = {
-      he: ['ניצחון', 'לשחורים', 'ללבנים', 'לכחולים', 'בפנדלים', 'השחורים', 'הלבנים', 'הכחולים', 'נכנסים', 'למשחק', 'הבא'],
-      en: ['take', 'it', 'on', 'penalties', 'Black', 'White', 'Blue', 'come', 'Next', 'match'],
+      he: ['ניצחון', 'לשחורים', 'ללבנים', 'לכחולים', 'בפנדלים', 'נרשם', 'על', 'הלוח', 'יפה!', 'דרמה', 'מהנקודה', 'הלבנה'],
+      en: ['take', 'it', 'on', 'penalties', 'black', 'white', 'blue', 'the', 'board', 'nice', 'one', 'drama', 'from', 'spot'],
     };
     for (const lang of ['he', 'en']) {
       for (const over of [{}, { viaPenalties: true }, { winner: 'white' }, { a: 'white', b: 'blue', winner: 'blue' }]) {
@@ -181,7 +207,9 @@ describe('resultMessage', () => {
         const words = `${r.title} ${r.body}`
           .replace(/[⚫⚪🔵.]/gu, ' ')
           .split(/\s+/)
-          .filter(Boolean);
+          .filter(Boolean)
+          // case is the sentence's business, not the vocabulary's
+          .map((w) => (lang === 'en' ? w.toLowerCase() : w));
         for (const w of words) expect(allowed[lang]).toContain(w);
       }
     }
