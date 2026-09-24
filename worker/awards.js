@@ -25,7 +25,7 @@
 // prevent, arriving through the input instead of through the rule.
 
 import { teamOfMonth, totmPeriods } from '../src/totm';
-import { guestAbsorbers, mergeGuestIdentities } from '../src/guests';
+import { guestAbsorbers, guestIdentities, mergeGuestIdentities } from '../src/guests';
 
 export const AWARDS_KEY = 'totm';
 
@@ -64,14 +64,40 @@ const readJson = async (env, key) => {
  * the safe direction, since the merge only ever joins ids that share a name and
  * a roster read has to fail completely for it to matter.
  */
-const readHistory = async (env) => {
+const readGuestMerge = async (env) => {
   const [history, roster] = await Promise.all([readJson(env, 'history'), readJson(env, 'roster')]);
   const fixtures = Array.isArray(history?.fixtures) ? history.fixtures : [];
   const players = (Array.isArray(roster?.players) ? roster.players : []).filter(
     (p) => p && typeof p.id === 'string' && typeof p.name === 'string',
   );
   const rosterIds = new Set(players.map((p) => p.id));
-  return mergeGuestIdentities(fixtures, rosterIds, guestAbsorbers(players));
+  const absorbers = guestAbsorbers(players);
+  return { fixtures, rosterIds, absorbers };
+};
+
+const readHistory = async (env) => {
+  const { fixtures, rosterIds, absorbers } = await readGuestMerge(env);
+  return mergeGuestIdentities(fixtures, rosterIds, absorbers);
+};
+
+/**
+ * `guest id → the id it should be read as`, for anything stored *beside* the
+ * archive rather than inside it.
+ *
+ * The fixtures themselves are merged by `readHistory` above, but the grade
+ * lines in KV are keyed by whatever id the night was filed under, and a mark
+ * written while somebody was still a guest keeps pointing at that dead id after
+ * they join the roster. The routes that serve those read this and rewrite the
+ * keys on the way out — the same fix-on-read rule as everywhere else here, so
+ * nothing stored is touched and a merge that turns out wrong is undone by
+ * changing a function.
+ *
+ * Empty for a club that has never promoted a guest, which is the common case
+ * and costs the callers nothing.
+ */
+export const canonicalIds = async (env) => {
+  const { fixtures, rosterIds, absorbers } = await readGuestMerge(env);
+  return guestIdentities(fixtures, rosterIds, absorbers);
 };
 
 /**

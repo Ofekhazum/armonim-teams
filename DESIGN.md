@@ -5037,6 +5037,47 @@ re-scoring marks people have already been given.
 the pick's finished mark, so lifting a suppressed pick lifts the team with them. Nights from the
 cutover no longer produce that shape.)*
 
+### 2.67 Promotion has to carry the marks too (`remapPlayerKeys`, `canonicalIds`)
+
+§2.6's guest merge settles the *archive*: promote a guest to the roster and every night they played
+under a throwaway id becomes theirs — nights, wins, streaks, MVPs, Team of the Month. It was only
+ever half the job, and the missing half was invisible because the half that worked was the loud one.
+
+**Grade lines do not live in the archive.** They live in KV under `grades:<fixtureId>`, keyed by
+whatever player id the night was *filed* with. So a mark published while somebody was still a guest
+stays addressed to an id nothing reads any more. `playerGradeSeries` looks up
+`marks[fixtureId][playerId]` with the canonical id, finds nothing, and drops the night from their
+form graph; `NightGrades` matches `shown[p.id]` against a squad the merge has already settled and
+renders the written line under nobody. Meanwhile the same night still counts towards their record
+everywhere else. **Half-merged is a worse state than either end of it** — the player is one person
+for their wins and two for their marks, and nothing on screen explains why.
+
+Found on the live club: זרקא had two published marks (7.5 on 20 Aug, 5.5 on 27 Aug) stranded on guest
+ids, invisible on a profile that otherwise counted both nights. רותם's absorbed nights were fine,
+which shows the shape of it — their marks were published *after* they joined the roster, so the app
+had already merged them before writing, and the stored line used the roster id. **Only marks written
+before promotion strand.**
+
+**Fixed on read, in the Worker.** `canonicalIds(env)` builds the same `guest id → roster id` map
+`readHistory` already merges with, and `/grades/all` and `/grades?id=` rewrite their keys on the way
+out with `remapPlayerKeys`. Stored KV is untouched, so the rule stays undoable by changing a function
+rather than by repairing data — the same commitment §2.6 makes — and doing it server-side means every
+consumer is correct at once rather than each one remembering to remap. That is not a free choice: the
+client cannot do this at all, because by the time history reaches a component it has *already* been
+merged and the old ids are gone.
+
+**`remapPlayerKeys` does not add, and that is the difference from `remapVotes`.** A tally is a count,
+so two ids' votes are two parts of one number and merging them sums. A mark is one value per person
+per night, so a collision is two rows describing one evening and one has to win: the row already
+filed under the canonical id does, on the same reasoning the merged players array uses. It also
+returns the original object when nothing moved, since it runs on every read and the ordinary club has
+never promoted anybody.
+
+The cost, stated: both routes now read `history` and `roster` to build the map, so a night's grade
+fetch is three KV reads rather than one. At 25 players and a weekly fixture that is not a number worth
+optimising, and the alternative — a fourth copy of the merge rule on the client — is the thing
+`src/totm.ts` exists to argue against.
+
 ## 3. Team generation algorithm
 
 Balancing is a small constrained optimization. With ≤15 players, brute force is too big
