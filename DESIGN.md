@@ -5078,6 +5078,51 @@ fetch is three KV reads rather than one. At 25 players and a weekly fixture that
 optimising, and the alternative — a fourth copy of the merge rule on the client — is the thing
 `src/totm.ts` exists to argue against.
 
+### 2.68 A rename must not un-promote somebody (`loadBearingNames`)
+
+§2.6 and §2.67 settle a promoted guest's nights and their marks. Both hang off one thread: absorption
+matches the name a guest was **filed under** against the roster player's name **today**. Fixture rows
+are immutable snapshots, so renaming the roster entry cuts that thread and every guest-era night
+re-collapses into a separate person.
+
+Measured on the live club before the fix — rename either of them and:
+
+| | guest-era nights riding on the name | marks riding on it | kept after a rename |
+|---|---|---|---|
+| זרקא | 13, 20, 27 Aug | 7.5, 5.5 | **0 of 3** |
+| רותם | 13 Aug, 10 Sep | — | **0 of 2** |
+
+Nights played under the roster id are safe — those are matched by id and no rename touches them. It
+is precisely the nights promotion exists to rescue that a rename throws away, and **nothing warned**:
+`Roster.save()` simply overwrote `name` and `aliases` with the form's contents. The nights would not
+vanish either, they would reappear as somebody else, which is the kind of thing found a month later
+through a total that looks slightly wrong.
+
+**The fix is to keep the old name as an alias — but only when it is load-bearing.** `loadBearingNames`
+returns, per roster player, the name currently holding guest rows onto them, and the form appends it
+to the aliases on save. Two guards make it safe to do automatically rather than by prompt:
+
+- **Only the primary name, never an alias.** An alias survives a rename by definition, so a guest
+  matched through one was never at risk, and offering to keep it would be noise.
+- **Only names with guest rows actually behind them.** A rename with nothing riding on it returns
+  nothing and changes nothing — so correcting a typo does not silt the roster up with a permanent
+  alias of the typo. That matters because aliases participate in matching: an accumulated misspelling
+  could later collide with a real player's name and make the whole name ambiguous, which under §2.6
+  means it absorbs *nobody*.
+
+It reads **raw** history, not `readHistory` — the merged copy has already rewritten the guest ids
+this looks for, so handing it the merged one would silently disarm the feature. That is pinned by a
+test rather than left to a comment, because it is the kind of mistake that makes everything still
+appear to work. The map is computed once in `App` alongside `readHistory` and passed to `Roster`,
+which is also why the component never needs the raw archive itself.
+
+And it is **said out loud before the save**, under the name field: *"«זרקא» will be kept as an alias,
+so the nights they played as a guest stay theirs."* The rest of this app's guest handling is
+deliberately invisible; this one edits data the organiser typed, so it announces itself.
+
+Verified end to end on the real records: with the alias the form now keeps, זרקא holds 3 of 3
+guest-era ids and רותם 2 of 2.
+
 ## 3. Team generation algorithm
 
 Balancing is a small constrained optimization. With ≤15 players, brute force is too big
