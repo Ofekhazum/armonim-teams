@@ -10,7 +10,7 @@ import {
   type GradePoint,
   type GradeRange,
 } from '../gradeHistory';
-import { fmtRating, fmtWins, MEDAL, Name, TEAM_META, teamLabel } from './ui';
+import { fmtRating, fmtWins, MEDAL, Name, PERFECT_FILL, PERFECT_GRADE, TEAM_META, teamLabel } from './ui';
 import { t } from '../i18n';
 
 // A player's recent form (§2.40), in the shape every football screen uses for
@@ -30,11 +30,22 @@ import { t } from '../i18n';
 // those are the columns. Inventing the others is the exact failure the grades
 // prompt spends three paragraphs preventing.
 
-// Five steps rather than the three `NightGrades` uses for its chip. A form
-// strip is read as a *gradient* — the eye is looking for a run of green or a
-// slide into red — and three tones cannot show a slide. Written out in full
-// because Tailwind only ships class names it can see in the source.
+// A ramp of its own, because this is read as a *gradient* — the eye is hunting
+// a run of green or a slide into red — where a night's marks are read one at a
+// time and want flat, separable bands. Written out in full because Tailwind
+// only ships class names it can see in the source.
+//
+// **The top rung is the exception, and is shared** (`PERFECT_FILL`). A 10 used
+// to come out here as the same green every mark of 8 or better got, so the
+// rarest thing a player can be handed looked ordinary on their own page while
+// the night page gave it a gradient. `ring-transparent` because the pill's
+// `ring-1` would otherwise draw a hairline across the fill.
 const TONE = [
+  {
+    min: PERFECT_GRADE,
+    block: PERFECT_FILL,
+    pill: `${PERFECT_FILL} ring-transparent`,
+  },
   { min: 8, block: 'bg-emerald-500', pill: 'bg-emerald-500/15 text-emerald-800 ring-emerald-600/25' },
   { min: 7, block: 'bg-lime-500', pill: 'bg-lime-500/20 text-lime-900 ring-lime-700/25' },
   { min: 6, block: 'bg-amber-400', pill: 'bg-amber-400/25 text-amber-900 ring-amber-700/25' },

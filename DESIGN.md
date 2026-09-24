@@ -4731,6 +4731,28 @@ verified against the un-guarded version, because it is invisible until someone p
 without it. Both are rendered in places with no night record to reach, and an underline that does
 nothing is worse than no underline.
 
+### 2.61 A 10 looks like a 10 everywhere (`PERFECT_FILL`)
+
+The night page and the player page each owned a grade ramp, and they disagreed about the one mark
+that matters most: a 10 arrived on the night as a fuchsia→violet→indigo gradient and on the profile
+as the ordinary green every mark of 8 or better got. The rarest thing a player can be handed looked
+rarest in only one of the two places it appears — and the profile is the page they screenshot.
+
+`PERFECT_FILL` in `ui.tsx` is now the single answer, shared for the same reason `MEDAL` is and after
+the same failure. **Only the fill is shared.** The shapes around it genuinely differ — a disc on a
+night, a pill in a form table, a square in the form strip — so each site keeps its own border, ring
+and shadow. What must not differ is the answer to "what does a 10 look like".
+
+**The rest of each ramp stays separate, deliberately.** A night's marks are read one at a time and
+want flat, separable bands; the form strip is read as a *gradient*, hunting a run of green or a slide
+into red, and needs steps a disc has no use for. Two reading tasks, two ramps, one top rung. So a 9 is
+still gold on the night and green on the profile, which is a difference that earns itself — unlike the
+10, which was just drift.
+
+The form strip's square gets the fill too, not only the pill. A purple square among greens reads as a
+peak, which is exactly what it was: without it, the one night somebody was perfect is indistinguishable
+from a night they were merely good.
+
 ## 3. Team generation algorithm
 
 Balancing is a small constrained optimization. With ≤15 players, brute force is too big

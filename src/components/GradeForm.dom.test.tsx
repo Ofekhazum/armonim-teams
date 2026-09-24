@@ -221,3 +221,41 @@ describe('the whole form row is the target', () => {
     expect(seen).toEqual(['the-night']);
   });
 });
+
+// A 10 is the rarest mark the app hands out, and it used to arrive on the
+// profile as the same green every mark of 8 or better got — while the night
+// page gave it a gradient. One fill, both places (§2.61).
+describe('a perfect mark looks perfect here too', () => {
+  const fillsOf = (text: string) =>
+    screen.getAllByText(text).map((el) => el.className);
+
+  it('gives a 10 the shared gradient rather than the ordinary green', () => {
+    render(<GradeForm points={build([{ id: 'a', days: 2, grade: 10 }])} />);
+    // the row's own pill and the strip's mean, which is also 10 here — both
+    // show the number, so both have to agree about what a 10 looks like
+    const fills = fillsOf('10');
+    expect(fills).toHaveLength(2);
+    for (const fill of fills) {
+      expect(fill).toContain('from-fuchsia-500');
+      expect(fill).not.toContain('bg-emerald-500/15');
+    }
+  });
+
+  it('leaves every other mark on its own ramp', () => {
+    // The ramp below the top rung is deliberately not shared — a form strip is
+    // read as a gradient, a night's marks one at a time.
+    render(
+      <GradeForm
+        points={build([
+          { id: 'a', days: 2, grade: 9 },
+          { id: 'b', days: 5, grade: 6.5 },
+        ])}
+      />,
+    );
+    for (const fill of fillsOf('9')) {
+      expect(fill).toContain('emerald');
+      expect(fill).not.toContain('fuchsia');
+    }
+    for (const fill of fillsOf('6.5')) expect(fill).not.toContain('fuchsia');
+  });
+});

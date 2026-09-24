@@ -4,7 +4,7 @@ import { TEAM_COLORS } from '../balancer';
 import { gradesFacts, type GradeFactLine } from '../gradesFacts';
 import type { GradeLines, StoredGrades } from '../gradesApi';
 import { clearGrades, draftGrades, fetchGrades, publishedMarks, saveGrades } from '../gradesApi';
-import { fmtRating, Name, TEAM_META, teamLabel } from './ui';
+import { fmtRating, Name, PERFECT_FILL, TEAM_META, teamLabel } from './ui';
 import { fmtDate, getLang, t } from '../i18n';
 
 // One line of banter beside every mark (§2.39), on the night page below the
@@ -39,8 +39,9 @@ interface Props {
 const GRADE_TONE = {
   // A 10 is rarer than a 9, so it gets a step up rather than the same gold —
   // a shifting spectrum rather than a flat colour, which a single fill can't do.
-  perfect:
-    'border-transparent bg-gradient-to-br from-fuchsia-500 via-violet-500 to-indigo-500 text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.45)]',
+  // The fill is shared with the profile's form table (`PERFECT_FILL`), so the
+  // rarest mark in the app looks the same in both places it can appear.
+  perfect: `border-transparent ${PERFECT_FILL} shadow-[inset_0_0_0_1px_rgba(255,255,255,0.45)]`,
   premium:
     'border-amber-500/40 bg-gradient-to-br from-amber-300 to-yellow-500 text-amber-950 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.5)]',
   standout: 'border-emerald-600/30 bg-emerald-500/10 text-emerald-800',
