@@ -167,6 +167,15 @@ export const player = {
   'tl.totm': { he: 'הרכב החודש', en: 'Team of the Month' },
   'tl.totm.detail': { he: 'נכלל בחמישייה', en: 'named in the five' },
   'tl.showLess': { he: '↑ להציג פחות', en: '↑ Show less' },
+  // A card's date opens the night it happened on (§2.60).
+  'tl.openNight': { he: 'פתיחת המחזור מ־{date}', en: 'Open the night of {date}' },
+  // A run card is about several nights, so it opens into the list of them.
+  'tl.run.show': { he: 'אילו מחזורים?', en: 'Which nights?' },
+  'tl.run.hide': { he: 'הסתרה', en: 'Hide' },
+  'tl.run.aria': {
+    he: 'המחזורים שהרכיבו את הרצף',
+    en: 'the nights the run was made of',
+  },
   'tl.showMore': {
     he: { one: '↓ רגע מוקדם אחד', other: '↓ {n} רגעים מוקדמים יותר' },
     en: { one: '↓ {n} earlier moment', other: '↓ {n} earlier moments' },

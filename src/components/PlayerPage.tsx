@@ -36,6 +36,7 @@ import { fetchAllMarks } from '../gradesApi';
 import { playerGradeSeries, type AllMarks } from '../gradeHistory';
 import PriceTag from './PriceTag';
 import GradeForm from './GradeForm';
+import NightPage from './NightPage';
 import { periodLabel } from '../wrapped';
 
 // One player's page (§2.19). Everything on it is counted from history — the
@@ -53,6 +54,8 @@ interface Props {
   history: FixtureRecord[];
   players: Player[];
   isAdmin: boolean;
+  /** Unlocks the night record's own admin actions when one is opened from here. */
+  adminWord?: string | null;
   onEdit: () => void;
   onClose: () => void;
 }
@@ -169,20 +172,55 @@ const Stat = ({ n, label, quiet }: { n: string; label: string; quiet?: boolean }
   </div>
 );
 
-export default function PlayerPage({ player, history, players, isAdmin, onEdit, onClose }: Props) {
+export default function PlayerPage({
+  player,
+  history,
+  players,
+  isAdmin,
+  adminWord = null,
+  onEdit,
+  onClose,
+}: Props) {
   // The page behind stays put while this is open — see scrollLock.ts for
   // what happens on a phone when it doesn't.
   useScrollLock();
 
+  // Which night record is open on top of this page, if any (§2.60). Every date
+  // on the profile is a way into the night it belongs to — the form table, the
+  // ribbon of medals and the career feed are three ways of drawing the same
+  // nights, and until now none of them could take you to one.
+  //
+  // Opened *over* the profile rather than by sending the reader to the Club
+  // tab: they came here to read about a person, and closing the night should
+  // put them back on the paragraph they were reading rather than on a list of
+  // nights somewhere else.
+  const [nightId, setNightId] = useState<string | null>(null);
+  // The club's whole history, newest first — not this player's nights, which
+  // `nights` below is. The night record steps through every night there was,
+  // the same as it does from the Club tab, so a reader who lands on one is not
+  // walled into the career they arrived from.
+  const clubNights = useMemo(
+    () => [...history].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0)),
+    [history],
+  );
+  const nightAt = nightId === null ? -1 : clubNights.findIndex((fx) => fx.id === nightId);
+  const night = nightAt >= 0 ? clubNights[nightAt] : null;
+
   // same escape hatch as pitch mode — a full-screen panel that can only be
   // left by finding one small button is a panel people feel stuck in
+  //
+  // **Stands down while a night record is open on top.** Both panels listen on
+  // `window`, so without this one Escape would close the night *and* the
+  // profile underneath it — dismissing two things the reader only asked to
+  // dismiss one of, and landing them back on the roster.
   useEffect(() => {
+    if (night) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  }, [onClose, night]);
 
   // Awards are asked for, not worked out: they are a record of what was
   // announced, and this page is one of the two places that reads it back. Any
@@ -307,15 +345,15 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
   // modal for a one-line explanation is a heavier answer than the question
   // deserves. This is a caption that appears under whichever row was touched,
   // and goes away when something else is.
-  const [detail, setDetail] = useState<{ where: 'badges' | 'nights'; text: string } | null>(null);
-  const say = (where: 'badges' | 'nights', text: string) => () =>
+  const [detail, setDetail] = useState<{ where: 'badges'; text: string } | null>(null);
+  const say = (where: 'badges', text: string) => () =>
     setDetail((d) => (d?.text === text ? null : { where, text }));
   // `aria-live` because the caption is the *whole* answer for a screen reader
   // that just activated a badge (§2.43) — without it the tap appears to do
   // nothing and the reader has to go hunting forward for a new paragraph.
   // Rendered always, empty when nothing is selected, so the region exists to
   // be announced into rather than arriving with its own text already in it.
-  const caption = (where: 'badges' | 'nights') => (
+  const caption = (where: 'badges') => (
     <p
       aria-live="polite"
       // margin only when it has something to say, so an empty live region
@@ -601,7 +639,12 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
                       key={n.fixtureId}
                       title={said}
                       aria-label={spoken}
-                      onClick={say('nights', said)}
+                      // Opens the night rather than captioning it (§2.60). The
+                      // caption said the date and the shirt; the night record
+                      // says that and everything else, and the date is already
+                      // on the `title` and the aria-label for anyone who only
+                      // wanted to know which night this square was.
+                      onClick={() => setNightId(n.fixtureId)}
                       className={`grid h-8 w-8 place-items-center rounded-lg font-mono text-xs font-black shadow-sm transition-transform hover:scale-110 ${
                         n.place === null
                           ? 'border border-dashed border-amber-900/25 text-amber-900/30'
@@ -633,7 +676,6 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
                   )}
                 </p>
               )}
-              {caption('nights')}
             </Card>
 
             {/* Between the ribbon and the timeline, because it is the third
@@ -652,7 +694,7 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
             ) : (
               gradePoints.length > 0 && (
                 <Card id="pp-form" title={t('pp.form.title')}>
-                  <GradeForm points={gradePoints} />
+                  <GradeForm points={gradePoints} onOpenNight={setNightId} />
                 </Card>
               )
             )}
@@ -661,7 +703,7 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
                 asked two different questions. The ribbon answers "how has it
                 gone"; this answers "what happened, and when". */}
             <Card id="pp-story" title={t('pp.story.title')} hint={t('pp.story.hint')}>
-              <PlayerTimeline events={timeline} />
+              <PlayerTimeline events={timeline} onOpenNight={setNightId} />
             </Card>
 
             <div id="pp-milestones" className="grid scroll-mt-14 gap-3 sm:grid-cols-2">
@@ -890,6 +932,22 @@ export default function PlayerPage({ player, history, players, isAdmin, onEdit, 
           </>
         )}
       </div>
+
+      {/* The night record, over the profile. `onGo` keeps the arrows and the
+          left/right keys working inside it, so a reader who arrived at one
+          night can walk the club's history from there without coming back out. */}
+      {night && (
+        <NightPage
+          fixture={night}
+          history={history}
+          players={players}
+          adminWord={adminWord}
+          older={clubNights[nightAt + 1] ?? null}
+          newer={clubNights[nightAt - 1] ?? null}
+          onGo={setNightId}
+          onClose={() => setNightId(null)}
+        />
+      )}
     </div>
   );
 }

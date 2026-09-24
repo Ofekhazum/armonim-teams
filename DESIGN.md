@@ -4661,6 +4661,55 @@ device loses nothing by never seeing it — but that makes `mergePublicRoster` t
 alive on the device that set it, and a pull wiping it would be silent, surfacing weeks later as the
 player quietly landing on a keeper's team again. Hence a test on both merge directions.
 
+### 2.60 Every date on a profile opens its night
+
+The player page draws the same nights three ways — the ribbon of medals (§2.19), the form table
+(§2.40) and the career feed (§2.29) — and until now not one of them could take you to a night. The
+page was full of dates that looked like references and behaved like decoration.
+
+**The night record opens *over* the profile**, rather than sending the reader to the Club tab and
+finding the night there. They came here to read about a person; closing the night should put them
+back on the paragraph they were reading, not on a list somewhere else. `NightPage` already worked as
+an overlay for History, takes `older`/`newer` for its arrows, and needed nothing added.
+
+It steps through the **club's whole history**, not just this player's nights. Someone who lands on a
+night is reading about that night, and walling them into one career's subset would make the arrows
+skip weeks for no reason the screen could explain.
+
+**The medal squares became links instead of captions.** Tapping one used to print "2026-08-20 — ⚫"
+underneath it, which was a caption explaining the thing you were already looking at. The night record
+says that and everything else, and the date was already on the square's `title` and `aria-label` for
+anyone who only wanted to know which night it was. The caption mechanism stays for the badges, which
+have no page to go to.
+
+#### A run card is about several nights, so it opens into a list
+
+`streak-ended` is the one event in the feed whose headline covers more than the night it is dated to
+— and the two are not even the same kind of night. **The card's date is the night that *broke* the
+run**, because that is when the event happened, while the nights worth linking are the ones that were
+*won*. So the date and the run list are both present and mean different things, which is worth saying
+out loud because it reads like a bug until you know it.
+
+`TimelineEvent.runNights` carries them, oldest first, filled by the loop that is already walking the
+nights in order — a second pass would have to re-derive which run a given date belonged to.
+**Copied, not handed over**: the same accumulator keeps being filled for the next run, so sharing the
+array would leave one run's card holding the following run's nights. There is a test that fails
+against exactly that, and it was verified by making the change.
+
+The list is **behind a tap** ("אילו מחזורים?"), one card at a time. These expand *inside* the rail,
+and two open at once pushes the rest of the profile off a phone screen for a list nobody reads twice.
+
+#### Two overlays, one Escape key
+
+`PlayerPage` and `NightPage` both listen for Escape on `window`, so with a night open one press closed
+**both** — dismissing two things the reader asked to dismiss one of, and landing them back on the
+roster. The profile's handler now stands down while a night is on top of it. Also covered by a test
+verified against the un-guarded version, because it is invisible until someone presses the key.
+
+`GradeForm` and `PlayerTimeline` take `onOpenNight` as an *optional* prop and render plain text
+without it. Both are rendered in places with no night record to reach, and an underline that does
+nothing is worse than no underline.
+
 ## 3. Team generation algorithm
 
 Balancing is a small constrained optimization. With ≤15 players, brute force is too big

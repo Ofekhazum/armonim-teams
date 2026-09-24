@@ -906,6 +906,7 @@ export default function Roster({
           history={history}
           players={players}
           isAdmin={isAdmin}
+          adminWord={adminWord}
           // Editing from the page hands straight back to the form that was
           // always there, on the roster underneath — one edit form in the app,
           // reached from two places, rather than a second one to keep in step.

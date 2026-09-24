@@ -79,6 +79,54 @@ describe('playerTimeline', () => {
     expect(ended[0].at).toBe(dates[3]);
   });
 
+  // A run card is about several nights, and the card's own date is the night
+  // that *broke* it — so "which nights did I actually win?" had no answer on
+  // the page at all until the run carried them (§2.60).
+  it('carries the nights the run was made of, oldest first', () => {
+    const dates = weekly(5);
+    const events = playerTimeline(
+      [won(dates[0]), won(dates[1]), won(dates[2]), lost(dates[3]), won(dates[4])],
+      'me',
+    );
+    const ended = only(events, 'streak-ended')[0];
+    expect(ended.runNights?.map((r) => r.at)).toEqual([dates[0], dates[1], dates[2]]);
+    // the nights that were won, never the one that ended it
+    expect(ended.runNights?.map((r) => r.at)).not.toContain(dates[3]);
+    // and each one can be opened
+    expect(ended.runNights?.map((r) => r.fixtureId)).toEqual([dates[0], dates[1], dates[2]]);
+  });
+
+  it('carries them for a run still going too', () => {
+    const dates = weekly(4);
+    const events = playerTimeline(
+      [lost(dates[0]), won(dates[1]), won(dates[2]), won(dates[3])],
+      'me',
+    );
+    expect(only(events, 'streak-live')[0].runNights?.map((r) => r.at)).toEqual([
+      dates[1],
+      dates[2],
+      dates[3],
+    ]);
+  });
+
+  it('does not let one run leak into the next', () => {
+    // The accumulator is reused across runs, so a copy that was handed over
+    // rather than cloned would leave the second run holding the first's nights.
+    const dates = weekly(9);
+    const events = playerTimeline(
+      [
+        won(dates[0]), won(dates[1]), won(dates[2]), lost(dates[3]),
+        won(dates[4]), won(dates[5]), won(dates[6]), lost(dates[7]),
+      ],
+      'me',
+    );
+    const runs = only(events, 'streak-ended');
+    expect(runs).toHaveLength(2);
+    // newest first in the feed, so the later run comes first
+    expect(runs[0].runNights?.map((r) => r.at)).toEqual([dates[4], dates[5], dates[6]]);
+    expect(runs[1].runNights?.map((r) => r.at)).toEqual([dates[0], dates[1], dates[2]]);
+  });
+
   it('leaves a short run alone', () => {
     // MIN_WIN_STREAK. Two won nights in a row happens to somebody most weeks;
     // a feed that cards it is a feed nobody reads to the bottom of.

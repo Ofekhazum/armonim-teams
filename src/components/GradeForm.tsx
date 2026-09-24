@@ -52,7 +52,14 @@ const shortDate = (iso: string) => {
 /** How many rows before the table folds — see PlayerTimeline for the same trade. */
 const PAGE = 8;
 
-export default function GradeForm({ points }: { points: GradePoint[] }) {
+export default function GradeForm({
+  points,
+  onOpenNight,
+}: {
+  points: GradePoint[];
+  /** Given, every date in the table becomes a way into that night (§2.60). */
+  onOpenNight?: (fixtureId: string) => void;
+}) {
   const [range, setRange] = useState<GradeRange>(DEFAULT_RANGE);
   const [all, setAll] = useState(false);
 
@@ -147,7 +154,23 @@ export default function GradeForm({ points }: { points: GradePoint[] }) {
             <tbody>
               {visible.map((p) => (
                 <tr key={p.fixtureId} className="border-t border-amber-900/[0.07]">
-                  <td className="py-1.5 tabular-nums text-amber-900/60">{shortDate(p.date)}</td>
+                  {/* The date is the row's handle on its night. A plain cell
+                      when there is nowhere to go — this component is also
+                      rendered where no night record is reachable — so the
+                      underline never promises something that does nothing. */}
+                  <td className="py-1.5 tabular-nums text-amber-900/60">
+                    {onOpenNight ? (
+                      <button
+                        onClick={() => onOpenNight(p.fixtureId)}
+                        aria-label={t('form.openNight', { date: shortDate(p.date) })}
+                        className="rounded underline decoration-amber-900/25 decoration-dotted underline-offset-2 transition-colors hover:text-orange-700 hover:decoration-orange-600"
+                      >
+                        {shortDate(p.date)}
+                      </button>
+                    ) : (
+                      shortDate(p.date)
+                    )}
+                  </td>
                   <td className="py-1.5">
                     <span className="flex items-center gap-1.5">
                       {/* The medal is the placing, in the same three colours

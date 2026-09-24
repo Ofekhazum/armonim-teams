@@ -169,3 +169,25 @@ describe('GradeForm', () => {
     expect(screen.getByText(/last 1 night$/)).toBeInTheDocument();
   });
 });
+
+// The date column is the row's way into the night it is a mark for (§2.60).
+describe('getting from a form row to its night', () => {
+  it('opens the night the row is a mark for', () => {
+    const seen: string[] = [];
+    render(
+      <GradeForm
+        points={build([{ id: 'the-night', days: 2, grade: 8 }])}
+        onOpenNight={(id) => seen.push(id)}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: /Open the night of/ }));
+    expect(seen).toEqual(['the-night']);
+  });
+
+  it('leaves the date as plain text when there is nowhere to go', () => {
+    render(<GradeForm points={build([{ id: 'the-night', days: 2, grade: 8 }])} />);
+    expect(screen.queryByRole('button', { name: /Open the night of/ })).not.toBeInTheDocument();
+    // the date is still shown, just not as a link
+    expect(screen.getAllByRole('row')).toHaveLength(2);
+  });
+});

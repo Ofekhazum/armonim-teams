@@ -46,6 +46,12 @@ export type TimelineKind =
   // a month they were named in the registered Team of the Month
   | 'totm';
 
+/** One night inside a run, enough to name it and open it. */
+export interface RunNight {
+  fixtureId: string;
+  at: string;
+}
+
 /**
  * One card in the feed.
  *
@@ -72,6 +78,19 @@ export interface TimelineEvent {
   fixtureId?: string;
   /** The number the event is about: which night, which win, how long the run. */
   n?: number;
+  /**
+   * The nights the run was actually made of — `streak-ended` and `streak-live`
+   * only, oldest first.
+   *
+   * A run card is the one event here whose headline is about *several* nights
+   * rather than the one it is dated to, and the two are not even the same kind
+   * of night: `fixtureId` on a `streak-ended` is the night that **broke** it,
+   * because that is when the event happened, while these are the nights that
+   * were won. Carried rather than recomputed at the page, because the loop
+   * below is already walking them in order and a second pass would have to
+   * re-derive which run a date belonged to.
+   */
+  runNights?: RunNight[];
   /** `totm` only, as `YYYY-MM`. */
   period?: string;
   /** `debut` only — the shirt worn and where they finished. */
@@ -136,6 +155,7 @@ export function playerTimeline(
   let nightsWon = 0;
   let mvps = 0;
   let run = 0; // nights won in a row
+  const runNights: RunNight[] = []; // and which ones they were
   let winless = 0; // nights not won in a row
   let best = 0; // most match wins in a night so far
   let lastDecided: { at: string; fixtureId: string } | null = null;
@@ -180,12 +200,18 @@ export function playerTimeline(
         out.push({ kind: 'drought-ended', at, fixtureId, n: winless });
       winless = 0;
       run++;
+      runNights.push({ fixtureId, at });
     } else {
       // The night a run ended, dated to the night that ended it. This is the
       // one card in the feed that is about something not happening, and it is
       // the one the reader remembers — which is why the length goes on it.
-      if (run >= MIN_WIN_STREAK) out.push({ kind: 'streak-ended', at, fixtureId, n: run });
+      //
+      // `runNights` is copied rather than handed over, because the same array
+      // keeps being filled for the next run the moment this one is emitted.
+      if (run >= MIN_WIN_STREAK)
+        out.push({ kind: 'streak-ended', at, fixtureId, n: run, runNights: [...runNights] });
       run = 0;
+      runNights.length = 0;
       winless++;
     }
 
@@ -202,7 +228,13 @@ export function playerTimeline(
   // "right now". `streak-ended` and `streak-live` are mutually exclusive for
   // any one run: a run is either broken or still going.
   if (run >= MIN_WIN_STREAK && lastDecided)
-    out.push({ kind: 'streak-live', at: lastDecided.at, fixtureId: lastDecided.fixtureId, n: run });
+    out.push({
+      kind: 'streak-live',
+      at: lastDecided.at,
+      fixtureId: lastDecided.fixtureId,
+      n: run,
+      runNights: [...runNights],
+    });
 
   for (const period of totmPeriods) out.push({ kind: 'totm', at: `${period}-99`, period });
 

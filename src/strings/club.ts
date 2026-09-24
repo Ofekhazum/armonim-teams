@@ -86,6 +86,9 @@ export const club = {
     en: 'No marks for this player yet.',
   },
   'form.col.date': { he: 'תאריך', en: 'Date' },
+  // The date is the row's way into the night record (§2.60) — spoken, because
+  // a bare "17/9, button" says nothing about what pressing it does.
+  'form.openNight': { he: 'פתיחת המחזור מ־{date}', en: 'Open the night of {date}' },
   'form.col.night': { he: 'מחזור', en: 'Night' },
   'form.col.wins': { he: 'ניצחונות', en: 'Wins' },
   'form.col.mark': { he: 'ציון', en: 'Mark' },
