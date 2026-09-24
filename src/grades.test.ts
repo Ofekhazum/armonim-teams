@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type { FixtureRecord, MatchLogEntry } from './types';
-import { BASE, GRADE_MAX, MIN_RECENT, gradeConstants, nightGrades } from './grades';
+import {
+  BASE,
+  GRADE_MAX,
+  MIN_RECENT,
+  VOTE_AFTER_FLOOR_FROM,
+  gradeConstants,
+  nightGrades,
+} from './grades';
 
 // The mark out of ten (§2.39). What matters here is that the number is
 // arithmetic a reader could check: that teammates share the part of it which
@@ -17,6 +24,11 @@ const night = (
     matchLog?: MatchLogEntry[];
     ratings?: Record<string, number>;
     note?: string;
+    /**
+     * Overrides the generated date, which every test but the epoch block below
+     * is happy to leave alone. Spread last on purpose so it wins.
+     */
+    date?: string;
   } = {},
 ): FixtureRecord => {
   seq++;
@@ -700,6 +712,85 @@ describe('the tier shade', () => {
     });
     const gs = nightGrades([fx], fx.id)!;
     expect(gradeOf(gs, 'b').grade).toBeGreaterThan(gradeOf(gs, 'c').grade);
+  });
+
+  // --- The vote, applied after the floor (§2.66) ----------------------------
+  //
+  // Everything above this line grades on dates in January, so it exercises the
+  // old path and goes on doing so. These use dates on or after
+  // VOTE_AFTER_FLOOR_FROM, where the pick's term is held back until the floor
+  // has already been applied.
+
+  const AFTER = '2026-10-01';
+  const lateNight = (mvpVotes: Record<string, number>, wins: { black: number; white: number; blue: number }) =>
+    night(T(['a', 'b', 'c'], ['x', 'y'], ['z']), wins, { mvpId: 'a', mvpVotes, date: AFTER });
+
+  it('lets the room move the pick on a night the floor had already settled', () => {
+    // The measurement that prompted the change: inside the sum, a near-
+    // unanimous vote on a narrow win moved the mark by nothing at all, because
+    // WIN_FLOOR had put the pick on 8 before the vote was read. Revert
+    // `holdVote` in `nightGrades` and these two collapse onto the same number.
+    const wins = { black: 4, white: 3, blue: 3 };
+    const spread = lateNight({ a: 3, b: 3, c: 2, x: 2 }, wins);
+    const landslide = lateNight({ a: 9, b: 1 }, wins);
+
+    expect(gradeOf(nightGrades([spread], spread.id), 'a').grade).toBe(8.5);
+    expect(gradeOf(nightGrades([landslide], landslide.id), 'a').grade).toBe(9);
+  });
+
+  it('keeps the top two rungs out of reach of a vote alone', () => {
+    // Asked for directly: 9.5 and 10 are for a night the winners dominated, not
+    // for a popular player on an ordinary win. A floored 8 plus the widest
+    // possible term is 9.15, so no tally can buy the top two rungs.
+    for (const share of [1, 2, 3, 5, 8, 10]) {
+      const fx = lateNight({ a: share, b: 10 - share }, { black: 4, white: 3, blue: 3 });
+      expect(gradeOf(nightGrades([fx], fx.id), 'a').grade).toBeLessThanOrEqual(9);
+    }
+    // ...and a unanimous sheet is exactly the worst case, still under 9.5
+    const all = lateNight({ a: 10 }, { black: 4, white: 3, blue: 3 });
+    expect(gradeOf(nightGrades([all], all.id), 'a').grade).toBe(9);
+  });
+
+  it('still reaches the top when the margin, not the room, earned it', () => {
+    // The other half of the same instruction. A rout carries the pick to 9
+    // before the vote is counted, and from there the room decides 9.5 or 10.
+    const rout = { black: 10, white: 2, blue: 1 };
+    const shaded = lateNight({ a: 4, b: 3, c: 3 }, rout);
+    const walked = lateNight({ a: 9, b: 1 }, rout);
+    expect(gradeOf(nightGrades([shaded], shaded.id), 'a').grade).toBe(9.5);
+    expect(gradeOf(nightGrades([walked], walked.id), 'a').grade).toBe(10);
+  });
+
+  it('leaves the rest of the sheet inside the sum, under the ceilings', () => {
+    // Only the pick's term moves. A runner-up on a beaten team polling well
+    // must not climb past LOSER_CAP — a mark of 8 means the night was won.
+    const fx = night(T(['a'], ['x', 'y'], ['z']), { black: 6, white: 3, blue: 3 }, {
+      mvpId: 'a',
+      mvpVotes: { a: 4, x: 6 },
+      date: AFTER,
+    });
+    const gs = nightGrades([fx], fx.id)!;
+    expect(gradeOf(gs, 'x').parts.mvp).toBeGreaterThan(0);
+    expect(gradeOf(gs, 'x').grade).toBeLessThanOrEqual(gradeConstants.LOSER_CAP);
+  });
+
+  it('grades a night before the cutover exactly as it always did', () => {
+    // The guarantee the change was accepted on: marks already handed out do not
+    // move. Same fixture, same sheet, one day either side of the cutover.
+    const before = night(T(['a', 'b', 'c'], ['x', 'y'], ['z']), { black: 4, white: 3, blue: 3 }, {
+      mvpId: 'a',
+      mvpVotes: { a: 8, b: 1 },
+      date: '2026-09-24',
+    });
+    const after = night(T(['a', 'b', 'c'], ['x', 'y'], ['z']), { black: 4, white: 3, blue: 3 }, {
+      mvpId: 'a',
+      mvpVotes: { a: 8, b: 1 },
+      date: VOTE_AFTER_FLOOR_FROM,
+    });
+    // the old path: the floor sets the pick's mark and the vote is absorbed
+    expect(gradeOf(nightGrades([before], before.id), 'a').grade).toBe(gradeConstants.WIN_FLOOR);
+    // the new one: the same sheet is worth a rung
+    expect(gradeOf(nightGrades([after], after.id), 'a').grade).toBe(9);
   });
 
   it('never lets polling well outrank being picked', () => {

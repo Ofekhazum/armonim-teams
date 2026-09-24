@@ -4923,6 +4923,88 @@ already see in the app, and paragraph 4 is the only part nobody could have worke
 A report that arrives there with the words spent has told the reader what they already knew at length
 and the thing they didn't know in a hurry.
 
+### 2.66 The room's vote was being eaten by the floor (`VOTE_AFTER_FLOOR_FROM`)
+
+§2.46 gave a night a whole tally instead of one name, on the argument that a vote is the only
+per-player signal a night produces with any *resolution*. Asked to explain a real sheet — יועד, 6 of
+10 votes on 2026-09-24 — it turned out the resolution was being thrown away before it reached the
+page.
+
+**What the measurement said.** Sweeping the pick's share through that night, holding everything else
+fixed:
+
+| votes | raw | mark |
+|---|---|---|
+| 1/10 | 8.24 | 8.0 |
+| **2/10 – 8/10** | 8.31 – 8.73 | **8.5** |
+| 9/10 – 10/10 | 8.80 – 8.87 | 9.0 |
+
+Everything from a bare plurality to an 80% landslide is one number. Against the three sheets the club
+had recorded, compared with what the pick would have scored with **no vote counted at all**:
+
+| night | pick | share | no vote | actual |
+|---|---|---|---|---|
+| 10 Sep | שגב | 5/12 (42%) | 9.0 | 9.5 |
+| 17 Sep | ירין | 8/9 (**89%**) | 8.0 | **8.0** |
+| 24 Sep | יועד | 6/10 (60%) | 8.0 | 8.5 |
+
+The most emphatic vote the club has ever cast moved its pick's mark by **exactly nothing**, while the
+narrowest pick on record got the same +0.5 as a 60% one. Which of those you got was decided by where
+the scoreline left you against a rounding boundary.
+
+**Reweighting does not fix it, and that was measured before anything was written.** Four variants —
+the gap to the runner-up instead of the raw share, `ROOM_W` widened to 1.2, and both together —
+changed not one mark on the three real sheets, and one made שגב's squeaker score *higher*. `night`
+spans 3.0 and `WIN_FLOOR` pins the winner at 8; a term worth 0.7 at its widest cannot argue with
+either. **The vote was not underweighted, it was in the wrong place.**
+
+**So it moves to where `events` already sits (§2.57)**, for the reason stated there: the floors and
+ceilings are built out of the scoreline, and this is an input that knows something the scoreline does
+not.
+
+**Moving it alone inflates the top of the scale, which is why the constants changed too.** The naïve
+move makes the floor the pick's *starting line* — every winning pick begins at 8 and the old
+0.4–1.1 goes on top, so the minimum becomes 8.4 and the typical case 8.8. Run over all seven nights
+that produced five 9.0s, a 9.5 and **two 10s, with no 8.5 anywhere**; a night decided by half a win
+came out at 9.0. So `PICK_BONUS` drops 0.4 → **0.15** (`PICK_BONUS_AFTER_FLOOR`) — the floor now
+delivers the honour this used to buy — and `ROOM_W` widens 0.7 → **1.0** (`ROOM_W_AFTER_FLOOR`) now
+that nothing absorbs it.
+
+A floored 8 therefore tops out at 9.15. **The top two rungs cannot be bought with votes:**
+
+| margin mark → | 20% | 30% | 40% | 50% | 60% | 75% | 90% | 100% |
+|---|---|---|---|---|---|---|---|---|
+| **8.0** | 8.5 | 8.5 | 8.5 | 8.5 | 9.0 | 9.0 | 9.0 | 9.0 |
+| **8.5** | 9.0 | 9.0 | 9.0 | 9.0 | 9.5 | 9.5 | 9.5 | 9.5 |
+| **9.0** | 9.5 | 9.5 | 9.5 | 9.5 | 10.0 | 10.0 | 10.0 | 10.0 |
+
+The only route into 9.5 and 10 is for the margin to have carried the pick to 8.5 or 9.0 before the
+vote is read, which on the club's scorelines takes a three-win lead or better — asked for in exactly
+those terms. Every night on record sorts cleanly: 0.5–2 wins clear → floored 8.0, locked out of 9.5;
+3–5 wins clear (20 Aug, 27 Aug, 10 Sep) → floored 9.0, and even there a 10 needs 60% of the room too.
+
+**Only the pick's term moves.** Everybody else keeps `ROOM_W` inside the sum, absorbed by the floor
+exactly as §2.46 documents. Moving theirs too would let a runner-up on a beaten team climb past
+`LOSER_CAP` by polling well, and §2.56's rule — a mark of 8 means you won the night — is not being
+traded away for a vote share.
+
+**Nothing already graded re-scores, and that is a dated cutover rather than a flag.** Marks are
+computed on demand rather than stored, so a change to the arithmetic is retroactive by default and
+every mark the club had already read would have moved. Asked for directly: the new rule applies to
+nights not yet graded. `VOTE_AFTER_FLOOR_FROM = '2026-09-25'` — the day after the last filed night —
+and nights before it keep `PICK_BONUS`/`ROOM_W` inside the sum. Verified against the live
+`GET /history`: **104 marks across 7 nights, 0 moved.** Re-dated to October, that same 24 Sep sheet
+moves exactly one mark, יועד 8.5 → 9.0.
+
+The cost is real and stated in the constant's own doc comment: an August night and an identical
+October night can mark differently, and only this constant explains it. That was judged cheaper than
+re-scoring marks people have already been given.
+
+*(A side effect worth naming: on 17 Sep, חנש, עובדיה and שגב **won the night and graded 7.5** — below
+`WIN_FLOOR` — because `MVP_CLEAR` held them under ירין's depressed 8.0. The ceiling is computed from
+the pick's finished mark, so lifting a suppressed pick lifts the team with them. Nights from the
+cutover no longer produce that shape.)*
+
 ## 3. Team generation algorithm
 
 Balancing is a small constrained optimization. With ≤15 players, brute force is too big

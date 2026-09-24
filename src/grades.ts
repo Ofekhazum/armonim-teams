@@ -341,6 +341,88 @@ const PICK_BONUS = 0.4;
 const ROOM_W = 0.7;
 
 /**
+ * The first night whose pick has the vote applied *after* the floor (§2.66).
+ *
+ * **Why the vote had to move, measured on the club's own sheets.** Inside the
+ * sum the room was being eaten by `WIN_FLOOR` before it could reach a rung.
+ * Sweeping the pick's share through the night of 2026-09-24 — 11 matches, the
+ * pick's team on 5.5 — every tally from 2 of 10 to 8 of 10 produced the same
+ * 8.5, and it took 9 of 10 to move one rung. Worse, on 2026-09-17 the most
+ * emphatic vote the club has ever cast (8 of 9, 89%) moved the pick's mark by
+ * **exactly nothing**: the floor had already put them on 8.0, and would have
+ * done so with no vote at all. Across the three sheets on record the room was
+ * worth +0.5, +0.0 and +0.5 — and which of those you got was decided by where
+ * the scoreline happened to leave you against a rounding boundary, not by how
+ * emphatic the room had been.
+ *
+ * **Reweighting does not fix it and was measured before this was written.**
+ * Four variants — the gap to the runner-up instead of the raw share, `ROOM_W`
+ * widened to 1.2, and both together — changed not one mark on the three real
+ * sheets, and one of them made the narrowest pick on record score *higher*.
+ * The `night` term spans 3.0 and the floor pins the winner at 8; a term worth
+ * 0.7 at its widest cannot argue with either. The vote was not underweighted,
+ * it was in the wrong place — underneath a floor that had already decided the
+ * answer.
+ *
+ * So it moves to where `events` already sits (§2.57), and for the same stated
+ * reason: the floor and the ceilings are built out of the scoreline, and this
+ * is an input that knows something the scoreline does not.
+ *
+ * **A date rather than a flag, and nothing before it re-scores.** Grades are
+ * computed on demand rather than stored, so a change to the arithmetic is
+ * retroactive by default — every mark the club has already read would silently
+ * move. Asked for directly: the new rule applies to nights not yet graded. So
+ * nights before this date keep `PICK_BONUS`/`ROOM_W` inside the sum and read
+ * today exactly as they always have, and nights from it use the two constants
+ * below.
+ *
+ * The cost is real and worth stating: a night in August and an identical night
+ * in October can mark differently, and no amount of reading the formula will
+ * explain it — only this constant will. That is the price of not re-scoring
+ * marks people have already been given, and it was judged the cheaper of the
+ * two.
+ */
+export const VOTE_AFTER_FLOOR_FROM = '2026-09-25';
+
+/**
+ * The honour half, once the floor is no longer competing with it.
+ *
+ * Trimmed 0.4 → 0.15 because the floor now delivers what this used to. Being
+ * the pick on a night your team won already means arriving at 8 before a single
+ * vote is counted; charging the old 0.4 on top of that put the *minimum* mark
+ * for a winning pick at 8.4 and the typical one at 8.8, which rounds to 9. Run
+ * over every night on record, the uncorrected move produced five 9.0s, a 9.5
+ * and **two 10s, with no 8.5 anywhere** — a night decided by half a win came
+ * out at 9.0. A rung that fires every week is not a top.
+ *
+ * At 0.15 a floored 8 tops out at 9.15, so **9.5 and 10 cannot be reached by
+ * polling well**. The only way into the top two rungs is for the margin to have
+ * carried the pick to 8.5 or 9.0 before the vote is read, which on the club's
+ * scorelines takes a three-win lead or better. Asked for in exactly those
+ * terms.
+ */
+const PICK_BONUS_AFTER_FLOOR = 0.15;
+
+/**
+ * And the room's half, widened 0.7 → 1.0 now that nothing absorbs it.
+ *
+ * Wide enough that the vote decides a rung rather than a rounding accident: on
+ * a floored 8 the pick reads 8.5 up to a 50% share and 9.0 above it, and on a
+ * floored 9 they read 9.5 up to 50% and 10 above it. One bit of information per
+ * night, which is all a half-point scale has room for down there, but it is a
+ * bit that now depends on the room instead of on where the scoreline left them.
+ *
+ * **Only the pick's term moves.** Everybody else on the sheet keeps `ROOM_W`
+ * inside the sum, absorbed by the floor exactly as documented there. Moving
+ * theirs too would let a runner-up on a beaten team climb past `LOSER_CAP` by
+ * polling well, and a mark of 8 meaning "your team won the night" is a rule
+ * that was asked for and is not being traded away for a vote share. The
+ * runner-up's recognition stays what `ROOM_W` says it is: the tally beside
+ * their name and the line written about them.
+ */
+const ROOM_W_AFTER_FLOOR = 1.0;
+
+/**
  * Taking the night outright, as a thing in itself rather than as a margin.
  *
  * **This exists to stop {@link WIN_FLOOR} doing the separating.** With the
@@ -665,6 +747,10 @@ export function nightGrades(history: FixtureRecord[], fixtureId: string): Grade[
   // falls back to the flat `MVP_BONUS` it has always been worth.
   const votesCast = totalVotes(fx.mvpVotes);
   const tallied = votesCast > 0;
+  // Whether this night's pick has the vote applied after the floor rather than
+  // inside the sum — see VOTE_AFTER_FLOOR_FROM. A night with no sheet has no
+  // vote to move, so it keeps the flat fallback whatever its date.
+  const voteAfterFloor = tallied && fx.date >= VOTE_AFTER_FLOOR_FROM;
 
   // Relative to the night's own average, then capped. Lifted out of the team
   // loop because the winner's figure is needed before any team is graded — see
@@ -746,20 +832,36 @@ export function nightGrades(history: FixtureRecord[], fixtureId: string): Grade[
         // The pick, plus however much of the room said so — see PICK_BONUS and
         // ROOM_W. Untallied nights keep the flat bonus, so a mark filed before
         // the sheet existed reads today exactly as it did then.
-        mvp: tallied
-          ? (isMvp ? PICK_BONUS : 0) + ROOM_W * ((votes ?? 0) / votesCast)
-          : isMvp
-            ? MVP_BONUS
-            : 0,
+        //
+        // From VOTE_AFTER_FLOOR_FROM the *pick's* term is both recalibrated and
+        // held back out of the sum below; the rest of the sheet is untouched.
+        mvp:
+          voteAfterFloor && isMvp
+            ? PICK_BONUS_AFTER_FLOOR + ROOM_W_AFTER_FLOOR * ((votes ?? 0) / votesCast)
+            : tallied
+              ? (isMvp ? PICK_BONUS : 0) + ROOM_W * ((votes ?? 0) / votesCast)
+              : isMvp
+                ? MVP_BONUS
+                : 0,
         career,
         momentum,
         tier,
       };
+      // Whether `parts.mvp` is spent below or above the floor. Held back for
+      // the pick from VOTE_AFTER_FLOOR_FROM, because a term the floor absorbs
+      // is a term that says nothing — that is the whole of the change.
+      const holdVote = voteAfterFloor && isMvp;
       // Rounded before the floor rather than after, so the floor is exactly the
       // number it says it is: flooring a rounded 7.5 cannot leave anybody below
       // the mark, where rounding a floored 7.9 could.
       const raw = round(
-        BASE + parts.night + parts.close + parts.mvp + parts.career + parts.momentum + parts.tier,
+        BASE +
+          parts.night +
+          parts.close +
+          (holdVote ? 0 : parts.mvp) +
+          parts.career +
+          parts.momentum +
+          parts.tier,
       );
       // Floor first, then the ceiling. `UNPICKED_CAP` is inclusive — 9 is an
       // ordinary mark anybody can earn, and only the two rungs above it are
@@ -771,7 +873,10 @@ export function nightGrades(history: FixtureRecord[], fixtureId: string): Grade[
       const capped = isMvp
         ? floored
         : Math.min(floored, UNPICKED_CAP, wonNight ? UNPICKED_CAP : LOSER_CAP);
-      const grade = clamp(capped, GRADE_MIN, GRADE_MAX);
+      // And the held-back vote goes on last, above the floor that would have
+      // eaten it. Rounded again because the term is not a multiple of a half;
+      // the `events` pass below is, so adding it afterwards cannot disturb this.
+      const grade = clamp(holdVote ? round(capped + parts.mvp) : capped, GRADE_MIN, GRADE_MAX);
 
       // Coming in: a live winning run, or nights since their team last took one.
       let runBefore = 0;
@@ -852,6 +957,8 @@ export const gradeConstants = {
   MVP_BONUS,
   PICK_BONUS,
   ROOM_W,
+  PICK_BONUS_AFTER_FLOOR,
+  ROOM_W_AFTER_FLOOR,
   CLOSE_SPAN,
   WIN_BONUS,
   UNPICKED_CAP,
