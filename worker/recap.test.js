@@ -932,3 +932,63 @@ describe('foreignScript', () => {
     expect(foreignScript(undefined)).toEqual([]);
   });
 });
+
+// The organiser on a report that read correctly but thin: it "talks a bit too
+// much on the part before the specific events, which causes lacking in the
+// storytelling of the following parts".
+//
+// One total across five paragraphs is not a budget, it is an average — and
+// paragraphs 1-3 are made of counted facts, which are the cheapest sentences
+// in the piece to write and so the ones that run away with it.
+describe('where the words go', () => {
+  const setupOf = (p) => Number(p.match(/\*\*(\d+) words together\*\*/)[1]);
+  const peopleOf = (p) => p.match(/Paragraph 4 is \*\*([\d]+) to ([\d]+) words/).slice(1).map(Number);
+  const totalOf = (p) => p.match(/([\d]+) to ([\d]+) words in total/).slice(1).map(Number);
+  const withEvents = (n) =>
+    buildPrompt(facts({ said: Array.from({ length: n }, (_, i) => `@e${i}@`).join(' ') }));
+
+  it('splits the budget per paragraph rather than handing over one number', () => {
+    const p = buildPrompt(facts());
+    expect(p).toMatch(/HOW THE WORDS ARE SPLIT, AND IT IS NOT EVENLY/);
+    expect(setupOf(p)).toBe(140);
+  });
+
+  it('keeps the setup fixed however much happened', () => {
+    // The opening does not get bigger because the night had six things in it.
+    for (const n of [0, 1, 2, 4, 6]) expect(setupOf(withEvents(n))).toBe(140);
+  });
+
+  it('hands every extra word to the paragraph the extra was bought for', () => {
+    // `extra` exists to pay for the events, and the events live in paragraph 4.
+    const [oneMin] = peopleOf(withEvents(1));
+    const [fourMin] = peopleOf(withEvents(4));
+    expect(fourMin - oneMin).toBe(3 * 40);
+    // and the total grew by exactly the same amount, so nothing was invented
+    expect(totalOf(withEvents(4))[0] - totalOf(withEvents(1))[0]).toBe(3 * 40);
+  });
+
+  it('adds up, so the model is not handed three numbers that disagree', () => {
+    for (const n of [0, 1, 2, 4, 6]) {
+      const p = withEvents(n);
+      const [tMin, tMax] = totalOf(p);
+      const [pMin, pMax] = peopleOf(p);
+      expect(setupOf(p) + pMin + 30).toBe(tMin);
+      expect(setupOf(p) + pMax + 30).toBe(tMax);
+    }
+  });
+
+  it('gives paragraph 4 the larger half once there is anything to tell', () => {
+    // With four events it should be getting well over half the report — that
+    // is the whole complaint being answered.
+    const p = withEvents(4);
+    const [pMin] = peopleOf(p);
+    const [tMin] = totalOf(p);
+    expect(pMin / tMin).toBeGreaterThan(0.5);
+  });
+
+  it('says why, so the cap reads as a judgement rather than a quota', () => {
+    const p = buildPrompt(facts());
+    expect(p).toMatch(/already see in the app/i);
+    expect(p).toMatch(/say the setup and move on/i);
+  });
+});

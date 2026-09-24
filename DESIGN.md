@@ -4890,6 +4890,39 @@ good lines for one bad one would be a worse answer than a single blank mark.
 
 Neither scrubs. Deleting a stray word from the middle of a sentence leaves a sentence nobody wrote.
 
+### 2.65 One total is not a budget, it is an average
+
+A report that read correctly but thin, per the organiser: it "talks a bit too much on the part before
+the specific events, which causes lacking in the storytelling of the following parts".
+
+That is what a single number buys. The prompt asked for five paragraphs in `280 + 40×(events−1)`
+words and said paragraph 4 "should be the longest" — and then left the split to the model. Paragraphs
+1–3 are made of **counted** facts: the shape of the night, the points, the longest runs, the squads.
+They are the cheapest sentences in the piece to write and the easiest to pad. Paragraph 4 has to
+invent something. Told only "380 words and make the fourth longest", a model spends what it can
+produce easily and reaches the hard paragraph with the budget half gone — "longest" being satisfied
+by a small margin over three short ones.
+
+So the words are now allocated, and stated in the prompt as three numbers that add up:
+
+| paragraphs | words | grows with events? |
+|---|---|---|
+| 1–3, the setup | **140**, a ceiling not a target | **no** |
+| 4, the people and the events | the rest | **yes, all of it** |
+| 5, the sign-off | ~30 | no |
+
+`SETUP_WORDS` is fixed rather than a share, which is the load-bearing half: the opening does not get
+bigger because the night had six things happen in it, and the entire purpose of `extra` is that it
+was bought to pay for the events. Before, a bigger total quietly enlarged the paragraph about who has
+the longest run. With four events paragraph 4 now gets **230–330 words of a 400–500 word report** —
+over half, where an even split would have given it a fifth.
+
+The prompt gives the reason rather than just the number, because a quota with no argument behind it
+is the first thing a model trades away: everything in paragraphs 1–3 is something the reader can
+already see in the app, and paragraph 4 is the only part nobody could have worked out for themselves.
+A report that arrives there with the words spent has told the reader what they already knew at length
+and the thing they didn't know in a hurry.
+
 ## 3. Team generation algorithm
 
 Balancing is a small constrained optimization. With ≤15 players, brute force is too big
