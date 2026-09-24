@@ -46,7 +46,15 @@ export { ClockNotifier } from './clock-notifier.js';
 import { bytesToB64u, publicKeyBytes } from './push.js';
 import { isValidFacts, recapKey, writeRecap } from './recap.js';
 import { gradesKey, isValidGradeFacts, readAllMarks, writeGrades } from './grades.js';
-import { announceMonth, clearMonth, isPeriod, readAwards, registerAwards } from './awards.js';
+import {
+  announceMonth,
+  canonicalIds,
+  clearMonth,
+  isPeriod,
+  readAwards,
+  registerAwards,
+} from './awards.js';
+import { remapPlayerKeys } from '../src/guests';
 // Bundled from src/ the same way src/totm.ts is, and for the same reason: the
 // formula has to exist in exactly one place, and this is the only place that
 // can run it — a public device has no ratings to run it on (§2.31).
@@ -587,8 +595,20 @@ export default {
     // grade graph is drawn from (§2.39). Checked before `/grades` below, and
     // public for the same reason that route is: a mark is already visible to
     // anyone who opens the night it belongs to.
+    //
+    // Keys are rewritten onto canonical ids on the way out (§2.6): a mark
+    // written while somebody was still a guest is stored under the id that
+    // night was filed with, and the graph looks it up under the roster id they
+    // carry now. Everywhere *else* already merges them, so without this a
+    // promoted guest's old nights count for their record and vanish from their
+    // form. Stored keys are untouched.
     if (url.pathname === '/grades/all' && request.method === 'GET') {
-      return json({ grades: await readAllMarks(env) });
+      const [grades, canonical] = await Promise.all([readAllMarks(env), canonicalIds(env)]);
+      const out = {};
+      for (const [fixtureId, rows] of Object.entries(grades)) {
+        out[fixtureId] = remapPlayerKeys(rows, canonical);
+      }
+      return json({ grades: out });
     }
 
     // public read of a night's grade lines. The marks themselves are not here
@@ -601,7 +621,13 @@ export default {
       const raw = await env.ROSTER_KV.get(gradesKey(id));
       if (!raw) return json({ lines: null });
       try {
-        return json(JSON.parse(raw));
+        const stored = JSON.parse(raw);
+        // Same rewrite as /grades/all, for the same reason — the night page
+        // matches these against a squad the guest merge has already settled, so
+        // a line written for a since-promoted guest would render under nobody.
+        if (!stored?.lines || typeof stored.lines !== 'object') return json(stored);
+        const canonical = await canonicalIds(env);
+        return json({ ...stored, lines: remapPlayerKeys(stored.lines, canonical) });
       } catch {
         return json({ lines: null });
       }

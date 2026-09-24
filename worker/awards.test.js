@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { announceMonth, clearMonth, isPeriod, readAwards, registerAwards } from './awards.js';
+import {
+  announceMonth,
+  canonicalIds,
+  clearMonth,
+  isPeriod,
+  readAwards,
+  registerAwards,
+} from './awards.js';
 
 // The registrar. What is being tested is not the scoring — that has its own
 // tests in src/totm.test.ts, and the whole point of the extraction is that
@@ -215,5 +222,47 @@ describe('isPeriod', () => {
 describe('readAwards', () => {
   it('is an empty object when nothing has been registered', async () => {
     expect(await readAwards(fakeEnv())).toEqual({});
+  });
+});
+
+describe('canonicalIds', () => {
+  // What the grade routes rewrite their keys with. The archive itself is
+  // merged by readHistory; this is for the records stored *beside* it, which
+  // keep whatever id the night was filed under.
+
+  const guestNight = (date, guestId, guestName) =>
+    fixture(date, {
+      teams: { black: ['a', guestId], white: ['c', 'd'], blue: ['e', 'f'] },
+      players: [
+        { id: 'a', name: 'Aviv', rating: 4 },
+        { id: guestId, name: guestName, rating: 3 },
+        { id: 'c', name: 'Chen', rating: 4 },
+        { id: 'd', name: 'Dan', rating: 4 },
+        { id: 'e', name: 'Eli', rating: 4 },
+        { id: 'f', name: 'Fadi', rating: 4 },
+      ],
+    });
+
+  it('points a promoted guest’s old ids at their roster id', async () => {
+    const env = withHistory(
+      [guestNight('2026-04-01', 'g1', 'Zarka'), guestNight('2026-04-08', 'g2', 'Zarka')],
+      {},
+      [{ id: 'r1', name: 'Zarka' }],
+    );
+    const map = await canonicalIds(env);
+    expect(map.get('g1')).toBe('r1');
+    expect(map.get('g2')).toBe('r1');
+  });
+
+  it('is empty for a club that never promoted anybody', async () => {
+    const env = withHistory([fixture('2026-04-01')], {}, [{ id: 'a', name: 'Aviv' }]);
+    expect((await canonicalIds(env)).size).toBe(0);
+  });
+
+  it('survives a missing roster rather than throwing at the route', async () => {
+    // A roster read that fails makes every id look like a guest, which is the
+    // safe direction — the merge only ever joins ids that share a name.
+    const env = fakeEnv({ history: JSON.stringify({ version: 1, fixtures: [fixture('2026-04-01')] }) });
+    await expect(canonicalIds(env)).resolves.toBeInstanceOf(Map);
   });
 });

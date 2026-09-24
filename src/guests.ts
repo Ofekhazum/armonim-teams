@@ -168,6 +168,46 @@ export function mergeGuestIdentities(
   });
 }
 
+/**
+ * Anything keyed by player id — a night's grade lines, a night's marks — with
+ * those keys moved onto canonical ids (§2.6).
+ *
+ * **The gap this closes.** `mergeGuestIdentities` settles the *fixtures*, so a
+ * promoted guest's nights, wins, streaks and MVPs all follow them. Their
+ * published marks did not: those live in KV keyed by whatever id the night was
+ * filed under, so a mark written while somebody was still a guest stayed
+ * addressed to an id nobody reads any more. `playerGradeSeries` looks up
+ * `marks[fixtureId][playerId]` with the canonical id and simply found nothing —
+ * the night vanished from their form graph, and the line written about them
+ * vanished from the night page, while the same night still counted everywhere
+ * else. Half-merged is a worse state than either end of it.
+ *
+ * Unlike `remapVotes` this does **not** add. A tally is a count and two ids'
+ * counts are two parts of one number; a mark is one value per person per night,
+ * so a collision is two rows describing the same evening and one has to win. The
+ * row already filed under the canonical id does, on the same reasoning as the
+ * players array above: it is the identity the player carries now.
+ *
+ * Returns the original object when nothing moved, so the ordinary club — where
+ * no guest was ever promoted — pays one pass and no allocation.
+ */
+export function remapPlayerKeys<T>(
+  rows: Record<string, T>,
+  canonical: Map<string, string>,
+): Record<string, T> {
+  if (canonical.size === 0) return rows;
+  let moved = false;
+  const out: Record<string, T> = {};
+  for (const [id, value] of Object.entries(rows)) {
+    const key = canonical.get(id) ?? id;
+    if (key !== id) moved = true;
+    // a guest row must not displace the canonical player's own row
+    if (key in out && id !== key) continue;
+    out[key] = value;
+  }
+  return moved ? out : rows;
+}
+
 // Guests already known to history, newest name first — what a match-day guest
 // box can offer so a returning guest is picked rather than retyped. Exported
 // for the write side of the same problem; the read side above stands on its

@@ -6,6 +6,7 @@ import {
   guestKey,
   knownGuests,
   mergeGuestIdentities,
+  remapPlayerKeys,
 } from './guests';
 
 // A guest is created with a fresh id on the night they turn up, because at
@@ -256,5 +257,47 @@ describe('promoting a guest onto the roster', () => {
     const after = mergeGuestIdentities(history, roster('r1', 'b'), guestAbsorbers(players));
     expect(after[0].teams.black).toEqual(['r1', 'r1']);
     expect(after[0].players.filter((p) => p.id === 'r1')).toHaveLength(1);
+  });
+});
+
+describe('remapPlayerKeys', () => {
+  // The half of promotion that `mergeGuestIdentities` cannot reach: grade
+  // lines and marks live in KV keyed by the id a night was *filed* under, so a
+  // mark written while somebody was still a guest keeps pointing at a dead id
+  // once they join the roster. Everything else about that night already counts
+  // for them, which makes the half-merged state worse than either end of it.
+
+  it('moves a guest night’s marks onto the id the player carries now', () => {
+    const history = [
+      night(['g1', 'a'], ['b'], { g1: 'זרקא' }),
+      night(['r1', 'a'], ['b'], { r1: 'זרקא' }),
+    ];
+    const players = [{ id: 'r1', name: 'זרקא' }];
+    const canonical = guestIdentities(history, roster('a', 'b', 'r1'), guestAbsorbers(players));
+    // the mark as it was published, back when they were a guest
+    expect(remapPlayerKeys({ g1: 7.5, a: 6 }, canonical)).toEqual({ r1: 7.5, a: 6 });
+  });
+
+  it('keeps the canonical row when both ids carry one', () => {
+    // A tally adds when two ids collapse (see remapVotes) — a mark must not.
+    // One person has one mark for one night, and the row already filed under
+    // the roster id is the one that describes them as they are now.
+    const canonical = new Map([['g1', 'r1']]);
+    expect(remapPlayerKeys({ g1: 4, r1: 9 }, canonical)).toEqual({ r1: 9 });
+    expect(remapPlayerKeys({ r1: 9, g1: 4 }, canonical)).toEqual({ r1: 9 });
+  });
+
+  it('carries the written line across, not just the number', () => {
+    const canonical = new Map([['g1', 'r1']]);
+    const lines = { g1: { grade: 7.5, text: 'שלוש פעמים מהקו' } };
+    expect(remapPlayerKeys(lines, canonical)).toEqual({ r1: { grade: 7.5, text: 'שלוש פעמים מהקו' } });
+  });
+
+  it('hands back the very same object when nothing moved', () => {
+    // This runs on every read of every night; the club that never promoted
+    // anybody should pay one pass and no allocation.
+    const rows = { a: 6, b: 7 };
+    expect(remapPlayerKeys(rows, new Map())).toBe(rows);
+    expect(remapPlayerKeys(rows, new Map([['g1', 'r1']]))).toBe(rows);
   });
 });
