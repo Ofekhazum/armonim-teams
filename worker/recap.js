@@ -23,7 +23,7 @@
 // guard rails will supply all four from imagination, so the rules below say
 // what the data is, what it is not, and that nothing outside it may appear.
 
-import { callGemini } from './gemini.js';
+import { callGemini, foreignScript } from './gemini.js';
 
 // The report comes back wrapped in this, and only what is inside it is kept.
 // Asking a model for "five paragraphs and here are the rules" invites it to
@@ -404,6 +404,13 @@ export async function writeRecap(env, facts) {
   const foreign = foreignWords(text, facts);
   if (foreign.length > 0) {
     return { error: `the report slipped out of Hebrew: ${foreign.slice(0, 5).join(', ')}` };
+  }
+  // The other half of the same question. `foreignWords` reads `[A-Za-z]`, so
+  // for all the years it has been here it could only ever catch the scripts it
+  // was looking for — a word in Arabic or Cyrillic walked straight past it.
+  const script = foreignScript(text);
+  if (script.length > 0) {
+    return { error: `the report slipped out of Hebrew: ${script.slice(0, 5).join(', ')}` };
   }
   const dates = datesIn(text);
   if (dates.length > 0) {

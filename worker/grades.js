@@ -25,7 +25,7 @@
 // one: every fact in the payload is attached to a key, or to nobody, and the
 // model may not move it.
 
-import { callGemini } from './gemini.js';
+import { callGemini, foreignScript } from './gemini.js';
 
 const list = (items, empty) => (items.length ? items.map((s) => `- ${s}`).join('\n') : empty);
 
@@ -360,7 +360,7 @@ const MAX_LINE = 300;
  * because the mark is now the published artifact rather than something each
  * device works out for itself — see the note on `grade` below.
  */
-function linesFrom(raw, players) {
+export function linesFrom(raw, players) {
   const from = raw.indexOf('{');
   const to = raw.lastIndexOf('}');
   if (from === -1 || to <= from) return { error: 'the model did not return a JSON object' };
@@ -383,7 +383,19 @@ function linesFrom(raw, players) {
   let wrote = 0;
   for (const p of players) {
     const said = parsed[p.key];
-    const has = typeof said === 'string' && said.trim().length > 0;
+    // **A line that slipped out of Hebrew is dropped, not kept and not fatal.**
+    // One grade line came back as "…חמש פעמים ברֵيف" — Arabic letters welded
+    // onto a Hebrew word — and nothing here looked, because the only language
+    // guard in the app lived in `recap.js` and reads Latin only.
+    //
+    // Dropped rather than rejecting the whole sheet, which is what the recap
+    // does: fourteen good lines should not be thrown away for one bad one, and
+    // a player with no line is already an ordinary, complete state a few lines
+    // below. It goes on `missing`, so the organiser is told which players came
+    // back blank and can re-roll or leave it — the same choice they already
+    // have when the model simply skips somebody.
+    const wrong = typeof said === 'string' ? foreignScript(said) : [];
+    const has = typeof said === 'string' && said.trim().length > 0 && wrong.length === 0;
     if (!has) missing.push(p.name);
     else wrote++;
     // **The mark is published, not recomputed**, and this is the only place it

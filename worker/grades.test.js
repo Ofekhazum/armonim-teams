@@ -3,6 +3,7 @@ import {
   buildGradesPrompt,
   gradesKey,
   isValidGradeFacts,
+  linesFrom,
   readAllMarks,
   writeGrades,
 } from './grades.js';
@@ -531,5 +532,55 @@ describe('readAllMarks', () => {
 
   it('is an empty object when nothing has been published at all', async () => {
     expect(await readAllMarks({ ROSTER_KV: kv({}) })).toEqual({});
+  });
+});
+
+// A grade line went out reading "…חמש פעמים ברֵيف" — two Arabic letters welded
+// onto the end of a Hebrew word — and nothing in the app noticed. The only
+// language guard lived in `recap.js` and reads `[A-Za-z]`, so it could never
+// have seen this, and the grades path had no guard at all.
+describe('a line that slipped out of Hebrew', () => {
+  const players = [
+    { key: 'p1', id: 'a', name: 'הלחמי', grade: 7 },
+    { key: 'p2', id: 'b', name: 'ניב', grade: 6 },
+  ];
+  const answer = (obj) => JSON.stringify(obj);
+
+  it('drops the offending line and names the player as missing', () => {
+    const out = linesFrom(
+      answer({
+        p1: 'הלחמי כבר הספיק לשכוח איך מרגיש הריח של ניצחון אחרי חמש פעמים ברֵيف.',
+        p2: 'ניב ספר שערים בזמן שהשחורים טבעו בתחתית.',
+      }),
+      players,
+    );
+    expect(out.error).toBeUndefined();
+    expect(out.lines.a.text).toBeUndefined(); // the Arabic one
+    expect(out.lines.a.grade).toBe(7); // the mark still stands
+    expect(out.lines.b.text).toContain('ניב ספר שערים');
+    expect(out.missing).toEqual(['הלחמי']);
+  });
+
+  it('keeps the other fourteen rather than rejecting the sheet', () => {
+    // The recap refuses outright, because a report is one artefact. A sheet is
+    // fifteen, and throwing away fourteen good lines for one bad one is a
+    // worse answer than a single blank mark.
+    const out = linesFrom(answer({ p1: 'שגיאה ברﺻف.', p2: 'משחק טוב.' }), players);
+    expect(out.error).toBeUndefined();
+    expect(out.missing).toEqual(['הלחמי']);
+    expect(out.lines.b.text).toBe('משחק טוב.');
+  });
+
+  it('still accepts a Latin name inside a Hebrew line', () => {
+    // A guest spelled in Latin is the one legitimate source of non-Hebrew
+    // letters, and must not be mistaken for the model reaching for a word.
+    const out = linesFrom(answer({ p1: 'Guy הגיע והביא ניצחון.', p2: 'בסדר.' }), players);
+    expect(out.missing).toEqual([]);
+    expect(out.lines.a.text).toContain('Guy');
+  });
+
+  it('reports everybody when every line is in the wrong script', () => {
+    const out = linesFrom(answer({ p1: 'مرحبا بكم.', p2: 'привет всем.' }), players);
+    expect(out.error).toBe('the model answered about nobody on the sheet');
   });
 });

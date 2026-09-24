@@ -4860,6 +4860,36 @@ the fan-out groups by it — so this needed a builder per language, not a mechan
 became a thin wrapper over `broadcastBuilt(build)`, which calls `build` once per language present
 among the subscribers rather than once per device.
 
+### 2.64 The Hebrew guard could only see Latin (`foreignScript`)
+
+A grade line went out to the club reading **"…חמש פעמים ברֵيف"** — two Arabic letters welded onto the
+end of a Hebrew word — and nothing in the app so much as noticed.
+
+Two separate holes, and the second is the embarrassing one:
+
+- **`foreignWords` reads `[A-Za-z]`.** It has been in `recap.js` since a report came back with the
+  Italian "finalmente" in it, and for that whole time it could only ever catch the scripts it was
+  looking for. Arabic, Cyrillic, Greek and CJK walked straight past a check whose entire job was to
+  keep the report in Hebrew.
+- **The grades path had no language check at all.** The recap has had one for a long time; the grade
+  lines — which are the more screenshot-able of the two, and the ones that carry somebody's name —
+  never got one.
+
+`foreignScript` in `gemini.js` is the complement: every letter that is neither Hebrew **nor Latin**.
+It lives beside `callGemini` because both prompts ask the same model for the same language, and the
+question "what did it actually send back" belongs to neither report nor grades alone. Latin is spared
+deliberately — it is legitimately how a guest's name might be spelled, and deciding whether a given
+Latin run is a name we were handed or a word the model reached for is exactly what `foreignWords`
+already does from the record.
+
+**The two callers do different things with it, on purpose.** The recap **refuses**, because a report
+is one artefact and the organiser has a "write another" button two centimetres away. A sheet of
+grades is fifteen artefacts, so a bad line is **dropped** and its player named on `missing` — the
+same state, and the same message, as a model that simply skipped somebody. Throwing away fourteen
+good lines for one bad one would be a worse answer than a single blank mark.
+
+Neither scrubs. Deleting a stray word from the middle of a sentence leaves a sentence nobody wrote.
+
 ## 3. Team generation algorithm
 
 Balancing is a small constrained optimization. With ≤15 players, brute force is too big
