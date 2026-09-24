@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
+  MENTION_SIZE,
   NEAR_TIE,
   TOTM_SIZE,
   buildWrapped,
+  rankedForMonth,
   perfectAttendanceBonus,
   periodLabel,
   totmEligible,
@@ -885,5 +887,73 @@ describe('the team-of-the-month rule', () => {
 
   it('is zero rather than NaN for nobody', () => {
     expect(totmScore({ nights: 0, wins: 0, nightsWon: 0, mvps: 0, monthLength: 0 })).toBe(0);
+  });
+});
+
+// Ranks six and seven, printed small at the foot of the shirt card (§2.69).
+// The line that matters here is the one between the picture and the award: the
+// card may name seven people, the team is still five.
+describe('honourable mentions', () => {
+  const d = (n: number) => `2026-05-${String(n).padStart(2, '0')}`;
+  const stats = (history: FixtureRecord[]) => buildWrapped(history, '2026-05');
+
+  // Nine players on one shirt, so everybody is eligible and the ranking is
+  // long enough to have a sixth and seventh at all.
+  const bigMonth = () => {
+    const squad = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i'];
+    return [
+      night(d(1), squad, ['z'], { black: 4, white: 1, blue: 0 }),
+      night(d(2), squad, ['z'], { black: 4, white: 1, blue: 0 }),
+    ];
+  };
+
+  it('names the two who just missed, in ranking order', () => {
+    const history = bigMonth();
+    const ranked = rankedForMonth(history, '2026-05');
+    const s = stats(history);
+    expect(s.honourableMentions).toHaveLength(MENTION_SIZE);
+    expect(s.honourableMentions.map((p) => p.id)).toEqual(
+      ranked.slice(TOTM_SIZE, TOTM_SIZE + MENTION_SIZE).map((p) => p.id),
+    );
+  });
+
+  it('does not put them in the team', () => {
+    // The whole point. Everything else in the app reads `teamOfMonth`, and a
+    // mention leaking into it would widen an award that is five by definition.
+    const s = stats(bigMonth());
+    expect(s.teamOfMonth).toHaveLength(TOTM_SIZE);
+    const team = new Set(s.teamOfMonth.map((p) => p.id));
+    for (const m of s.honourableMentions) expect(team.has(m.id)).toBe(false);
+  });
+
+  it('is the award that rankedForMonth is sliced into, not a second ranking', () => {
+    const history = bigMonth();
+    expect(rankedForMonth(history, '2026-05').slice(0, TOTM_SIZE).map((p) => p.id)).toEqual(
+      stats(history).teamOfMonth.map((p) => p.id),
+    );
+  });
+
+  it('offers nobody when the month could not even fill the five', () => {
+    // Falls out of the slice rather than needing a guard — a ranking too short
+    // to fill the team has nothing past the fifth either. Pinned because the
+    // property is what matters: no card ever says "and also" under four names.
+    const history = [
+      night(d(1), ['a', 'b', 'c'], ['z'], { black: 4, white: 1, blue: 0 }),
+      night(d(2), ['a', 'b', 'c'], ['z'], { black: 4, white: 1, blue: 0 }),
+    ];
+    const s = stats(history);
+    expect(s.teamOfMonth.length).toBeLessThan(TOTM_SIZE);
+    expect(s.honourableMentions).toEqual([]);
+  });
+
+  it('offers just one when only one player is left over', () => {
+    // Five on black plus the one on white is six eligible: five in the team,
+    // one left to mention.
+    const squad = ['a', 'b', 'c', 'd', 'e'];
+    const history = [
+      night(d(1), squad, ['z'], { black: 4, white: 1, blue: 0 }),
+      night(d(2), squad, ['z'], { black: 4, white: 1, blue: 0 }),
+    ];
+    expect(stats(history).honourableMentions).toHaveLength(1);
   });
 });

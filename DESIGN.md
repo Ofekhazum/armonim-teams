@@ -5123,6 +5123,59 @@ deliberately invisible; this one edits data the organiser typed, so it announces
 Verified end to end on the real records: with the alias the form now keeps, זרקא holds 3 of 3
 guest-era ids and רותם 2 of 2.
 
+### 2.69 Honourable mentions, on the card and nowhere else (`MENTION_SIZE`)
+
+Ranks six and seven printed small under the pentagon on the Team of the Month card. **Asked for as a
+change to the picture, and built as one:** `teamOfMonth` still returns five, the register still
+stores five, and a profile still shows five. Nothing outside `shirtImage.ts` treats a mention as an
+award.
+
+The split that makes that safe is in `totm.ts`: `rankedForMonth` is the standings and `teamOfMonth`
+is `rankedForMonth(…).slice(0, TOTM_SIZE)`. One order, sliced twice — so a mention can never rank by
+a different rule than the team above it, and `byImportance`'s near-tie handling (§2.25) applies at
+the sixth and seventh exactly as it does at the fifth. A month too thin to fill five has nothing past
+the fifth to slice, so it yields no mentions without needing a guard; an early version had one, and
+it was removed once a test showed it could not fire.
+
+**Two, because of the template rather than because of the football.** The artwork's five shirts leave
+one strip of empty background below them: two small shirts sit there comfortably, three crowd the
+edge. There is no argument that a month's sixth and seventh players are meaningfully different from
+its eighth — this is the podium's bottom step, printed because there was room.
+
+**There is no sixth shirt in the artwork, so one is borrowed — and the borrowing is the whole
+problem.** A straight `drawImage` of a crop brings a rectangle of nebula with it and lands a visible
+box on a textured background. Additive compositing (`lighter`) was the second attempt and is better,
+but the source's own background still adds to the destination's and the patch still reads as a
+brighter box. What works is a luminance key: cut the crop to a transparent canvas, set each pixel's
+alpha from its brightness, and stamp that.
+
+Where to put the threshold was measured, and the first guess was wrong in an instructive way:
+
+| sampled region | median | p90 | max |
+|---|---|---|---|
+| background just outside the shirt | 0.027 | 0.036 | **0.055** |
+| shirt interior | 0.054 | 0.152 | — |
+| outline peaks | **0.762** | 0.791 | — |
+
+A floor of 0.06 clears the background by that table and still produced a box, because the figure that
+matters is not the background near the shirt but **the crop's own border**, which runs 0.20–0.26
+wherever the surrounding nebula happens to be bright. Widening the crop does not fix it: every
+candidate from 172×196 out to 250×260 has an edge peak in the same band. *There is no rectangle of
+this artwork with a dark border.*
+
+So the floor sits at **0.30**, above that band — which decides what a mention *is*. The shirt's
+interior goes with the background and only the outline survives, so a mention is the glowing shirt
+outline with the card's own sky showing through it, rather than a shrunken copy of a team shirt. The
+name and number are drawn by hand at the same relative positions, scaled by `MENTION_SCALE`, so it
+reads as the same shirt smaller rather than as a different card.
+
+If the pixels cannot be read — a tainted canvas — it falls back to the additive draw. A faint seam is
+a much better outcome than an exception taking the whole card with it.
+
+Verified by rendering against the live club rather than by unit test, since a PNG is not something an
+assertion can read: September's card shows יועד/שגב/ירין/חנש/עילאי in the pentagon and אופק/יוני
+underneath it.
+
 ## 3. Team generation algorithm
 
 Balancing is a small constrained optimization. With ≤15 players, brute force is too big
