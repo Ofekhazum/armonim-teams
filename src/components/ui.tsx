@@ -23,6 +23,33 @@ export const MEDAL: Record<1 | 2 | 3, string> = {
   3: 'bg-gradient-to-br from-orange-300 via-amber-700 to-amber-900 text-amber-50 ring-1 ring-amber-800/40',
 };
 
+/**
+ * A perfect mark, wherever one is shown.
+ *
+ * Shared for the same reason `MEDAL` is, and after the same failure: the night
+ * page and the player page each owned a grade ramp, so a 10 arrived on the
+ * night as this gradient and on the profile as the ordinary green every mark
+ * of 8 or better got. The rarest thing a player can be handed looked rarest in
+ * only one of the two places it appears.
+ *
+ * Only the *fill* lives here. The shapes around it genuinely differ — a disc on
+ * a night, a pill in a form table — and each site adds its own border, ring and
+ * shadow. What must not differ is the answer to "what does a 10 look like".
+ *
+ * The rest of each ramp is deliberately **not** shared. A night's marks are
+ * read one at a time and want flat, separable bands; the form strip is read as
+ * a gradient, hunting a run of green or a slide into red, and needs a ramp with
+ * steps a disc has no use for. Two reading tasks, two ramps, one top rung.
+ */
+export const PERFECT_GRADE = 10;
+// One step deeper than the 500s it shipped as, which is a readability fix and
+// not a restyle: white on `fuchsia-500` measures 3.46:1, and the numeral is
+// 11px — bold, but nowhere near WCAG's "large text", so it wants 4.5. The 600s
+// are the same three hues at 4.71, 5.70 and 6.29. Side by side the difference
+// reads as the same purple, slightly richer.
+export const PERFECT_FILL =
+  'bg-gradient-to-br from-fuchsia-600 via-violet-600 to-indigo-600 text-white';
+
 export const STYLE_ICON: Record<RoleBadge, string> = {
   defensive: '🛡️',
   balanced: '⚖️',

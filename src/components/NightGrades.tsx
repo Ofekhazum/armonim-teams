@@ -4,7 +4,7 @@ import { TEAM_COLORS } from '../balancer';
 import { gradesFacts, type GradeFactLine } from '../gradesFacts';
 import type { GradeLines, StoredGrades } from '../gradesApi';
 import { clearGrades, draftGrades, fetchGrades, publishedMarks, saveGrades } from '../gradesApi';
-import { fmtRating, Name, TEAM_META, teamLabel } from './ui';
+import { fmtRating, Name, PERFECT_FILL, TEAM_META, teamLabel } from './ui';
 import { fmtDate, getLang, t } from '../i18n';
 
 // One line of banter beside every mark (§2.39), on the night page below the
@@ -39,13 +39,40 @@ interface Props {
 const GRADE_TONE = {
   // A 10 is rarer than a 9, so it gets a step up rather than the same gold —
   // a shifting spectrum rather than a flat colour, which a single fill can't do.
-  perfect:
-    'border-transparent bg-gradient-to-br from-fuchsia-500 via-violet-500 to-indigo-500 text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.45)]',
+  // The fill is shared with the profile's form table (`PERFECT_FILL`), so the
+  // rarest mark in the app looks the same in both places it can appear.
+  perfect: `border-transparent ${PERFECT_FILL} shadow-[inset_0_0_0_1px_rgba(255,255,255,0.45)]`,
+  // `amber-400` at the far end rather than `yellow-500`: the yellow was the one
+  // acid note in the set, and three 9s in a column of it is a lot of shouting
+  // for a mark that is not the top one.
   premium:
-    'border-amber-500/40 bg-gradient-to-br from-amber-300 to-yellow-500 text-amber-950 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.5)]',
-  standout: 'border-emerald-600/30 bg-emerald-500/10 text-emerald-800',
-  ordinary: 'border-amber-900/15 bg-white/60 text-amber-900/70',
-  rough: 'border-rose-600/25 bg-rose-500/10 text-rose-800',
+    'border-amber-500/40 bg-gradient-to-br from-amber-300 to-amber-400 text-amber-950 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.5)]',
+  // **Opaque fills, and that is the fix rather than a restyle.** These three
+  // were translucent — `bg-emerald-500/10` and friends — so the card behind
+  // them supplied most of the colour, and the cards are `stone-900` and
+  // `blue-900`. Measured, the number against its own chip came out at:
+  //
+  //     band       black   blue    cream
+  //     standout   1.97    1.18    6.86
+  //     rough      1.97    1.24    6.91
+  //     ordinary   2.46    2.72    4.15
+  //
+  // 1.18:1 is not "hard to read", it is invisible; the marks were only ever
+  // legible on the one card the tones were picked against. An opaque fill
+  // carries its own contrast, so a chip reads the same on all three.
+  //
+  // **The 200s rather than the 100s**, which is the second half of the same
+  // measurement. On a 0–100 brightness scale the cards sit at 1 (black) and 5
+  // (blue), and the 100-level fills came out at 82–89 — a near-white disc on a
+  // near-black card, legible and glaring. The 200s land at 69–79 and still
+  // clear AAA at 7.58, 12.03 and 6.78, so this is contrast kept and glare
+  // dropped rather than a trade between them.
+  //
+  // Same hues deliberately: green still means a good night. It is the *fill*
+  // that changed, from a tint of the card to a colour of its own.
+  standout: 'border-emerald-600/30 bg-emerald-200 text-emerald-900',
+  ordinary: 'border-amber-900/20 bg-amber-200 text-amber-950',
+  rough: 'border-rose-600/30 bg-rose-200 text-rose-900',
 } as const;
 
 const toneOf = (grade: number) =>
@@ -63,11 +90,24 @@ const toneOf = (grade: number) =>
  *
  * Sized to fit the widest mark it will ever hold: "10" and "4.5" are both three
  * glyphs at most, comfortable at 36px with an 11px mono face.
+ *
+ * **`pt-px` is an optical correction, measured rather than nudged.** Centring
+ * puts the *line box* dead centre, which is not the same as centring the
+ * digits: this face reports an ascent of 10 and a descent of 3, so the box's
+ * middle sits 3.5px above the baseline, while digits — which have no
+ * descenders — have their ink centred 4.0px above it. The numerals therefore
+ * ride half a pixel high in every disc, consistently enough to read as "off"
+ * down a column of fifteen.
+ *
+ * Line-height cannot fix it (measured at 11, 12, 16 and 16.5px: the offset is
+ * -0.504 every time, because the ink's place *within* the line box is a font
+ * metric). One pixel of top padding on a centred grid item moves it down half
+ * a pixel, which is exactly the correction.
  */
 function GradeChip({ grade }: { grade: number }) {
   return (
     <span
-      className={`grid h-9 w-9 shrink-0 place-items-center rounded-full border font-mono text-[11px] font-black tabular-nums ${GRADE_TONE[toneOf(grade)]}`}
+      className={`grid h-9 w-9 shrink-0 place-items-center rounded-full border pt-px font-mono text-[11px] font-black tabular-nums ${GRADE_TONE[toneOf(grade)]}`}
     >
       {fmtRating(grade)}
     </span>

@@ -3,6 +3,7 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 import { playerGradeSeries, type AllMarks } from '../gradeHistory';
 import type { FixtureRecord } from '../types';
 import GradeForm from './GradeForm';
+import { PERFECT_FILL } from './ui';
 
 // The form panel (§2.40). The windowing is tested in gradeHistory.test.ts;
 // what matters here is what a reader gets — that the default really is the
@@ -167,5 +168,97 @@ describe('GradeForm', () => {
     render(<GradeForm points={build([{ id: 'only', days: 1, grade: 7 }])} />);
     expect(document.querySelectorAll('span.h-7.w-7')).toHaveLength(1);
     expect(screen.getByText(/last 1 night$/)).toBeInTheDocument();
+  });
+});
+
+// The date column is the row's way into the night it is a mark for (§2.60).
+describe('getting from a form row to its night', () => {
+  it('opens the night the row is a mark for', () => {
+    const seen: string[] = [];
+    render(
+      <GradeForm
+        points={build([{ id: 'the-night', days: 2, grade: 8 }])}
+        onOpenNight={(id) => seen.push(id)}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: /Open the night of/ }));
+    expect(seen).toEqual(['the-night']);
+  });
+
+  it('leaves the date as plain text when there is nowhere to go', () => {
+    render(<GradeForm points={build([{ id: 'the-night', days: 2, grade: 8 }])} />);
+    expect(screen.queryByRole('button', { name: /Open the night of/ })).not.toBeInTheDocument();
+    // the date is still shown, just not as a link
+    expect(screen.getAllByRole('row')).toHaveLength(2);
+  });
+});
+
+describe('the whole form row is the target', () => {
+  it('opens the night from anywhere in the row, not only the date', () => {
+    const seen: string[] = [];
+    render(
+      <GradeForm
+        points={build([{ id: 'the-night', days: 2, grade: 8 }])}
+        onOpenNight={(id) => seen.push(id)}
+      />,
+    );
+    // the grade cell, at the far end of the row from the date
+    const row = screen.getAllByRole('row')[1];
+    fireEvent.click(within(row).getByText('8'));
+    expect(seen).toEqual(['the-night']);
+  });
+
+  it('fires once when the date itself is pressed, not twice', () => {
+    // The cell's button is what makes the row reachable by keyboard, and its
+    // click bubbles to the row handler unless it is stopped.
+    const seen: string[] = [];
+    render(
+      <GradeForm
+        points={build([{ id: 'the-night', days: 2, grade: 8 }])}
+        onOpenNight={(id) => seen.push(id)}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: /Open the night of/ }));
+    expect(seen).toEqual(['the-night']);
+  });
+});
+
+// A 10 is the rarest mark the app hands out, and it used to arrive on the
+// profile as the same green every mark of 8 or better got — while the night
+// page gave it a gradient. One fill, both places (§2.61).
+describe('a perfect mark looks perfect here too', () => {
+  const fillsOf = (text: string) =>
+    screen.getAllByText(text).map((el) => el.className);
+
+  it('gives a 10 the shared gradient rather than the ordinary green', () => {
+    render(<GradeForm points={build([{ id: 'a', days: 2, grade: 10 }])} />);
+    // the row's own pill and the strip's mean, which is also 10 here — both
+    // show the number, so both have to agree about what a 10 looks like
+    const fills = fillsOf('10');
+    expect(fills).toHaveLength(2);
+    for (const fill of fills) {
+      // the shared constant, not a literal hue step — the point is that both
+      // pages read from one place, not which purple it currently is
+      expect(fill).toContain(PERFECT_FILL);
+      expect(fill).not.toContain('bg-emerald-500/15');
+    }
+  });
+
+  it('leaves every other mark on its own ramp', () => {
+    // The ramp below the top rung is deliberately not shared — a form strip is
+    // read as a gradient, a night's marks one at a time.
+    render(
+      <GradeForm
+        points={build([
+          { id: 'a', days: 2, grade: 9 },
+          { id: 'b', days: 5, grade: 6.5 },
+        ])}
+      />,
+    );
+    for (const fill of fillsOf('9')) {
+      expect(fill).toContain('emerald');
+      expect(fill).not.toContain(PERFECT_FILL);
+    }
+    for (const fill of fillsOf('6.5')) expect(fill).not.toContain(PERFECT_FILL);
   });
 });

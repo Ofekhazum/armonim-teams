@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import type { TimelineEvent } from '../playerTimeline';
 import PlayerTimeline from './PlayerTimeline';
 
@@ -86,5 +86,107 @@ describe('the career feed', () => {
   it('counts one hidden moment in the singular', () => {
     render(<PlayerTimeline events={many(4)} />);
     expect(screen.getByRole('button', { name: /1 earlier moment$/ })).toBeInTheDocument();
+  });
+});
+
+// Every date on the profile is a way into the night it belongs to (§2.60).
+// A run card is the exception worth its own handling: its date is the night
+// that *broke* the run, so the nights it was made of need a list of their own.
+describe('getting from the feed to a night', () => {
+  const run = ev({
+    kind: 'streak-ended',
+    at: '2026-08-27',
+    fixtureId: 'broke-it',
+    n: 3,
+    runNights: [
+      { fixtureId: 'w1', at: '2026-08-06' },
+      { fixtureId: 'w2', at: '2026-08-13' },
+      { fixtureId: 'w3', at: '2026-08-20' },
+    ],
+  });
+
+  it('opens the night a card is dated to', () => {
+    const seen: string[] = [];
+    render(
+      <PlayerTimeline
+        events={[ev({ kind: 'nth-mvp', at: '2026-08-06', fixtureId: 'f1', n: 5 })]}
+        onOpenNight={(id) => seen.push(id)}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: /Open the night of/ }));
+    expect(seen).toEqual(['f1']);
+  });
+
+  it('leaves the date as plain text when there is nowhere to go', () => {
+    // The same component is rendered without a way to open a night, and an
+    // underline that does nothing is worse than no underline.
+    render(<PlayerTimeline events={[ev({ kind: 'nth-mvp', at: '2026-08-06', fixtureId: 'f1', n: 5 })]} />);
+    expect(screen.queryByRole('button', { name: /Open the night of/ })).not.toBeInTheDocument();
+  });
+
+  it('keeps the run’s nights behind a tap rather than in the card', () => {
+    render(<PlayerTimeline events={[run]} onOpenNight={() => {}} />);
+    expect(screen.queryByRole('list', { name: /nights the run was made of/ })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Which nights/ }));
+    expect(screen.getByRole('list', { name: /nights the run was made of/ })).toBeInTheDocument();
+  });
+
+  it('lists the nights that were won, newest first, and opens them', () => {
+    const seen: string[] = [];
+    render(<PlayerTimeline events={[run]} onOpenNight={(id) => seen.push(id)} />);
+    fireEvent.click(screen.getByRole('button', { name: /Which nights/ }));
+
+    const list = screen.getByRole('list', { name: /nights the run was made of/ });
+    const dates = within(list)
+      .getAllByRole('button')
+      .map((b) => b.textContent);
+    expect(dates).toHaveLength(3);
+
+    within(list).getAllByRole('button')[0].click();
+    // newest first, so the first one listed is the last night of the run —
+    // and never the night that ended it
+    expect(seen).toEqual(['w3']);
+    expect(seen).not.toContain('broke-it');
+  });
+
+  // **Reversed deliberately.** The first version made the card's date open the
+  // night that broke the run, alongside a separate toggle for the run's own
+  // nights. Once the whole card became the target, that card had two meanings
+  // and a card with two meanings has none — so the run wins, which is what was
+  // asked for and what the card is about. The breaking night is no longer
+  // reachable from here, only named by the date on the card.
+  it('opens the run rather than the night that ended it', () => {
+    const seen: string[] = [];
+    render(<PlayerTimeline events={[run]} onOpenNight={(id) => seen.push(id)} />);
+    fireEvent.click(screen.getByRole('button', { name: /Which nights/ }));
+    expect(seen).toEqual([]); // nothing opened — it expanded
+    expect(screen.getByRole('list', { name: /nights the run was made of/ })).toBeInTheDocument();
+  });
+
+  it('puts the whole card in the tap target, not just the date', () => {
+    // The headline is inside the same control as the date, which is the thing
+    // that was wrong before: a 10px date is a miss waiting to happen.
+    const seen: string[] = [];
+    render(
+      <PlayerTimeline
+        events={[ev({ kind: 'nth-win', at: '2026-08-06', fixtureId: 'f1', n: 100 })]}
+        onOpenNight={(id) => seen.push(id)}
+      />,
+    );
+    const card = screen.getByRole('button', { name: /Open the night of/ });
+    expect(card).toHaveTextContent('100th match win');
+    expect(card).toHaveTextContent('6 Aug 26'); // headline and date, one control
+    fireEvent.click(card);
+    expect(seen).toEqual(['f1']);
+  });
+
+  it('offers no run list on a card that is not about a run', () => {
+    render(
+      <PlayerTimeline
+        events={[ev({ kind: 'nth-win', at: '2026-08-06', fixtureId: 'f1', n: 100 })]}
+        onOpenNight={() => {}}
+      />,
+    );
+    expect(screen.queryByRole('button', { name: /Which nights/ })).not.toBeInTheDocument();
   });
 });

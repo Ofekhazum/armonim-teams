@@ -170,3 +170,54 @@ describe('the hidden market value', () => {
     vi.unstubAllGlobals();
   });
 });
+
+// Three ways of drawing the same nights sit on this page — the ribbon of
+// medals, the form table and the career feed — and until §2.60 none of them
+// could take you to one. The night record now opens *over* the profile, so
+// closing it puts the reader back where they were reading.
+describe('opening a night from a profile', () => {
+  const open = () => {
+    const { players, history } = buildTestClub();
+    const busiest = playerStandings(history)[0];
+    const player = players.find((p) => p.id === busiest.id)!;
+    const onClose = vi.fn();
+    render(
+      <PlayerPage
+        player={player}
+        history={history}
+        players={players}
+        isAdmin={false}
+        onEdit={() => {}}
+        onClose={onClose}
+      />,
+    );
+    return { onClose, player };
+  };
+
+  // The squares used to caption themselves with their own date. The night
+  // record says that and everything else, and the date was already on the
+  // square's title and aria-label for anyone who only wanted to know which
+  // night it was.
+  it('opens the night record from a medal in the ribbon', () => {
+    open();
+    const square = screen.getAllByRole('button', { name: /finished \d|no result/i })[0];
+    fireEvent.click(square);
+    // the night record's own furniture, not the profile's
+    expect(screen.getByRole('button', { name: /close/i })).toBeInTheDocument();
+  });
+
+  it('closes the night without closing the profile underneath it', () => {
+    // Both panels listen for Escape on `window`. Un-guarded, one press shut
+    // the night *and* the profile, dumping the reader back on the roster.
+    const { onClose } = open();
+    fireEvent.click(screen.getAllByRole('button', { name: /finished \d|no result/i })[0]);
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('still closes the profile on Escape when no night is open', () => {
+    const { onClose } = open();
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(onClose).toHaveBeenCalled();
+  });
+});

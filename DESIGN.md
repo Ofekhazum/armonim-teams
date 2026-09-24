@@ -4661,6 +4661,147 @@ device loses nothing by never seeing it — but that makes `mergePublicRoster` t
 alive on the device that set it, and a pull wiping it would be silent, surfacing weeks later as the
 player quietly landing on a keeper's team again. Hence a test on both merge directions.
 
+### 2.60 Every date on a profile opens its night
+
+The player page draws the same nights three ways — the ribbon of medals (§2.19), the form table
+(§2.40) and the career feed (§2.29) — and until now not one of them could take you to a night. The
+page was full of dates that looked like references and behaved like decoration.
+
+**The night record opens *over* the profile**, rather than sending the reader to the Club tab and
+finding the night there. They came here to read about a person; closing the night should put them
+back on the paragraph they were reading, not on a list somewhere else. `NightPage` already worked as
+an overlay for History, takes `older`/`newer` for its arrows, and needed nothing added.
+
+It steps through the **club's whole history**, not just this player's nights. Someone who lands on a
+night is reading about that night, and walling them into one career's subset would make the arrows
+skip weeks for no reason the screen could explain.
+
+**The medal squares became links instead of captions.** Tapping one used to print "2026-08-20 — ⚫"
+underneath it, which was a caption explaining the thing you were already looking at. The night record
+says that and everything else, and the date was already on the square's `title` and `aria-label` for
+anyone who only wanted to know which night it was. The caption mechanism stays for the badges, which
+have no page to go to.
+
+#### The block is the target, not the date
+
+The first version made only the date clickable, underlined to say so. Both halves of that were wrong
+on a phone: a 10px date is a miss waiting to happen, and a page of dotted underlines reads as a page
+of footnotes. So **the whole card, and the whole table row, is the control** — and with the target
+that obvious, the underlines came off.
+
+The padding moved onto the `<button>` rather than staying on the card around it. A button inset
+inside a padded box is a target with a dead border, which is exactly where a thumb lands.
+
+A table row cannot be a button, so the form table keeps `onClick` on the `<tr>` **and** a real button
+in the date cell — unstyled, but focusable and announced, since a `<tr>` takes neither. That button
+stops its own click bubbling, or the handler fires twice for one press.
+
+**A run card had to pick a meaning.** With the block clickable it could either open the night that
+broke the run or show the nights the run was made of, and a card with two meanings has none. The run
+wins: it is what the card is about and what was asked for. The breaking night is still *named* by the
+date on the card, just no longer reachable from it — a small loss, and the alternative was a second
+button inside the first, which is invalid markup as well as an ambiguous tap. For the same reason the
+run's chips are siblings of the card button rather than nested inside it.
+
+#### A run card is about several nights, so it opens into a list
+
+`streak-ended` is the one event in the feed whose headline covers more than the night it is dated to
+— and the two are not even the same kind of night. **The card's date is the night that *broke* the
+run**, because that is when the event happened, while the nights worth linking are the ones that were
+*won*. So the date and the run list are both present and mean different things, which is worth saying
+out loud because it reads like a bug until you know it.
+
+`TimelineEvent.runNights` carries them, oldest first, filled by the loop that is already walking the
+nights in order — a second pass would have to re-derive which run a given date belonged to.
+**Copied, not handed over**: the same accumulator keeps being filled for the next run, so sharing the
+array would leave one run's card holding the following run's nights. There is a test that fails
+against exactly that, and it was verified by making the change.
+
+The list is **behind a tap** ("אילו מחזורים?"), one card at a time. These expand *inside* the rail,
+and two open at once pushes the rest of the profile off a phone screen for a list nobody reads twice.
+
+#### Two overlays, one Escape key
+
+`PlayerPage` and `NightPage` both listen for Escape on `window`, so with a night open one press closed
+**both** — dismissing two things the reader asked to dismiss one of, and landing them back on the
+roster. The profile's handler now stands down while a night is on top of it. Also covered by a test
+verified against the un-guarded version, because it is invisible until someone presses the key.
+
+`GradeForm` and `PlayerTimeline` take `onOpenNight` as an *optional* prop and render plain text
+without it. Both are rendered in places with no night record to reach, and an underline that does
+nothing is worse than no underline.
+
+### 2.61 A 10 looks like a 10 everywhere (`PERFECT_FILL`)
+
+The night page and the player page each owned a grade ramp, and they disagreed about the one mark
+that matters most: a 10 arrived on the night as a fuchsia→violet→indigo gradient and on the profile
+as the ordinary green every mark of 8 or better got. The rarest thing a player can be handed looked
+rarest in only one of the two places it appears — and the profile is the page they screenshot.
+
+`PERFECT_FILL` in `ui.tsx` is now the single answer, shared for the same reason `MEDAL` is and after
+the same failure. **Only the fill is shared.** The shapes around it genuinely differ — a disc on a
+night, a pill in a form table, a square in the form strip — so each site keeps its own border, ring
+and shadow. What must not differ is the answer to "what does a 10 look like".
+
+**The rest of each ramp stays separate, deliberately.** A night's marks are read one at a time and
+want flat, separable bands; the form strip is read as a *gradient*, hunting a run of green or a slide
+into red, and needs steps a disc has no use for. Two reading tasks, two ramps, one top rung. So a 9 is
+still gold on the night and green on the profile, which is a difference that earns itself — unlike the
+10, which was just drift.
+
+The form strip's square gets the fill too, not only the pill. A purple square among greens reads as a
+peak, which is exactly what it was: without it, the one night somebody was perfect is indistinguishable
+from a night they were merely good.
+
+### 2.62 The marks had to be readable on a dark shirt
+
+The grade discs were tinted rather than filled — `bg-emerald-500/10`, `bg-rose-500/10`,
+`bg-white/60` — so most of each chip's colour came from the card *behind* it. Two of the three team
+cards are `stone-900` and `blue-900`. Measured:
+
+| band | black card | blue card | cream card |
+|---|---|---|---|
+| standout (7–8.9), green | 1.97 | **1.18** | 6.86 |
+| rough (≤4), red | 1.97 | **1.24** | 6.91 |
+| ordinary (5–6.9), neutral | 2.46 | 2.72 | 4.15 |
+
+1.18:1 is not "hard to read", it is invisible. The tones had been chosen against the one card they
+worked on, and the other two were never checked — the organiser spotted it on the green, which is the
+band that appears most.
+
+**The fix is opacity, not hue.** A tinted chip inherits the card's contrast problem; an opaque one
+carries its own, so the same chip now reads identically on all three cards: **8.57**, **13.45** and
+**7.97**, all clearing AAA. Green still means a good night — only the fill changed, from a tint of the
+card to a colour of its own.
+
+`GradeForm`'s ramp is left tinted on purpose. It only ever renders on the profile's cream card, where
+the same tints measure 6.86 and pass; sharing a palette across two backgrounds is what caused this in
+the first place.
+
+**Then the opposite complaint, and the same measurement answered it.** Opaque chips were legible and
+*glaring*: on a 0–100 brightness scale the cards sit at 1 (black) and 5 (blue), and the 100-level
+fills came out at 82–89 — near-white discs on a near-black card. The 200s land at 69–79 and still
+clear AAA (7.58, 12.03, 6.78), so this is glare dropped with contrast kept rather than one traded for
+the other. `premium`'s gradient lost its `yellow-500` end for `amber-400`: the yellow was the one acid
+note in the set, and three 9s in a column of it is a lot of shouting for a mark that is not the top one.
+
+#### The numerals were half a pixel high
+
+Also spotted by eye, also true. `place-items-center` centres the *line box*, which is not the same as
+centring the digits: the face reports an ascent of 10 and a descent of 3, so the box's middle sits
+3.5px above the baseline, while digits — having no descenders — have their ink centred 4.0px above it.
+Every numeral rode 0.5px high, consistently enough to read as wrong down a column of fifteen.
+
+Line-height cannot fix it. Measured at 11, 12, 16 and 16.5px the offset is −0.504 every time, because
+where the ink sits *within* the line box is a font metric, not a layout one. One pixel of top padding
+moves a centred grid item down half a pixel, which is exactly the correction: measured again after,
+the offset is +0.07.
+
+**`PERFECT_FILL` went one step deeper** while this was open. White on `fuchsia-500` measures 3.46:1,
+and an 11px numeral is not WCAG "large text" however bold it is, so it wants 4.5. The 600s are the
+same three hues at 4.71, 5.70 and 6.29 — side by side it reads as the same purple, slightly richer.
+The §2.61 sharing is what made that a one-line change reaching both pages.
+
 ## 3. Team generation algorithm
 
 Balancing is a small constrained optimization. With ≤15 players, brute force is too big
