@@ -119,8 +119,14 @@ const MENTION_WIDTH = 104;
  */
 const MENTION_TEXT_SCALE = 0.5;
 
-/** The centre of the strip the mentions sit in, and how far apart they sit. */
-const MENTION_ROW_Y = 878;
+/**
+ * The centre of the strip the mentions sit in, and how far apart they sit.
+ *
+ * Nudged down from 878 on request, to open up the gap under the label —
+ * there was 91 design units of clearance to the card's own bottom edge before
+ * the move and still 73 after it, so there was room to spend.
+ */
+const MENTION_ROW_Y = 896;
 const MENTION_GAP = 122;
 
 /** Where the label goes, above the row. */
@@ -196,6 +202,15 @@ export interface ShirtPlayer {
 /**
  * Draws the near-misses into the empty strip under the pentagon.
  *
+ * Name and number use plain `textAlign: 'center'`, same as the main five
+ * shirts. An asymmetric-looking single-row pixel sample once suggested `אופק`
+ * specifically was rendering several pixels off-centre, which led to a whole
+ * ink-measured re-centring pass — reverted once measuring the glyph's *full*
+ * vertical extent (not one row, which happens to cut through `ק`'s descender
+ * at a point unrepresentative of the word) showed it was centred to begin
+ * with, within a pixel, both before and after. The correction was chasing its
+ * own measurement artefact rather than anything the card was doing wrong.
+ *
  * `shirt` is `mention_shirt.webp`, already loaded; it has its own alpha, so this
  * is an ordinary composite with nothing clever in it.
  */
@@ -268,12 +283,13 @@ function drawMentions(
     const lineHeight = size * 1.15;
     const nameY = (MENTION_ROW_Y + nameAt.dy) * scale;
     const startY = nameY - ((lines.length - 1) * lineHeight) / 2;
+    const nameTargetX = cx + nameAt.dx * scale;
     lines.forEach((line, li) => {
       ctx.lineWidth = size * 0.22;
       ctx.strokeStyle = style.stroke;
-      ctx.strokeText(line, cx + nameAt.dx * scale, startY + li * lineHeight);
+      ctx.strokeText(line, nameTargetX, startY + li * lineHeight);
       ctx.fillStyle = style.fill;
-      ctx.fillText(line, cx + nameAt.dx * scale, startY + li * lineHeight);
+      ctx.fillText(line, nameTargetX, startY + li * lineHeight);
     });
 
     ctx.direction = 'ltr';
