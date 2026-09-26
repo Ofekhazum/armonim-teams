@@ -5123,69 +5123,6 @@ deliberately invisible; this one edits data the organiser typed, so it announces
 Verified end to end on the real records: with the alias the form now keeps, זרקא holds 3 of 3
 guest-era ids and רותם 2 of 2.
 
-### 2.69 Honourable mentions, on the card and nowhere else (`MENTION_SIZE`)
-
-Ranks six and seven printed small under the pentagon on the Team of the Month card. **Asked for as a
-change to the picture, and built as one:** `teamOfMonth` still returns five, the register still
-stores five, and a profile still shows five. Nothing outside `shirtImage.ts` treats a mention as an
-award.
-
-The split that makes that safe is in `totm.ts`: `rankedForMonth` is the standings and `teamOfMonth`
-is `rankedForMonth(…).slice(0, TOTM_SIZE)`. One order, sliced twice — so a mention can never rank by
-a different rule than the team above it, and `byImportance`'s near-tie handling (§2.25) applies at
-the sixth and seventh exactly as it does at the fifth. A month too thin to fill five has nothing past
-the fifth to slice, so it yields no mentions without needing a guard; an early version had one, and
-it was removed once a test showed it could not fire.
-
-**Two, because of the template rather than because of the football.** The artwork's five shirts leave
-one strip of empty background below them: two small shirts sit there comfortably, three crowd the
-edge. There is no argument that a month's sixth and seventh players are meaningfully different from
-its eighth — this is the podium's bottom step, printed because there was room.
-
-**The mentions have their own shirt**, `mention_shirt.webp` — supplied by the organiser rather than
-taken from the template, so a near-miss is visibly a different thing from a place in the team.
-
-That asset replaced a piece of machinery worth recording, because the shape of the problem is general.
-There is no sixth shirt in the gold template, so the first version borrowed one of the five: crop it,
-redraw it small. A plain `drawImage` of a crop lands a visible rectangle on a textured background;
-additive compositing (`lighter`) is better but the source's own background still adds to the
-destination's. What worked was a luminance key — set each pixel's alpha from its brightness — and
-choosing the threshold was measured:
-
-| sampled region | median | max |
-|---|---|---|
-| background just outside the shirt | 0.027 | **0.055** |
-| shirt interior | 0.054 | — |
-| outline peaks | **0.762** | — |
-
-A floor of 0.06 clears the background by that table and *still* produced a box, because the number
-that matters is not the background near the shirt but **the crop's own border**, which runs 0.20–0.26
-wherever the surrounding nebula is bright — and every candidate crop from 172×196 out to 250×260 has
-an edge peak in that band. *There is no rectangle of that artwork with a dark border.* The floor had
-to sit at 0.30, above the band, which meant the shirt's interior went with the background and a
-mention became a glowing outline rather than a shirt.
-
-None of that survives, and it should not: `mention_shirt.webp` ships with a real alpha channel —
-corners measured at 0 — so it is simply drawn. The lesson worth keeping is that keying an asset out
-of a busy background is a workaround for not having the asset, and it is visibly a workaround.
-
-**Two things about the asset are measured rather than assumed.** Its padding is not symmetric — the
-artwork sits at x 102–872 of a 1024-wide file — so `MENTION_ART` is the alpha bounding box and
-everything is positioned against *its* centre; using the file's would shift every mention 25px right.
-And it arrived as a 911KB PNG, converted to a 94KB WebP (`cwebp -q 88 -alpha_q 100`), alpha verified
-unchanged at the corners and the bounding box identical afterwards.
-
-`MENTION_TEXT_SCALE` is deliberately not tied to `MENTION_WIDTH`. Scaling the type with the artwork is
-the obvious move and produces a name about 2.4px tall: **the shirt can shrink freely, a name cannot.**
-So the art has a scale and the type has a floor, and they are allowed to disagree.
-
-A failed load of the mention asset skips the mentions rather than rejecting, so it can never cost the
-card the team it is actually about.
-
-Verified by rendering against the live club rather than by unit test, since a PNG is not something an
-assertion can read: September's card shows יועד/שגב/ירין/חנש/עילאי in the pentagon and אופק/יוני on
-the yellow shirts underneath it.
-
 ## 3. Team generation algorithm
 
 Balancing is a small constrained optimization. With ≤15 players, brute force is too big

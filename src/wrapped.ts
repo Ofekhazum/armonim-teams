@@ -21,8 +21,6 @@ import {
   NEAR_TIE,
   TOTM_SIZE,
   perfectAttendanceBonus,
-  MENTION_SIZE,
-  rankedForMonth,
   teamOfMonth,
   totmEligible,
   totmScore,
@@ -38,16 +36,7 @@ import { fmtDate, getLang } from './i18n';
 // scores the same month with the same rule and a second copy would drift
 // (§2.25). Re-exported here so everything that already imported it from
 // `wrapped` still can.
-export {
-  MENTION_SIZE,
-  NEAR_TIE,
-  TOTM_SIZE,
-  perfectAttendanceBonus,
-  rankedForMonth,
-  teamOfMonth,
-  totmEligible,
-  totmScore,
-};
+export { NEAR_TIE, TOTM_SIZE, perfectAttendanceBonus, teamOfMonth, totmEligible, totmScore };
 export type { TotmPlayer };
 
 // A little banter alongside the honest counts — same "it's a count, not a
@@ -198,11 +187,6 @@ export interface WrappedStats {
   // The five who carried the month, drawn onto the gold shirt card (§2.21).
   // Ordered best first — the top of the pentagon is the top of the list.
   teamOfMonth: TotmPlayer[];
-  // Ranks six and seven — the two who just missed the pentagon. Printed small
-  // at the foot of the shirt card and **nowhere else** (§2.69): they are not
-  // in the team, not registered, and not on anybody's profile. Usually two,
-  // fewer on a thin month, and empty whenever the month could not fill five.
-  honourableMentions: TotmPlayer[];
 
   // --- Banter stats ----------------------------------------------------
   teachersPet: GradeExtreme | null;
@@ -364,12 +348,7 @@ export function buildWrapped(
 
   const topMvps = mvpCounts(chronological).map((m) => ({ name: m.name, count: m.count }));
 
-  const totmRanking = rankedForMonth(history, period);
-  const teamOfMonthPicks = totmRanking.slice(0, TOTM_SIZE);
-  // Ranks six and seven. A month too thin to fill the team has nothing past
-  // the fifth to slice, so it yields no mentions without needing a guard —
-  // a card saying "and also" under four names is not a thing that can happen.
-  const mentions = totmRanking.slice(TOTM_SIZE, TOTM_SIZE + MENTION_SIZE);
+  const teamOfMonthPicks = teamOfMonth(history, period);
 
   const [bottomScorerId, bottomScorerWins] =
     [...wins.entries()]
@@ -677,7 +656,6 @@ export function buildWrapped(
     worstDuo,
     winningTeams,
     teamOfMonth: teamOfMonthPicks,
-    honourableMentions: mentions,
     teachersPet,
     punchingBag,
     benchwarmer,

@@ -11,12 +11,6 @@ import type { Entry } from '../i18n';
 export const share = {
   'wr.brand': { he: '🦁 ארמונים FC', en: '🦁 Armonim FC' },
   'wr.subtitle': { he: 'סיכום חודשי', en: 'Monthly recap' },
-  // Above the two small shirts at the foot of the Team of the Month card
-  // (§2.69) — ranks six and seven, who are not in the team. Two rewordings
-  // so far: "ציון לשבח" (a formal commendation, closer to a report-card term
-  // than a football one), then "כמעט בקבוצה" (echoing the card's own
-  // headline, "קבוצת החודש"), both replaced on request.
-  'wr.totm.mentions': { he: 'ראויים לציון', en: 'Worth a mention' },
   'wr.footer': {
     he: 'כל מספר כאן הוא ספירה, לא פסק דין.',
     en: 'Every number here is a count, not a verdict.',
