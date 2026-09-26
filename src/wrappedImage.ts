@@ -1151,17 +1151,10 @@ export async function renderTeamOfMonth(
   numberOf?: Map<string, number | undefined>,
 ): Promise<HTMLCanvasElement | null> {
   if (stats.teamOfMonth.length === 0) return null;
-  const shirt = (p: { id: string; name: string }) => ({
-    name: p.name,
-    number: numberOf?.get(p.id),
-  });
-  return renderShirtImage('gold', stats.teamOfMonth.map(shirt), {
-    // Ranks six and seven, small under the pentagon (§2.69). The card is the
-    // only place they appear — the award, the register and every profile stay
-    // at five.
-    players: stats.honourableMentions.map(shirt),
-    label: t('wr.totm.mentions'),
-  });
+  return renderShirtImage(
+    'gold',
+    stats.teamOfMonth.map((p) => ({ name: p.name, number: numberOf?.get(p.id) })),
+  );
 }
 
 // Shares every page in one go — on a phone, picking "Save Image"/"Save to

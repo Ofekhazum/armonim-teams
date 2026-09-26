@@ -135,21 +135,6 @@ export const totmScore = (p: Omit<TotmPlayer, 'id' | 'name' | 'score'>): number 
 
 export const TOTM_SIZE = 5;
 
-/**
- * How many near-misses the shirt card prints under the team (§2.69).
- *
- * **Two, and it is a fact about the picture rather than about the month.** The
- * template's five shirts are a pentagon with one strip of empty background
- * below it; two small shirts sit there comfortably and three start crowding the
- * bottom edge. There is no argument that the sixth and seventh players of a
- * month are meaningfully different from the eighth — the honest reading is that
- * this is the podium's bottom step, printed because there was room for it.
- *
- * Which is also why it lives here beside `TOTM_SIZE` rather than inside it:
- * nothing but the image may read this. The award is five.
- */
-export const MENTION_SIZE = 2;
-
 // Two scores this close are not really a ranking, they are the arithmetic
 // landing somewhere.
 //
@@ -217,21 +202,15 @@ export const monthNights = (history: FixtureRecord[], period: string): FixtureRe
     .sort((a, b) => a.date.localeCompare(b.date));
 
 /**
- * Every eligible player for the month, best first — the standings, not the
- * award. `teamOfMonth` below takes the top `TOTM_SIZE` of this.
- *
- * Split out so the shirt card can name the two who just missed out (§2.69)
- * without anything else in the app having to know they exist. Nothing here
- * ranks differently than it did when this was one function: the award is the
- * same slice of the same order.
+ * The five who carried the month, best first. Fewer than five if the month is
+ * thin, and empty if nothing was played.
  *
  * Near-level scores are settled by `byImportance` rather than by the last
  * decimal place — see `rankByScoreThenImportance`. That matters more here than
  * it looks: the fifth slot is the one that gets argued about, and neither "the
- * sort was unstable" nor "he was 0.08 ahead" is an answer anybody accepts. It
- * matters at the sixth and seventh too, now that those are printed.
+ * sort was unstable" nor "he was 0.08 ahead" is an answer anybody accepts.
  */
-export function rankedForMonth(history: FixtureRecord[], period: string): TotmPlayer[] {
+export function teamOfMonth(history: FixtureRecord[], period: string): TotmPlayer[] {
   const played = monthNights(history, period);
   if (played.length === 0) return [];
 
@@ -269,21 +248,7 @@ export function rankedForMonth(history: FixtureRecord[], period: string): TotmPl
       return { id, name: nameOf.get(id) ?? '?', score: totmScore(parts), ...parts };
     });
 
-  return rankByScoreThenImportance(eligible);
-}
-
-/**
- * The five who carried the month, best first. Fewer than five if the month is
- * thin, and empty if nothing was played.
- *
- * **This is the award.** `rankedForMonth` above is the standings behind it, and
- * the two must not be confused: what gets registered, announced, drawn into the
- * pentagon and shown on a player's page is this, and only this. Anything that
- * wants to name a sixth or seventh player is decorating the picture, not
- * widening the team — see MENTIONS in `shirtImage.ts`.
- */
-export function teamOfMonth(history: FixtureRecord[], period: string): TotmPlayer[] {
-  return rankedForMonth(history, period).slice(0, TOTM_SIZE);
+  return rankByScoreThenImportance(eligible).slice(0, TOTM_SIZE);
 }
 
 /** Which months have at least one night with a result, newest first. */
