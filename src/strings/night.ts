@@ -165,6 +165,42 @@ export const night = {
   },
   'np.report.err.unreachable': { he: 'לא הצלחנו להגיע לכתב.', en: 'Could not reach the reporter.' },
 
+  // --- The report, read aloud (§2.69) — the organiser's two taps -------------
+  'np.voice.create': { he: '🎙️ יצירת הקלטה', en: '🎙️ Create recap' },
+  'np.voice.working': { he: '⏳ מקליט… {time}', en: '⏳ Recording… {time}' },
+  'np.voice.workingHint': {
+    he: 'אם שרת הקול ישן, הוא מתעורר קודם — זה יכול לקחת כמה דקות. אפשר לסגור את הדף, ההקלטה ממשיכה.',
+    en: 'If the voice server is asleep it wakes up first, which can take a few minutes. You can close this page — it keeps going.',
+  },
+  'np.voice.fetching': { he: 'רגע…', en: 'One moment…' },
+  'np.voice.share': { he: 'שיתוף 🔊', en: 'Share 🔊' },
+  'np.voice.again': { he: '↻ טייק נוסף', en: '↻ Another take' },
+  // Sent alongside the file: WhatsApp shows an audio file as a player and may
+  // never show its name, so this is the label people in the group actually see.
+  'np.voice.shareText': {
+    he: '🎙️ סיכום המחזור בקול שנוצר בבינה מלאכותית — לא הקלטה אמיתית',
+    en: '🎙️ Night recap in an AI-generated voice — not a real recording',
+  },
+  'np.voice.handWritten': {
+    he: 'הדיווח הזה לא נכתב על ידי הכתב, ולכן לא מוקרא. כתבו ופרסמו דיווח חדש כדי להקליט.',
+    en: 'This report was not written by the reporter, so it is not read aloud. Write and publish a new one to record it.',
+  },
+  'np.voice.err.tooMany': {
+    he: 'כבר ארבע הקלטות היום. נסו שוב מחר.',
+    en: 'That is four recordings today already. Try again tomorrow.',
+  },
+  'np.voice.err.notConfigured': {
+    he: 'אין שרת קול בפריסה הזאת: לוורקר חסרים HF_SPACE_URL, HF_TOKEN או VOICE_SECRET.',
+    en: 'No voice on this deployment: the worker is missing HF_SPACE_URL, HF_TOKEN or VOICE_SECRET.',
+  },
+  'np.voice.err.failed': { he: 'ההקלטה נכשלה{detail}', en: 'The recording failed{detail}' },
+  'np.voice.err.noFile': {
+    he: 'ההקלטה מוכנה אבל ההורדה נכשלה. נסו שוב.',
+    en: 'The recording is ready but fetching it failed. Try again.',
+  },
+  'np.voice.err.share': { he: 'השיתוף נכשל.', en: 'Sharing failed.' },
+  'np.voice.err.unreachable': { he: 'לא הצלחנו להגיע לשרת הקול.', en: 'Could not reach the voice server.' },
+
   // --- Night headlines (nightStory.ts) -------------------------------------
   //
   // Four per flavour, picked by the fixture's own id so a night reads the same

@@ -1,0 +1,482 @@
+// The night reporter's voice (§2.69): a night's stored recap, read aloud by the
+// Space in hf-space/, cached in KV, and handed to the organiser to share.
+//
+// Three parts, in the order a recap travels through them:
+//
+//   speakable()    the recap as written for the eye, rewritten for the ear —
+//                  no emoji, no markdown, every number spelled out in Hebrew
+//   provenance     only a recap Gemini wrote is ever voiced (see below)
+//   RecapVoice     a Durable Object per night that runs the job on an alarm,
+//                  because a cold Space plus a three-minute recap is longer
+//                  than anyone should hold a request open from a phone
+//
+// **Why provenance.** The Space speaks in a real person's cloned voice, so what
+// it is allowed to say is the whole safety story. `POST /recap` has always
+// accepted `{ text }` — the organiser's approved draft — and the app only ever
+// sends back exactly what Gemini wrote. But the route itself would store any
+// 8000 characters at all, and anything stored would then be voiced. So the
+// Worker now remembers a fingerprint of every draft it generates, and a stored
+// recap is marked `source: 'gemini'` only if its text is one of them. Anything
+// else is `'edited'`, and edited text is never sent to the Space. The admin word
+// can still write a recap by hand — it just cannot make the voice say it.
+
+const SPACE_FN = 'synthesize';
+
+// Bump when speakable() or the Space changes what a recap sounds like, so the
+// cached audio for every night stops matching and is made again on request.
+export const VOICE_VERSION = 1;
+
+// A cold Space takes a few minutes to boot and load ~3 GB of weights; a long
+// recap is a few more to generate. An alarm handler gets fifteen minutes of
+// wall clock, so the whole job — waking included — has to fit inside fourteen.
+export const JOB_TIMEOUT_MS = 14 * 60 * 1000;
+// Knocking while it wakes. The free plan allows 50 outbound requests per
+// invocation, and the alarm needs two more after the knocking (the stream and
+// the file) — so 40 knocks, 20 s apart, which also spans the 14 minutes.
+const WAKE_POLL_MS = 20 * 1000;
+const MAX_WAKE_TRIES = 40;
+
+// A three-minute recap at 64 kbps is ~1.5 MB. Twenty is "something is wrong".
+const MAX_AUDIO_BYTES = 20 * 1024 * 1024;
+
+// How many draft fingerprints a night remembers, and for how long. A dozen
+// drafts an hour is already the rate limit; a week is long enough for a draft
+// read on Tuesday to be published on Thursday.
+const MAX_DRAFTS = 20;
+const DRAFT_TTL_S = 7 * 24 * 60 * 60;
+
+export const voiceKey = (fixtureId) => `recapaudio:${fixtureId}`;
+const draftsKey = (fixtureId) => `recapdrafts:${fixtureId}`;
+
+export const voiceConfigured = (env) =>
+  Boolean(env.HF_SPACE_URL && env.HF_TOKEN && env.VOICE_SECRET);
+
+export async function sha256Hex(text) {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+/** The fingerprint the cached audio is filed under: the words, and how they were made. */
+export const voiceHash = (spoken) => sha256Hex(`v${VOICE_VERSION}\n${spoken}`);
+
+// --- Provenance -------------------------------------------------------------
+
+/** Remember that the reporter wrote this text for this night. */
+export async function rememberDraft(env, fixtureId, text) {
+  const hash = await sha256Hex(text);
+  const known = await readDrafts(env, fixtureId);
+  const next = [...known.filter((h) => h !== hash), hash].slice(-MAX_DRAFTS);
+  await env.ROSTER_KV.put(draftsKey(fixtureId), JSON.stringify(next), {
+    expirationTtl: DRAFT_TTL_S,
+  });
+}
+
+async function readDrafts(env, fixtureId) {
+  try {
+    const list = JSON.parse((await env.ROSTER_KV.get(draftsKey(fixtureId))) ?? '[]');
+    return Array.isArray(list) ? list : [];
+  } catch {
+    return [];
+  }
+}
+
+/** 'gemini' if the reporter wrote exactly this for this night, otherwise 'edited'. */
+export async function sourceOf(env, fixtureId, text) {
+  const known = await readDrafts(env, fixtureId);
+  return known.includes(await sha256Hex(text)) ? 'gemini' : 'edited';
+}
+
+/**
+ * May this stored recap be voiced?
+ *
+ * A record with no `source` at all predates this file, and could only have
+ * been written by the Worker as it was then — every write since carries one.
+ * Those are the recaps already published to the group, so they stay voiceable
+ * rather than every past night needing a re-roll first.
+ */
+export const canVoice = (stored) =>
+  Boolean(stored?.text) && (stored.source === undefined || stored.source === 'gemini');
+
+// --- speakable() ----------------------------------------------------------
+//
+// The recap is written to be read: a 📻 masthead, digits, "ב-10" and
+// "ו-אריאל" with a hyphen gluing a prefix letter on. A TTS model reads all of
+// that literally, or not at all — Chatterbox has no idea a digit has a gender
+// in Hebrew, and phonikud adds vowels to letters, not to "13". So the numbers
+// are spelled out here, with the gender taken from the noun after them.
+
+const UNITS_F = ['אפס', 'אחת', 'שתיים', 'שלוש', 'ארבע', 'חמש', 'שש', 'שבע', 'שמונה', 'תשע'];
+const UNITS_M = ['אפס', 'אחד', 'שניים', 'שלושה', 'ארבעה', 'חמישה', 'שישה', 'שבעה', 'שמונה', 'תשעה'];
+const TEENS_F = ['עשר', 'אחת עשרה', 'שתים עשרה', 'שלוש עשרה', 'ארבע עשרה', 'חמש עשרה', 'שש עשרה', 'שבע עשרה', 'שמונה עשרה', 'תשע עשרה'];
+const TEENS_M = ['עשרה', 'אחד עשר', 'שנים עשר', 'שלושה עשר', 'ארבעה עשר', 'חמישה עשר', 'שישה עשר', 'שבעה עשר', 'שמונה עשר', 'תשעה עשר'];
+const TENS = ['', '', 'עשרים', 'שלושים', 'ארבעים', 'חמישים', 'שישים', 'שבעים', 'שמונים', 'תשעים'];
+const HUNDREDS = ['', 'מאה', 'מאתיים', 'שלוש מאות', 'ארבע מאות', 'חמש מאות', 'שש מאות', 'שבע מאות', 'שמונה מאות', 'תשע מאות'];
+const THOUSANDS = ['', 'אלף', 'אלפיים', 'שלושת אלפים', 'ארבעת אלפים', 'חמשת אלפים', 'ששת אלפים', 'שבעת אלפים', 'שמונת אלפים', 'תשעת אלפים'];
+// "the four nights" — ארבעת המחזורים, not ארבעה המחזורים
+const DEFINITE_M = ['', '', 'שני', 'שלושת', 'ארבעת', 'חמשת', 'ששת', 'שבעת', 'שמונת', 'תשעת', 'עשרת'];
+const DEFINITE_F = ['', '', 'שתי', 'שלוש', 'ארבע', 'חמש', 'שש', 'שבע', 'שמונה', 'תשע', 'עשר'];
+// "the 10th night" — המחזור העשירי. Past ten Hebrew uses the cardinal.
+const ORDINALS = ['', 'ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שביעי', 'שמיני', 'תשיעי', 'עשירי'];
+
+// The nouns a match report counts. Plural endings decide the rest (ים is
+// masculine, ות feminine), which is why ניצחונות and שבועות — masculine
+// despite the ending — have to be listed.
+const MASCULINE = new Set([
+  'ניצחון', 'ניצחונות', 'נצחון', 'נצחונות', 'משחק', 'משחקים', 'מחזור', 'מחזורים',
+  'שער', 'שערים', 'גול', 'גולים', 'שחקן', 'שחקנים', 'שבוע', 'שבועות', 'יום', 'ימים',
+  'הפסד', 'הפסדים', 'חודש', 'חודשים', 'פנדל', 'פנדלים', 'קול', 'קולות', 'אחוז',
+  'אחוזים', 'רצף', 'רצפים', 'ערב', 'ערבים', 'מפגש', 'מפגשים', 'אורח', 'אורחים',
+]);
+const FEMININE = new Set([
+  'נקודה', 'נקודות', 'פעם', 'פעמים', 'דקה', 'דקות', 'שעה', 'שעות', 'קבוצה', 'קבוצות',
+  'שנה', 'שנים', 'הופעה', 'הופעות', 'בחירה', 'בחירות', 'עונה', 'עונות', 'שנייה',
+  'שניות', 'הצבעה', 'הצבעות', 'הכרעה', 'הכרעות', 'תבוסה', 'תבוסות',
+]);
+
+const listed = (w) => (MASCULINE.has(w) ? true : FEMININE.has(w) ? false : null);
+
+/** true for a masculine noun, false for feminine, null when it is not a noun we can read. */
+function genderOf(word) {
+  if (!word) return null;
+  const known = listed(word) ?? (word.startsWith('ה') ? listed(word.slice(1)) : null);
+  if (known !== null) return known;
+  if (/[א-ת]ים$/.test(word)) return true;
+  if (/[א-ת]ות$/.test(word)) return false;
+  return null;
+}
+
+// "המחזורים" is "the nights"; "הפסדים" is just "losses". Only a listed noun
+// behind the ה counts as definite — guessing would turn "3 הפסדים" into
+// "שלושת הפסדים".
+const isDefinite = (word) =>
+  word.startsWith('ה') && listed(word) === null && listed(word.slice(1)) !== null;
+
+// The letters Hebrew glues onto the front of a word — ו, ה, ב, כ, ל, מ, ש and
+// their usual stacks. Checked as a whole, because the same letters also spell
+// short words that a hyphen joins to the next one: כל-כך is not כ+ל+כך, and
+// של-50 is "of fifty", not a prefix.
+const PREFIX = /^(?:[ובכלמשה]|ו[הבכלמש]|ש[הבכמ]|כש|וכש|וש[הבכמ])$/;
+
+const needsVav = (n) => n < 20 || (n < 100 && n % 10 === 0) || n % 100 === 0;
+
+function below100(n, masc) {
+  if (n < 10) return (masc ? UNITS_M : UNITS_F)[n];
+  if (n < 20) return (masc ? TEENS_M : TEENS_F)[n - 10];
+  const unit = n % 10;
+  const tens = TENS[Math.floor(n / 10)];
+  return unit ? `${tens} ו${(masc ? UNITS_M : UNITS_F)[unit]}` : tens;
+}
+
+function below1000(n, masc) {
+  if (n < 100) return below100(n, masc);
+  const rest = n % 100;
+  const hundreds = HUNDREDS[Math.floor(n / 100)];
+  if (!rest) return hundreds;
+  return `${hundreds} ${needsVav(rest) ? 'ו' : ''}${below100(rest, masc)}`;
+}
+
+/**
+ * A whole number as Hebrew words, 0–9999; null past that (left as digits).
+ *
+ * `masc` is the gender of whatever is being counted. With nothing being
+ * counted — a score, "לעומת 0" — Hebrew counts in the feminine, so that is the
+ * default.
+ */
+export function hebrewNumber(n, masc = false) {
+  if (!Number.isInteger(n) || n < 0 || n > 9999) return null;
+  if (n < 1000) return below1000(n, masc);
+  const rest = n % 1000;
+  const thousands = THOUSANDS[Math.floor(n / 1000)];
+  if (!rest) return thousands;
+  return `${thousands} ${needsVav(rest) ? 'ו' : ''}${below1000(rest, masc)}`;
+}
+
+// A number, the prefix letters glued to it (ב-10, מ־4, ה10), an optional
+// decimal or percent, and the word after it — which is what decides the gender.
+const NUMBER = /(^|[^\p{L}\p{N}])((?:[ובכלמשה]{1,3})?[-־]?)(\d+)(?:\.(\d+))?(\s*%)?(?=(\s+([^\s]+))?)/gu;
+
+function spellNumber(prefix, digits, decimals, percent, nextWord) {
+  const n = Number(digits);
+  const typed = prefix.replace(/[-־]/g, '');
+  // a short word rather than a prefix stays a word of its own: "של חמישים"
+  const letters = !typed || PREFIX.test(typed) ? typed : `${typed} `;
+  const next = nextWord?.replace(/[^\p{L}]/gu, '') ?? '';
+  const nounGender = percent ? true : genderOf(next);
+  const masc = nounGender ?? false;
+
+  const whole = hebrewNumber(n, masc);
+  if (whole === null) return `${prefix}${digits}${decimals ? `.${decimals}` : ''}${percent ?? ''}`;
+
+  // ה-10 with no noun after it: "the tenth", as in המחזור ה-10. Masculine,
+  // because the nouns a recap numbers this way — מחזור, ניצחון, משחק — are.
+  if (typed.endsWith('ה') && nounGender === null && !decimals && n >= 1 && n <= 10) {
+    return `${letters}${ORDINALS[n]}`;
+  }
+
+  let words = whole;
+  if (decimals === '5') words = `${whole} וחצי`;
+  else if (decimals) words = `${whole} נקודה ${hebrewNumber(Number(decimals)) ?? decimals}`;
+  else if (!percent && nounGender !== null && n >= 2 && n <= 10 && isDefinite(next))
+    words = (nounGender ? DEFINITE_M : DEFINITE_F)[n];
+  else if (!percent && nounGender !== null && n === 2) words = nounGender ? 'שני' : 'שתי';
+
+  return `${letters}${words}${percent ? ' אחוז' : ''}`;
+}
+
+// Pictographs, flags, skin tones, keycaps and the joiners between them.
+const EMOJI = /[\p{Extended_Pictographic}\u{1F1E6}-\u{1F1FF}\u{1F3FB}-\u{1F3FF}\u{FE0E}\u{FE0F}\u{200D}\u{20E3}]/gu;
+
+/**
+ * A recap rewritten for the ear.
+ *
+ * Paragraphs stay on their own lines — the Space pauses longer between
+ * paragraphs than between sentences — and every line ends in punctuation, so
+ * the masthead ("ארבל זעזוע מדווח מהמגרש") is a sentence of its own rather
+ * than run into the first line of the report.
+ */
+export function speakable(text) {
+  let out = String(text ?? '')
+    .normalize('NFC')
+    .replace(EMOJI, '')
+    // direction marks: invisible on screen, and nothing a voice can say
+    .replace(/[‎‏‪-‮⁦-⁩]/g, '');
+
+  // Markdown the model may have reached for despite being asked not to.
+  out = out
+    .replace(/\*\*|__|[*`]/g, '')
+    .replace(/^\s*#{1,6}\s*/gm, '')
+    .replace(/^\s*>\s?/gm, '')
+    .replace(/^\s*[-•–]\s+/gm, '')
+    .replace(/_/g, ' ');
+
+  // 1,000 → 1000, before anything reads the comma as a pause.
+  out = out.replace(/(\d)[,٬](?=\d{3}\b)/g, '$1');
+
+  // A score or a range: 4-0, 3:1. Read as two counts, as a commentator would.
+  out = out.replace(/(\d+)\s*[-–—:]\s*(\d+)/g, (_, a, b) => {
+    const x = hebrewNumber(Number(a));
+    const y = hebrewNumber(Number(b));
+    return x && y ? `${x} ${y}` : `${a} ${b}`;
+  });
+
+  out = out.replace(NUMBER, (_, lead, prefix, digits, decimals, percent, _ws, nextWord) =>
+    `${lead}${spellNumber(prefix, digits, decimals, percent, nextWord)}`,
+  );
+
+  // ו-אריאל → ואריאל: the hyphen only kept a name's first letter visible.
+  // כל-כך is two words that happen to start with prefix letters; it falls
+  // through to the next rule and becomes "כל כך".
+  out = out.replace(/(^|[^\p{L}])([ובכלמשה]{1,3})[-־](?=\p{L})/gu, (all, lead, letters) =>
+    PREFIX.test(letters) ? `${lead}${letters}` : all,
+  );
+  // דו-קרב, מורט־עצבים — two words, said as two words.
+  out = out.replace(/(\p{L})[-־](?=\p{L})/gu, '$1 ');
+
+  out = out
+    .replace(/[()[\]{}]/g, ', ')
+    .replace(/[“”„«»]/g, '')
+    .replace(/\s+"|"\s+|^"|"$/gm, ' ') // a quotation mark, not the gershayim in פיפ"א
+    .replace(/\//g, ' ')
+    .replace(/&/g, ' ו')
+    .replace(/([!?])\1+/g, '$1')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/ +([,.!?])/g, '$1')
+    .replace(/,(\s*,)+/g, ',');
+
+  return out
+    .split('\n')
+    .map((line) => line.trim().replace(/^[,.\s]+/, ''))
+    .filter((line) => /\p{L}/u.test(line))
+    .map((line) => (/[.!?]$/.test(line) ? line : `${line.replace(/,$/, '')}.`))
+    .join('\n');
+}
+
+// --- The Space ------------------------------------------------------------
+//
+// Gradio's two-step REST API, which is what @gradio/client does underneath:
+// POST queues the job and answers at once with an event id; GET on that id is
+// a server-sent-event stream that ends when the job does. The file it names is
+// fetched with the same token — the Space is private, so every URL on it is.
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const spaceUrl = (env, path) => `${String(env.HF_SPACE_URL).replace(/\/+$/, '')}${path}`;
+const auth = (env) => ({ Authorization: `Bearer ${env.HF_TOKEN}` });
+
+/** `event:` / `data:` pairs out of a finished SSE body. */
+export function parseEvents(body) {
+  const events = [];
+  for (const block of String(body).split(/\r?\n\r?\n/)) {
+    let event = 'message';
+    const data = [];
+    for (const line of block.split(/\r?\n/)) {
+      if (line.startsWith('event:')) event = line.slice(6).trim();
+      else if (line.startsWith('data:')) data.push(line.slice(5).replace(/^ /, ''));
+    }
+    if (data.length) events.push({ event, data: data.join('\n') });
+  }
+  return events;
+}
+
+/**
+ * Queue the job. A sleeping Space answers with a holding page, a 503 or — for
+ * a private one still starting — a 404 until it is up, so every answer that is
+ * not an event id is "ask again shortly", until the deadline. Only a refused
+ * token is final: retrying that just burns the clock.
+ */
+export async function startJob(env, text, { deadline, wait = sleep, now = Date.now } = {}) {
+  for (let tries = 1; ; tries++) {
+    let res = null;
+    try {
+      res = await fetch(spaceUrl(env, `/gradio_api/call/${SPACE_FN}`), {
+        method: 'POST',
+        headers: { ...auth(env), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ data: [text, env.VOICE_SECRET] }),
+      });
+    } catch {
+      // the Space being mid-restart looks like a dropped connection
+    }
+    if (res?.status === 401 || res?.status === 403) {
+      throw new Error(`space refused the token (${res.status})`);
+    }
+    if (res?.ok) {
+      const body = await res.json().catch(() => null);
+      if (typeof body?.event_id === 'string') return body.event_id;
+    }
+    if (tries >= MAX_WAKE_TRIES || now() + WAKE_POLL_MS > deadline) {
+      throw new Error('space did not wake up in time');
+    }
+    await wait(WAKE_POLL_MS);
+  }
+}
+
+/** Wait for the job to finish, and return the URL of the file it made. */
+export async function awaitJob(env, eventId, { deadline, now = Date.now } = {}) {
+  const res = await fetch(spaceUrl(env, `/gradio_api/call/${SPACE_FN}/${eventId}`), {
+    headers: auth(env),
+    signal: AbortSignal.timeout(Math.max(1000, deadline - now())),
+  });
+  if (!res.ok) throw new Error(`space stream answered ${res.status}`);
+  const events = parseEvents(await res.text());
+  const done = events.find((e) => e.event === 'complete' || e.event === 'error');
+  if (!done) throw new Error('space stream ended without a result');
+  if (done.event === 'error') {
+    // Gradio 6 says `{"error": "forbidden", "title": …}`; older ones a bare
+    // string, or `null` when the Space hides its errors.
+    let said = done.data;
+    try {
+      const parsed = JSON.parse(done.data);
+      said = typeof parsed?.error === 'string' ? parsed.error : (parsed ?? 'error');
+    } catch {
+      // not JSON: a bare string is fine as it is
+    }
+    throw new Error(`space: ${typeof said === 'string' ? said : JSON.stringify(said)}`);
+  }
+  const [file] = JSON.parse(done.data);
+  if (file?.url) return file.url;
+  if (file?.path) return spaceUrl(env, `/gradio_api/file=${file.path}`);
+  throw new Error('space returned no file');
+}
+
+export async function fetchAudio(env, url) {
+  const res = await fetch(url, { headers: auth(env) });
+  if (!res.ok) throw new Error(`space file answered ${res.status}`);
+  const bytes = await res.arrayBuffer();
+  if (bytes.byteLength === 0 || bytes.byteLength > MAX_AUDIO_BYTES) {
+    throw new Error(`space file was ${bytes.byteLength} bytes`);
+  }
+  return bytes;
+}
+
+export async function synthesize(env, text, opts) {
+  const eventId = await startJob(env, text, opts);
+  const url = await awaitJob(env, eventId, opts);
+  return fetchAudio(env, url);
+}
+
+// --- The job --------------------------------------------------------------
+
+const view = (job) =>
+  job
+    ? {
+        status: job.status,
+        hash: job.hash,
+        startedAt: job.startedAt,
+        ...(job.error ? { error: job.error } : {}),
+      }
+    : null;
+
+/**
+ * Durable Object: one night's voice job. `idFromName(fixtureId)`.
+ *
+ *   POST /start  { fixtureId, text, hash }   begin, unless one is running
+ *   GET  /status                             { status, hash, startedAt, error? }
+ *
+ * The work happens in `alarm()`, set for "now" by /start. That is what lets
+ * the request that asked for it return in milliseconds: the phone polls the
+ * public status route while this runs, and a phone that locks its screen
+ * half-way through loses nothing. A running job is never doubled — a second
+ * /start while one is in flight is answered with the one in flight.
+ */
+export class RecapVoice {
+  constructor(state, env) {
+    this.state = state;
+    this.env = env;
+  }
+
+  async job() {
+    return (await this.state.storage.get('job')) ?? null;
+  }
+
+  async fetch(request) {
+    const url = new URL(request.url);
+    if (url.pathname === '/status') return Response.json(view(await this.job()));
+
+    if (url.pathname === '/start' && request.method === 'POST') {
+      const { fixtureId, text, hash } = await request.json();
+      const current = await this.job();
+      if (current?.status === 'working' && Date.now() - current.startedAt < JOB_TIMEOUT_MS) {
+        return Response.json(view(current));
+      }
+      const job = { status: 'working', fixtureId, hash, startedAt: Date.now() };
+      await this.state.storage.put('job', job);
+      await this.state.storage.put('text', text);
+      await this.state.storage.setAlarm(Date.now());
+      return Response.json(view(job));
+    }
+
+    return new Response('not found', { status: 404 });
+  }
+
+  // Never throws. A throwing alarm is retried by the runtime, and a retry here
+  // would be another few minutes of somebody's daily GPU allowance spent on a
+  // job that already failed once — the organiser can press the button again.
+  async alarm() {
+    const job = await this.job();
+    const text = await this.state.storage.get('text');
+    if (!job || job.status !== 'working' || !text) return;
+
+    let next;
+    try {
+      const audio = await synthesize(this.env, text, { deadline: job.startedAt + JOB_TIMEOUT_MS });
+      await this.env.ROSTER_KV.put(voiceKey(job.fixtureId), audio, {
+        metadata: { hash: job.hash, at: Date.now() },
+      });
+      next = { ...job, status: 'ready', finishedAt: Date.now() };
+    } catch (err) {
+      next = {
+        ...job,
+        status: 'failed',
+        finishedAt: Date.now(),
+        error: String(err?.message ?? err).slice(0, 300),
+      };
+      console.log(JSON.stringify({ voice: 'failed', fixtureId: job.fixtureId, error: next.error }));
+    }
+
+    // A job that outlived its timeout may have been replaced by a newer one
+    // while it ran; the newer one's record is the one to keep.
+    if ((await this.job())?.startedAt !== job.startedAt) return;
+    await this.state.storage.put('job', next);
+    await this.state.storage.delete('text');
+  }
+}

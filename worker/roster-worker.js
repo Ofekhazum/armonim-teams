@@ -20,6 +20,8 @@
 //   GET  /values       → public read of every player's market value (price only)
 //   GET  /recap?id=…   → public read of a night's written recap, if there is one
 //   POST /recap        → write one for a night; requires the secret word
+//   GET  /recap-audio?id=… → public status of a night's voiced recap (§2.69)
+//   POST /recap-audio  → make it, or fetch the MP3 once made; secret word
 //   GET  /grades?id=…  → public read of a night's one-line player grades
 //   GET  /grades/all   → every published mark, marks only (the form graph)
 //   POST /grades       → write them for a night; requires the secret word
@@ -42,9 +44,20 @@
 export { MatchRoom } from './match-room.js';
 export { RateLimiter } from './rate-limit.js';
 export { ClockNotifier } from './clock-notifier.js';
+export { RecapVoice } from './recap-voice.js';
 
 import { bytesToB64u, publicKeyBytes } from './push.js';
 import { isValidFacts, recapKey, writeRecap } from './recap.js';
+import {
+  JOB_TIMEOUT_MS,
+  canVoice,
+  rememberDraft,
+  sourceOf,
+  speakable,
+  voiceConfigured,
+  voiceHash,
+  voiceKey,
+} from './recap-voice.js';
 import { gradesKey, isValidGradeFacts, readAllMarks, writeGrades } from './grades.js';
 import {
   announceMonth,
@@ -66,6 +79,43 @@ import { marketValues } from '../src/marketValue.ts';
 // are one object now because they were always one thing, and because a clock
 // stored in KV was being read stale (§2.15).
 const notifier = (env) => env.CLOCK_NOTIFIER.get(env.CLOCK_NOTIFIER.idFromName('clock'));
+
+// One voice job per night (§2.69), so two nights never queue behind each other
+// and a night's status is one read.
+const voiceJob = (env, fixtureId) => env.RECAP_VOICE.get(env.RECAP_VOICE.idFromName(fixtureId));
+
+async function readStoredRecap(env, fixtureId) {
+  try {
+    return JSON.parse((await env.ROSTER_KV.get(recapKey(fixtureId))) ?? 'null');
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Where a night's voiced recap stands, judged against the recap stored *now*.
+ *
+ * The job remembers the hash of the words it read. A recap re-rolled since is
+ * different words, so the audio on file is for a report nobody can see any
+ * more — that reads as `none`, and the next press makes it again.
+ */
+async function voiceStatus(env, fixtureId) {
+  const configured = voiceConfigured(env);
+  const recap = await readStoredRecap(env, fixtureId);
+  if (!configured || !recap?.text) return { configured, voiceable: false, status: 'none' };
+  const voiceable = canVoice(recap);
+  const hash = await voiceHash(speakable(recap.text));
+  const job = await (await voiceJob(env, fixtureId).fetch('https://voice/status')).json();
+  if (!job) return { configured, voiceable, status: 'none', hash };
+  const timedOut = job.status === 'working' && Date.now() - job.startedAt > JOB_TIMEOUT_MS;
+  if (timedOut) return { configured, voiceable, status: 'failed', error: 'timed out', hash };
+  // a job still running for an older recap is still running — say so, rather
+  // than offer a button that would only be told to wait
+  if (job.hash !== hash && job.status !== 'working') {
+    return { configured, voiceable, status: 'none', hash };
+  }
+  return { configured, voiceable, ...job, hash };
+}
 
 // Deliberately open: GET /roster is meant to be readable by anyone with the
 // app, and the POSTs are gated on the secret word rather than on origin — a
@@ -155,6 +205,14 @@ const RECAP_WINDOW_MS = 60 * 60 * 1000;
 // — one a week, rerolled a few times when the banter lands flat.
 const GRADES_LIMIT = 12;
 const GRADES_WINDOW_MS = 60 * 60 * 1000;
+
+// Voiced recaps (§2.69), per IP per day. Not set by the act — one a week, maybe
+// a second take — but by what each one spends: a long recap is two or three
+// minutes of a five-minute daily GPU allowance on somebody's Hugging Face
+// account. Four is already more than that allowance can pay for; the point is
+// that a leaked word cannot queue an unbounded number of them.
+const VOICE_LIMIT = 4;
+const VOICE_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 // Room upgrades are unauthenticated by design — the share link is the
 // invitation — so the only thing standing between a script and an unbounded
@@ -591,6 +649,17 @@ export default {
       }
     }
 
+    // Where a night's voiced recap stands (§2.69). Public because it says
+    // nothing — a status word and whether the button would work. The audio
+    // itself is behind the word, on POST below: it is a real person's cloned
+    // voice, and this Worker is not going to be the place it is fetched from
+    // by anyone who finds the URL.
+    if (url.pathname === '/recap-audio' && request.method === 'GET') {
+      const id = url.searchParams.get('id');
+      if (!isStr(id, 200)) return json({ error: 'bad id' }, 400);
+      return json(await voiceStatus(env, id));
+    }
+
     // Every published mark in the club, without the banter — what a player's
     // grade graph is drawn from (§2.39). Checked before `/grades` below, and
     // public for the same reason that route is: a mark is already visible to
@@ -810,6 +879,7 @@ export default {
       '/history',
       '/live',
       '/recap',
+      '/recap-audio',
       '/grades',
       '/awards',
       '/verify',
@@ -935,11 +1005,19 @@ export default {
 
         if (body.text === null) {
           await env.ROSTER_KV.delete(key);
+          // the voiced copy goes with it — it was this report, read aloud
+          await env.ROSTER_KV.delete(voiceKey(body.fixtureId));
           return json({ ok: true, text: null });
         }
 
+        // `source` is what decides whether this may ever be voiced (§2.69):
+        // 'gemini' only if it is word for word a draft this Worker wrote for
+        // this night. The app never edits a draft, so in practice that is
+        // every recap; text written by hand is stored all the same, and read
+        // all the same, but not spoken.
         if (isStr(body.text, 8000)) {
-          const stored = { text: body.text, at: Date.now() };
+          const source = await sourceOf(env, body.fixtureId, body.text);
+          const stored = { text: body.text, at: Date.now(), source };
           await env.ROSTER_KV.put(key, JSON.stringify(stored));
           return json({ ok: true, ...stored });
         }
@@ -968,11 +1046,66 @@ export default {
         const written = await writeRecap(env, body.facts);
         if (written.error) return json({ error: written.error }, 502);
         if (body.save === true) {
-          const stored = { text: written.text, at: Date.now() };
+          const stored = { text: written.text, at: Date.now(), source: 'gemini' };
           await env.ROSTER_KV.put(key, JSON.stringify(stored));
           return json({ ok: true, ...stored });
         }
+        // the fingerprint that lets the organiser's "publish" count as Gemini's
+        await rememberDraft(env, body.fixtureId, written.text);
         return json({ ok: true, text: written.text });
+      }
+
+      // A night's recap, read aloud (§2.69).
+      //
+      //   { fixtureId }               → start making it (or say how it is going)
+      //   { fixtureId, fresh: true }  → make another take even if one is cached
+      //   { fixtureId, file: true }   → the MP3, once it is made
+      //
+      // **The client sends a fixture id and nothing else.** What is read is the
+      // recap stored for that night, and only if Gemini wrote it — see
+      // `canVoice`. There is no way to hand this route words to say.
+      if (url.pathname === '/recap-audio') {
+        if (!isStr(body.fixtureId, 200)) return json({ error: 'bad id' }, 400);
+        if (!voiceConfigured(env)) return json({ error: 'not-configured' }, 502);
+        const recap = await readStoredRecap(env, body.fixtureId);
+        if (!recap?.text) return json({ error: 'no recap' }, 404);
+        if (!canVoice(recap)) return json({ error: 'not generated' }, 409);
+
+        const spoken = speakable(recap.text);
+        const hash = await voiceHash(spoken);
+
+        if (body.file === true) {
+          const { value, metadata } = await env.ROSTER_KV.getWithMetadata(
+            voiceKey(body.fixtureId),
+            'arrayBuffer',
+          );
+          if (!value || metadata?.hash !== hash) return json({ error: 'no audio' }, 404);
+          return new Response(value, {
+            headers: { 'Content-Type': 'audio/mpeg', 'Cache-Control': 'no-store', ...CORS },
+          });
+        }
+
+        const status = await voiceStatus(env, body.fixtureId);
+        if (status.status === 'working') return json(status);
+        if (status.status === 'ready' && body.fresh !== true) return json(status);
+
+        // Only a job that will actually run is counted — asking how one is
+        // going, or for one already made, costs nothing.
+        const gate = await countAttempt(
+          limiterFor(env, `voice:${ip}`),
+          VOICE_LIMIT,
+          VOICE_WINDOW_MS,
+        );
+        if (gate.blocked) {
+          return json({ error: 'too many voices' }, 429, {
+            'Retry-After': String(gate.retryAfter),
+          });
+        }
+        const res = await voiceJob(env, body.fixtureId).fetch('https://voice/start', {
+          method: 'POST',
+          body: JSON.stringify({ fixtureId: body.fixtureId, text: spoken, hash }),
+        });
+        return json({ configured: true, voiceable: true, ...(await res.json()) });
       }
 
       // Write a night's grade lines (§2.39). The same four shapes as /recap,
