@@ -39,6 +39,18 @@ class_name = "ClockNotifier"
 tag = "v3-clock-notifier"
 new_sqlite_classes = ["ClockNotifier"]
 
+# One instance per night, running that night's voiced recap on an alarm
+# (see recap-voice.js, §2.69). Needs VOICE_URL, MODAL_KEY and MODAL_SECRET
+# secrets; without them the routes answer "not-configured" and the app shows
+# no button.
+[[durable_objects.bindings]]
+name = "RECAP_VOICE"
+class_name = "RecapVoice"
+
+[[migrations]]
+tag = "v4-recap-voice"
+new_sqlite_classes = ["RecapVoice"]
+
 # Team of the Month (§2.25). 05:00 UTC on the 1st — 08:00 Israel time in
 # summer, 07:00 in winter; crons are UTC only. Registers any finished month
 # that has no team yet, so a missed run costs nothing and the first run after

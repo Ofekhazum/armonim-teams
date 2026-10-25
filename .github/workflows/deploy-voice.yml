@@ -1,0 +1,37 @@
+name: Deploy recap voice to Modal
+
+# The voice server (voice/, DESIGN.md §2.69) deploys from here rather than from
+# a laptop: Modal's CLI speaks gRPC, which TLS-inspecting corporate proxies
+# tend to break, and a deploy from GitHub needs nothing but a browser to start.
+#
+# Needs two repository secrets, from a Modal API token (modal.com/settings →
+# API Tokens): MODAL_TOKEN_ID and MODAL_TOKEN_SECRET.
+
+on:
+  push:
+    branches: [main, feat/recap-audio]
+    paths:
+      - 'voice/**'
+      - '.github/workflows/deploy-voice.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: modal-voice
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install modal==1.6.2
+      - run: modal deploy voice/modal_app.py
+        env:
+          MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+          MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}

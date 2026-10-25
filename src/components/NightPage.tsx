@@ -11,6 +11,7 @@ import { clearRecap, draftRecap, fetchRecap, saveRecap } from '../recap';
 import { fmtWins, Name, TEAM_META, teamLabel } from './ui';
 import { MilestoneStrip } from './TonightFacts';
 import NightGrades from './NightGrades';
+import RecapVoice from './RecapVoice';
 import { useScrollLock } from '../scrollLock';
 import { fmtDate, getLang, t } from '../i18n';
 
@@ -547,6 +548,18 @@ export default function NightPage({
                 </>
               )}
             </div>
+
+            {/* The published report, read aloud (§2.69). Only the published
+                one: a draft is not something the group has seen, and the
+                Worker would refuse to voice it anyway. */}
+            {adminWord && saved && !draft && (
+              <RecapVoice
+                fixtureId={fixture.id}
+                date={fixture.date}
+                adminWord={adminWord}
+                recapAt={saved.at}
+              />
+            )}
           </section>
         )}
 

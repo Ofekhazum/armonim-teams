@@ -5123,6 +5123,104 @@ deliberately invisible; this one edits data the organiser typed, so it announces
 Verified end to end on the real records: with the alias the form now keeps, זרקא holds 3 of 3
 guest-era ids and רותם 2 of 2.
 
+### 2.69 The report, read aloud (`worker/recap-voice.js`, `voice/`, `RecapVoice.tsx`)
+
+The organiser can turn a night's published report (§2.24) into an MP3, read in a cloned voice, and
+send it to the group from the phone's share sheet. It is experimental and admin-only. It has three
+parts, and each one knows nothing about the others' jobs:
+
+| | does | knows nothing about |
+|---|---|---|
+| Gemini (`recap.js`) | writes the report | voices |
+| Worker (`recap-voice.js`) | picks the text, cleans it for speech, runs the job, caches the file | how speech is made |
+| Voice server (`voice/`, on Modal) | Hebrew text → MP3 in the reference voice | football, fixtures, the club |
+
+A dramatic persona script can replace the text later without touching the voice. It would be a new
+source of words feeding into `speakable()`.
+
+**The voice is a real person's, so what it may say is the whole safety design.** It rests on three
+things that hold together:
+
+1. **No caller can supply words.** `POST /recap-audio` takes a fixture id. The voice server's
+   endpoint uses `requires_proxy_auth=True`, so Modal rejects any request without the workspace's
+   proxy-auth token with a 401 before a container starts. Only the Worker holds the token.
+2. **Only Gemini's text is voiced.** `POST /recap` has always accepted `{ text }`, the organiser's
+   approved draft. The app only ever sends back the exact draft, but the route itself would store
+   any 8000 characters, and anything stored would then have been voiced. Saying "the Worker only
+   reads stored recaps, so there's no open text box" was not true until this rule existed. So the
+   Worker keeps a fingerprint of every draft it generates (`recapdrafts:<id>`, the last 20, for a
+   week) and tags each stored recap `source: 'gemini'` only on a word-for-word match. Anything else
+   is `'edited'`: stored, readable on the page, never spoken. A record with no `source` at all
+   predates this rule and could only have come from the Worker, so those stay voiceable rather than
+   every past night needing a re-roll.
+3. **Every file is marked as synthetic:**
+   - the PerTh watermark Chatterbox applies inside `generate()`, which can't be switched off
+   - MP3 title and comment tags
+   - an `…-AI-voice.mp3` filename
+   - a line of share text saying it's not a real recording, because WhatsApp shows an audio file
+     as a player and may never show its name.
+
+**`speakable()` rewrites the report for the ear.** Measured on the eight stored recaps:
+
+- They run 1,447–2,863 characters.
+- Every one has digits in it, which a TTS model reads as nothing or as nonsense.
+- The masthead is an emoji line with no full stop.
+- Gemini glues prefix letters to names with a hyphen (`ו-אריאל`, `ל-50`).
+
+The function spells numbers out in the gender of the noun after them. "5 נקודות" becomes "חמש
+נקודות", "5 ניצחונות" becomes "חמישה ניצחונות", and "מ-4 המחזורים" becomes "מארבעת המחזורים". Scores
+become two counts, and "ה-10" becomes "העשירי". It drops emoji, markdown and direction marks, and
+re-glues only real prefixes: "כל-כך" is two words, not a prefix plus "כך". After it runs, no digit
+is left in any of the eight recaps.
+
+**Why a Durable Object.** Three things add up to minutes:
+
+- a GPU container starts cold when idle, which means booting and loading about 3 GB of weights
+- a long recap is 3.5 minutes of speech
+- a phone that locks its screen drops a held request
+
+`POST /recap-audio` therefore returns at once. A `RecapVoice` object for that night runs the job on
+an alarm, which has 15 minutes of wall clock; the job's own deadline is 14. The app polls the public
+`GET /recap-audio`, which reports only a status, and collects the MP3 from `POST … { file: true }`
+behind the admin word. A job is never started twice. The alarm never throws, because a retried
+alarm would spend GPU time again on a job that already failed.
+
+**Why two taps.** `navigator.share` needs a fresh user gesture, and the tap that started a
+three-minute recording has long expired. So "🎙️ Create recap" collects the file into memory, and
+"Share 🔊" opens the share sheet from its own tap. A take already on file for the same words comes
+straight back, because the cache key is the hash of the spoken text plus `VOICE_VERSION`. Re-rolling
+the report changes the words, so the old audio stops matching and reads as `none`. Deleting the
+report deletes the audio too.
+
+**The voice server.** It runs on Modal (`voice/modal_app.py`), on a T4 GPU paid for from the free
+Starter plan's $30 a month. A Hugging Face Space was the first plan, but Hugging Face now requires a
+paid plan to create any Gradio or Docker Space. Modal also fits better:
+
+- **Its own pins.** We control the whole image, so `chatterbox-tts` installs with its own torch 2.6
+  pin. ZeroGPU needed torch 2.8 or later, which meant installing the package with `--no-deps`.
+- **Its long-job pattern is ours.** `POST /jobs` spawns the job and returns its id. `GET
+  /jobs/{id}?wait=100` waits up to 100 s for the MP3 (Modal cuts a web request at 150) and
+  answers 202 if it's still running. A whole recap took two requests in local tests, well inside
+  the free Worker plan's 50 outbound requests per invocation.
+- **Weights are baked into the image** at build time, so a cold start loads them from disk. The
+  reference clip is not baked in. A container fetches it at startup from the private dataset
+  `ofh55/armonim-voice`, with a read-only token held in a Modal Secret, so changing the voice is an
+  upload rather than a redeploy.
+- **`speech.py` has no Modal in it.** It runs on a laptop CPU, which is how it was tested end to
+  end. `make_api()` takes the start and collect steps as functions, so the real HTTP surface was
+  served locally against the real pipeline, with Modal's edge auth imitated.
+
+Pipeline details:
+
+- **Vowel marks:** phonikud adds them first. Chatterbox's built-in Hebrew path only diacritises if
+  `dicta_onnx` is installed, and it isn't.
+- **Chunking:** text is split into chunks of 240 characters or fewer, because Chatterbox stops at
+  1000 speech tokens (about 40 s) per call and truncates silently. The reference clip is read once
+  per recap, not once per chunk.
+- **Limits:** one container at a time (`max_containers=1`), kept warm for two minutes after a job
+  for a second take, and 4 takes a day per IP in the Worker (`VOICE_LIMIT`), so a leaked admin word
+  can't spend the credits.
+
 ## 3. Team generation algorithm
 
 Balancing is a small constrained optimization. With ≤15 players, brute force is too big
