@@ -1,0 +1,156 @@
+# The night reporter's voice, served from Modal (DESIGN.md §2.69).
+#
+#   modal deploy voice/modal_app.py
+#
+# Two functions. `Voice` runs on a GPU and does the speaking (speech.py). `web`
+# runs on a CPU and is the only way in: it queues a recap and hands back its id,
+# then hands back the MP3 once it exists. That two-step shape is Modal's own
+# pattern for long jobs, and it is also what keeps a Worker on the free plan
+# within its request budget — no connection is held open for the minutes a cold
+# GPU and a long recap can take.
+#
+# **This is not an open text box.** `requires_proxy_auth=True` makes Modal's
+# edge refuse any request without a proxy-auth token from this workspace — with
+# a 401, before any container starts, so a stranger cannot even spend the GPU
+# credits. Only the Worker holds the token, and the Worker only ever sends a
+# recap that Gemini wrote for a real night. The reference voice sits in a
+# private Volume, never in this repo.
+
+from pathlib import Path
+
+import modal
+
+from speech import CHATTERBOX_FILES, CHATTERBOX_REPO, MAX_CHARS, PHONIKUD_FILE, PHONIKUD_REPO
+
+APP_NAME = "armonim-recap-voice"
+MODELS = "/models"
+VOICE_DIR = "/voice"
+REFERENCE = f"{VOICE_DIR}/reference_voice.wav"
+
+# How long the poll endpoint waits for a finished recap before answering
+# "still working". Modal cuts a web request at 150 s.
+MAX_WAIT_S = 100
+
+
+def bake_weights():
+    """Download every weight at build time, so a cold start loads from disk."""
+    from huggingface_hub import hf_hub_download, snapshot_download
+
+    snapshot_download(CHATTERBOX_REPO, allow_patterns=CHATTERBOX_FILES)
+    hf_hub_download(PHONIKUD_REPO, PHONIKUD_FILE)
+
+
+gpu_image = (
+    modal.Image.debian_slim(python_version="3.11")
+    .apt_install("ffmpeg")
+    # chatterbox-tts's own pins (torch 2.6 and friends) are fine here: unlike
+    # a Hugging Face ZeroGPU Space, Modal does not dictate the torch version.
+    .pip_install("chatterbox-tts==0.1.7", "phonikud==0.4.1", "phonikud-onnx==1.0.6")
+    .env({"HF_HOME": MODELS})
+    .add_local_file(Path(__file__).parent / "speech.py", "/root/speech.py", copy=True)
+    .run_function(bake_weights)
+    # baked in above; nothing at run time should reach for the Hub
+    .env({"HF_HUB_OFFLINE": "1"})
+)
+
+web_image = (
+    modal.Image.debian_slim(python_version="3.11")
+    .pip_install("fastapi[standard]")
+    .add_local_file(Path(__file__).parent / "speech.py", "/root/speech.py", copy=True)
+)
+
+app = modal.App(APP_NAME)
+
+# Created once with `modal volume create armonim-voice`, holding the clip.
+voice_volume = modal.Volume.from_name("armonim-voice")
+
+
+@app.cls(
+    image=gpu_image,
+    # Chatterbox is a 0.5B model: an L4 has room to spare and costs about
+    # $0.80 an hour, so a three-minute recap is a few cents of the free credit.
+    gpu="L4",
+    volumes={VOICE_DIR: voice_volume},
+    timeout=15 * 60,
+    # stay warm briefly for a second take, then stop billing
+    scaledown_window=120,
+    # one recap at a time — the club makes one a week
+    max_containers=1,
+)
+class Voice:
+    @modal.enter()
+    def load(self):
+        import os
+
+        from speech import load_model
+
+        if not os.path.exists(REFERENCE):
+            raise RuntimeError(
+                "reference voice missing — modal volume put armonim-voice reference_voice.wav reference_voice.wav"
+            )
+        self.model, self.diacritizer = load_model("cuda")
+
+    @modal.method()
+    def speak(self, text: str) -> bytes:
+        from speech import speak_mp3
+
+        return speak_mp3(self.model, self.diacritizer, REFERENCE, text)
+
+
+def make_api(start, result):
+    """
+    The HTTP side, free of Modal so it can be served locally with fakes.
+
+      POST /jobs        { text }  → { call_id }
+      GET  /jobs/{id}?wait=N      → 200 audio/mpeg | 202 still working
+                                    | 404 unknown or expired | 500 { error }
+
+    `start(text)` returns a job id; `result(id, wait)` returns the MP3 bytes,
+    or raises TimeoutError (still running) or LookupError (no such job).
+    """
+    from fastapi import Body, FastAPI
+    from fastapi.responses import JSONResponse, Response
+
+    api = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
+
+    @api.post("/jobs")
+    async def queue(text: str = Body(..., embed=True)):
+        text = text.strip()
+        if not text or len(text) > MAX_CHARS:
+            return JSONResponse({"error": "bad text"}, status_code=400)
+        return {"call_id": await start(text)}
+
+    @api.get("/jobs/{call_id}")
+    async def collect(call_id: str, wait: float = 0):
+        try:
+            audio = await result(call_id, max(0.0, min(wait, MAX_WAIT_S)))
+        except TimeoutError:
+            return JSONResponse({"status": "working"}, status_code=202)
+        except LookupError:
+            return JSONResponse({"error": "no such job"}, status_code=404)
+        except Exception as err:  # the job itself failed; say why
+            return JSONResponse({"error": str(err)[:300] or type(err).__name__}, status_code=500)
+        return Response(audio, media_type="audio/mpeg")
+
+    return api
+
+
+@app.function(image=web_image)
+@modal.asgi_app(requires_proxy_auth=True)
+def web():
+    async def start(text: str) -> str:
+        call = await Voice().speak.spawn.aio(text)
+        return call.object_id
+
+    async def result(call_id: str, wait: float) -> bytes:
+        # Still running is Python's own TimeoutError and passes straight
+        # through. Expired (results are kept 7 days) and unknown ids are
+        # Modal's own exceptions — and OutputExpiredError, despite subclassing
+        # Modal's TimeoutError, is not the built-in one.
+        try:
+            call = modal.FunctionCall.from_id(call_id)
+            return await call.get.aio(timeout=wait)
+        except (modal.exception.OutputExpiredError, modal.exception.NotFoundError) as err:
+            raise LookupError(call_id) from err
+
+    return make_api(start, result)

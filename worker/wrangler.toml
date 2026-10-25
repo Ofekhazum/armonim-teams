@@ -40,7 +40,7 @@ tag = "v3-clock-notifier"
 new_sqlite_classes = ["ClockNotifier"]
 
 # One instance per night, running that night's voiced recap on an alarm
-# (see recap-voice.js, §2.69). Needs HF_SPACE_URL, HF_TOKEN and VOICE_SECRET
+# (see recap-voice.js, §2.69). Needs VOICE_URL, MODAL_KEY and MODAL_SECRET
 # secrets; without them the routes answer "not-configured" and the app shows
 # no button.
 [[durable_objects.bindings]]

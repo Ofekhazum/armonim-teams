@@ -9,7 +9,7 @@ import { REMOTE_URL } from './remote';
 import type { ShareImageResult } from './shareImage';
 
 export interface VoiceStatus {
-  configured: boolean; // the Worker has a Space to call; no button otherwise
+  configured: boolean; // the Worker has a voice server to call; no button otherwise
   voiceable: boolean; // the stored recap is one Gemini wrote
   status: 'none' | 'working' | 'ready' | 'failed';
   startedAt?: number;

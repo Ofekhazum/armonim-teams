@@ -127,14 +127,14 @@ one report a week.
 ## The reporter's voice (optional)
 
 Reads a night's published report aloud as an MP3, which the organiser shares from the night's page
-(DESIGN.md §2.69). The voice comes from a Hugging Face Space (`hf-space/`; its README has the full
-setup). On this side it needs three secrets:
+(DESIGN.md §2.69). The voice comes from a Modal app (`voice/`; its README has the full setup). On
+this side it needs three secrets:
 
 ```sh
 cd worker
-npx wrangler secret put HF_SPACE_URL   # https://<you>-armonim-recap-voice.hf.space
-npx wrangler secret put HF_TOKEN       # fine-grained, read access to that Space
-npx wrangler secret put VOICE_SECRET   # the same value set on the Space
+npx wrangler secret put VOICE_URL      # https://<workspace>--armonim-recap-voice-web.modal.run
+npx wrangler secret put MODAL_KEY      # the proxy-auth token's ID (wk-…)
+npx wrangler secret put MODAL_SECRET   # the proxy-auth token's secret (ws-…)
 npx wrangler deploy                    # adds the RecapVoice Durable Object (migration v4)
 ```
 
@@ -145,7 +145,7 @@ If any of the three is missing, the routes answer `not-configured` and the app s
   `'edited'`. It gets `'gemini'` only if its text is word for word a draft this Worker generated
   for that night.
 - **The audio is behind the admin word.** The public `GET /recap-audio` reports only a status.
-- **The job runs on a Durable Object alarm**, because a sleeping Space plus a long recap can take
+- **The job runs on a Durable Object alarm**, because a cold GPU plus a long recap can take
   several minutes.
 
 ## Working on it locally

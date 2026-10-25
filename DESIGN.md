@@ -5123,7 +5123,7 @@ deliberately invisible; this one edits data the organiser typed, so it announces
 Verified end to end on the real records: with the alias the form now keeps, זרקא holds 3 of 3
 guest-era ids and רותם 2 of 2.
 
-### 2.69 The report, read aloud (`worker/recap-voice.js`, `hf-space/`, `RecapVoice.tsx`)
+### 2.69 The report, read aloud (`worker/recap-voice.js`, `voice/`, `RecapVoice.tsx`)
 
 The organiser can turn a night's published report (§2.24) into an MP3, read in a cloned voice, and
 send it to the group from the phone's share sheet. It is experimental and admin-only. It has three
@@ -5133,7 +5133,7 @@ parts, and each one knows nothing about the others' jobs:
 |---|---|---|
 | Gemini (`recap.js`) | writes the report | voices |
 | Worker (`recap-voice.js`) | picks the text, cleans it for speech, runs the job, caches the file | how speech is made |
-| Space (`hf-space/app.py`) | Hebrew text → MP3 in the reference voice | football, fixtures, the club |
+| Voice server (`voice/`, on Modal) | Hebrew text → MP3 in the reference voice | football, fixtures, the club |
 
 A dramatic persona script can replace the text later without touching the voice. It would be a new
 source of words feeding into `speakable()`.
@@ -5141,9 +5141,9 @@ source of words feeding into `speakable()`.
 **The voice is a real person's, so what it may say is the whole safety design.** It rests on three
 things that hold together:
 
-1. **No caller can supply words.** `POST /recap-audio` takes a fixture id. The Space's one function
-   rejects any call without `VOICE_SECRET`, and only the Worker holds it. The Space's page has no
-   inputs.
+1. **No caller can supply words.** `POST /recap-audio` takes a fixture id. The voice server's
+   endpoint uses `requires_proxy_auth=True`, so Modal rejects any request without the workspace's
+   proxy-auth token with a 401 before a container starts. Only the Worker holds the token.
 2. **Only Gemini's text is voiced.** `POST /recap` has always accepted `{ text }`, the organiser's
    approved draft. The app only ever sends back the exact draft, but the route itself would store
    any 8000 characters, and anything stored would then have been voiced. Saying "the Worker only
@@ -5175,7 +5175,7 @@ is left in any of the eight recaps.
 
 **Why a Durable Object.** Three things add up to minutes:
 
-- a free Space sleeps when idle, and waking it means booting and loading about 3 GB of weights
+- a GPU container starts cold when idle, which means booting and loading about 3 GB of weights
 - a long recap is 3.5 minutes of speech
 - a phone that locks its screen drops a held request
 
@@ -5192,21 +5192,32 @@ straight back, because the cache key is the hash of the spoken text plus `VOICE_
 the report changes the words, so the old audio stops matching and reads as `none`. Deleting the
 report deletes the audio too.
 
-**The Space.** It runs on ZeroGPU. Since mid-2026, free accounts can no longer create Gradio Spaces
-on CPU Basic, and on 2 vCPUs Chatterbox would take minutes per recap anyway.
+**The voice server.** It runs on Modal (`voice/modal_app.py`), on an L4 GPU paid for from the free
+Starter plan's $30 a month. A Hugging Face Space was the first plan, but Hugging Face now requires a
+paid plan to create any Gradio or Docker Space. Modal also fits better:
 
-- **torch:** `chatterbox-tts` pins `torch==2.6.0` and ZeroGPU needs 2.8 or later. So
-  `requirements.txt` lists Chatterbox's own dependencies with torch 2.8, and `app.py` installs the
-  package with `--no-deps`. pip has no per-line `--no-deps`. Resemble's own ZeroGPU Spaces get
-  around the same pin by copying the source into the Space.
+- **Its own pins.** We control the whole image, so `chatterbox-tts` installs with its own torch 2.6
+  pin. ZeroGPU needed torch 2.8 or later, which meant installing the package with `--no-deps`.
+- **Its long-job pattern is ours.** `POST /jobs` spawns the job and returns its id. `GET
+  /jobs/{id}?wait=100` waits up to 100 s for the MP3 (Modal cuts a web request at 150) and
+  answers 202 if it's still running. A whole recap took two requests in local tests, well inside
+  the free Worker plan's 50 outbound requests per invocation.
+- **Weights are baked into the image** at build time, and `HF_HUB_OFFLINE=1` is set afterwards, so
+  a cold start loads from disk and nothing at run time reaches for the Hub.
+- **`speech.py` has no Modal in it.** It runs on a laptop CPU, which is how it was tested end to
+  end. `make_api()` takes the start and collect steps as functions, so the real HTTP surface was
+  served locally against the real pipeline, with Modal's edge auth imitated.
+
+Pipeline details:
+
 - **Vowel marks:** phonikud adds them first. Chatterbox's built-in Hebrew path only diacritises if
   `dicta_onnx` is installed, and it isn't.
 - **Chunking:** text is split into chunks of 240 characters or fewer, because Chatterbox stops at
-  1000 speech tokens (about 40 s) per call and truncates silently.
-- **One GPU call per chunk:** ZeroGPU refuses a call whose requested duration exceeds the quota
-  left, so one long request would fail on any day some quota had already been used.
-- **Limits:** the free allowance is 5 GPU-minutes a day, and the Worker allows 4 takes a day per IP
-  (`VOICE_LIMIT`), so a leaked admin word can't queue unlimited jobs.
+  1000 speech tokens (about 40 s) per call and truncates silently. The reference clip is read once
+  per recap, not once per chunk.
+- **Limits:** one container at a time (`max_containers=1`), kept warm for two minutes after a job
+  for a second take, and 4 takes a day per IP in the Worker (`VOICE_LIMIT`), so a leaked admin word
+  can't spend the credits.
 
 ## 3. Team generation algorithm
 

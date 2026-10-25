@@ -2,10 +2,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import worker from './roster-worker.js';
 import {
   RecapVoice,
-  awaitJob,
   canVoice,
+  collectJob,
   hebrewNumber,
-  parseEvents,
   speakable,
   startJob,
   voiceHash,
@@ -131,111 +130,105 @@ describe('canVoice', () => {
   });
 });
 
-// --- The Space client -----------------------------------------------------------
+// --- The voice server client ----------------------------------------------------
 
-const SPACE = 'https://club-voice.hf.space';
-const spaceEnv = (over = {}) => ({
-  HF_SPACE_URL: SPACE,
-  HF_TOKEN: 'hf_test',
-  VOICE_SECRET: 'voice-secret',
+const VOICE = 'https://club--armonim-recap-voice-web.modal.run';
+const voiceEnv = (over = {}) => ({
+  VOICE_URL: VOICE,
+  MODAL_KEY: 'wk-test',
+  MODAL_SECRET: 'ws-test',
   ...over,
 });
 
-const sse = (...events) =>
-  events.map(([event, data]) => `event: ${event}\ndata: ${data}`).join('\n\n') + '\n\n';
-
-describe('parseEvents', () => {
-  it('reads Gradio’s stream, heartbeats and all', () => {
-    const body = sse(['heartbeat', 'null'], ['complete', '[{"url":"u"}]']);
-    expect(parseEvents(body)).toEqual([
-      { event: 'heartbeat', data: 'null' },
-      { event: 'complete', data: '[{"url":"u"}]' },
-    ]);
-  });
-});
+const MP3 = new Uint8Array([0x49, 0x44, 0x33, 1, 2, 3]).buffer;
+const later = () => Date.now() + 14 * 60_000;
 
 describe('startJob', () => {
-  it('sends the words and the secret, with the token, and nothing else', async () => {
+  it('sends the words with the proxy-auth token, and nothing else', async () => {
     const calls = [];
     vi.stubGlobal('fetch', async (url, init) => {
       calls.push({ url, init });
-      return Response.json({ event_id: 'e1' });
+      return Response.json({ call_id: 'fc-1' });
     });
-    expect(await startJob(spaceEnv(), 'שלום.', { deadline: Date.now() + 60_000 })).toBe('e1');
-    expect(calls[0].url).toBe(`${SPACE}/gradio_api/call/synthesize`);
-    expect(calls[0].init.headers.Authorization).toBe('Bearer hf_test');
-    expect(JSON.parse(calls[0].init.body)).toEqual({ data: ['שלום.', 'voice-secret'] });
+    expect(await startJob(voiceEnv(), 'שלום.')).toBe('fc-1');
+    expect(calls[0].url).toBe(`${VOICE}/jobs`);
+    expect(calls[0].init.headers['Modal-Key']).toBe('wk-test');
+    expect(calls[0].init.headers['Modal-Secret']).toBe('ws-test');
+    expect(JSON.parse(calls[0].init.body)).toEqual({ text: 'שלום.' });
   });
 
-  it('keeps knocking while the Space wakes up', async () => {
-    // A sleeping Space answers with a holding page, then a 503, for minutes.
-    const answers = [
-      new Response('<html>sleeping</html>', { status: 200 }),
-      new Response('', { status: 503 }),
-      Response.json({ event_id: 'e2' }),
-    ];
+  it('tries again through a cold start or a blip', async () => {
+    const answers = [new Response('', { status: 503 }), Response.json({ call_id: 'fc-2' })];
     vi.stubGlobal('fetch', async () => answers.shift());
     let waited = 0;
-    const id = await startJob(spaceEnv(), 'x', {
-      deadline: Date.now() + 10 * 60_000,
-      wait: async () => void waited++,
-    });
-    expect(id).toBe('e2');
-    expect(waited).toBe(2);
+    expect(await startJob(voiceEnv(), 'x', { wait: async () => void waited++ })).toBe('fc-2');
+    expect(waited).toBe(1);
   });
 
-  it('stops at the deadline rather than knocking forever', async () => {
-    vi.stubGlobal('fetch', async () => new Response('', { status: 503 }));
-    let t = 0;
-    await expect(
-      startJob(spaceEnv(), 'x', { deadline: 60_000, now: () => t, wait: async (ms) => void (t += ms) }),
-    ).rejects.toThrow(/did not wake up/);
-  });
-
-  it('stays inside the free plan’s 50 requests however long the deadline', async () => {
+  it('gives up after a few tries rather than knocking forever', async () => {
     let calls = 0;
     vi.stubGlobal('fetch', async () => {
       calls++;
       return new Response('', { status: 503 });
     });
-    await expect(
-      startJob(spaceEnv(), 'x', { deadline: Infinity, wait: async () => {} }),
-    ).rejects.toThrow(/did not wake up/);
-    // and two more after it: the stream and the file
-    expect(calls + 2).toBeLessThanOrEqual(50);
+    await expect(startJob(voiceEnv(), 'x', { wait: async () => {} })).rejects.toThrow(/unreachable/);
+    expect(calls).toBe(3);
   });
 
-  it('gives up at once on a refused token — retrying that only burns the clock', async () => {
+  it('gives up at once on a refused token — Modal answers that at its edge', async () => {
     let calls = 0;
     vi.stubGlobal('fetch', async () => {
       calls++;
-      return new Response('', { status: 401 });
+      return new Response('modal-http: missing credentials for proxy authorization', { status: 401 });
     });
-    await expect(startJob(spaceEnv(), 'x', { deadline: Date.now() + 60_000 })).rejects.toThrow(
-      /refused the token/,
-    );
+    await expect(startJob(voiceEnv(), 'x')).rejects.toThrow(/refused the token/);
     expect(calls).toBe(1);
   });
 });
 
-describe('awaitJob', () => {
-  it('returns the file the job made', async () => {
+describe('collectJob', () => {
+  it('asks the endpoint to wait, and keeps asking while it says "working"', async () => {
+    const urls = [];
+    const answers = [Response.json({ status: 'working' }, { status: 202 }), new Response(MP3)];
+    vi.stubGlobal('fetch', async (url) => {
+      urls.push(url);
+      return answers.shift();
+    });
+    const bytes = await collectJob(voiceEnv(), 'fc-1', { deadline: later() });
+    expect(new Uint8Array(bytes)).toEqual(new Uint8Array(MP3));
+    expect(urls[0]).toBe(`${VOICE}/jobs/fc-1?wait=100`);
+  });
+
+  it('carries the job’s own reason when it failed', async () => {
     vi.stubGlobal('fetch', async () =>
-      new Response(sse(['heartbeat', 'null'], ['complete', `[{"url":"${SPACE}/gradio_api/file=/tmp/r.mp3"}]`])),
+      Response.json({ error: 'reference voice missing' }, { status: 500 }),
     );
-    expect(await awaitJob(spaceEnv(), 'e1', { deadline: Date.now() + 60_000 })).toBe(
-      `${SPACE}/gradio_api/file=/tmp/r.mp3`,
+    await expect(collectJob(voiceEnv(), 'fc-1', { deadline: later() })).rejects.toThrow(
+      'voice job failed: reference voice missing',
     );
   });
 
-  it('carries the Space’s own reason when it refuses', async () => {
-    // verbatim from Gradio 6.30, called with the wrong secret
-    vi.stubGlobal('fetch', async () =>
-      new Response(sse(['error', '{"error": "forbidden", "duration": 10, "visible": true, "title": "Error"}'])),
-    );
-    await expect(awaitJob(spaceEnv(), 'e1', { deadline: Date.now() + 60_000 })).rejects.toThrow(
-      'space: forbidden',
-    );
+  it('never asks the endpoint to wait past the deadline', async () => {
+    const urls = [];
+    vi.stubGlobal('fetch', async (url) => {
+      urls.push(url);
+      return new Response(MP3);
+    });
+    await collectJob(voiceEnv(), 'fc-1', { deadline: Date.now() + 30_000 });
+    expect(Number(new URL(urls[0]).searchParams.get('wait'))).toBeLessThanOrEqual(25);
+  });
+
+  it('stays inside the free plan’s 50 requests however long it runs', async () => {
+    let calls = 0;
+    vi.stubGlobal('fetch', async () => {
+      calls++;
+      return Response.json({ status: 'working' }, { status: 202 });
+    });
+    await expect(
+      collectJob(voiceEnv(), 'fc-1', { deadline: Infinity, wait: async () => {} }),
+    ).rejects.toThrow(/did not finish/);
+    // plus the three tries startJob may need
+    expect(calls + 3).toBeLessThanOrEqual(50);
   });
 });
 
@@ -274,17 +267,11 @@ function fakeKv() {
   };
 }
 
-const MP3 = new Uint8Array([0x49, 0x44, 0x33, 1, 2, 3]).buffer;
-
-// The Space, end to end: queue, stream, file.
-const spaceAnswers = () =>
-  vi.stubGlobal('fetch', async (url, init) => {
-    if (init?.method === 'POST') return Response.json({ event_id: 'e1' });
-    if (String(url).includes('/gradio_api/call/')) {
-      return new Response(sse(['complete', `[{"url":"${SPACE}/gradio_api/file=/tmp/r.mp3"}]`]));
-    }
-    return new Response(MP3);
-  });
+// The voice server, end to end: queue, then collect.
+const voiceAnswers = () =>
+  vi.stubGlobal('fetch', async (_url, init) =>
+    init?.method === 'POST' ? Response.json({ call_id: 'fc-1' }) : new Response(MP3),
+  );
 
 const startJobOn = (voice, body) =>
   voice.fetch(new Request('https://voice/start', { method: 'POST', body: JSON.stringify(body) }));
@@ -292,13 +279,13 @@ const startJobOn = (voice, body) =>
 describe('RecapVoice', () => {
   it('starts on an alarm and files the audio under the words it read', async () => {
     const state = fakeState();
-    const env = { ...spaceEnv(), ROSTER_KV: fakeKv() };
+    const env = { ...voiceEnv(), ROSTER_KV: fakeKv() };
     const voice = new RecapVoice(state, env);
     const started = await (await startJobOn(voice, { fixtureId: 'f1', text: 'שלום.', hash: 'h1' })).json();
     expect(started.status).toBe('working');
     expect(state.alarmAt()).not.toBeNull();
 
-    spaceAnswers();
+    voiceAnswers();
     await voice.alarm();
     expect(new Uint8Array(env.ROSTER_KV.store.get(voiceKey('f1')))).toEqual(new Uint8Array(MP3));
     expect(env.ROSTER_KV.meta.get(voiceKey('f1')).hash).toBe('h1');
@@ -308,7 +295,7 @@ describe('RecapVoice', () => {
 
   it('never runs two at once for the same night', async () => {
     const state = fakeState();
-    const voice = new RecapVoice(state, { ...spaceEnv(), ROSTER_KV: fakeKv() });
+    const voice = new RecapVoice(state, { ...voiceEnv(), ROSTER_KV: fakeKv() });
     const first = await (await startJobOn(voice, { fixtureId: 'f1', text: 'א.', hash: 'h1' })).json();
     const second = await (await startJobOn(voice, { fixtureId: 'f1', text: 'ב.', hash: 'h2' })).json();
     expect(second).toEqual(first);
@@ -316,7 +303,7 @@ describe('RecapVoice', () => {
 
   it('records a failure instead of throwing — a retried alarm is GPU time spent again', async () => {
     const state = fakeState();
-    const env = { ...spaceEnv(), ROSTER_KV: fakeKv() };
+    const env = { ...voiceEnv(), ROSTER_KV: fakeKv() };
     const voice = new RecapVoice(state, env);
     await startJobOn(voice, { fixtureId: 'f1', text: 'שלום.', hash: 'h1' });
     vi.stubGlobal('fetch', async () => new Response('', { status: 403 }));
@@ -358,7 +345,7 @@ function routeEnv({ configured = true } = {}) {
         return { fetch: (url, init) => entry.instance.fetch(new Request(url, init)) };
       },
     },
-    ...(configured ? spaceEnv() : {}),
+    ...(configured ? voiceEnv() : {}),
   };
   return { env, kv, voices, limited };
 }
@@ -509,7 +496,7 @@ describe('/recap-audio', () => {
     const { env, kv, voices } = routeEnv();
     await storeRecap(kv, 'f1', { text: 'הכחולים לקחו את הערב.', at: 1, source: 'gemini' });
     await call(env, '/recap-audio', { secret: WORD, fixtureId: 'f1' });
-    spaceAnswers();
+    voiceAnswers();
     await voices.get('f1').instance.alarm();
     expect(await (await call(env, '/recap-audio?id=f1')).json()).toMatchObject({ status: 'ready' });
     const res = await call(env, '/recap-audio', { secret: WORD, fixtureId: 'f1', file: true });

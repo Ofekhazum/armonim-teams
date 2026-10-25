@@ -1,5 +1,6 @@
 // The night reporter's voice (§2.69): a night's stored recap, read aloud by the
-// Space in hf-space/, cached in KV, and handed to the organiser to share.
+// voice server in voice/ (a Modal app), cached in KV, and handed to the
+// organiser to share.
 //
 // Three parts, in the order a recap travels through them:
 //
@@ -7,34 +8,42 @@
 //                  no emoji, no markdown, every number spelled out in Hebrew
 //   provenance     only a recap Gemini wrote is ever voiced (see below)
 //   RecapVoice     a Durable Object per night that runs the job on an alarm,
-//                  because a cold Space plus a three-minute recap is longer
-//                  than anyone should hold a request open from a phone
+//                  because a cold GPU plus a three-minute recap is longer than
+//                  anyone should hold a request open from a phone
 //
-// **Why provenance.** The Space speaks in a real person's cloned voice, so what
-// it is allowed to say is the whole safety story. `POST /recap` has always
-// accepted `{ text }` — the organiser's approved draft — and the app only ever
-// sends back exactly what Gemini wrote. But the route itself would store any
-// 8000 characters at all, and anything stored would then be voiced. So the
-// Worker now remembers a fingerprint of every draft it generates, and a stored
-// recap is marked `source: 'gemini'` only if its text is one of them. Anything
-// else is `'edited'`, and edited text is never sent to the Space. The admin word
-// can still write a recap by hand — it just cannot make the voice say it.
+// **Why provenance.** The voice server speaks in a real person's cloned voice,
+// so what it is allowed to say is the whole safety story. `POST /recap` has
+// always accepted `{ text }` — the organiser's approved draft — and the app
+// only ever sends back exactly what Gemini wrote. But the route itself would
+// store any 8000 characters at all, and anything stored would then be voiced.
+// So the Worker now remembers a fingerprint of every draft it generates, and a
+// stored recap is marked `source: 'gemini'` only if its text is one of them.
+// Anything else is `'edited'`, and edited text is never sent to be spoken. The
+// admin word can still write a recap by hand — it just cannot make the voice
+// say it.
 
-const SPACE_FN = 'synthesize';
-
-// Bump when speakable() or the Space changes what a recap sounds like, so the
-// cached audio for every night stops matching and is made again on request.
+// Bump when speakable() or the voice server changes what a recap sounds like,
+// so the cached audio for every night stops matching and is made again on
+// request.
 export const VOICE_VERSION = 1;
 
-// A cold Space takes a few minutes to boot and load ~3 GB of weights; a long
-// recap is a few more to generate. An alarm handler gets fifteen minutes of
-// wall clock, so the whole job — waking included — has to fit inside fourteen.
+// A cold GPU container boots and loads ~3 GB of weights; a long recap is a few
+// minutes more to generate. An alarm handler gets fifteen minutes of wall
+// clock, so the whole job has to fit inside fourteen.
 export const JOB_TIMEOUT_MS = 14 * 60 * 1000;
-// Knocking while it wakes. The free plan allows 50 outbound requests per
-// invocation, and the alarm needs two more after the knocking (the stream and
-// the file) — so 40 knocks, 20 s apart, which also spans the 14 minutes.
-const WAKE_POLL_MS = 20 * 1000;
-const MAX_WAKE_TRIES = 40;
+
+// Queueing a job. The endpoint itself is a small CPU container, up in seconds,
+// so a few tries a little apart cover a cold start or a blip.
+const START_TRIES = 3;
+const START_RETRY_MS = 10 * 1000;
+
+// Collecting it. Each poll asks the endpoint to wait up to 100 s for the result
+// (Modal cuts a web request at 150), so a whole job is a handful of requests —
+// well inside the free plan's 50 outbound requests per invocation, which a
+// poll every few seconds for fourteen minutes would not be.
+const POLL_WAIT_S = 100;
+const MAX_POLLS = 12;
+const POLL_RETRY_MS = 10 * 1000;
 
 // A three-minute recap at 64 kbps is ~1.5 MB. Twenty is "something is wrong".
 const MAX_AUDIO_BYTES = 20 * 1024 * 1024;
@@ -49,7 +58,7 @@ export const voiceKey = (fixtureId) => `recapaudio:${fixtureId}`;
 const draftsKey = (fixtureId) => `recapdrafts:${fixtureId}`;
 
 export const voiceConfigured = (env) =>
-  Boolean(env.HF_SPACE_URL && env.HF_TOKEN && env.VOICE_SECRET);
+  Boolean(env.VOICE_URL && env.MODAL_KEY && env.MODAL_SECRET);
 
 export async function sha256Hex(text) {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
@@ -229,7 +238,7 @@ const EMOJI = /[\p{Extended_Pictographic}\u{1F1E6}-\u{1F1FF}\u{1F3FB}-\u{1F3FF}\
 /**
  * A recap rewritten for the ear.
  *
- * Paragraphs stay on their own lines — the Space pauses longer between
+ * Paragraphs stay on their own lines — the voice server pauses longer between
  * paragraphs than between sentences — and every line ends in punctuation, so
  * the masthead ("ארבל זעזוע מדווח מהמגרש") is a sentence of its own rather
  * than run into the first line of the report.
@@ -291,107 +300,84 @@ export function speakable(text) {
     .join('\n');
 }
 
-// --- The Space ------------------------------------------------------------
+// --- The voice server -------------------------------------------------------
 //
-// Gradio's two-step REST API, which is what @gradio/client does underneath:
-// POST queues the job and answers at once with an event id; GET on that id is
-// a server-sent-event stream that ends when the job does. The file it names is
-// fetched with the same token — the Space is private, so every URL on it is.
+// Two calls, which is Modal's own pattern for a long job: POST queues it and
+// answers at once with an id; GET on that id answers with the MP3 once it
+// exists, waiting up to `wait` seconds first, or 202 if it is still running.
+// Every request carries a Modal proxy-auth token. Without one Modal's edge
+// answers 401 before any container starts, so the endpoint is not something a
+// stranger can call, or spend the GPU credits through.
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-const spaceUrl = (env, path) => `${String(env.HF_SPACE_URL).replace(/\/+$/, '')}${path}`;
-const auth = (env) => ({ Authorization: `Bearer ${env.HF_TOKEN}` });
+const voiceUrl = (env, path) => `${String(env.VOICE_URL).replace(/\/+$/, '')}${path}`;
+const auth = (env) => ({ 'Modal-Key': env.MODAL_KEY, 'Modal-Secret': env.MODAL_SECRET });
 
-/** `event:` / `data:` pairs out of a finished SSE body. */
-export function parseEvents(body) {
-  const events = [];
-  for (const block of String(body).split(/\r?\n\r?\n/)) {
-    let event = 'message';
-    const data = [];
-    for (const line of block.split(/\r?\n/)) {
-      if (line.startsWith('event:')) event = line.slice(6).trim();
-      else if (line.startsWith('data:')) data.push(line.slice(5).replace(/^ /, ''));
-    }
-    if (data.length) events.push({ event, data: data.join('\n') });
-  }
-  return events;
-}
+const refusedToken = (res) => res?.status === 401 || res?.status === 403;
 
-/**
- * Queue the job. A sleeping Space answers with a holding page, a 503 or — for
- * a private one still starting — a 404 until it is up, so every answer that is
- * not an event id is "ask again shortly", until the deadline. Only a refused
- * token is final: retrying that just burns the clock.
- */
-export async function startJob(env, text, { deadline, wait = sleep, now = Date.now } = {}) {
+/** Queue the words; the job's id. A refused token or refused text is final. */
+export async function startJob(env, text, { wait = sleep } = {}) {
   for (let tries = 1; ; tries++) {
     let res = null;
     try {
-      res = await fetch(spaceUrl(env, `/gradio_api/call/${SPACE_FN}`), {
+      res = await fetch(voiceUrl(env, '/jobs'), {
         method: 'POST',
         headers: { ...auth(env), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ data: [text, env.VOICE_SECRET] }),
+        body: JSON.stringify({ text }),
       });
     } catch {
-      // the Space being mid-restart looks like a dropped connection
+      // a dropped connection is worth another try
     }
-    if (res?.status === 401 || res?.status === 403) {
-      throw new Error(`space refused the token (${res.status})`);
-    }
+    if (refusedToken(res)) throw new Error(`voice server refused the token (${res.status})`);
+    if (res?.status === 400) throw new Error('voice server refused the text');
     if (res?.ok) {
       const body = await res.json().catch(() => null);
-      if (typeof body?.event_id === 'string') return body.event_id;
+      if (typeof body?.call_id === 'string') return body.call_id;
     }
-    if (tries >= MAX_WAKE_TRIES || now() + WAKE_POLL_MS > deadline) {
-      throw new Error('space did not wake up in time');
+    if (tries >= START_TRIES) {
+      throw new Error(`voice server unreachable${res ? ` (${res.status})` : ''}`);
     }
-    await wait(WAKE_POLL_MS);
+    await wait(START_RETRY_MS);
   }
 }
 
-/** Wait for the job to finish, and return the URL of the file it made. */
-export async function awaitJob(env, eventId, { deadline, now = Date.now } = {}) {
-  const res = await fetch(spaceUrl(env, `/gradio_api/call/${SPACE_FN}/${eventId}`), {
-    headers: auth(env),
-    signal: AbortSignal.timeout(Math.max(1000, deadline - now())),
-  });
-  if (!res.ok) throw new Error(`space stream answered ${res.status}`);
-  const events = parseEvents(await res.text());
-  const done = events.find((e) => e.event === 'complete' || e.event === 'error');
-  if (!done) throw new Error('space stream ended without a result');
-  if (done.event === 'error') {
-    // Gradio 6 says `{"error": "forbidden", "title": …}`; older ones a bare
-    // string, or `null` when the Space hides its errors.
-    let said = done.data;
+/** Wait for the job and return its MP3. */
+export async function collectJob(env, callId, { deadline, wait = sleep, now = Date.now } = {}) {
+  for (let polls = 1; ; polls++) {
+    const left = Math.floor((deadline - now()) / 1000);
+    if (left <= 5 || polls > MAX_POLLS) throw new Error('voice job did not finish in time');
+    const waitS = Math.min(POLL_WAIT_S, left - 5);
+
+    let res = null;
     try {
-      const parsed = JSON.parse(done.data);
-      said = typeof parsed?.error === 'string' ? parsed.error : (parsed ?? 'error');
+      res = await fetch(voiceUrl(env, `/jobs/${encodeURIComponent(callId)}?wait=${waitS}`), {
+        headers: auth(env),
+        signal: AbortSignal.timeout((waitS + 30) * 1000),
+      });
     } catch {
-      // not JSON: a bare string is fine as it is
+      // a dropped poll loses nothing — the job runs on regardless
     }
-    throw new Error(`space: ${typeof said === 'string' ? said : JSON.stringify(said)}`);
+    if (refusedToken(res)) throw new Error(`voice server refused the token (${res.status})`);
+    if (res?.status === 202) continue;
+    if (res?.ok) {
+      const bytes = await res.arrayBuffer();
+      if (bytes.byteLength === 0 || bytes.byteLength > MAX_AUDIO_BYTES) {
+        throw new Error(`voice server sent ${bytes.byteLength} bytes`);
+      }
+      return bytes;
+    }
+    if (res) {
+      const said = await res.json().catch(() => ({}));
+      throw new Error(`voice job failed: ${said.error ?? res.status}`);
+    }
+    await wait(POLL_RETRY_MS);
   }
-  const [file] = JSON.parse(done.data);
-  if (file?.url) return file.url;
-  if (file?.path) return spaceUrl(env, `/gradio_api/file=${file.path}`);
-  throw new Error('space returned no file');
 }
 
-export async function fetchAudio(env, url) {
-  const res = await fetch(url, { headers: auth(env) });
-  if (!res.ok) throw new Error(`space file answered ${res.status}`);
-  const bytes = await res.arrayBuffer();
-  if (bytes.byteLength === 0 || bytes.byteLength > MAX_AUDIO_BYTES) {
-    throw new Error(`space file was ${bytes.byteLength} bytes`);
-  }
-  return bytes;
-}
-
-export async function synthesize(env, text, opts) {
-  const eventId = await startJob(env, text, opts);
-  const url = await awaitJob(env, eventId, opts);
-  return fetchAudio(env, url);
+export async function synthesize(env, text, opts = {}) {
+  const callId = await startJob(env, text, opts);
+  return collectJob(env, callId, opts);
 }
 
 // --- The job --------------------------------------------------------------

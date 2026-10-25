@@ -190,8 +190,8 @@ export const night = {
     en: 'That is four recordings today already. Try again tomorrow.',
   },
   'np.voice.err.notConfigured': {
-    he: 'אין שרת קול בפריסה הזאת: לוורקר חסרים HF_SPACE_URL, HF_TOKEN או VOICE_SECRET.',
-    en: 'No voice on this deployment: the worker is missing HF_SPACE_URL, HF_TOKEN or VOICE_SECRET.',
+    he: 'אין שרת קול בפריסה הזאת: לוורקר חסרים VOICE_URL, MODAL_KEY או MODAL_SECRET.',
+    en: 'No voice on this deployment: the worker is missing VOICE_URL, MODAL_KEY or MODAL_SECRET.',
   },
   'np.voice.err.failed': { he: 'ההקלטה נכשלה{detail}', en: 'The recording failed{detail}' },
   'np.voice.err.noFile': {
