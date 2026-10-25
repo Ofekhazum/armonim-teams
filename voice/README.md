@@ -26,7 +26,25 @@ These are part of the design, not optional extras. The voice is a real person's.
   `generate()`. The MP3's title and comment tags say it's an AI voice. The app names the file
   `…-AI-voice.mp3` and sends a line of text with it saying so.
 
-## Setup
+## Setup without the CLI (dashboard + GitHub Actions)
+
+Modal's CLI uses gRPC, which TLS-inspecting corporate proxies such as Netskope tend to cut
+("Connection lost" from `modal setup`). This route needs only a browser. A phone is enough.
+
+1. **A Modal API token for GitHub.** In the Modal dashboard, go to Settings → API Tokens and create
+   a token. Copy its ID and secret.
+2. **GitHub secrets.** At `github.com/<owner>/armonim-teams/settings/secrets/actions`, add
+   `MODAL_TOKEN_ID` and `MODAL_TOKEN_SECRET` with those two values.
+3. **The HF token as a Modal Secret.** In the Modal dashboard, go to Secrets → Create → Custom.
+   Name it `armonim-voice` and give it one key, `HF_TOKEN`, set to a fine-grained Hugging Face
+   token with read access to `ofh55/armonim-voice` only.
+4. **Deploy.** `.github/workflows/deploy-voice.yml` runs `modal deploy` on every push that
+   changes `voice/`. To re-run it, open the Actions tab → *Deploy recap voice to Modal* → the
+   latest run → *Re-run jobs*. The log ends with the endpoint's URL, which is also shown in the
+   Modal dashboard under Apps → `armonim-recap-voice`.
+5. **The proxy-auth token** and **the Worker:** steps 4 and 6 below.
+
+## Setup with the CLI
 
 Run all of these from the repo root.
 
