@@ -5202,8 +5202,10 @@ paid plan to create any Gradio or Docker Space. Modal also fits better:
   /jobs/{id}?wait=100` waits up to 100 s for the MP3 (Modal cuts a web request at 150) and
   answers 202 if it's still running. A whole recap took two requests in local tests, well inside
   the free Worker plan's 50 outbound requests per invocation.
-- **Weights are baked into the image** at build time, and `HF_HUB_OFFLINE=1` is set afterwards, so
-  a cold start loads from disk and nothing at run time reaches for the Hub.
+- **Weights are baked into the image** at build time, so a cold start loads them from disk. The
+  reference clip is not baked in. A container fetches it at startup from the private dataset
+  `ofh55/armonim-voice`, with a read-only token held in a Modal Secret, so changing the voice is an
+  upload rather than a redeploy.
 - **`speech.py` has no Modal in it.** It runs on a laptop CPU, which is how it was tested end to
   end. `make_api()` takes the start and collect steps as functions, so the real HTTP surface was
   served locally against the real pipeline, with Modal's edge auth imitated.

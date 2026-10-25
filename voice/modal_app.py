@@ -13,8 +13,9 @@
 # edge refuse any request without a proxy-auth token from this workspace — with
 # a 401, before any container starts, so a stranger cannot even spend the GPU
 # credits. Only the Worker holds the token, and the Worker only ever sends a
-# recap that Gemini wrote for a real night. The reference voice sits in a
-# private Volume, never in this repo.
+# recap that Gemini wrote for a real night. The reference voice stays in a
+# private Hugging Face dataset, fetched with a token from a Modal Secret when a
+# container starts — never in this repo, and never baked into the image.
 
 from pathlib import Path
 
@@ -24,8 +25,13 @@ from speech import CHATTERBOX_FILES, CHATTERBOX_REPO, MAX_CHARS, PHONIKUD_FILE, 
 
 APP_NAME = "armonim-recap-voice"
 MODELS = "/models"
-VOICE_DIR = "/voice"
-REFERENCE = f"{VOICE_DIR}/reference_voice.wav"
+
+# The private dataset holding the clip, and the Modal Secret holding the
+# Hugging Face token that can read it (`modal secret create armonim-voice
+# HF_TOKEN=…`).
+VOICE_REPO = "ofh55/armonim-voice"
+VOICE_FILE = "reference_voice.wav"
+VOICE_SECRET_NAME = "armonim-voice"
 
 # How long the poll endpoint waits for a finished recap before answering
 # "still working". Modal cuts a web request at 150 s.
@@ -49,8 +55,6 @@ gpu_image = (
     .env({"HF_HOME": MODELS})
     .add_local_file(Path(__file__).parent / "speech.py", "/root/speech.py", copy=True)
     .run_function(bake_weights)
-    # baked in above; nothing at run time should reach for the Hub
-    .env({"HF_HUB_OFFLINE": "1"})
 )
 
 web_image = (
@@ -61,16 +65,13 @@ web_image = (
 
 app = modal.App(APP_NAME)
 
-# Created once with `modal volume create armonim-voice`, holding the clip.
-voice_volume = modal.Volume.from_name("armonim-voice")
-
 
 @app.cls(
     image=gpu_image,
     # Chatterbox is a 0.5B model: an L4 has room to spare and costs about
     # $0.80 an hour, so a three-minute recap is a few cents of the free credit.
     gpu="L4",
-    volumes={VOICE_DIR: voice_volume},
+    secrets=[modal.Secret.from_name(VOICE_SECRET_NAME)],
     timeout=15 * 60,
     # stay warm briefly for a second take, then stop billing
     scaledown_window=120,
@@ -82,19 +83,23 @@ class Voice:
     def load(self):
         import os
 
+        from huggingface_hub import hf_hub_download
+
         from speech import load_model
 
-        if not os.path.exists(REFERENCE):
-            raise RuntimeError(
-                "reference voice missing — modal volume put armonim-voice reference_voice.wav reference_voice.wav"
-            )
+        # Fetched per container rather than baked into the image, so changing
+        # the voice is an upload to the dataset rather than a redeploy, and the
+        # clip never sits in an image layer.
+        self.reference = hf_hub_download(
+            VOICE_REPO, VOICE_FILE, repo_type="dataset", token=os.environ["HF_TOKEN"]
+        )
         self.model, self.diacritizer = load_model("cuda")
 
     @modal.method()
     def speak(self, text: str) -> bytes:
         from speech import speak_mp3
 
-        return speak_mp3(self.model, self.diacritizer, REFERENCE, text)
+        return speak_mp3(self.model, self.diacritizer, self.reference, text)
 
 
 def make_api(start, result):

@@ -19,7 +19,9 @@ These are part of the design, not optional extras. The voice is a real person's.
 - **There's no open endpoint.** `requires_proxy_auth=True` means Modal itself rejects any request
   without this workspace's proxy-auth token, returning 401 before any container starts. Only the
   Worker holds the token, and the Worker only sends a recap that Gemini wrote for a real night.
-- **The reference voice lives in a private Modal Volume**, never in this repo.
+- **The reference voice lives in a private Hugging Face dataset** (`ofh55/armonim-voice`). A
+  container fetches it at startup with a token kept in a Modal Secret. It never sits in this repo
+  or in the image.
 - **Every output is marked as synthetic.** Chatterbox applies Resemble's PerTh watermark inside
   `generate()`. The MP3's title and comment tags say it's an AI voice. The app names the file
   `…-AI-voice.mp3` and sends a line of text with it saying so.
@@ -39,12 +41,9 @@ Run all of these from the repo root.
    modal setup
    ```
 
-### 2. The reference voice: a private Volume
+### 2. The reference voice
 
-```sh
-modal volume create armonim-voice
-modal volume put armonim-voice /path/to/reference_voice.wav reference_voice.wav
-```
+The clip goes in the private dataset `ofh55/armonim-voice`, named `reference_voice.wav`.
 
 For a good clone:
 
@@ -52,6 +51,14 @@ For a good clone:
 - Put the cleanest stretch first. Chatterbox uses the first 10 seconds for the voice and the first 6
   for the speaking style, and ignores the rest.
 - A mono WAV at 24 kHz or higher is ideal, but most audio formats will work.
+
+Create a **fine-grained** Hugging Face token at
+<https://huggingface.co/settings/tokens/new?tokenType=fineGrained> with **read** access to that
+dataset, and nothing else. Then hand it to Modal as a Secret:
+
+```sh
+modal secret create armonim-voice HF_TOKEN=hf_...
+```
 
 ### 3. Deploy
 
