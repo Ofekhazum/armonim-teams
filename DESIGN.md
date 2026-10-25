@@ -5192,7 +5192,7 @@ straight back, because the cache key is the hash of the spoken text plus `VOICE_
 the report changes the words, so the old audio stops matching and reads as `none`. Deleting the
 report deletes the audio too.
 
-**The voice server.** It runs on Modal (`voice/modal_app.py`), on an L4 GPU paid for from the free
+**The voice server.** It runs on Modal (`voice/modal_app.py`), on a T4 GPU paid for from the free
 Starter plan's $30 a month. A Hugging Face Space was the first plan, but Hugging Face now requires a
 paid plan to create any Gradio or Docker Space. Modal also fits better:
 

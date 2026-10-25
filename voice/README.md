@@ -8,7 +8,7 @@ caller is the Worker.
   adds the Hebrew vowel marks, [Chatterbox Multilingual](https://huggingface.co/ResembleAI/chatterbox)
   (MIT) does the zero-shot voice cloning with `language_id="he"`, and ffmpeg levels the loudness and
   encodes the MP3.
-- `modal_app.py`: wraps the pipeline for Modal. `Voice` runs it on an L4 GPU, and `web` is the
+- `modal_app.py`: wraps the pipeline for Modal. `Voice` runs it on a T4 GPU, and `web` is the
   endpoint the Worker calls: `POST /jobs` to queue a recap, `GET /jobs/{id}?wait=100` to collect
   the MP3.
 
@@ -145,11 +145,11 @@ model, diacritizer = load_model("cpu")
 open("out.mp3", "wb").write(speak_mp3(model, diacritizer, "voice.wav", "שלום לכולם."))
 ```
 
-On a laptop CPU, a warm model took 40–70 seconds to make 14 seconds of speech. An L4 will be much
+On a laptop CPU, a warm model took 40–70 seconds to make 14 seconds of speech. A T4 will be much
 faster, but this hasn't been measured yet.
 
 ## What it costs
 
-An L4 costs about $0.80 an hour, billed by the second. That covers only the time a container is
+A T4 costs about $0.59 an hour, billed by the second. That covers only the time a container is
 running: a cold start, the recap itself, and two idle minutes afterwards in case you want a second
 take. A long recap should cost a few cents, so the free $30 covers far more than one a week.

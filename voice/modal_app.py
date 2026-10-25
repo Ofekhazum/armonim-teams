@@ -68,9 +68,11 @@ app = modal.App(APP_NAME)
 
 @app.cls(
     image=gpu_image,
-    # Chatterbox is a 0.5B model: an L4 has room to spare and costs about
-    # $0.80 an hour, so a three-minute recap is a few cents of the free credit.
-    gpu="L4",
+    # Chatterbox is a 0.5B model, so a T4 (16 GB) has room to spare at about
+    # $0.59 an hour. Not an L4: on a workspace with no payment method on file,
+    # deploying one was refused with "Please add a payment method to use L4
+    # GPU functions".
+    gpu="T4",
     secrets=[modal.Secret.from_name(VOICE_SECRET_NAME)],
     timeout=15 * 60,
     # stay warm briefly for a second take, then stop billing
