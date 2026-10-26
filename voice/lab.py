@@ -7,12 +7,7 @@
 # and the extra conversion pass.
 
 import io
-import os
-import subprocess
-import tempfile
 import time
-
-from speech import chunks
 
 
 def _timed(fn):
@@ -25,76 +20,37 @@ def _failed(err: Exception) -> dict:
     return {"error": f"{type(err).__name__}: {err}"[:300]}
 
 
-def slow(wav, sr: int, tempo: float):
+def vox_variants(model, text: str, clip: str, transcript: str):
     """
-    The same audio at `tempo` times the speed (0.85 = 15% slower), pitch
-    unchanged — ffmpeg's `atempo`, which is clean for speech between 0.5 and 2.
+    VoxCPM2 on the clip *exactly as uploaded* — no cleaning, no trimming.
+
+    Rounds one and two gave it the cleaned clip, whose pauses had been cut to
+    0.12 s. VoxCPM2 copies the rhythm of its clip, so that taught it to speak
+    without pausing: fast, with no stop after a sentence, and stuttering where
+    the cuts were. Chatterbox does not read rhythm from the clip the same way,
+    which is why cleaning helped it and hurt this.
+
+    D7  the clip as a voice reference *and* as a prompt with its transcript
+    D8  the clip as a voice reference only
+    D9  the clip as a prompt with its transcript only (continuation)
     """
-    import numpy as np
-    import soundfile as sf
-
-    with tempfile.TemporaryDirectory() as work:
-        src, dst = os.path.join(work, "in.wav"), os.path.join(work, "out.wav")
-        sf.write(src, wav, sr)
-        subprocess.run(
-            ["ffmpeg", "-y", "-loglevel", "error", "-i", src, "-af", f"atempo={tempo}", dst],
-            check=True,
-        )
-        out, _ = sf.read(dst, dtype="float32")
-    return np.asarray(out, dtype="float32")
-
-
-def vox_speak(model, text: str, style: str = "", **cloning):
-    """
-    VoxCPM2 reading `text` the way the Chatterbox pipeline reads it: a sentence
-    or two at a time with a breath between, longer between paragraphs.
-
-    Round one gave VoxCPM2 the whole paragraph at once. It ran straight
-    through, with no breaths, at the pace of the clip — 14.2 s against 18.4 s
-    for the same words through Chatterbox, and it sounded like 1.5x speed.
-    """
-    import numpy as np
-
     sr = model.tts_model.sample_rate
-    parts = []
-    for chunk, pause in chunks(text):
-        wav = model.generate(
-            text=f"{style}{chunk}", cfg_value=2.0, inference_timesteps=10, **cloning
-        )
-        parts.append(np.asarray(wav, dtype="float32"))
-        parts.append(np.zeros(int(sr * pause), dtype="float32"))
-    return np.concatenate(parts[:-1]), sr
-
-
-def vox_variants(model, text: str, clean_clip: str, transcript: str):
-    """
-    D3  the clip and its transcript (VoxCPM2's strongest mode), with breaths
-    D4  D3 at 85% speed
-    D5  D3 at 75% speed
-    D6  the clip alone, told to speak slowly and calmly, with breaths
-    """
+    text = text.replace("\n", " ")
     out = {}
-    try:
-        d3 = _timed(
-            lambda: vox_speak(
-                model, text,
-                reference_wav_path=clean_clip, prompt_wav_path=clean_clip, prompt_text=transcript,
+    for name, cloning in (
+        ("D7", {"reference_wav_path": clip, "prompt_wav_path": clip, "prompt_text": transcript}),
+        ("D8", {"reference_wav_path": clip}),
+        ("D9", {"prompt_wav_path": clip, "prompt_text": transcript}),
+    ):
+        try:
+            out[name] = _timed(
+                lambda: (
+                    model.generate(text=text, cfg_value=2.0, inference_timesteps=10, **cloning),
+                    sr,
+                )
             )
-        )
-        out["D3"] = d3
-        for name, tempo in (("D4", 0.85), ("D5", 0.75)):
-            out[name] = {"wav": slow(d3["wav"], d3["sr"], tempo), "sr": d3["sr"], "seconds": 0}
-    except Exception as err:
-        out["D3"] = _failed(err)
-    try:
-        out["D6"] = _timed(
-            lambda: vox_speak(
-                model, text, style="(speaking slowly and calmly, with natural pauses)",
-                reference_wav_path=clean_clip,
-            )
-        )
-    except Exception as err:
-        out["D6"] = _failed(err)
+        except Exception as err:
+            out[name] = _failed(err)
     return out
 
 

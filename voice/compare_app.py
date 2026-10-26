@@ -2,9 +2,10 @@
 #
 # Round one (commit b94b9dc) ran Chatterbox v2/V3 and VoxCPM2 over the same
 # paragraph. VoxCPM2 with its transcript was closest to the reference voice but
-# read the paragraph at what sounded like 1.5x speed, with no breaths — so this
-# round tries four ways of giving VoxCPM2 a natural pace. Chatterbox is no
-# longer run: its results are in that commit and the listening notes.
+# read it at what sounded like 1.5x speed. Round two tried chunking and slowing
+# it (2554f07); both sounded unnatural. Round three removes the real cause: the
+# clip VoxCPM2 was given had its pauses trimmed out, and it copies the rhythm of
+# its clip. It now gets the clip as uploaded. Chatterbox is no longer run.
 #
 #   modal deploy voice/compare_app.py      (done by .github/workflows/deploy-voice-compare.yml)
 #
@@ -132,9 +133,12 @@ class VoxLab:
         from lab import vox_variants
         from speech import prepare_reference
 
+        # The clip as uploaded goes to the model. The cleaned copy is only what
+        # the scorer compares against, so the numbers stay comparable with the
+        # earlier rounds.
         with tempfile.TemporaryDirectory() as work:
             clean = prepare_reference(self.clip, f"{work}/clean.wav")
-            return vox_variants(self.model, text, clean, transcript), open(clean, "rb").read()
+            return vox_variants(self.model, text, self.clip, transcript), open(clean, "rb").read()
 
 
 @app.cls(image=score_image, cpu=2, memory=4096, timeout=10 * 60, scaledown_window=60)
