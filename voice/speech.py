@@ -90,6 +90,39 @@ def chunks(text: str) -> list[tuple[str, float]]:
     return out
 
 
+def prepare_reference(src: str, dst: str) -> str:
+    """
+    The clip as the model should hear it (§2.69.1).
+
+    Chatterbox clones from the first 10 s of the clip, and takes the speaking
+    style from the first 6 s alone. The real clip spent a third of those 6 s in
+    pauses (3.8 s of actual speech), with a noise floor around -47 dB the
+    model learns as part of "the voice". So: mono, gentle denoise, every pause
+    cut to about 0.12 s, and an even level — the same treatment for any clip
+    uploaded later, with nothing done by hand.
+
+    Measured on the real clip: 4.8 s of speech in the first 6 s (was 3.8) and
+    8.4 s in the first 10 (was 7.0). Trimming harder (-35 dB, 0.08 s kept)
+    gained half a second more but clipped soft final consonants before a pause
+    — Whisper heard "חדש" as "חד" — so this stops short of that.
+    """
+    subprocess.run(
+        [
+            "ffmpeg", "-y", "-loglevel", "error", "-i", src,
+            "-af",
+            "aformat=channel_layouts=mono,"
+            "afftdn=nr=20:nf=-45,"
+            "silenceremove=start_periods=1:start_threshold=-38dB:detection=peak:"
+            "stop_periods=-1:stop_duration=0.12:stop_threshold=-38dB:stop_silence=0.12,"
+            "loudnorm=I=-20:TP=-2:LRA=11",
+            "-ar", "24000",
+            dst,
+        ],
+        check=True,
+    )
+    return dst
+
+
 def load_model(device: str):
     """Chatterbox and the diacritizer, ready to speak."""
     from chatterbox.mtl_tts import ChatterboxMultilingualTTS
