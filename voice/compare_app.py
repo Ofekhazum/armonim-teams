@@ -1,10 +1,16 @@
-# One-off likeness comparison (DESIGN.md §2.69.1) — NOT part of the live app.
+# One-off voice comparison (DESIGN.md §2.69.1) — NOT part of the live app.
+#
+# Round one (commit b94b9dc) ran Chatterbox v2/V3 and VoxCPM2 over the same
+# paragraph. VoxCPM2 with its transcript was closest to the reference voice but
+# read the paragraph at what sounded like 1.5x speed, with no breaths — so this
+# round tries four ways of giving VoxCPM2 a natural pace. Chatterbox is no
+# longer run: its results are in that commit and the listening notes.
 #
 #   modal deploy voice/compare_app.py      (done by .github/workflows/deploy-voice-compare.yml)
 #
-# Reads one fixed paragraph of a real recap through each candidate voice
-# pipeline and scores how close each comes to the reference clip, so the winner
-# can be picked by ear with numbers beside it. Delete the app from the Modal
+# Reads one fixed paragraph of a real recap through each candidate and scores
+# how close each comes to the reference clip, so the winner can be picked by
+# ear with numbers beside it. Delete the app from the Modal
 # dashboard once a pipeline has been chosen.
 #
 # **There is no text input.** The paragraph and the clip's transcript are
@@ -20,7 +26,6 @@ from pathlib import Path
 
 import modal
 
-from speech import CHATTERBOX_FILES, CHATTERBOX_REPO, PHONIKUD_FILE, PHONIKUD_REPO
 
 APP_NAME = "armonim-voice-compare"
 MODELS = "/models"
@@ -30,7 +35,6 @@ VOICE_REPO = "ofh55/armonim-voice"
 VOICE_FILE = "reference_voice_final.wav"
 VOICE_SECRET_NAME = "armonim-voice"
 
-CHATTERBOX_V3 = "t3_mtl23ls_v3.safetensors"
 VOX_REPO = "openbmb/VoxCPM2"
 ECAPA = "speechbrain/spkrec-ecapa-voxceleb"
 
@@ -55,16 +59,6 @@ SPEECH_PY = Path(__file__).parent / "speech.py"
 LAB_PY = Path(__file__).parent / "lab.py"
 
 
-def bake_chatterbox():
-    from huggingface_hub import hf_hub_download, snapshot_download
-
-    snapshot_download(
-        CHATTERBOX_REPO,
-        allow_patterns=CHATTERBOX_FILES + [CHATTERBOX_V3, "s3gen.safetensors"],
-    )
-    hf_hub_download(PHONIKUD_REPO, PHONIKUD_FILE)
-
-
 def bake_vox():
     from huggingface_hub import snapshot_download
 
@@ -83,15 +77,6 @@ def sources(image: modal.Image) -> modal.Image:
     )
 
 
-chatterbox_image = sources(
-    modal.Image.debian_slim(python_version="3.11")
-    .apt_install("ffmpeg")
-    .pip_install("chatterbox-tts==0.1.7", "phonikud==0.4.1", "phonikud-onnx==1.0.6", "soundfile")
-    .env({"HF_HOME": MODELS})
-).run_function(bake_chatterbox)
-
-# VoxCPM2 and Chatterbox pin different torch/transformers stacks, so each gets
-# its own image rather than one image trying to satisfy both.
 vox_image = sources(
     modal.Image.debian_slim(python_version="3.11")
     .apt_install("ffmpeg", "libsndfile1")
@@ -117,63 +102,10 @@ voice_secret = modal.Secret.from_name(VOICE_SECRET_NAME)
 
 
 @app.cls(
-    image=chatterbox_image,
-    gpu="T4",
-    secrets=[voice_secret],
-    timeout=20 * 60,
-    scaledown_window=60,
-    max_containers=1,
-)
-class ChatterboxLab:
-    @modal.enter()
-    def load(self):
-        import os
-
-        from huggingface_hub import hf_hub_download
-        from safetensors.torch import load_file
-
-        from speech import load_model
-
-        self.clip = hf_hub_download(
-            VOICE_REPO, VOICE_FILE, repo_type="dataset", token=os.environ["HF_TOKEN"]
-        )
-        self.model, self.diacritizer = load_model("cuda")
-        self.v2 = {k: v.detach().cpu().clone() for k, v in self.model.t3.state_dict().items()}
-        v3 = load_file(hf_hub_download(CHATTERBOX_REPO, CHATTERBOX_V3))
-        self.v3 = v3["model"][0] if "model" in v3 else v3
-
-    @modal.method()
-    def variants(self, text: str):
-        import tempfile
-
-        from lab import chatterbox_variants
-
-        with tempfile.TemporaryDirectory() as work:
-            out, clean = chatterbox_variants(
-                self.model, self.diacritizer, self.v2, self.v3, self.clip, text, work
-            )
-            return out, open(clean, "rb").read()
-
-    @modal.method()
-    def convert(self, wav, sr: int, clean_clip: bytes):
-        import tempfile
-
-        from chatterbox.vc import ChatterboxVC
-
-        from lab import convert_voice
-
-        if not hasattr(self, "vc"):
-            self.vc = ChatterboxVC.from_pretrained("cuda")
-        with tempfile.TemporaryDirectory() as work:
-            path = f"{work}/clean.wav"
-            open(path, "wb").write(clean_clip)
-            return convert_voice(self.vc, wav, sr, path)
-
-
-@app.cls(
     image=vox_image,
     # bf16 weights: an L4 does them in hardware, a T4 does not
     gpu="L4",
+    secrets=[voice_secret],
     timeout=20 * 60,
     scaledown_window=60,
     max_containers=1,
@@ -181,22 +113,28 @@ class ChatterboxLab:
 class VoxLab:
     @modal.enter()
     def load(self):
+        import os
+
+        from huggingface_hub import hf_hub_download
         from voxcpm import VoxCPM
 
+        self.clip = hf_hub_download(
+            VOICE_REPO, VOICE_FILE, repo_type="dataset", token=os.environ["HF_TOKEN"]
+        )
         self.model = VoxCPM.from_pretrained(
             VOX_REPO, load_denoiser=False, optimize=False, device="cuda"
         )
 
     @modal.method()
-    def variants(self, text: str, clean_clip: bytes, transcript: str):
+    def variants(self, text: str, transcript: str):
         import tempfile
 
         from lab import vox_variants
+        from speech import prepare_reference
 
         with tempfile.TemporaryDirectory() as work:
-            path = f"{work}/clean.wav"
-            open(path, "wb").write(clean_clip)
-            return vox_variants(self.model, text.replace("\n", " "), path, transcript)
+            clean = prepare_reference(self.clip, f"{work}/clean.wav")
+            return vox_variants(self.model, text, clean, transcript), open(clean, "rb").read()
 
 
 @app.cls(image=score_image, cpu=2, memory=4096, timeout=10 * 60, scaledown_window=60)
@@ -220,19 +158,7 @@ class Scorer:
 def run_compare() -> dict:
     from speech import encode_mp3
 
-    chatterbox, vox = ChatterboxLab(), VoxLab()
-    results, clean = chatterbox.variants.remote(TEXT)
-    results.update(vox.variants.remote(TEXT, clean, TRANSCRIPT))
-
-    # the conversion pass goes on VoxCPM2's best attempt at the clip's voice
-    source = next((results[n] for n in ("D2", "D1") if "wav" in results.get(n, {})), None)
-    if source:
-        try:
-            wav, sr = chatterbox.convert.remote(source["wav"], source["sr"], clean)
-            results["E"] = {"wav": wav, "sr": sr}
-        except Exception as err:
-            results["E"] = {"error": f"{type(err).__name__}: {err}"[:300]}
-
+    results, clean = VoxLab().variants.remote(TEXT, TRANSCRIPT)
     audible = {n: (r["wav"], r["sr"]) for n, r in results.items() if "wav" in r}
     scores = Scorer().score.remote(clean, audible)
 
@@ -243,7 +169,9 @@ def run_compare() -> dict:
         else:
             out[name] = {
                 "score": scores.get(name),
-                "seconds": r.get("seconds"),
+                # length is the thing being tuned: round one's D2 was 14.2 s,
+                # Chatterbox's B 18.4 s, for the same paragraph
+                "audio_seconds": round(len(r["wav"]) / r["sr"], 1),
                 "mp3": encode_mp3(r["wav"], r["sr"]),
             }
     return out

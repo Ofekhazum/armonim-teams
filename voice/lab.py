@@ -8,10 +8,11 @@
 
 import io
 import os
+import subprocess
 import tempfile
 import time
 
-from speech import prepare_reference, speak_wav
+from speech import chunks
 
 
 def _timed(fn):
@@ -20,87 +21,80 @@ def _timed(fn):
     return {"wav": wav, "sr": sr, "seconds": round(time.time() - start, 1)}
 
 
-def swap_t3(model, state) -> None:
-    """
-    Put another set of T3 weights into a loaded Chatterbox.
-
-    After its first generation, T3 wraps itself in `patched_model`, which adds a
-    second set of names to the state dict for the *same* tensors. Loading a
-    saved state therefore reports those names as missing, and strict loading
-    would refuse. They are expected to be the only ones: anything else missing
-    or unexpected is a real mismatch and must still fail.
-    """
-    result = model.t3.load_state_dict(state, strict=False)
-    stray = [k for k in result.missing_keys if not k.startswith("patched_model.")]
-    if stray or result.unexpected_keys:
-        raise RuntimeError(f"T3 weights do not fit: missing {stray[:3]}, unexpected {result.unexpected_keys[:3]}")
-
-
 def _failed(err: Exception) -> dict:
     return {"error": f"{type(err).__name__}: {err}"[:300]}
 
 
-def chatterbox_variants(model, diacritizer, v2_state, v3_state, clip: str, text: str, work: str):
+def slow(wav, sr: int, tempo: float):
     """
-    A  the model as it runs today (v2), on the clip as uploaded
-    B  the same, on the cleaned clip       — what cleaning alone buys
-    C  Chatterbox V3, on the cleaned clip  — what Resemble's newer weights buy
-
-    Returns the variants, and the cleaned clip's path (the later variants want it).
+    The same audio at `tempo` times the speed (0.85 = 15% slower), pitch
+    unchanged — ffmpeg's `atempo`, which is clean for speech between 0.5 and 2.
     """
-    clean = prepare_reference(clip, os.path.join(work, "clean.wav"))
-    out = {}
-    for name, state, ref in (("A", v2_state, clip), ("B", v2_state, clean), ("C", v3_state, clean)):
-        try:
-            swap_t3(model, state)
-            out[name] = _timed(lambda: speak_wav(model, diacritizer, ref, text))
-        except Exception as err:  # one variant failing must not lose the others
-            out[name] = _failed(err)
-    return out, clean
-
-
-def convert_voice(vc, wav, sr, clean_clip: str):
-    """
-    The conversion pass: re-voice finished audio towards the reference clip.
-    Chatterbox's own converter, which reuses the speaker model its synthesiser
-    is built on, so nothing new is needed to run it.
-    """
+    import numpy as np
     import soundfile as sf
 
     with tempfile.TemporaryDirectory() as work:
-        src = os.path.join(work, "in.wav")
+        src, dst = os.path.join(work, "in.wav"), os.path.join(work, "out.wav")
         sf.write(src, wav, sr)
-        out = vc.generate(src, target_voice_path=clean_clip)
-    return out.squeeze(0).cpu().numpy(), vc.sr
+        subprocess.run(
+            ["ffmpeg", "-y", "-loglevel", "error", "-i", src, "-af", f"atempo={tempo}", dst],
+            check=True,
+        )
+        out, _ = sf.read(dst, dtype="float32")
+    return np.asarray(out, dtype="float32")
+
+
+def vox_speak(model, text: str, style: str = "", **cloning):
+    """
+    VoxCPM2 reading `text` the way the Chatterbox pipeline reads it: a sentence
+    or two at a time with a breath between, longer between paragraphs.
+
+    Round one gave VoxCPM2 the whole paragraph at once. It ran straight
+    through, with no breaths, at the pace of the clip — 14.2 s against 18.4 s
+    for the same words through Chatterbox, and it sounded like 1.5x speed.
+    """
+    import numpy as np
+
+    sr = model.tts_model.sample_rate
+    parts = []
+    for chunk, pause in chunks(text):
+        wav = model.generate(
+            text=f"{style}{chunk}", cfg_value=2.0, inference_timesteps=10, **cloning
+        )
+        parts.append(np.asarray(wav, dtype="float32"))
+        parts.append(np.zeros(int(sr * pause), dtype="float32"))
+    return np.concatenate(parts[:-1]), sr
 
 
 def vox_variants(model, text: str, clean_clip: str, transcript: str):
     """
-    D1  VoxCPM2 cloning from the clip alone
-    D2  VoxCPM2 given the clip *and what is said in it* — its strongest mode
+    D3  the clip and its transcript (VoxCPM2's strongest mode), with breaths
+    D4  D3 at 85% speed
+    D5  D3 at 75% speed
+    D6  the clip alone, told to speak slowly and calmly, with breaths
     """
-    sr = model.tts_model.sample_rate
     out = {}
-    for name, extra in (
-        ("D1", {"reference_wav_path": clean_clip}),
-        (
-            "D2",
-            {
-                "reference_wav_path": clean_clip,
-                "prompt_wav_path": clean_clip,
-                "prompt_text": transcript,
-            },
-        ),
-    ):
-        try:
-            out[name] = _timed(
-                lambda: (
-                    model.generate(text=text, cfg_value=2.0, inference_timesteps=10, **extra),
-                    sr,
-                )
+    try:
+        d3 = _timed(
+            lambda: vox_speak(
+                model, text,
+                reference_wav_path=clean_clip, prompt_wav_path=clean_clip, prompt_text=transcript,
             )
-        except Exception as err:
-            out[name] = _failed(err)
+        )
+        out["D3"] = d3
+        for name, tempo in (("D4", 0.85), ("D5", 0.75)):
+            out[name] = {"wav": slow(d3["wav"], d3["sr"], tempo), "sr": d3["sr"], "seconds": 0}
+    except Exception as err:
+        out["D3"] = _failed(err)
+    try:
+        out["D6"] = _timed(
+            lambda: vox_speak(
+                model, text, style="(speaking slowly and calmly, with natural pauses)",
+                reference_wav_path=clean_clip,
+            )
+        )
+    except Exception as err:
+        out["D6"] = _failed(err)
     return out
 
 
