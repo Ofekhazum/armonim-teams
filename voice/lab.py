@@ -7,7 +7,10 @@
 # and the extra conversion pass.
 
 import io
+import re
 import time
+
+from speech import chunks
 
 
 def _timed(fn):
@@ -20,35 +23,52 @@ def _failed(err: Exception) -> dict:
     return {"error": f"{type(err).__name__}: {err}"[:300]}
 
 
-def vox_variants(model, text: str, clip: str, transcript: str):
-    """
-    VoxCPM2 on the clip *exactly as uploaded* — no cleaning, no trimming.
+def sentences(text: str):
+    """(sentence, pause after it): a breath between sentences, a longer one between paragraphs."""
+    out = []
+    for paragraph in (p.strip() for p in text.split("\n")):
+        if not paragraph:
+            continue
+        parts = [s for s in re.split(r"(?<=[.!?])\s+", paragraph) if s]
+        for i, sentence in enumerate(parts):
+            out.append((sentence, 0.7 if i == len(parts) - 1 else 0.4))
+    return out
 
-    Rounds one and two gave it the cleaned clip, whose pauses had been cut to
-    0.12 s. VoxCPM2 copies the rhythm of its clip, so that taught it to speak
-    without pausing: fast, with no stop after a sentence, and stuttering where
-    the cuts were. Chatterbox does not read rhythm from the clip the same way,
-    which is why cleaning helped it and hurt this.
 
-    D7  the clip as a voice reference *and* as a prompt with its transcript
-    D8  the clip as a voice reference only
-    D9  the clip as a prompt with its transcript only (continuation)
-    """
+def vox_speak(model, pieces, **cloning):
+    """VoxCPM2 reading `pieces` one at a time, with silence stitched between."""
+    import numpy as np
+
     sr = model.tts_model.sample_rate
-    text = text.replace("\n", " ")
+    parts = []
+    for piece, pause in pieces:
+        wav = model.generate(text=piece, cfg_value=2.0, inference_timesteps=10, **cloning)
+        parts.append(np.asarray(wav, dtype="float32"))
+        parts.append(np.zeros(int(sr * pause), dtype="float32"))
+    return np.concatenate(parts[:-1]), sr
+
+
+def vox_variants(model, text: str, clip: str):
+    """
+    VoxCPM2, the clip as uploaded, as a voice reference only, with breaths.
+
+    Findings that shape this (rounds one to three):
+    - It copies the *rhythm* of its clip, and the cleaned clip had its pauses
+      cut out, so it was given the clip untouched.
+    - Given the clip *with its transcript* (prompt mode) it spills the last
+      words of the clip at the start of its output — "…האם הוא חוזר" — which
+      in chunked generation repeated at the start of every chunk: the
+      stuttering. Reference-only mode has no such leak.
+    - Either way it never pauses between sentences on its own (zero silences
+      over 0.25 s in a 16 s paragraph, against two in Chatterbox's).
+
+    D10  breaths the way Chatterbox's pipeline has them: masthead, then the body
+    D11  a breath after every sentence
+    """
     out = {}
-    for name, cloning in (
-        ("D7", {"reference_wav_path": clip, "prompt_wav_path": clip, "prompt_text": transcript}),
-        ("D8", {"reference_wav_path": clip}),
-        ("D9", {"prompt_wav_path": clip, "prompt_text": transcript}),
-    ):
+    for name, pieces in (("D10", chunks(text)), ("D11", sentences(text))):
         try:
-            out[name] = _timed(
-                lambda: (
-                    model.generate(text=text, cfg_value=2.0, inference_timesteps=10, **cloning),
-                    sr,
-                )
-            )
+            out[name] = _timed(lambda: vox_speak(model, pieces, reference_wav_path=clip))
         except Exception as err:
             out[name] = _failed(err)
     return out

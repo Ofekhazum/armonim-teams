@@ -5,7 +5,9 @@
 # read it at what sounded like 1.5x speed. Round two tried chunking and slowing
 # it (2554f07); both sounded unnatural. Round three removes the real cause: the
 # clip VoxCPM2 was given had its pauses trimmed out, and it copies the rhythm of
-# its clip. It now gets the clip as uploaded. Chatterbox is no longer run.
+# its clip. Round four: the clip as uploaded, as a voice reference only (prompt
+# mode leaks the clip's last words into the output), with breaths between
+# sentences. Chatterbox is no longer run.
 #
 #   modal deploy voice/compare_app.py      (done by .github/workflows/deploy-voice-compare.yml)
 #
@@ -127,7 +129,7 @@ class VoxLab:
         )
 
     @modal.method()
-    def variants(self, text: str, transcript: str):
+    def variants(self, text: str):
         import tempfile
 
         from lab import vox_variants
@@ -138,7 +140,7 @@ class VoxLab:
         # earlier rounds.
         with tempfile.TemporaryDirectory() as work:
             clean = prepare_reference(self.clip, f"{work}/clean.wav")
-            return vox_variants(self.model, text, self.clip, transcript), open(clean, "rb").read()
+            return vox_variants(self.model, text, self.clip), open(clean, "rb").read()
 
 
 @app.cls(image=score_image, cpu=2, memory=4096, timeout=10 * 60, scaledown_window=60)
@@ -162,7 +164,7 @@ class Scorer:
 def run_compare() -> dict:
     from speech import encode_mp3
 
-    results, clean = VoxLab().variants.remote(TEXT, TRANSCRIPT)
+    results, clean = VoxLab().variants.remote(TEXT)
     audible = {n: (r["wav"], r["sr"]) for n, r in results.items() if "wav" in r}
     scores = Scorer().score.remote(clean, audible)
 
