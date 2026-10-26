@@ -8,3 +8,9 @@ worker/.dev.vars
 
 # Playwright MCP session artifacts (snapshots, console logs) — local only
 .playwright-mcp/
+
+# Voice clips of real people live in the private HF dataset, never in git
+*.wav
+*.flac
+*.m4a
+*.mp3

@@ -61,7 +61,7 @@ Run all of these from the repo root.
 
 ### 2. The reference voice
 
-The clip goes in the private dataset `ofh55/armonim-voice`, named `reference_voice.wav`.
+The clip goes in the private dataset `ofh55/armonim-voice`, named `reference_voice_final.wav`.
 
 For a good clone:
 

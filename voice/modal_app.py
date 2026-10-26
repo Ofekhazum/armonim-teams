@@ -30,7 +30,7 @@ MODELS = "/models"
 # Hugging Face token that can read it (`modal secret create armonim-voice
 # HF_TOKEN=…`).
 VOICE_REPO = "ofh55/armonim-voice"
-VOICE_FILE = "reference_voice.wav"
+VOICE_FILE = "reference_voice_final.wav"
 VOICE_SECRET_NAME = "armonim-voice"
 
 # How long the poll endpoint waits for a finished recap before answering
