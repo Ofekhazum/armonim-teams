@@ -87,14 +87,20 @@ class Voice:
 
         from huggingface_hub import hf_hub_download
 
-        from speech import load_model
+        from speech import load_model, prepare_reference
 
         # Fetched per container rather than baked into the image, so changing
         # the voice is an upload to the dataset rather than a redeploy, and the
         # clip never sits in an image layer.
-        self.reference = hf_hub_download(
+        clip = hf_hub_download(
             VOICE_REPO, VOICE_FILE, repo_type="dataset", token=os.environ["HF_TOKEN"]
         )
+        # Cleaned the same way for any clip uploaded later (§2.69.1): pauses
+        # trimmed and the room noise reduced, so the model hears more of the
+        # voice and less of the room. Same model, same pace — measured on the
+        # real clip, closer to the speaker (0.737 against 0.700) and clearer
+        # (0.89 of the words recognised against 0.86).
+        self.reference = prepare_reference(clip, "/tmp/reference_clean.wav")
         self.model, self.diacritizer = load_model("cuda")
 
     @modal.method()
