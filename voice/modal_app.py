@@ -21,7 +21,7 @@ from pathlib import Path
 
 import modal
 
-from speech import CHATTERBOX_FILES, CHATTERBOX_REPO, MAX_CHARS, PHONIKUD_FILE, PHONIKUD_REPO
+from speech import MAX_CHARS, VOX_REPO
 
 APP_NAME = "armonim-recap-voice"
 MODELS = "/models"
@@ -39,19 +39,21 @@ MAX_WAIT_S = 100
 
 
 def bake_weights():
-    """Download every weight at build time, so a cold start loads from disk."""
-    from huggingface_hub import hf_hub_download, snapshot_download
+    """Download the weights at build time, so a cold start loads from disk."""
+    from huggingface_hub import snapshot_download
 
-    snapshot_download(CHATTERBOX_REPO, allow_patterns=CHATTERBOX_FILES)
-    hf_hub_download(PHONIKUD_REPO, PHONIKUD_FILE)
+    snapshot_download(VOX_REPO)
 
 
 gpu_image = (
     modal.Image.debian_slim(python_version="3.11")
-    .apt_install("ffmpeg")
-    # chatterbox-tts's own pins (torch 2.6 and friends) are fine here: unlike
-    # a Hugging Face ZeroGPU Space, Modal does not dictate the torch version.
-    .pip_install("chatterbox-tts==0.1.7", "phonikud==0.4.1", "phonikud-onnx==1.0.6")
+    .apt_install("ffmpeg", "libsndfile1")
+    # resemble-perth declares no dependencies of its own but imports all of
+    # these; without them it silently disables itself (speech.watermark refuses)
+    .pip_install(
+        "voxcpm==2.0.3", "soundfile", "resemble-perth==1.0.1",
+        "pyrubberband", "pydub", "audioread", "matplotlib", "pyyaml", "setuptools<81",
+    )
     .env({"HF_HOME": MODELS})
     .add_local_file(Path(__file__).parent / "speech.py", "/root/speech.py", copy=True)
     .run_function(bake_weights)
@@ -68,11 +70,10 @@ app = modal.App(APP_NAME)
 
 @app.cls(
     image=gpu_image,
-    # Chatterbox is a 0.5B model, so a T4 (16 GB) has room to spare at about
-    # $0.59 an hour. Not an L4: on a workspace with no payment method on file,
-    # deploying one was refused with "Please add a payment method to use L4
-    # GPU functions".
-    gpu="T4",
+    # VoxCPM2 is a 2B model with bf16 weights: an L4 (24 GB) does them in
+    # hardware and has room to spare; a T4 does neither. About $0.80 an hour,
+    # billed by the second, so a recap is a few cents of the free credit.
+    gpu="L4",
     secrets=[modal.Secret.from_name(VOICE_SECRET_NAME)],
     timeout=15 * 60,
     # stay warm briefly for a second take, then stop billing
@@ -87,27 +88,23 @@ class Voice:
 
         from huggingface_hub import hf_hub_download
 
-        from speech import load_model, prepare_reference
+        from speech import load_vox
 
         # Fetched per container rather than baked into the image, so changing
         # the voice is an upload to the dataset rather than a redeploy, and the
-        # clip never sits in an image layer.
-        clip = hf_hub_download(
+        # clip never sits in an image layer. Used exactly as uploaded: the model
+        # copies the rhythm of its clip, so trimming the pauses out of it makes
+        # the voice read fast with no stops (§2.69.1).
+        self.reference = hf_hub_download(
             VOICE_REPO, VOICE_FILE, repo_type="dataset", token=os.environ["HF_TOKEN"]
         )
-        # Cleaned the same way for any clip uploaded later (§2.69.1): pauses
-        # trimmed and the room noise reduced, so the model hears more of the
-        # voice and less of the room. Same model, same pace — measured on the
-        # real clip, closer to the speaker (0.737 against 0.700) and clearer
-        # (0.89 of the words recognised against 0.86).
-        self.reference = prepare_reference(clip, "/tmp/reference_clean.wav")
-        self.model, self.diacritizer = load_model("cuda")
+        self.model = load_vox("cuda")
 
     @modal.method()
     def speak(self, text: str) -> bytes:
-        from speech import speak_mp3
+        from speech import speak_vox_mp3
 
-        return speak_mp3(self.model, self.diacritizer, self.reference, text)
+        return speak_vox_mp3(self.model, self.reference, text)
 
 
 def make_api(start, result):

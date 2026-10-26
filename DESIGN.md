@@ -5192,12 +5192,10 @@ straight back, because the cache key is the hash of the spoken text plus `VOICE_
 the report changes the words, so the old audio stops matching and reads as `none`. Deleting the
 report deletes the audio too.
 
-**The voice server.** It runs on Modal (`voice/modal_app.py`), on a T4 GPU paid for from the free
+**The voice server.** It runs on Modal (`voice/modal_app.py`), on an L4 GPU paid for from the free
 Starter plan's $30 a month. A Hugging Face Space was the first plan, but Hugging Face now requires a
 paid plan to create any Gradio or Docker Space. Modal also fits better:
 
-- **Its own pins.** We control the whole image, so `chatterbox-tts` installs with its own torch 2.6
-  pin. ZeroGPU needed torch 2.8 or later, which meant installing the package with `--no-deps`.
 - **Its long-job pattern is ours.** `POST /jobs` spawns the job and returns its id. `GET
   /jobs/{id}?wait=100` waits up to 100 s for the MP3 (Modal cuts a web request at 150) and
   answers 202 if it's still running. A whole recap took two requests in local tests, well inside
@@ -5206,20 +5204,66 @@ paid plan to create any Gradio or Docker Space. Modal also fits better:
   reference clip is not baked in. A container fetches it at startup from the private dataset
   `ofh55/armonim-voice`, with a read-only token held in a Modal Secret, so changing the voice is an
   upload rather than a redeploy.
-- **`speech.py` has no Modal in it.** It runs on a laptop CPU, which is how it was tested end to
-  end. `make_api()` takes the start and collect steps as functions, so the real HTTP surface was
-  served locally against the real pipeline, with Modal's edge auth imitated.
-
-Pipeline details:
-
-- **Vowel marks:** phonikud adds them first. Chatterbox's built-in Hebrew path only diacritises if
-  `dicta_onnx` is installed, and it isn't.
-- **Chunking:** text is split into chunks of 240 characters or fewer, because Chatterbox stops at
-  1000 speech tokens (about 40 s) per call and truncates silently. The reference clip is read once
-  per recap, not once per chunk.
+- **`speech.py` has no Modal in it.** `make_api()` takes the start and collect steps as functions,
+  so the real HTTP surface was served locally against the real pipeline, with Modal's edge auth
+  imitated.
 - **Limits:** one container at a time (`max_containers=1`), kept warm for two minutes after a job
   for a second take, and 4 takes a day per IP in the Worker (`VOICE_LIMIT`), so a leaked admin word
   can't spend the credits.
+
+### 2.69.1 Choosing the voice engine (VoxCPM2, not Chatterbox)
+
+The first engine was Chatterbox Multilingual v2 (MIT), with Hebrew vowel marks from phonikud. It read
+naturally, with a breath after a sentence or two, but the club thought it didn't sound enough like the
+speaker. A comparison over the same paragraph and the same reference clip followed. Each file got a
+**likeness score** from a speaker-recognition model (ECAPA-TDNN) that none of the engines is built
+on, a **word accuracy** from Whisper, and then the club listened. The scores only ranked; the ears
+decided. The comparison app was a one-off Modal deploy, and its code is in git history
+(`b94b9dc` to `2554f07` and the commits after) rather than in the tree.
+
+| engine and treatment | likeness | words right | pace |
+|---|---|---|---|
+| Chatterbox v2, clip as uploaded (the live engine) | 0.700 | 0.86 | natural |
+| Chatterbox v2, cleaned clip | 0.737 | 0.89 | natural |
+| Chatterbox V3 | 0.709 | 0.88 | natural |
+| VoxCPM2, clip + transcript, cleaned clip | 0.814 | 0.92 | **~1.3–1.5x too fast** |
+| ...the same, chunked, or slowed to 85% / 75% | 0.739–0.773 | 0.86–0.89 | **stuttering, unnatural** |
+| VoxCPM2 + Chatterbox voice conversion | 0.766 | **0.70** | worse |
+| VoxCPM2, `(speak slowly)` style prefix | 0.720 | **0.10** | Hebrew turned to noise |
+| **VoxCPM2, clip as uploaded, reference only, chunked** | 0.702 | **0.97** | natural |
+
+What each failed round taught, in order:
+
+1. **VoxCPM2 gave the closest voice, and read at 14.2 s what Chatterbox read at 18.4 s.** It copies
+   the *rhythm* of its clip.
+2. **Cleaning the clip made that worse.** The cleaning (Chatterbox-friendly: mono, denoised, pauses
+   cut to 0.12 s) taught VoxCPM2 to speak without pauses. The club's own diagnosis ("maybe you don't
+   need to manipulate it for VoxCPM2") was right. Chatterbox reads the clip differently, so cleaning
+   had helped *it*.
+3. **The stuttering was a leak.** With a clip plus its transcript (prompt mode), VoxCPM2 spills the
+   clip's last words ("...האם הוא חוזר") at the start of its output. Chunked generation repeated that
+   at the start of every chunk. Reference-only mode has no leak.
+4. **It never pauses between sentences itself** (no silence over 0.25 s in 16 s of speech), and over
+   a full recap in one go it **rushed and dropped about 40 of 222 words**. Chunked with breaths
+   stitched in, it read all of them, with a clear pause between paragraphs.
+5. **The likeness score is biased by the clip's treatment.** It compares against a cleaned clip, so
+   outputs generated from that cleaned clip match it better. After the clip stopped being cleaned
+   the likeness fell to Chatterbox's level (0.70), while by ear the club found the result
+   "much better". Read it as a ranking inside one setup, not across setups.
+
+**The AI watermark.** Chatterbox applied Resemble's PerTh watermark inside `generate()`. VoxCPM2
+applies none, so `speech.watermark()` does. It was checked on real output: the detector reads 0.0
+before marking, 1.0 after, and 1.0 again after loudness normalisation and a 64 kbps MP3 round trip, at
+24 kHz and 48 kHz, and 1.00 on the delivered files of a full-recap run. `perth` replaces its
+watermarker with `None`, silently, if any of its own imports fails, so `watermark()` raises in that
+case instead of letting unmarked audio through. The image installs the imports perth needs, which it
+does not declare.
+
+**Limits of what was measured.** One reference clip, one speaker, one paragraph and one invented
+full-length recap (the repo is public, so no real recap with real names was committed). VoxCPM2 gets
+plain Hebrew with no vowel marks, and mispronounces some names (§2.69.2 if it is tried). Timing is
+from the comparison runs: a full recap and a second version finished in 3¾ minutes including a
+cold start.
 
 ## 3. Team generation algorithm
 
