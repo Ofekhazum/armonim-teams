@@ -1,5 +1,7 @@
 # One-off voice comparison (DESIGN.md §2.69.1) — NOT part of the live app.
 #
+# Round five: the production path (speech.speak_vox_wav) against a one-shot, over a
+# full-length recap — see lab.vox_variants. Earlier rounds:
 # Round one (commit b94b9dc) ran Chatterbox v2/V3 and VoxCPM2 over the same
 # paragraph. VoxCPM2 with its transcript was closest to the reference voice but
 # read it at what sounded like 1.5x speed. Round two tried chunking and slowing
@@ -11,14 +13,14 @@
 #
 #   modal deploy voice/compare_app.py      (done by .github/workflows/deploy-voice-compare.yml)
 #
-# Reads one fixed paragraph of a real recap through each candidate and scores
+# Reads one fixed test recap through each candidate and scores
 # how close each comes to the reference clip, so the winner can be picked by
 # ear with numbers beside it. Delete the app from the Modal
 # dashboard once a pipeline has been chosen.
 #
 # **There is no text input.** The paragraph and the clip's transcript are
-# constants below, so what this endpoint can be made to say is exactly the one
-# paragraph in this file. It sits behind the same proxy-auth lock as the live
+# constant below, so what this endpoint can be made to say is exactly the one
+# recap in this file. It sits behind the same proxy-auth lock as the live
 # voice server (401 at Modal's edge, before any container starts).
 #
 #   POST /runs                  → { call_id }
@@ -41,21 +43,30 @@ VOICE_SECRET_NAME = "armonim-voice"
 VOX_REPO = "openbmb/VoxCPM2"
 ECAPA = "speechbrain/spkrec-ecapa-voxceleb"
 
-# What is read: the masthead and first paragraph of a stored recap, already
-# through speakable().
+# What is read: a test recap in the style and at the length of the real ones —
+# a masthead and seven paragraphs, numbers spelled out as speakable() leaves
+# them. Written for this test with invented names, because this repository is
+# public and a real recap names real people. It is the only thing this endpoint
+# can be made to say.
 TEXT = (
     "ארבל זעזוע מדווח מהמגרש.\n"
-    "ערב חריג של דיקטטורה מוחלטת נרשם על הדשא, עם שלושה עשר משחקים שבהם ההובלה "
-    "התחלפה רק פעם אחת בודדת ופעמיים הלכנו להכרעה מהנקודה הלבנה. "
-    "בסיומו של המחזור, השחורים והלבנים חלקו את פסגת הלילה."
-)
-
-# What is said *in the clip*, for VoxCPM2's transcript-assisted cloning. It
-# has to match the words exactly; it is not spoken.
-TRANSCRIPT = (
-    "המקצוע הכי טוב בכדורגל, נתת לו הכל, נגיע איך זה קרה, "
-    "אבל חלילה חלילה, והחתמת אותו לתקופה ממושכת, חלילה חלילה חלילה, "
-    "הוא נכשל ומי כמוך יודע, ביתר זה לא המועדון הראשון שלך, האם הוא חוזר"
+    "ערב חריג של דיקטטורה מוחלטת נרשם על הדשא, עם שלושה עשר משחקים שבהם ההובלה התחלפה "
+    "רק פעם אחת בודדת ופעמיים הלכנו להכרעה מהנקודה הלבנה. בסיומו של המחזור, השחורים והלבנים "
+    "חלקו את פסגת הלילה.\n"
+    "השחורים אספו חמש נקודות בעשרה משחקים עם רצף שיא של חמישה ניצחונות, בזכות דני, יובל, רוני, "
+    "גלעד ואורי. לצידם סיימו הלבנים עם חמש נקודות מתשעה משחקים ורצף של שלוש, אותם ייצגו עמית, "
+    "תומר, מאיר, אלון ובועז.\n"
+    "הכחולים סגרו ערב עגום בתחתית עם שתי נקודות בלבד משבעה משחקים ורצף שיא של ניצחון בודד, "
+    "כאשר נדב, שחר, עוז, גיל ואיתי בעיקר צפו מהצד.\n"
+    "זה היה המחזור של הדרבי המסעיר בין רוני לאיתי, הדרבי שכל המועדון חיכה לו בכליון עיניים. "
+    "השניים נפגשו ארבע פעמים לאורך הלילה, פעמיים מתוכן נגררו לדו קרב פנדלים מורט עצבים, "
+    "ובסיום רוני לקח ארבע נקודות לעומת אפס של איתי והוכתר למנצח הגדול והבלתי מעורער של המפגש.\n"
+    "גולת הכותרת הדרמטית של הערב הייתה שדני נרדם ולא הגיע למחזור בכלל. השחקנים המתינו לו בחניה "
+    "בעוד הוא חלם בהקיץ במיטה, מחדל שערורייתי שגרר קריאות מיידיות לכינוס אסיפת חירום.\n"
+    "במקביל, שחקן המחזור עמית סיפק תצוגת תכלית מטורפת, ושרר קונצנזוס ביציע כי כל גול שלו מועמד "
+    "לשער העונה בעולם. הוועדה המארגנת כבר שוקלת לשריין לו פסלון זהב יוצא דופן.\n"
+    "יוני ניצח שישה משחקים הערב ושבר בצורת של חמישה מחזורים ללא פסגה, בעוד בועז כבר שמונה "
+    "מחזורים לא טעם ניצחון בערב כולו ויצטרך לחפש תשובות במחזור הבא."
 )
 
 SPEECH_PY = Path(__file__).parent / "speech.py"

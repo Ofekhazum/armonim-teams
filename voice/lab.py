@@ -7,10 +7,7 @@
 # and the extra conversion pass.
 
 import io
-import re
 import time
-
-from speech import chunks
 
 
 def _timed(fn):
@@ -23,52 +20,32 @@ def _failed(err: Exception) -> dict:
     return {"error": f"{type(err).__name__}: {err}"[:300]}
 
 
-def sentences(text: str):
-    """(sentence, pause after it): a breath between sentences, a longer one between paragraphs."""
-    out = []
-    for paragraph in (p.strip() for p in text.split("\n")):
-        if not paragraph:
-            continue
-        parts = [s for s in re.split(r"(?<=[.!?])\s+", paragraph) if s]
-        for i, sentence in enumerate(parts):
-            out.append((sentence, 0.7 if i == len(parts) - 1 else 0.4))
-    return out
-
-
-def vox_speak(model, pieces, **cloning):
-    """VoxCPM2 reading `pieces` one at a time, with silence stitched between."""
-    import numpy as np
-
-    sr = model.tts_model.sample_rate
-    parts = []
-    for piece, pause in pieces:
-        wav = model.generate(text=piece, cfg_value=2.0, inference_timesteps=10, **cloning)
-        parts.append(np.asarray(wav, dtype="float32"))
-        parts.append(np.zeros(int(sr * pause), dtype="float32"))
-    return np.concatenate(parts[:-1]), sr
-
-
 def vox_variants(model, text: str, clip: str):
     """
-    VoxCPM2, the clip as uploaded, as a voice reference only, with breaths.
+    A whole recap, the clip as uploaded, voice reference only.
 
-    Findings that shape this (rounds one to three):
-    - It copies the *rhythm* of its clip, and the cleaned clip had its pauses
-      cut out, so it was given the clip untouched.
-    - Given the clip *with its transcript* (prompt mode) it spills the last
-      words of the clip at the start of its output — "…האם הוא חוזר" — which
-      in chunked generation repeated at the start of every chunk: the
-      stuttering. Reference-only mode has no such leak.
-    - Either way it never pauses between sentences on its own (zero silences
-      over 0.25 s in a 16 s paragraph, against two in Chatterbox's).
+    F8   the text in one go, no breaths — what D8 did, at full length
+    F10  the production path: speech.speak_vox_wav, breaths between chunks
 
-    D10  breaths the way Chatterbox's pipeline has them: masthead, then the body
-    D11  a breath after every sentence
+    Both are watermarked, as production is.
     """
+    from speech import speak_vox_wav, watermark
+
+    def one_shot():
+        wav = model.generate(
+            text=text.replace("\n", " "), cfg_value=2.0, inference_timesteps=10,
+            reference_wav_path=clip,
+        )
+        return watermark(wav, model.tts_model.sample_rate), model.tts_model.sample_rate
+
+    def production():
+        wav, sr = speak_vox_wav(model, clip, text)
+        return watermark(wav, sr), sr
+
     out = {}
-    for name, pieces in (("D10", chunks(text)), ("D11", sentences(text))):
+    for name, run in (("F8", one_shot), ("F10", production)):
         try:
-            out[name] = _timed(lambda: vox_speak(model, pieces, reference_wav_path=clip))
+            out[name] = _timed(run)
         except Exception as err:
             out[name] = _failed(err)
     return out

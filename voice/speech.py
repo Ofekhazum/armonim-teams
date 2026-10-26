@@ -33,6 +33,8 @@ CHUNK_CHARS = 240
 GAP_SENTENCE = 0.25
 GAP_PARAGRAPH = 0.6
 
+VOX_REPO = "openbmb/VoxCPM2"
+
 PHONIKUD_REPO = "thewh1teagle/phonikud-onnx"
 PHONIKUD_FILE = "phonikud-1.0.int8.onnx"
 
@@ -196,3 +198,70 @@ def encode_mp3(audio, sample_rate: int) -> bytes:
 
 def speak_mp3(model, diacritizer, reference: str, text: str) -> bytes:
     return encode_mp3(*speak_wav(model, diacritizer, reference, text))
+
+
+# --- VoxCPM2 (§2.69.1) --------------------------------------------------------
+#
+# Chosen over Chatterbox on likeness, after a listening comparison; see DESIGN.
+# What that comparison settled, all of it measured rather than assumed:
+#
+# - The clip goes in **as uploaded**. VoxCPM2 copies the rhythm of its clip, and
+#   a version with the pauses trimmed out made it read fast with no stops.
+# - **Reference-only** mode. Given the clip *with its transcript* it spills the
+#   last words of the clip at the start of its output, which in chunked
+#   generation repeated at every chunk and sounded like stuttering.
+# - It **never pauses between sentences by itself** (no silence over 0.25 s in
+#   16 s of speech, against two for Chatterbox), so the same chunking and
+#   breaths as the Chatterbox pipeline are stitched in.
+# - It does **not watermark**. Chatterbox does inside generate(); here the same
+#   Resemble PerTh watermark is applied to the finished audio. Checked: the
+#   detector reads 0.0 before, 1.0 after, and 1.0 again after loudness
+#   normalisation and a 64 kbps MP3 round trip, at 24 kHz and 48 kHz.
+
+
+def load_vox(device: str = "cuda"):
+    from voxcpm import VoxCPM
+
+    # No denoiser (it would clean the reference, which hurt) and no torch.compile
+    # (a long first-request stall for a model that runs a few times a week).
+    return VoxCPM.from_pretrained(VOX_REPO, load_denoiser=False, optimize=False, device=device)
+
+
+def speak_vox_wav(model, reference: str, text: str):
+    """The recap as one float32 waveform, and its sample rate."""
+    import numpy as np
+
+    text = (text or "").strip()
+    if not text:
+        raise ValueError("empty text")
+    if len(text) > MAX_CHARS:
+        raise ValueError("text too long")
+
+    sr = model.tts_model.sample_rate
+    parts = []
+    for chunk, pause in chunks(text):
+        wav = model.generate(
+            text=chunk, cfg_value=2.0, inference_timesteps=10, reference_wav_path=reference
+        )
+        parts.append(np.asarray(wav, dtype="float32"))
+        parts.append(np.zeros(int(sr * pause), dtype="float32"))
+    return np.concatenate(parts[:-1]), sr
+
+
+_watermarker = None
+
+
+def watermark(audio, sample_rate: int):
+    """Resemble's PerTh mark, the one Chatterbox applies on its own."""
+    import numpy as np
+    import perth
+
+    global _watermarker
+    if _watermarker is None:
+        _watermarker = perth.PerthImplicitWatermarker()
+    return np.asarray(_watermarker.apply_watermark(audio, sample_rate=sample_rate), dtype="float32")
+
+
+def speak_vox_mp3(model, reference: str, text: str) -> bytes:
+    audio, sr = speak_vox_wav(model, reference, text)
+    return encode_mp3(watermark(audio, sr), sr)
