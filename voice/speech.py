@@ -137,10 +137,19 @@ def load_model(device: str):
     return model, diacritizer
 
 
-def speak_mp3(model, diacritizer, reference: str, text: str) -> bytes:
-    import numpy as np
-    import soundfile as sf
+def vocalise(diacritizer, text: str) -> str:
+    """Vowel marks, in the form Chatterbox's Hebrew tokens were trained on."""
     from phonikud import lexicon
+
+    # Phonikud also emits its own stress and vowel-length marks. Chatterbox's
+    # Hebrew tokens were trained on standard nikud, so those are stripped —
+    # the same step phonikud-chatterbox takes.
+    return re.sub(f"[{lexicon.NON_STANDARD_DIAC}]", "", diacritizer.add_diacritics(text))
+
+
+def speak_wav(model, diacritizer, reference: str, text: str):
+    """The recap as one float32 waveform, and its sample rate."""
+    import numpy as np
 
     text = (text or "").strip()
     if not text:
@@ -148,26 +157,24 @@ def speak_mp3(model, diacritizer, reference: str, text: str) -> bytes:
     if len(text) > MAX_CHARS:
         raise ValueError("text too long")
 
-    # Phonikud also emits its own stress and vowel-length marks. Chatterbox's
-    # Hebrew tokens were trained on standard nikud, so those are stripped —
-    # the same step phonikud-chatterbox takes.
-    non_standard = re.compile(f"[{lexicon.NON_STANDARD_DIAC}]")
-
     # The voice is read from the clip once per recap, not once per chunk.
     model.prepare_conditionals(reference)
 
     parts = []
     for chunk, pause in chunks(text):
-        vocalised = non_standard.sub("", diacritizer.add_diacritics(chunk))
-        wav = model.generate(vocalised, language_id="he")
+        wav = model.generate(vocalise(diacritizer, chunk), language_id="he")
         parts.append(wav.squeeze(0).cpu().numpy())
         parts.append(np.zeros(int(model.sr * pause), dtype=np.float32))
-    audio = np.concatenate(parts[:-1])
+    return np.concatenate(parts[:-1]), model.sr
+
+
+def encode_mp3(audio, sample_rate: int) -> bytes:
+    import soundfile as sf
 
     with tempfile.TemporaryDirectory() as workdir:
         wav_path = os.path.join(workdir, "recap.wav")
         mp3_path = os.path.join(workdir, "recap.mp3")
-        sf.write(wav_path, audio, model.sr)
+        sf.write(wav_path, audio, sample_rate)
         # Mono 64 kbps is ~0.5 MB a minute and indistinguishable from the WAV
         # for speech on a phone speaker. loudnorm evens out chunk-to-chunk
         # level differences. The tags say what this is, so the file carries
@@ -185,3 +192,7 @@ def speak_mp3(model, diacritizer, reference: str, text: str) -> bytes:
         )
         with open(mp3_path, "rb") as f:
             return f.read()
+
+
+def speak_mp3(model, diacritizer, reference: str, text: str) -> bytes:
+    return encode_mp3(*speak_wav(model, diacritizer, reference, text))
