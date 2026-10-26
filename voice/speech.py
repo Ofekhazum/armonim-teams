@@ -258,6 +258,11 @@ def watermark(audio, sample_rate: int):
 
     global _watermarker
     if _watermarker is None:
+        # perth sets its watermarker to None, without a word, if any of its own
+        # imports fails. Unmarked audio must never go out because a package was
+        # missing, so that is an error here, not a quiet pass-through.
+        if perth.PerthImplicitWatermarker is None:
+            raise RuntimeError("the AI watermark is unavailable (perth failed to import)")
         _watermarker = perth.PerthImplicitWatermarker()
     return np.asarray(_watermarker.apply_watermark(audio, sample_rate=sample_rate), dtype="float32")
 

@@ -94,7 +94,12 @@ def sources(image: modal.Image) -> modal.Image:
 vox_image = sources(
     modal.Image.debian_slim(python_version="3.11")
     .apt_install("ffmpeg", "libsndfile1")
-    .pip_install("voxcpm==2.0.3", "soundfile")
+    # resemble-perth declares no dependencies of its own but imports all of
+    # these; without them it silently disables itself (speech.watermark refuses)
+    .pip_install(
+        "voxcpm==2.0.3", "soundfile", "resemble-perth==1.0.1",
+        "pyrubberband", "pydub", "audioread", "matplotlib", "pyyaml", "setuptools<81",
+    )
     .env({"HF_HOME": MODELS})
 ).run_function(bake_vox)
 
