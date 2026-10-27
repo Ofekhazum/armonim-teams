@@ -13,6 +13,8 @@ export interface VoiceStatus {
   voiceable: boolean; // the stored recap is one Gemini wrote
   status: 'none' | 'working' | 'ready' | 'failed';
   startedAt?: number;
+  // while it is working: waiting for a GPU to free up, or on one (§2.69.2)
+  phase?: 'queued' | 'running';
   // whether the recording was made with niqqud, and if not (or not fully) why (§2.71)
   pointed?: boolean;
   pointNote?: string;

@@ -2,7 +2,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import worker, { voiceCap } from './roster-worker.js';
 import { stripPoints } from './vocalize.js';
 import {
+  JOB_TIMEOUT_MS,
   RecapVoice,
+  StillWorking,
   canVoice,
   collectJob,
   hebrewNumber,
@@ -313,6 +315,127 @@ const voiceAnswers = () =>
 
 const startJobOn = (voice, body) =>
   voice.fetch(new Request('https://voice/start', { method: 'POST', body: JSON.stringify(body) }));
+
+describe('a job that outlasts one alarm (§2.69.2)', () => {
+  const statusOf = async (voice) => (await voice.fetch(new Request('https://voice/status'))).json();
+  const setup = async () => {
+    const state = fakeState();
+    const env = { ...voiceEnv(), VOICE_NIQQUD: 'off', ROSTER_KV: fakeKv() };
+    const voice = new RecapVoice(state, env);
+    await startJobOn(voice, { fixtureId: 'f1', text: 'שלום.', hash: 'h1' });
+    return { state, env, voice };
+  };
+  // the voice server: queues a job, then answers every poll with `poll()`
+  const server = (poll) => {
+    const seen = { starts: 0, polls: 0 };
+    vi.stubGlobal('fetch', async (_url, init) => {
+      if (init?.method === 'POST') {
+        seen.starts++;
+        return Response.json({ call_id: 'fc-1' });
+      }
+      seen.polls++;
+      return poll(seen);
+    });
+    return seen;
+  };
+
+  it('keeps waiting — sets the next alarm instead of giving up — while the call is not done', async () => {
+    const { state, voice } = await setup();
+    server(() => Response.json({ status: 'working', phase: 'queued' }, { status: 202 }));
+    await voice.alarm();
+    expect((await statusOf(voice)).status).toBe('working');
+    expect(state.alarmAt()).toBeLessThan(Date.now() + 5000);
+  });
+
+  it('carries on from the same call on the next alarm, and does not start another', async () => {
+    const { env, voice } = await setup();
+    const seen = server((s) =>
+      s.polls <= 12 ? Response.json({ status: 'working' }, { status: 202 }) : new Response(MP3),
+    );
+    await voice.alarm(); // twelve polls, no answer: stops waiting, stays working
+    expect((await statusOf(voice)).status).toBe('working');
+    await voice.alarm(); // the next one finds it done
+    expect(seen.starts).toBe(1);
+    expect((await statusOf(voice)).status).toBe('ready');
+    expect(env.ROSTER_KV.store.has(voiceKey('f1'))).toBe(true);
+  });
+
+  it('says whether the call is waiting for a GPU or on one', async () => {
+    const { voice } = await setup();
+    server((s) =>
+      s.polls === 1
+        ? Response.json({ status: 'working', phase: 'queued' }, { status: 202 })
+        : Response.json({ status: 'working', phase: 'running' }, { status: 202 }),
+    );
+    await voice.alarm();
+    expect((await statusOf(voice)).phase).toBe('running'); // the last thing it heard
+    const queuedFirst = [];
+    const { voice: other } = await setup();
+    vi.stubGlobal('fetch', async (_u, init) => {
+      if (init?.method === 'POST') return Response.json({ call_id: 'fc-2' });
+      queuedFirst.push((await statusOf(other)).phase);
+      return Response.json({ status: 'working', phase: 'queued' }, { status: 202 });
+    });
+    await other.alarm();
+    expect(queuedFirst[0]).toBe('queued'); // from the moment the call is queued
+  });
+
+  it('does not report a phase once it is over', async () => {
+    const { voice } = await setup();
+    server(() => new Response(MP3));
+    await voice.alarm();
+    expect(await statusOf(voice)).not.toHaveProperty('phase');
+  });
+
+  it('gives up, saying why, once the whole time is spent', async () => {
+    const { state, voice } = await setup();
+    // the job began half an hour and a minute ago
+    const job = await state.storage.get('job');
+    await state.storage.put('job', { ...job, startedAt: Date.now() - JOB_TIMEOUT_MS - 60_000, phase: 'queued' });
+    server(() => Response.json({ status: 'working', phase: 'queued' }, { status: 202 }));
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    await voice.alarm();
+    expect(await statusOf(voice)).toMatchObject({
+      status: 'failed',
+      error: expect.stringMatching(/no recording after 3\d minutes \(never got a GPU\)/),
+    });
+  });
+
+  it('says "still recording" when it had a GPU and still did not finish', async () => {
+    const { state, voice } = await setup();
+    const job = await state.storage.get('job');
+    await state.storage.put('job', { ...job, startedAt: Date.now() - JOB_TIMEOUT_MS - 60_000, phase: 'running' });
+    await state.storage.put('callId', 'fc-1'); // an earlier alarm started it
+    server(() => Response.json({ status: 'working', phase: 'running' }, { status: 202 }));
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    await voice.alarm();
+    expect((await statusOf(voice)).error).toMatch(/still recording/);
+  });
+
+  it('fails at once, not after the wait, when the voice server reports an error', async () => {
+    const { voice } = await setup();
+    server(() => Response.json({ error: 'no reference clip' }, { status: 500 }));
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    await voice.alarm();
+    expect(await statusOf(voice)).toMatchObject({ status: 'failed', error: 'voice job failed: no reference clip' });
+  });
+
+  it('is a StillWorking, not an error, when collectJob runs out of its slice', async () => {
+    vi.stubGlobal('fetch', async () => Response.json({ status: 'working' }, { status: 202 }));
+    await expect(
+      collectJob(voiceEnv(), 'fc-1', { deadline: Infinity, wait: async () => {} }),
+    ).rejects.toBeInstanceOf(StillWorking);
+  });
+
+  it('lets a new press start over once the whole time has gone, and not before', async () => {
+    const { state, voice } = await setup();
+    const again = async () => (await startJobOn(voice, { fixtureId: 'f1', text: 'ב.', hash: 'h2' })).json();
+    expect((await again()).hash).toBe('h1'); // still working: the one in flight
+    const job = await state.storage.get('job');
+    await state.storage.put('job', { ...job, startedAt: Date.now() - JOB_TIMEOUT_MS - 1000 });
+    expect((await again()).hash).toBe('h2');
+  });
+});
 
 describe('voiceFor / voiceHash', () => {
   it('reads a recap in its writer’s voice, and a stranger in the default one', () => {

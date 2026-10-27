@@ -5217,6 +5217,40 @@ typo can't remove it. It is `"off"` while the voice is being tuned — set it ba
 admin word is still required and Modal's spend cap still applies; what the cap stops is a leaked word
 queueing recordings without limit.
 
+### 2.69.2 Waiting for a GPU
+
+Modal's call list for a day of recordings showed where the "15 minutes" had been going. Generating a recap
+is steady — 2m22 to 3m35 on every successful call, about 1.2 s to say a second of speech — but the time
+between pressing the button and the call *starting* was 20–33 s when a GPU was free and **1m42, 3m, 8m46,
+12m56** when it was not (and one call never started). The Worker's clock ran from the press and stopped at
+fourteen minutes, so a 13-minute wait plus startup plus three minutes of speech could not fit, and one at
+8m46 only just did. The job was not slow; it was queued for an L4.
+
+Three changes, aimed at the wait rather than the speech:
+
+- **Any of three GPUs.** The class asks for `["L4", "A10", "L40S"]` — Modal's own fallback list, in order of
+  preference. The A10 (24 GB) and L40S (48 GB) cost more per hour than the L4 and the same few cents per
+  recording, and a job that can run on three kinds of card is rarely waiting for one.
+- **The wait is no longer one alarm.** A Durable Object alarm gets fifteen minutes of wall clock, which had
+  capped the whole job. A job is now as many alarms as it needs: the first points the text, starts the call
+  on Modal and keeps its id (`callId`); each alarm waits on that call for up to ten minutes, and if it is
+  not done sets the next alarm and ends, carrying on from the *same* call — never starting a second.
+  `collectJob` throws `StillWorking` for "not done by the time this one stopped waiting", which is not a
+  failure. The whole job is allowed **thirty minutes** (`JOB_TIMEOUT_MS`), and when it runs out it says
+  which kind of lost it was: *never got a GPU* or *still recording*. A press during that time still returns
+  the job in flight; after it, a new one starts. A call that Modal reports as failed or cancelled still
+  fails at once, not after the wait.
+- **The app says which it is.** The poll endpoint reports `phase`: a running call writes its id into a
+  Modal Dict (`armonim-voice-state`) as it starts, so a call whose id is not there is `queued`. The
+  button reads "Waiting for a GPU…" with a note that every GPU is busy and the page can be closed, then
+  "Recording…" once it has one. The note is only a courtesy: if the Dict cannot be written or read, the
+  recording still happens and the phase is simply absent.
+
+Not done, and why: keeping a GPU warm all the time (about $19 a day) and a longer scale-down window (it
+helps back-to-back takes, not the first one of a session). Whether the fallback list takes effect for a
+class — Modal documents it for functions — is shown by the deploy itself: a rejected spec fails
+`modal deploy`, and the previous version keeps running.
+
 ### 2.69.1 Choosing the voice engine (VoxCPM2, not Chatterbox)
 
 The first engine was Chatterbox Multilingual v2 (MIT), with Hebrew vowel marks from phonikud. It read

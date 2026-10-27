@@ -184,6 +184,11 @@ export const night = {
   'np.voice.listen': { he: '🎧 שמיעה', en: '🎧 Listen' },
   'np.voice.player': { he: 'ההקלטה', en: 'The recording' },
   'np.voice.working': { he: '⏳ מקליט… {time}', en: '⏳ Recording… {time}' },
+  'np.voice.queued': { he: '⏳ מחכה לשרת פנוי… {time}', en: '⏳ Waiting for a GPU… {time}' },
+  'np.voice.queuedHint': {
+    he: 'כל השרתים תפוסים כרגע, וההקלטה בתור. לפעמים זה לוקח כמה דקות; אפשר לסגור את הדף.',
+    en: 'Every GPU is busy and the recording is queued. It can take a few minutes; you can close this page.',
+  },
   'np.voice.workingHint': {
     he: 'אם שרת הקול ישן, הוא מתעורר קודם — זה יכול לקחת כמה דקות. אפשר לסגור את הדף, ההקלטה ממשיכה.',
     en: 'If the voice server is asleep it wakes up first, which can take a few minutes. You can close this page — it keeps going.',
