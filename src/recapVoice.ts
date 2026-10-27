@@ -20,7 +20,7 @@ export type VoiceError =
   | 'not-configured'
   | 'wrong-word'
   | 'rate-limited' // wrong words from this address
-  | 'too-many' // the right word, but four takes today already
+  | 'too-many' // the right word, but the day's recordings are used up
   | 'no-recap'
   | 'not-generated' // written by hand: stored, readable, never spoken
   | 'error';
