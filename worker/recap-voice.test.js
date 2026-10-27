@@ -333,6 +333,7 @@ describe('the niqqud switch', () => {
     expect(await (await voice.fetch(new Request('https://voice/status'))).json()).toMatchObject({
       status: 'ready',
       pointed: false,
+      pointNote: 'switched off',
     });
   });
 });

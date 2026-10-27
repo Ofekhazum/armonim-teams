@@ -5357,17 +5357,24 @@ UI). That is a second call here instead, for four reasons:
   string, as it has always been, and the provenance rule (§2.69) is unchanged.
 - *It points the whole spoken text,* including the numbers `speakable()` has spelled out ("חמש") —
   which the report writer, working with digits, never could.
-- *It can be switched off, or fail, at no cost.* Pointing is checked **letter for letter**: the
-  answer, with its points stripped, must equal what was sent (`sameLetters`), line by line. One
-  differing letter — a word "corrected", a sentence dropped — and the answer is discarded, retried
-  once, and then the recording is made from the unpointed text. The voice can therefore never say
-  a word the report does not contain, and trying can never make a recording *worse than before*.
+- *It can be switched off, or fail, at no cost.* Pointing is checked **a line at a time, on letters and
+  digits** (`mergePointed`): a pointed line is used only if, points and punctuation aside, it is the
+  original line's own letters and digits in order. A line that fails is read as it was, and the lines
+  that pass keep their points; an answer is asked for twice if some line failed, and the better one is
+  kept. The voice can therefore never say a word the report does not contain, and trying can never make
+  a recording *worse than before*.
+
+  The first version checked the whole text, every character, all or nothing — and a single apostrophe
+  rewritten as a geresh anywhere in a recap threw all of it away, silently: the recording came out
+  unpointed ("שגב" read as *shagav*, "שיא" as *shi*) and nothing said why. Punctuation decides a pause,
+  not a word, so it is no longer compared; and the outcome is on the job record.
 
 Details:
 
 - **Where.** In the `RecapVoice` alarm, before the job is queued with Modal; the job record gets
-  `pointed: true|false` (also on the public status), and a skipped pointing is logged with its
-  reason. Cached audio is keyed by the *unpointed* spoken text and `VOICE_VERSION` (now 4), so existing
+  `pointed: true|false` and, when pointing was skipped or partial, `pointNote` — the reason, or "3 of 5
+  lines" — on the public status, shown under the player in the app. (The Worker's log of it is gone by
+  the time anybody asks; the status is not.) Cached audio is keyed by the *unpointed* spoken text and `VOICE_VERSION` (now 4), so existing
   recordings stop matching and are made again on request.
 - **Stripping.** `stripPoints` deliberately does **not** use the U+0591–U+05C7 block: that range
   holds the maqaf (U+05BE, "־"), the paseq and the sof pasuq, which are punctuation. Stripping them

@@ -12,11 +12,17 @@
 // has to produce, and it would have to be undone for the app (and kept in step
 // in storage, provenance and the draft list) every time. A call of its own is
 // one job with one check: the letters that come back must be the letters that
-// went in. If a single one differs — a word "corrected", a sentence dropped —
-// the answer is thrown away and the recording is made unpointed. So the voice
-// can never be made to say a word the report does not contain, which is the
-// whole safety story of the feature (§2.69), and it can never be *worse* for
-// trying: failure costs the points, nothing else.
+// went in. The check is made a line at a time. A line whose letters differ — a
+// word "corrected", a sentence dropped — is thrown away and that line is read
+// unpointed; the lines that pass keep their points. So the voice can never be
+// made to say a word the report does not contain, which is the whole safety
+// story of the feature (§2.69), and it can never be *worse* for trying:
+// failure costs the points, nothing else.
+//
+// Per line, and on letters and digits only, because the first version checked
+// the whole text and every character: one apostrophe the model rewrote
+// anywhere in a recap, and the entire recording was made unpointed, silently.
+// Punctuation decides a pause, not a word.
 //
 // It also points what the report never could: speakable() has already spelled
 // the numbers out, so "חמש" gets its vowels like any other word.
@@ -64,6 +70,12 @@ const lines = (text) =>
     .map((line) => line.replace(/\s+/g, ' ').trim())
     .filter(Boolean);
 
+/** The letters and digits of a text, in order, with points, punctuation and spacing gone. */
+export const lettersOf = (text) =>
+  String(text ?? '')
+    .normalize('NFC')
+    .replace(/[^\p{L}\p{N}]/gu, '');
+
 /** The pointed text between the tags, or null if the model did not use them. */
 function between(raw) {
   const from = raw.indexOf(OPEN);
@@ -73,16 +85,31 @@ function between(raw) {
 }
 
 /**
- * True if `pointed` is `spoken` with vowels added and nothing else: the same
- * lines, and in each line the same characters once the points are stripped.
- * Normalised to NFC first, because a model may emit a letter and its points in
- * either order and the two spellings are the same word.
+ * Take the pointed lines that are the original's own words, keep the original
+ * for the rest.
+ *
+ * Returns `{ text, ok, of }`, or null when the two cannot be lined up at all —
+ * a different number of lines — and there is nothing to compare line by line.
+ * A line counts only if its letters and digits are exactly the original's and
+ * it carries some points; pointing nothing is not pointing.
  */
-export function sameLetters(spoken, pointed) {
-  const a = lines(spoken.normalize('NFC'));
-  const b = lines(stripPoints(pointed.normalize('NFC')));
-  return a.length === b.length && a.every((line, i) => line === b[i]);
+export function mergePointed(spoken, pointed) {
+  const original = lines(spoken.normalize('NFC'));
+  const answer = lines(pointed.normalize('NFC'));
+  if (original.length !== answer.length) return null;
+  let ok = 0;
+  const text = original
+    .map((line, i) => {
+      const good = lettersOf(answer[i]) === lettersOf(line) && pointCount(answer[i]) > 0;
+      if (good) ok++;
+      return good ? answer[i] : line;
+    })
+    .join('\n');
+  return { text, ok, of: original.length };
 }
+
+/** True if `pointed` is `spoken` with vowels added: the same letters and digits, in order. */
+export const sameLetters = (spoken, pointed) => lettersOf(spoken) === lettersOf(pointed);
 
 // Which models point the text. Not the recap's own list: its first model writes
 // the best reports but allows only ~20 requests a day (gemini.js), and pointing
@@ -109,15 +136,17 @@ const TEMPERATURE = 0.2;
 /**
  * Add niqqud to `spoken`.
  *
- * Never throws and never returns anything but `spoken` or `spoken` with points:
+ * Never throws and never returns anything but `spoken`, or `spoken` with points
+ * on the lines that passed the check:
  *
- *   { text, pointed: true }            the model's text, checked letter for letter
- *   { text: spoken, pointed: false, reason }   the text as it came, and why not
+ *   { text, pointed: true, ok, of }              `ok` of `of` lines pointed
+ *   { text: spoken, pointed: false, reason }     the text as it came, and why not
  *
  * `ask` is `callGemini`; the tests pass their own.
  */
 export async function vocalize(env, spoken, { ask = callGemini } = {}) {
   let reason = 'no answer';
+  let best = null;
   for (let attempt = 1; attempt <= TRIES; attempt++) {
     const said = await ask(env, buildVocalizePrompt(spoken), {
       temperature: TEMPERATURE,
@@ -135,15 +164,19 @@ export async function vocalize(env, spoken, { ask = callGemini } = {}) {
       reason = 'no tags';
       continue;
     }
-    if (!sameLetters(spoken, pointed)) {
-      reason = 'the letters changed';
+    const merged = mergePointed(spoken, pointed);
+    if (!merged) {
+      reason = 'the lines did not match';
       continue;
     }
-    if (pointCount(pointed) === 0) {
-      reason = 'no points were added';
+    if (merged.ok === 0) {
+      reason = 'no line kept its letters';
       continue;
     }
-    return { text: pointed.normalize('NFC'), pointed: true };
+    if (!best || merged.ok > best.ok) best = merged;
+    // every line passed: nothing a second answer could add
+    if (best.ok === best.of) break;
   }
+  if (best) return { text: best.text.normalize('NFC'), pointed: true, ok: best.ok, of: best.of };
   return { text: spoken, pointed: false, reason };
 }

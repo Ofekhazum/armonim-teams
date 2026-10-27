@@ -188,6 +188,15 @@ export default function RecapVoice({ fixtureId, date, adminWord, recapAt }: Prop
           </button>
         )}
       </div>
+      {file && status.pointed !== undefined && (
+        <p className="mt-1.5 text-[11px] text-amber-900/50">
+          {status.pointed
+            ? status.pointNote
+              ? t('np.voice.pointedSome', { note: status.pointNote })
+              : t('np.voice.pointed')
+            : t('np.voice.unpointed', { note: status.pointNote ?? '?' })}
+        </p>
+      )}
       {phase === 'working' && <p className="mt-1.5 text-[11px] text-amber-900/50">{t('np.voice.workingHint')}</p>}
       {failed && <p className="mt-1.5 whitespace-pre-wrap break-words text-xs text-red-700">{failed}</p>}
     </div>

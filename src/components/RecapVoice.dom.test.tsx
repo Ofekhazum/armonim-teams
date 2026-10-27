@@ -162,4 +162,20 @@ describe('RecapVoice', () => {
     expect(await screen.findByText(s('np.voice.share'))).toBeInTheDocument();
     expect(document.querySelector('audio')).toBeNull();
   });
+
+  it('says whether the recording has niqqud, and why not when it has none', async () => {
+    mocked.fetchVoiceStatus.mockResolvedValue(status());
+    mocked.startVoice.mockResolvedValue(status({ status: 'ready', pointed: false, pointNote: 'quota' }));
+    renderVoice();
+    fireEvent.click(await screen.findByText(s('np.voice.create')));
+    expect(await screen.findByText('Without niqqud: quota')).toBeInTheDocument();
+  });
+
+  it('says so when only some lines have niqqud', async () => {
+    mocked.fetchVoiceStatus.mockResolvedValue(status());
+    mocked.startVoice.mockResolvedValue(status({ status: 'ready', pointed: true, pointNote: '3 of 5 lines' }));
+    renderVoice();
+    fireEvent.click(await screen.findByText(s('np.voice.create')));
+    expect(await screen.findByText('Partial niqqud: 3 of 5 lines')).toBeInTheDocument();
+  });
 });
