@@ -5341,7 +5341,15 @@ is the default and the fallback. The pieces:
 
 ### 2.71 Vowel points (niqqud) for the voice
 
-> **Current design: the report is written pointed (the original spec).** The second-Gemini-call design
+> **Result of the first listening test: VoxCPM2 cannot read niqqud, and it is OFF.** A recording made
+> from a pointed report came out as an unintelligible mix of Hebrew and something like Arabic — the
+> model has no use for the vowel marks and they wreck the speech. `VOICE_NIQQUD` is `"off"` in
+> `wrangler.toml`, which puts the report prompt and the voice back to plain text. All of the code below
+> is kept and switched by that one setting, in case a different voice engine can read points. The
+> mispronounced words (שגב as *shagav*, שיא as *shi* — the sin/shin dot) need another answer: see
+> the pronunciation list proposed in §2.71.2 when it is built.
+>
+> **Design, while it was on: the report is written pointed (the original spec).** The second-Gemini-call design
 > described below was built first and proved fragile — a strict check on a long text rejected the whole
 > answer, and the first real recordings all came out unpointed. So the report writer is now asked to
 > write **with niqqud** (`NIQQUD_RULE` in `buildPrompt`, only when `VOICE_NIQQUD` is on), and:
