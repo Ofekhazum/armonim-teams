@@ -72,6 +72,17 @@ describe('the shipped dictionary', () => {
   });
 
   it('respells the names it was started with', () => {
-    expect(pronounce('שגב ויועד ודובצקי וזרקא')).toBe('Segev ve Yoed ve Dovtski ve Zarka');
+    expect(pronounce('שגב ויועד ודובצקי וזרקא')).toBe('Segev ve Yoad ve Dubetsky ve Zarka');
+    expect(pronounce('לאריאל ולירין, אופק ועומרי נגד טאקו ועובדיה')).toBe(
+      'le Ariel vele Yarin, Ofek ve Omri נגד Tako ve Ovadia',
+    );
+    expect(pronounce('ארמונים בארמונים')).toBe('Armonim be Armonim');
+  });
+
+  it('respells a name that is also a word only on its own', () => {
+    expect(pronounce('דור שי סלע קהל')).toBe('Dor Shay Sela Kahal');
+    expect(pronounce('תומר קהל כבש')).toBe('תומר Kahal כבש');
+    // the other words made of the same letters are not names
+    expect(pronounce('מדור כדור הדור הקהל קהלים שיר סלעים')).toBe('מדור כדור הדור הקהל קהלים שיר סלעים');
   });
 });
