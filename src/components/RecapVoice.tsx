@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { VoiceStatus } from '../recapVoice';
-import { fetchVoiceFile, fetchVoiceStatus, shareVoiceFile, startVoice } from '../recapVoice';
+import { fetchSentText, fetchVoiceFile, fetchVoiceStatus, shareVoiceFile, startVoice } from '../recapVoice';
 import { t } from '../i18n';
 
 // The recap, read aloud (§2.69) — the organiser's taps under the report.
@@ -34,10 +34,13 @@ export default function RecapVoice({ fixtureId, date, adminWord, recapAt }: Prop
   const [playUrl, setPlayUrl] = useState<string | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
+  // TEMPORARY (§2.71): the text the voice was sent. undefined = hidden, null = none to show.
+  const [sent, setSent] = useState<string | null | undefined>(undefined);
 
   useEffect(() => {
     let cancelled = false;
     setStatus(null);
+    setSent(undefined);
     setFile(null);
     setFailed(null);
     setPhase('idle');
@@ -138,6 +141,11 @@ export default function RecapVoice({ fixtureId, date, adminWord, recapAt }: Prop
     }
   };
 
+  const toggleSent = async () => {
+    if (sent !== undefined) return setSent(undefined);
+    setSent(await fetchSentText(fixtureId, adminWord));
+  };
+
   if (!status?.configured) return null;
   if (!status.voiceable) {
     return <p className="mt-2 text-xs text-amber-900/50">{t('np.voice.handWritten')}</p>;
@@ -196,6 +204,32 @@ export default function RecapVoice({ fixtureId, date, adminWord, recapAt }: Prop
               : t('np.voice.pointed')
             : t('np.voice.unpointed', { note: status.pointNote ?? '?' })}
         </p>
+      )}
+      {/* TEMPORARY: what the voice was sent, to see whether it had niqqud. Remove with
+          the Worker's `sent` route once pointing is trusted (DESIGN.md §2.71). */}
+      {status.status !== 'none' && (
+        <div className="mt-2">
+          <button
+            onClick={toggleSent}
+            className="text-[11px] font-bold text-amber-900/60 underline hover:text-orange-700"
+          >
+            {sent === undefined ? t('np.voice.sent.show') : t('np.voice.sent.hide')}
+          </button>
+          {sent === null && <p className="mt-1 text-[11px] text-amber-900/50">{t('np.voice.sent.none')}</p>}
+          {typeof sent === 'string' && (
+            <>
+              <p className="mt-1 text-[11px] text-amber-900/50">
+                {t('np.voice.sent.points', { n: (sent.match(/[\u05B0-\u05BC\u05C1\u05C2\u05C7]/g) ?? []).length })}
+              </p>
+              <pre
+                dir="rtl"
+                className="mt-1 max-h-72 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-amber-50 p-2 text-sm leading-relaxed text-amber-950"
+              >
+                {sent}
+              </pre>
+            </>
+          )}
+        </div>
       )}
       {phase === 'working' && <p className="mt-1.5 text-[11px] text-amber-900/50">{t('np.voice.workingHint')}</p>}
       {failed && <p className="mt-1.5 whitespace-pre-wrap break-words text-xs text-red-700">{failed}</p>}

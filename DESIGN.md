@@ -5386,6 +5386,13 @@ Details:
   3-flash), not the recap writer's list, so it never spends the ~20 a day that `gemini-3.6-flash` allows
   for writing reports. `GEMINI_MODEL` pins the writer only. The letter-for-letter check, not the model,
   is what keeps the result safe, so a lighter model costs at most an unpointed recording.
+- **Temporary: see what the voice was sent.** The `RecapVoice` job keeps the exact text it handed the
+  voice server (`sent`, stored the moment it is decided, so a job that then fails can be asked too), and
+  `POST /recap-audio { fixtureId, sent: true }` returns it, behind the admin word, only while it is the
+  text of the recap now on the page. The app shows it under the player (🔍) with a count of vowel marks,
+  to settle whether a recording was pointed. **To remove:** the `/sent` route and `sent` storage in
+  `recap-voice.js`, the `sent` branch in `roster-worker.js`, `fetchSentText`, the 🔍 block in
+  `RecapVoice.tsx` and the `np.voice.sent.*` strings.
 - **The way back.** `VOICE_NIQQUD` in `worker/wrangler.toml` (`"on"` by default): set it to `"off"` and
   `npx wrangler deploy` — no code change. Recordings are filed per setting (`voiceHash(…, pointed)`),
   so after flipping, a night shows no recording until it is made again, and the other setting's take is

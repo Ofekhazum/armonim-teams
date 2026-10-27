@@ -395,6 +395,36 @@ describe('RecapVoice', () => {
     });
   });
 
+  it('keeps the exact text it sent, so it can be asked what that was', async () => {
+    const POINTED = 'שָׁלוֹם.';
+    const state = fakeState();
+    const env = { ...voiceEnv(), GEMINI_KEY: 'k', ROSTER_KV: fakeKv() };
+    const voice = new RecapVoice(state, env);
+    await startJobOn(voice, { fixtureId: 'f1', text: 'שלום.', hash: 'h1' });
+    vi.stubGlobal('fetch', async (url, init) => {
+      if (String(url).includes('generativelanguage')) {
+        return Response.json({ candidates: [{ content: { parts: [{ text: `<nikud>${POINTED}</nikud>` }] } }] });
+      }
+      return init?.method === 'POST' ? Response.json({ call_id: 'fc-1' }) : new Response(MP3);
+    });
+    await voice.alarm();
+    expect(await (await voice.fetch(new Request('https://voice/sent'))).json()).toEqual({
+      sent: POINTED,
+      hash: 'h1',
+    });
+  });
+
+  it('keeps it even when the recording then fails', async () => {
+    const state = fakeState();
+    const env = { ...voiceEnv(), VOICE_NIQQUD: 'off', ROSTER_KV: fakeKv() };
+    const voice = new RecapVoice(state, env);
+    await startJobOn(voice, { fixtureId: 'f1', text: 'שלום.', hash: 'h1' });
+    vi.stubGlobal('fetch', async () => new Response('', { status: 403 }));
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    await voice.alarm();
+    expect((await (await voice.fetch(new Request('https://voice/sent'))).json()).sent).toBe('שלום.');
+  });
+
   it('ignores a voice it does not know and falls back to the default', async () => {
     const state = fakeState();
     const env = { ...voiceEnv(), ROSTER_KV: fakeKv() };
@@ -611,6 +641,28 @@ describe('/recap-audio', () => {
     expect((await voices.get('f1').state.storage.get('job')).hash).toBe(
       await voiceHash(speakable(text), 'zahavi'),
     );
+  });
+
+  it('shows the organiser the text the voice was sent — while it is still this recap’s', async () => {
+    const { env, kv, voices } = routeEnv();
+    await storeRecap(kv, 'f1', { text: 'הכחולים לקחו את הערב.', at: 1, source: 'gemini' });
+    expect((await call(env, '/recap-audio', { secret: WORD, fixtureId: 'f1', sent: true })).status).toBe(404);
+
+    await call(env, '/recap-audio', { secret: WORD, fixtureId: 'f1' });
+    voiceAnswers();
+    await voices.get('f1').instance.alarm();
+    const res = await call(env, '/recap-audio', { secret: WORD, fixtureId: 'f1', sent: true });
+    expect((await res.json()).text).toContain('הכחולים לקחו את הערב');
+
+    // re-rolled since: that text belongs to a report nobody can read any more
+    await storeRecap(kv, 'f1', { text: 'דוח אחר לגמרי.', at: 2, source: 'gemini' });
+    expect((await call(env, '/recap-audio', { secret: WORD, fixtureId: 'f1', sent: true })).status).toBe(404);
+  });
+
+  it('keeps the sent text behind the word', async () => {
+    const { env, kv } = routeEnv();
+    await storeRecap(kv, 'f1', { text: 'דוח', at: 1, source: 'gemini' });
+    expect((await call(env, '/recap-audio', { secret: 'nope', fixtureId: 'f1', sent: true })).status).toBe(401);
   });
 
   it('wants the word', async () => {

@@ -1068,6 +1068,7 @@ export default {
       //   { fixtureId }               → start making it (or say how it is going)
       //   { fixtureId, fresh: true }  → make another take even if one is cached
       //   { fixtureId, file: true }   → the MP3, once it is made
+      //   { fixtureId, sent: true }   → the text the voice was sent (temporary)
       //
       // **The client sends a fixture id and nothing else.** What is read is the
       // recap stored for that night, and only if Gemini wrote it — see
@@ -1082,6 +1083,14 @@ export default {
         const spoken = speakable(recap.text);
         const voice = voiceFor(recap);
         const hash = await voiceHash(spoken, voice, pointing(env));
+
+        // TEMPORARY (§2.71): the text the voice server was last sent for this
+        // night, only while it is the text of the recap now on the page.
+        if (body.sent === true) {
+          const said = await (await voiceJob(env, body.fixtureId).fetch('https://voice/sent')).json();
+          if (!said?.sent || said.hash !== hash) return json({ error: 'no text' }, 404);
+          return json({ text: said.sent });
+        }
 
         if (body.file === true) {
           const { value, metadata } = await env.ROSTER_KV.getWithMetadata(
