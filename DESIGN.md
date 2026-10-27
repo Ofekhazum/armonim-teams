@@ -5274,6 +5274,38 @@ pronunciation for each name, kept next to the roster and swapped into the text b
 Timing is from the comparison runs: a full recap and a second version finished in 3¾ minutes
 including a cold start.
 
+### 2.70 Reporter personas (`PERSONAS`, `buildPrompt`)
+
+The recap prompt is ~200 lines, and almost all of it is rules: honesty, the Hebrew-only line, no
+dates, no invented goals, the one line nobody crosses. Only three small places decide the *voice* —
+who is writing, the byline, and the delivery. A persona swaps exactly those three and nothing else.
+
+```js
+PERSONAS.zahavi = { role, byline, tone }
+```
+
+- **`role`** is the prompt's first sentence (who you are).
+- **`byline`** is the line the report opens with. A `<placeholder>` in it means "invent a fresh name
+  each time" (the house reporter); a literal line is used verbatim (a named persona).
+- **`tone`** is the delivery, and it is followed **immediately** by `TONE_GUARDRAILS` — the same
+  block for every persona. That ordering is the whole safety story: a voice can be as unhinged as it
+  likes, and the line about never mocking a person's body, the numbers-from-the-record rule and the
+  shirt rule are concatenated after it where a persona cannot reach them. A test asserts every
+  persona contains every guardrail, after its own tone.
+
+`default` carries the full house style as its `tone`, so the ordinary recap is unchanged — the one
+visible difference is the audience note moved above the voice and a "YOUR VOICE" header. An unknown
+or missing key resolves to `default` in one place (`normalizePersona`), used by both the route and
+`buildPrompt`, so the client never has to stay in step with the list: it sends a string, and a value
+the Worker doesn't know is simply the house reporter. The picker is admin-only, on the night page,
+and only the next "write" uses the choice.
+
+**What a persona is not allowed to be.** A persona impersonating a real, identifiable person — a
+politician, a working journalist — was asked for and declined: a realistic-sounding report bylined as
+them, read aloud and stripped of its AI label the moment it is forwarded, is exactly the failure the
+whole feature's labelling exists to prevent. `zahavi` is the organiser's own friend, whose voice the
+audio feature already uses with his consent, styled as himself.
+
 ## 3. Team generation algorithm
 
 Balancing is a small constrained optimization. With ≤15 players, brute force is too big

@@ -6,8 +6,17 @@ import { duoFacts } from '../duos';
 import { nightStory } from '../nightStory';
 import type { NightFact } from '../nightStory';
 import { recapFacts } from '../recapFacts';
-import type { StoredRecap } from '../recap';
+import type { Persona, StoredRecap } from '../recap';
 import { clearRecap, draftRecap, fetchRecap, saveRecap } from '../recap';
+
+// The reporters the organiser can pick between (§2.70), in display order; the
+// first is the one selected to begin with. Adding a persona the Worker knows is
+// one line here plus its label string — nothing else.
+const PERSONA_LABELS: Record<Persona, Parameters<typeof t>[0]> = {
+  default: 'np.report.persona.default',
+  zahavi: 'np.report.persona.zahavi',
+};
+const PERSONA_OPTIONS = Object.keys(PERSONA_LABELS) as Persona[];
 import { fmtWins, Name, TEAM_META, teamLabel } from './ui';
 import { MilestoneStrip } from './TonightFacts';
 import NightGrades from './NightGrades';
@@ -145,6 +154,7 @@ export default function NightPage({
   const [draft, setDraft] = useState<string | null>(null);
   const [busy, setBusy] = useState<'writing' | 'saving' | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
+  const [persona, setPersona] = useState<Persona>('default');
 
   useEffect(() => {
     let cancelled = false;
@@ -212,7 +222,7 @@ export default function NightPage({
     if (!facts || !adminWord) return;
     setBusy('writing');
     setFailed(null);
-    const out = await draftRecap(fixture.id, facts, adminWord);
+    const out = await draftRecap(fixture.id, facts, adminWord, persona);
     setBusy(null);
     if ('error' in out) say(out.error, out.detail);
     else setDraft(out.text);
@@ -509,6 +519,21 @@ export default function NightPage({
               )}
               {adminWord && facts && (
                 <>
+                  {/* Which reporter writes it (§2.70). Only the organiser sees
+                      this, and only the next "write" uses the choice. */}
+                  <select
+                    value={persona}
+                    onChange={(e) => setPersona(e.target.value as Persona)}
+                    disabled={busy !== null}
+                    aria-label={t('np.report.persona.label')}
+                    className="rounded-lg border border-amber-900/25 bg-[#fffdf4] px-2 py-1 text-xs font-bold text-amber-900 disabled:opacity-50"
+                  >
+                    {PERSONA_OPTIONS.map((key) => (
+                      <option key={key} value={key}>
+                        {t(PERSONA_LABELS[key])}
+                      </option>
+                    ))}
+                  </select>
                   <button
                     onClick={write}
                     disabled={busy !== null}

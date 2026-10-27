@@ -47,7 +47,7 @@ export { ClockNotifier } from './clock-notifier.js';
 export { RecapVoice } from './recap-voice.js';
 
 import { bytesToB64u, publicKeyBytes } from './push.js';
-import { isValidFacts, recapKey, writeRecap } from './recap.js';
+import { isValidFacts, normalizePersona, recapKey, writeRecap } from './recap.js';
 import {
   JOB_TIMEOUT_MS,
   canVoice,
@@ -1043,7 +1043,9 @@ export default {
           });
         }
 
-        const written = await writeRecap(env, body.facts);
+        // An unknown or missing persona falls back to 'default' (§2.70); the
+        // choice only restyles the report, so a bad value is never worth a 400.
+        const written = await writeRecap(env, body.facts, normalizePersona(body.persona));
         if (written.error) return json({ error: written.error }, 502);
         if (body.save === true) {
           const stored = { text: written.text, at: Date.now(), source: 'gemini' };

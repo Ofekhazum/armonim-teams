@@ -153,7 +153,78 @@ export function splitEvents(said) {
  * people whose names are in Hebrew — the app's own chrome being English is a
  * fact about the app, not about its audience.
  */
-export function buildPrompt(facts) {
+// --- Personas (§2.70) -------------------------------------------------------
+//
+// A persona restyles the report. It changes the voice and nothing else: not one
+// fact, not one guardrail. Three fields, and adding a persona is copying these
+// three lines and filling them in:
+//
+//   role    who is writing — the first sentence of the prompt.
+//   byline  the line the report opens with. If it holds a <placeholder>, the
+//           model invents a name to fill it, a fresh one each time; otherwise
+//           the line is used exactly as written.
+//   tone    how it is delivered — the voice, the pace, the words to reach for.
+//
+// What a persona can *not* touch is everything that keeps a report honest: it
+// still invents nothing, mocks results and never people, stays in Hebrew, and
+// prints no dates. Those rules (`TONE_GUARDRAILS`) are concatenated immediately
+// after `tone` in `buildPrompt`, the same for every persona, so a new voice can
+// never loosen them.
+//
+// `default` carries the full house style, so the ordinary recap reads exactly
+// as it always has. Another persona overrides as much or as little of it as it
+// likes — a one-line `tone` is enough.
+export const PERSONAS = {
+  default: {
+    role: 'You are writing the match report for a weekly amateur 5-a-side football night in Israel.',
+    byline: '📻 <name of the reporter> מדווח מהמגרש',
+    tone: `The voice of an over-excited sports broadcaster who takes an amateur football night far too seriously. Funny, dramatic, and personal.
+
+- Go at people by name and be merciless about their results. Hand out nicknames and grand titles and take them away again. Declare feuds, curses, dynasties and conspiracies that do not exist. Demand explanations. Call for somebody to be dropped, sold, investigated, or given a statue. Be mock-outraged, mock-heartbroken, or openly biased about who you think should have won.
+- Absurd attribution is welcome — "sources close to the changing room", "witnesses say", "he is understood to be furious" — as long as it is plainly ridiculous rather than a plausible quote somebody might think was real. Never write a realistic quotation and attribute it to a player. **Once, maybe twice in the whole report.** It is a punchline, and a report where every second sentence has an anonymous source has turned its best joke into a verbal tic.
+- A player who lost all night should be roasted for it properly, not sympathetically. A player who won everything should be accused of something.
+- Emojis: a few, placed where a broadcaster would raise their voice. Not one per sentence.
+- The personal stories are stories, not statistics. If somebody usually loses to an opponent and beat them tonight, that is a rivalry and a headline — write it as one, do not print it as a record.`,
+  },
+
+  // Raz Zahavi — the organiser's friend, whose voice the audio feature already
+  // uses with his consent. His own broadcasting style, not a real journalist's.
+  zahavi: {
+    role: 'You are Raz Zahavi, a frantic, big-hearted lower-league Israeli sports broadcaster, calling a weekly amateur 5-a-side football night as if it were a cup final.',
+    byline: "📻 רז זהבי מדווח מליגה ג'",
+    tone: `Chaotic, breathless and wildly over-excited — a lower-league caller who treats every amateur as a gladiator. Fast pace, plenty of exclamation marks. Reach for lower-league folklore: "איזו בונבוניירה!", "בעל הבית השתגע!", "אללה ירחמו", "שחקן ענק, ענק". Over-compliment the winners to an absurd degree, then despair theatrically at whoever lost. A few emojis where the voice goes up.`,
+  },
+};
+
+export const PERSONA_KEYS = Object.keys(PERSONAS);
+
+/**
+ * A known persona key, or 'default' — the single place an unknown or missing
+ * one is resolved, so the route and `buildPrompt` agree on the fallback.
+ */
+export const normalizePersona = (key) =>
+  typeof key === 'string' && Object.prototype.hasOwnProperty.call(PERSONAS, key) ? key : 'default';
+
+// The rules a persona's `tone` is followed by, verbatim, every time. Everything
+// here is a guardrail or a point of craft that holds whoever is speaking — the
+// line nobody crosses, the numbers, the shirts, the format. Kept out of the
+// persona so a new voice inherits it rather than restating it.
+const TONE_GUARDRAILS = `THE ONE LINE YOU DO NOT CROSS. Everything you mock is a *result*: matches won and lost, shirts worn, streaks, turning up, who beat whom. Never a person's body, weight, looks, age, health, money, job, family, politics, religion, or anything else about who they are rather than how their night went. Never state as fact that somebody is bad at football — say the scoreboard laughed at them instead. These fifteen people play together every week and all of them read this: it has to be the kind of ribbing that gets sent to the group by the person it is about.
+- Every number must come from the record above, unchanged. If something is not written above, it did not happen and must not be mentioned.
+- Nothing about a shirt colour may point outside tonight. No colour is owed revenge, due a comeback, on a decline, or expected to do anything next week — next week's teams do not exist yet.
+- A player's own record in a colour is fair game, because that is about the player: somebody who keeps winning whenever they happen to wear white is cursed or blessed, and that follows them into whatever shirt they get handed next.
+- The shape of the night is a description rather than a statistic: say what it means in ordinary words — a night that swung constantly, a night one team ran away with — the way a commentator would, and never as a figure or under a name of its own.
+- Do not describe any single match as an event. You do not know how any of them looked.
+- No headline, no title, no bullet points, no markdown, no closing sign-off line with your name. Just the five paragraphs, ready to be pasted into a group chat as they are.`;
+
+export function buildPrompt(facts, persona = 'default') {
+  const p = PERSONAS[persona] ?? PERSONAS.default;
+  // A byline with a <placeholder> is invented fresh; a literal one is used as
+  // written. The "never a real journalist, never a player" rule only bites on
+  // the invented case — a fixed byline is the organiser's own deliberate choice.
+  const bylineNote = p.byline.includes('<')
+    ? 'Invent the reporter. A different one every time, and an absurd one: an over-serious Hebrew sports-broadcaster name, or a ridiculous pun on one, the kind of byline that would never appear in a real newspaper. Never use a real journalist’s name, and never use the name of anyone playing tonight.'
+    : 'Use this byline exactly as written, on its own line, unchanged.';
   // Split once, up here, because two parts of the prompt need the count: the
   // section that hands the events over, and the word budget below.
   //
@@ -203,7 +274,7 @@ export function buildPrompt(facts) {
     .map((p) => `${p.name} (${p.team}): played ${p.played}, won ${p.won}`)
     .join('\n');
 
-  return `You are writing the match report for a weekly amateur 5-a-side football night in Israel.
+  return `${p.role}
 
 WRITE IN HEBREW. Every word of the output must be Hebrew, except player names, which are already Hebrew, and which you must copy exactly as given — never translate, transliterate or shorten a name.
 
@@ -321,9 +392,9 @@ HOW TO WRITE IT.
 
 Open with a byline on its own line, in this shape:
 
-📻 <name of the reporter> מדווח מהמגרש
+${p.byline}
 
-Invent the reporter. A different one every time, and an absurd one: an over-serious Hebrew sports-broadcaster name, or a ridiculous pun on one, the kind of byline that would never appear in a real newspaper. Never use a real journalist's name, and never use the name of anyone playing tonight.
+${bylineNote}
 
 Then five paragraphs, in this order, ${words} words in total.
 
@@ -351,22 +422,13 @@ So: say the setup and move on. If paragraph 3 is running long, cut it — it is 
 
 Rules:
 - Every paragraph must be a complete thought that finishes. Never stop mid-sentence.
-- The voice of an over-excited sports broadcaster who takes an amateur football night far too seriously. Funny, dramatic, and personal.
 
 WHO IS READING THIS. A WhatsApp group of friends who have played together for years and take the mickey out of each other constantly. They asked for this and they want it sharp. A polite report is a failed report — if nobody would send it a laughing emoji, it was not worth writing.
 
-- Go at people by name and be merciless about their results. Hand out nicknames and grand titles and take them away again. Declare feuds, curses, dynasties and conspiracies that do not exist. Demand explanations. Call for somebody to be dropped, sold, investigated, or given a statue. Be mock-outraged, mock-heartbroken, or openly biased about who you think should have won.
-- Absurd attribution is welcome — "sources close to the changing room", "witnesses say", "he is understood to be furious" — as long as it is plainly ridiculous rather than a plausible quote somebody might think was real. Never write a realistic quotation and attribute it to a player. **Once, maybe twice in the whole report.** It is a punchline, and a report where every second sentence has an anonymous source has turned its best joke into a verbal tic.
-- A player who lost all night should be roasted for it properly, not sympathetically. A player who won everything should be accused of something.
-- Emojis: a few, placed where a broadcaster would raise their voice. Not one per sentence.
-- The personal stories are stories, not statistics. If somebody usually loses to an opponent and beat them tonight, that is a rivalry and a headline — write it as one, do not print it as a record.
-THE ONE LINE YOU DO NOT CROSS. Everything you mock is a *result*: matches won and lost, shirts worn, streaks, turning up, who beat whom. Never a person's body, weight, looks, age, health, money, job, family, politics, religion, or anything else about who they are rather than how their night went. Never state as fact that somebody is bad at football — say the scoreboard laughed at them instead. These fifteen people play together every week and all of them read this: it has to be the kind of ribbing that gets sent to the group by the person it is about.
-- Every number must come from the record above, unchanged. If something is not written above, it did not happen and must not be mentioned.
-- Nothing about a shirt colour may point outside tonight. No colour is owed revenge, due a comeback, on a decline, or expected to do anything next week — next week's teams do not exist yet.
-- A player's own record in a colour is fair game, because that is about the player: somebody who keeps winning whenever they happen to wear white is cursed or blessed, and that follows them into whatever shirt they get handed next.
-- The shape of the night is a description rather than a statistic: say what it means in ordinary words — a night that swung constantly, a night one team ran away with — the way a commentator would, and never as a figure or under a name of its own.
-- Do not describe any single match as an event. You do not know how any of them looked.
-- No headline, no title, no bullet points, no markdown, no closing sign-off line with your name. Just the five paragraphs, ready to be pasted into a group chat as they are.
+YOUR VOICE FOR THIS REPORT.
+${p.tone}
+
+${TONE_GUARDRAILS}
 
 OUTPUT FORMAT. Put the finished report, and nothing else, between ${OPEN} and ${CLOSE}. Do not check your work inside those tags, do not restate these rules inside them, do not explain your choices inside them. Anything outside the tags is discarded, so the tags must contain the whole report and none of your working.
 
@@ -416,8 +478,8 @@ export function foreignWords(text, facts) {
 /** An ISO date copied out of the record — see NEVER WRITE A DATE in the prompt. */
 const datesIn = (text) => [...new Set(text.match(/\d{4}-\d{2}-\d{2}/g) ?? [])];
 
-export async function writeRecap(env, facts) {
-  const said = await callGemini(env, buildPrompt(facts));
+export async function writeRecap(env, facts, persona = 'default') {
+  const said = await callGemini(env, buildPrompt(facts, persona));
   if (said.error) return { error: said.error };
 
   // Only what is inside the tags. Deliberation that arrives as ordinary text —
