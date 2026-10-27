@@ -84,6 +84,20 @@ export function sameLetters(spoken, pointed) {
   return a.length === b.length && a.every((line, i) => line === b[i]);
 }
 
+// Which models point the text. Not the recap's own list: its first model writes
+// the best reports but allows only ~20 requests a day (gemini.js), and pointing
+// a recording shouldn't spend what a night's report needs. Pointing is a
+// mechanical job with a mechanical check, so a lighter model does it — the
+// check, not the model, is what makes the result safe — and the first in line
+// is a step down, not the bottom. `GEMINI_MODEL` pins the recap writer and is
+// deliberately not consulted here.
+export const POINTING_MODELS = [
+  'gemini-3.5-flash',
+  'gemini-3.5-flash-lite',
+  'gemini-3.1-flash-lite',
+  'gemini-3-flash',
+];
+
 // Pointed text is about twice as long in tokens, and the model may think first.
 const MAX_TOKENS = 16000;
 // A different answer is no use, but a different *sample* might pass the check.
@@ -108,6 +122,7 @@ export async function vocalize(env, spoken, { ask = callGemini } = {}) {
     const said = await ask(env, buildVocalizePrompt(spoken), {
       temperature: TEMPERATURE,
       maxTokens: MAX_TOKENS,
+      models: POINTING_MODELS,
     });
     if (said.error) {
       reason = said.error;

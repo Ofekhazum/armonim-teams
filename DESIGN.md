@@ -5364,6 +5364,10 @@ Details:
 - **Voice server.** Chunks are measured in letters without points (`plain_len`), so a pointed recap
   breaks in the same places an unpointed one would and the pacing work of §2.69.1 is unchanged.
   `MAX_CHARS` rose from 6,000 to 12,000, since pointed text is nearly twice as long in characters.
+- **Its own models.** Pointing walks `POINTING_MODELS` (3.5-flash → 3.5-flash-lite → 3.1-flash-lite →
+  3-flash), not the recap writer's list, so it never spends the ~20 a day that `gemini-3.6-flash` allows
+  for writing reports. `GEMINI_MODEL` pins the writer only. The letter-for-letter check, not the model,
+  is what keeps the result safe, so a lighter model costs at most an unpointed recording.
 - **The way back.** `VOICE_NIQQUD` in `worker/wrangler.toml` (`"on"` by default): set it to `"off"` and
   `npx wrangler deploy` — no code change. Recordings are filed per setting (`voiceHash(…, pointed)`),
   so after flipping, a night shows no recording until it is made again, and the other setting's take is
