@@ -35,7 +35,7 @@ export default function RecapVoice({ fixtureId, date, adminWord, recapAt }: Prop
   const [failed, setFailed] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
   // TEMPORARY (§2.71): the text the voice was sent. undefined = hidden, null = none to show.
-  const [sent, setSent] = useState<string | null | undefined>(undefined);
+  const [sent, setSent] = useState<{ text: string; raw?: string } | null | undefined>(undefined);
 
   useEffect(() => {
     let cancelled = false;
@@ -216,17 +216,28 @@ export default function RecapVoice({ fixtureId, date, adminWord, recapAt }: Prop
             {sent === undefined ? t('np.voice.sent.show') : t('np.voice.sent.hide')}
           </button>
           {sent === null && <p className="mt-1 text-[11px] text-amber-900/50">{t('np.voice.sent.none')}</p>}
-          {typeof sent === 'string' && (
+          {sent && (
             <>
               <p className="mt-1 text-[11px] text-amber-900/50">
-                {t('np.voice.sent.points', { n: (sent.match(/[\u05B0-\u05BC\u05C1\u05C2\u05C7]/g) ?? []).length })}
+                {t('np.voice.sent.points', { n: (sent.text.match(/[\u05B0-\u05BC\u05C1\u05C2\u05C7]/g) ?? []).length })}
               </p>
               <pre
                 dir="rtl"
                 className="mt-1 max-h-72 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-amber-50 p-2 text-sm leading-relaxed text-amber-950"
               >
-                {sent}
+                {sent.text}
               </pre>
+              {sent.raw && (
+                <>
+                  <p className="mt-2 text-[11px] text-amber-900/50">{t('np.voice.sent.raw')}</p>
+                  <pre
+                    dir="rtl"
+                    className="mt-1 max-h-72 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-orange-50 p-2 text-sm leading-relaxed text-amber-950"
+                  >
+                    {sent.raw}
+                  </pre>
+                </>
+              )}
             </>
           )}
         </div>

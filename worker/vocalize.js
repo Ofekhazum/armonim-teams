@@ -85,27 +85,49 @@ function between(raw) {
 }
 
 /**
+ * Where two texts first part company, on letters: a few letters either side of
+ * the first one that differs. For a reason a person can read.
+ */
+export function firstDifference(was, now) {
+  const a = lettersOf(was);
+  const b = lettersOf(now);
+  let i = 0;
+  while (i < a.length && i < b.length && a[i] === b[i]) i++;
+  const around = (text) => text.slice(Math.max(0, i - 6), i + 8);
+  return { was: around(a), now: around(b) };
+}
+
+/**
  * Take the pointed lines that are the original's own words, keep the original
  * for the rest.
  *
- * Returns `{ text, ok, of }`, or null when the two cannot be lined up at all —
- * a different number of lines — and there is nothing to compare line by line.
- * A line counts only if its letters and digits are exactly the original's and
- * it carries some points; pointing nothing is not pointing.
+ * Returns `{ text, ok, of, same, marked, diff }`, or null when the two cannot be
+ * lined up at all — a different number of lines — and there is nothing to
+ * compare line by line. A line counts (`ok`) only if its letters and digits are
+ * exactly the original's *and* it carries some points; pointing nothing is not
+ * pointing. `same` and `marked` say which of those two it was that failed, and
+ * `diff` is where the first changed line first changed.
  */
 export function mergePointed(spoken, pointed) {
   const original = lines(spoken.normalize('NFC'));
   const answer = lines(pointed.normalize('NFC'));
   if (original.length !== answer.length) return null;
   let ok = 0;
+  let same = 0;
+  let marked = 0;
+  let diff = null;
   const text = original
     .map((line, i) => {
-      const good = lettersOf(answer[i]) === lettersOf(line) && pointCount(answer[i]) > 0;
-      if (good) ok++;
-      return good ? answer[i] : line;
+      const alike = lettersOf(answer[i]) === lettersOf(line);
+      const pointedLine = pointCount(answer[i]) > 0;
+      if (alike) same++;
+      else diff ??= firstDifference(line, answer[i]);
+      if (pointedLine) marked++;
+      if (alike && pointedLine) ok++;
+      return alike && pointedLine ? answer[i] : line;
     })
     .join('\n');
-  return { text, ok, of: original.length };
+  return { text, ok, of: original.length, same, marked, diff };
 }
 
 /** True if `pointed` is `spoken` with vowels added: the same letters and digits, in order. */
@@ -139,14 +161,18 @@ const TEMPERATURE = 0.2;
  * Never throws and never returns anything but `spoken`, or `spoken` with points
  * on the lines that passed the check:
  *
- *   { text, pointed: true, ok, of }              `ok` of `of` lines pointed
- *   { text: spoken, pointed: false, reason }     the text as it came, and why not
+ *   { text, pointed: true, ok, of, raw }         `ok` of `of` lines pointed
+ *   { text: spoken, pointed: false, reason, raw } the text as it came, and why not
+ *
+ * `raw` is the model's last answer, pointed or not, so a rejected one can be
+ * looked at (the organiser's "text sent" panel, §2.71).
  *
  * `ask` is `callGemini`; the tests pass their own.
  */
 export async function vocalize(env, spoken, { ask = callGemini } = {}) {
   let reason = 'no answer';
   let best = null;
+  let raw = null;
   for (let attempt = 1; attempt <= TRIES; attempt++) {
     const said = await ask(env, buildVocalizePrompt(spoken), {
       temperature: TEMPERATURE,
@@ -160,6 +186,7 @@ export async function vocalize(env, spoken, { ask = callGemini } = {}) {
       continue;
     }
     const pointed = between(said.raw);
+    raw = said.raw;
     if (!pointed) {
       reason = 'no tags';
       continue;
@@ -170,13 +197,16 @@ export async function vocalize(env, spoken, { ask = callGemini } = {}) {
       continue;
     }
     if (merged.ok === 0) {
-      reason = 'no line kept its letters';
+      reason =
+        merged.same === 0
+          ? `the letters changed in every line (“${merged.diff.was}” became “${merged.diff.now}”)`
+          : 'the answer had no vowel points';
       continue;
     }
     if (!best || merged.ok > best.ok) best = merged;
     // every line passed: nothing a second answer could add
     if (best.ok === best.of) break;
   }
-  if (best) return { text: best.text.normalize('NFC'), pointed: true, ok: best.ok, of: best.of };
-  return { text: spoken, pointed: false, reason };
+  if (best) return { text: best.text.normalize('NFC'), pointed: true, ok: best.ok, of: best.of, raw };
+  return { text: spoken, pointed: false, reason, raw };
 }

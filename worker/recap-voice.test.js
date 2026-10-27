@@ -410,6 +410,7 @@ describe('RecapVoice', () => {
     await voice.alarm();
     expect(await (await voice.fetch(new Request('https://voice/sent'))).json()).toEqual({
       sent: POINTED,
+      raw: null, // it was all used, so there is no rejected answer to show
       hash: 'h1',
     });
   });

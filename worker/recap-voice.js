@@ -458,6 +458,8 @@ export class RecapVoice {
     if (url.pathname === '/sent') {
       return Response.json({
         sent: (await this.state.storage.get('sent')) ?? null,
+        // what the model answered, kept only when it was not (all) used
+        raw: (await this.state.storage.get('sentRaw')) ?? null,
         hash: (await this.job())?.hash ?? null,
       });
     }
@@ -502,6 +504,11 @@ export class RecapVoice {
       // kept as soon as it is decided, so even a job that then fails or times out
       // can be asked what it was given (TEMPORARY, see /sent)
       await this.state.storage.put('sent', vocal.text);
+      if (vocal.raw && (!vocal.pointed || vocal.ok < vocal.of)) {
+        await this.state.storage.put('sentRaw', vocal.raw);
+      } else {
+        await this.state.storage.delete('sentRaw');
+      }
       const audio = await synthesize(this.env, vocal.text, {
         deadline: job.startedAt + JOB_TIMEOUT_MS,
         voice,

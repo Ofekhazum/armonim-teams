@@ -3,6 +3,7 @@ import { MODELS } from './gemini.js';
 import {
   POINTING_MODELS,
   buildVocalizePrompt,
+  firstDifference,
   lettersOf,
   mergePointed,
   pointCount,
@@ -83,21 +84,28 @@ describe('lettersOf', () => {
   });
 });
 
+describe('firstDifference', () => {
+  it('shows a few letters around where the two first differ', () => {
+    expect(firstDifference('הכחולים לקחו', 'הכחוליים לקחו')).toEqual({ was: 'הכחוליםלקחו', now: 'הכחולייםלקחו' });
+  });
+});
+
 describe('mergePointed', () => {
   it('takes every line that kept its letters', () => {
-    expect(mergePointed(SPOKEN, POINTED)).toEqual({ text: POINTED, ok: 2, of: 2 });
+    expect(mergePointed(SPOKEN, POINTED)).toMatchObject({ text: POINTED, ok: 2, of: 2, same: 2, marked: 2 });
   });
 
   it('keeps the original for a line that changed, and the points on the rest', () => {
     const second = SPOKEN.split('\n')[1];
     const merged = mergePointed(SPOKEN, POINTED.replace('כָּבַשׁ', 'הִבְקִיעַ'));
-    expect(merged).toEqual({ text: `${POINTED.split('\n')[0]}\n${second}`, ok: 1, of: 2 });
+    expect(merged).toMatchObject({ text: `${POINTED.split('\n')[0]}\n${second}`, ok: 1, of: 2, same: 1 });
+    expect(merged.diff).not.toBeNull();
     // and whatever is in `text` is still the report's own words
     expect(sameLetters(SPOKEN, merged.text)).toBe(true);
   });
 
   it('does not count a line the model returned without any points', () => {
-    expect(mergePointed(SPOKEN, SPOKEN)).toEqual({ text: SPOKEN, ok: 0, of: 2 });
+    expect(mergePointed(SPOKEN, SPOKEN)).toMatchObject({ text: SPOKEN, ok: 0, of: 2, same: 2, marked: 0 });
   });
 
   it('cannot line up an answer with a different number of lines', () => {
@@ -116,7 +124,7 @@ describe('buildVocalizePrompt', () => {
 describe('vocalize', () => {
   it('returns the pointed text when it checks out', async () => {
     const ask = asking(answer(POINTED));
-    expect(await vocalize({}, SPOKEN, { ask })).toEqual({ text: POINTED, pointed: true, ok: 2, of: 2 });
+    expect(await vocalize({}, SPOKEN, { ask })).toMatchObject({ text: POINTED, pointed: true, ok: 2, of: 2 });
     expect(ask).toHaveBeenCalledTimes(1);
   });
 
@@ -138,7 +146,7 @@ describe('vocalize', () => {
 
   it('tries once more when a line changed, and takes the better answer', async () => {
     const ask = asking(answer(POINTED.replace('כָּבַשׁ', 'הִבְקִיעַ')), answer(POINTED));
-    expect(await vocalize({}, SPOKEN, { ask })).toEqual({ text: POINTED, pointed: true, ok: 2, of: 2 });
+    expect(await vocalize({}, SPOKEN, { ask })).toMatchObject({ text: POINTED, pointed: true, ok: 2, of: 2 });
     expect(ask).toHaveBeenCalledTimes(2);
   });
 
@@ -160,10 +168,18 @@ describe('vocalize', () => {
   it('gives back the plain text, with a reason, when no line kept its letters', async () => {
     const wrong = 'שָׁלוֹם עוֹלָם.\nמַשֶּׁהוּ אַחֵר לְגַמְרֵי.';
     const ask = asking(answer(wrong), answer(wrong));
-    expect(await vocalize({}, SPOKEN, { ask })).toEqual({
+    const out = await vocalize({}, SPOKEN, { ask });
+    expect(out).toMatchObject({ text: SPOKEN, pointed: false });
+    expect(out.reason).toMatch(/^the letters changed in every line/);
+    expect(out.raw).toContain(wrong);
+  });
+
+  it('says so when the model answers with the text unchanged and no points', async () => {
+    const ask = asking(answer(SPOKEN), answer(SPOKEN));
+    expect(await vocalize({}, SPOKEN, { ask })).toMatchObject({
       text: SPOKEN,
       pointed: false,
-      reason: 'no line kept its letters',
+      reason: 'the answer had no vowel points',
     });
   });
 
@@ -181,7 +197,7 @@ describe('vocalize', () => {
     expect(await vocalize({}, SPOKEN, { ask })).toMatchObject({
       text: SPOKEN,
       pointed: false,
-      reason: 'no line kept its letters',
+      reason: 'the answer had no vowel points',
     });
   });
 
@@ -192,7 +208,7 @@ describe('vocalize', () => {
 
   it('does not ask again once the quota is spent', async () => {
     const ask = asking({ error: 'quota' });
-    expect(await vocalize({}, SPOKEN, { ask })).toEqual({ text: SPOKEN, pointed: false, reason: 'quota' });
+    expect(await vocalize({}, SPOKEN, { ask })).toMatchObject({ text: SPOKEN, pointed: false, reason: 'quota' });
     expect(ask).toHaveBeenCalledTimes(1);
   });
 

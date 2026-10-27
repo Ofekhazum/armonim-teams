@@ -179,6 +179,7 @@ export const night = {
   'np.voice.sent.show': { he: '🔍 הטקסט שנשלח לקול', en: '🔍 Text sent to the voice' },
   'np.voice.sent.hide': { he: 'הסתר את הטקסט', en: 'Hide the text' },
   'np.voice.sent.none': { he: 'אין טקסט להצגה לסיכום הנוכחי. הקלטה שנוצרה לפני העדכון לא שומרת אותו; נסו טייק נוסף.', en: 'No text to show for the current recap. A recording made before the update did not keep it — try another take.' },
+  'np.voice.sent.raw': { he: 'התשובה של Gemini (לא בשימוש, או בשימוש חלקי):', en: 'Gemini’s answer (not used, or only partly):' },
   'np.voice.sent.points': { he: '{n} סימני ניקוד', en: '{n} vowel marks' },
   'np.voice.listen': { he: '🎧 שמיעה', en: '🎧 Listen' },
   'np.voice.player': { he: 'ההקלטה', en: 'The recording' },
