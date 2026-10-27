@@ -5325,6 +5325,17 @@ is the default and the fallback. The pieces:
   sends a key `normalizePersona` knows, and Modal holds it to `^[a-z][a-z0-9_]{0,23}$` because it
   becomes a file name. A missing clip falls back to the default, with a log line, rather than failing
   the recording; a clip is fetched once per container.
+- **A missing clip fails in seconds.** The clips used to be fetched when a GPU container booted; with the
+  default file missing from the dataset the container crashed on every start, Modal kept restarting it,
+  and the calls sat `Pending` until the Worker gave up at fourteen minutes. They are now fetched by the
+  recording that needs one (`find_reference`: the persona's `voice_<key>.wav`, then the default), so a
+  missing clip is an error on that recording — "no reference clip in the voice dataset (looked for …)" —
+  shown in the app. A persona with its own clip no longer depends on the default existing. Any *other*
+  download error (a bad token) is not mistaken for a missing file.
+- **A recording that runs long ends with a reason.** Generation has its own ten-minute budget, checked
+  between chunks, and Modal's call limit is thirteen minutes, inside the Worker's fourteen: whichever
+  runs out first, the app gets an error, not a recording that never finishes. Each chunk logs its
+  letters, seconds of speech and seconds taken, so the Modal logs show where a slow one was slow.
 - **Nothing changes until a clip is uploaded.** With only `reference_voice_final.wav` in the dataset,
   every persona is read in it — exactly the behaviour before this.
 

@@ -28,6 +28,7 @@ import os
 import re
 import subprocess
 import tempfile
+import time
 
 # A recap is 1,400–2,900 letters. With vowel points (§2.71) it is nearly twice
 # that in characters, so the limit is on characters as received. Anything far
@@ -56,6 +57,18 @@ GAP_PARAGRAPH = 0.6
 
 VOX_REPO = "openbmb/VoxCPM2"
 
+# The reference clips live in a private dataset (modal_app.py). The default is
+# the fallback for every persona that has no clip of its own.
+VOICE_FILE = "reference_voice_final.wav"
+VOICE_PREFIX = "voice_"  # a persona's own clip: voice_<persona>.wav
+
+# The most time one recording may spend generating, measured from when the job
+# starts running (a cold container's load is not part of it). Checked between
+# chunks. Modal's own limit kills a call without a word, which the app sees as
+# a recording that never finishes; this one ends it with a reason, and sits
+# inside both Modal's limit and the Worker's (which gives up at fourteen minutes).
+BUDGET_S = 10 * 60
+
 # The most generation steps one chunk may take. A step is one patch of audio:
 # 4 latent frames of 40 ms, so 0.16 s. A normal chunk (240 characters, 15–20 s of
 # speech) needs about 150. The library's own limit is 4,096 steps — eleven
@@ -64,6 +77,38 @@ VOX_REPO = "openbmb/VoxCPM2"
 # until the job times out. 400 steps is 64 s: nearly three times what a real
 # chunk needs, and the worst case becomes about a minute instead of ten.
 MAX_STEPS = 400
+
+
+def reference_names(voice: str) -> list[str]:
+    """The clips to look for, best first: a persona's own, then the default."""
+    return [VOICE_FILE] if voice == "default" else [f"{VOICE_PREFIX}{voice}.wav", VOICE_FILE]
+
+
+def find_reference(voice: str, fetch, is_missing) -> str:
+    """
+    The path of the clip for `voice`.
+
+    `fetch(name)` downloads one and raises if it can't; `is_missing(err)` says
+    whether that error means "no such file" (try the next) rather than anything
+    else (a bad token, no network — which must not be taken for a missing clip).
+    Asked per recording rather than when the container starts, so a missing clip
+    is an error on the recording that needs it, in seconds, instead of a
+    container that crashes before it can say anything.
+    """
+    names = reference_names(voice)
+    for name in names:
+        try:
+            path = fetch(name)
+        except Exception as err:
+            if not is_missing(err):
+                raise
+            continue
+        if name != names[0]:
+            print(f"no clip {names[0]!r}; reading {voice!r} in {name!r}", flush=True)
+        return path
+    raise FileNotFoundError(
+        f"no reference clip in the voice dataset (looked for {', '.join(names)})"
+    )
 
 
 def split_long(sentence: str) -> list[str]:
@@ -115,8 +160,14 @@ def load_vox(device: str = "cuda"):
     return VoxCPM.from_pretrained(VOX_REPO, load_denoiser=False, optimize=False, device=device)
 
 
-def speak_vox_wav(model, reference: str, text: str):
-    """The recap as one float32 waveform, and its sample rate."""
+def speak_vox_wav(model, reference: str, text: str, budget_s: float | None = BUDGET_S):
+    """
+    The recap as one float32 waveform, and its sample rate.
+
+    Logs one line a chunk — letters, seconds of speech, seconds taken — so a slow
+    recording says where it was slow. Raises TimeoutError once `budget_s` seconds
+    have gone, between chunks.
+    """
     import numpy as np
 
     text = (text or "").strip()
@@ -127,12 +178,25 @@ def speak_vox_wav(model, reference: str, text: str):
 
     sr = model.tts_model.sample_rate
     parts = []
-    for chunk, pause in chunks(text):
+    todo = chunks(text)
+    started = time.monotonic()
+    for i, (chunk, pause) in enumerate(todo, 1):
+        if budget_s is not None and time.monotonic() - started > budget_s:
+            raise TimeoutError(
+                f"the recording ran out of time at chunk {i} of {len(todo)} ({int(budget_s)} s)"
+            )
+        t = time.monotonic()
         wav = model.generate(
             text=chunk, cfg_value=2.0, inference_timesteps=10, reference_wav_path=reference,
             max_len=MAX_STEPS,
         )
-        parts.append(np.asarray(wav, dtype="float32"))
+        audio = np.asarray(wav, dtype="float32")
+        print(
+            f"chunk {i}/{len(todo)}: {plain_len(chunk)} letters -> {len(audio) / sr:.1f} s of speech"
+            f" in {time.monotonic() - t:.1f} s",
+            flush=True,
+        )
+        parts.append(audio)
         parts.append(np.zeros(int(sr * pause), dtype="float32"))
     return np.concatenate(parts[:-1]), sr
 
@@ -182,6 +246,6 @@ def encode_mp3(audio, sample_rate: int) -> bytes:
             return f.read()
 
 
-def speak_vox_mp3(model, reference: str, text: str) -> bytes:
-    audio, sr = speak_vox_wav(model, reference, text)
+def speak_vox_mp3(model, reference: str, text: str, budget_s: float | None = BUDGET_S) -> bytes:
+    audio, sr = speak_vox_wav(model, reference, text, budget_s)
     return encode_mp3(watermark(audio, sr), sr)
