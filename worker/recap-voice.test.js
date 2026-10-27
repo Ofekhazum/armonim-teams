@@ -810,6 +810,14 @@ describe('/recap-audio', () => {
     expect(JSON.parse(kv.store.get('recap:f1')).text).toBe('לשגב היה שיא.');
   });
 
+  it('softens a long sentence’s exclamation mark in the voice’s text, and only there', () => {
+    const long = 'השחורים פשוט פירקו את המגרש והראו לכולם מאיפה דג משתין עם שש נקודות';
+    const recap = { text: `${long}! איזו בונבוניירה!`, source: 'gemini' };
+    expect(spokenFor({}, recap)).toBe(`${long}. איזו בונבוניירה!`);
+    expect(spokenFor({ VOICE_EXCLAIM: 'all' }, recap)).toBe(`${long}! איזו בונבוניירה!`);
+    expect(recap.text).toContain(`${long}!`); // the report is untouched
+  });
+
   it('ignores a pointed copy that is not the recap’s own words', async () => {
     const { env, kv } = routeEnv();
     const recap = { text: 'הכחולים לקחו את הערב.', vocalized: 'שָׁלוֹם עוֹלָם.', source: 'gemini' };

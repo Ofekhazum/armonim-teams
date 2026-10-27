@@ -23,6 +23,7 @@
 // say it.
 
 import { normalizePersona } from './recap.js';
+import { calmExclamations, exclaimMode } from './delivery.js';
 import { pronounce } from './pronunciations.js';
 import { pointCount, sameLetters, vocalize } from './vocalize.js';
 
@@ -151,11 +152,16 @@ export const canVoice = (stored) =>
  * this recap's own words — checked, not assumed — and niqqud is on; otherwise
  * the plain text (which the voice job points itself, §2.71). Then the words the
  * voice mispronounces are respelled (`pronunciations.js`, §2.71.2) — in this
- * text only, never in the report.
+ * text only, never in the report. Last, a long sentence's "!" is softened to a
+ * full stop (`delivery.js`, §2.73): the voice delivers the whole sentence as
+ * excited as its ending.
  */
 export function spokenFor(env, recap) {
   const pointed = pointing(env) && recap.vocalized && sameLetters(recap.text, recap.vocalized);
-  return pronounce(speakable(pointed ? recap.vocalized : recap.text));
+  return calmExclamations(
+    pronounce(speakable(pointed ? recap.vocalized : recap.text)),
+    exclaimMode(env),
+  );
 }
 
 // --- speakable() ----------------------------------------------------------

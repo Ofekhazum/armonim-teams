@@ -14,7 +14,18 @@ import unittest
 sys.path.insert(0, os.path.dirname(__file__))
 
 import speech  # noqa: E402
-from speech import CHUNK_CHARS, GAP_COMMA, GAP_PARAGRAPH, GAP_SENTENCE, chunks, plain_len, split_long  # noqa: E402
+from speech import (  # noqa: E402
+    CHUNK_CHARS,
+    GAP_COMMA,
+    GAP_PARAGRAPH,
+    GAP_SENTENCE,
+    WHOLE_SENTENCE,
+    chunks,
+    off_pace,
+    plain_len,
+    split_long,
+    usual_rate,
+)
 
 WORD = "מילה"
 
@@ -42,23 +53,32 @@ class Chunks(unittest.TestCase):
     def test_no_chunk_is_longer_than_a_breath(self):
         text = "\n".join(sentence(n, comma_every=4) for n in (5, 18, 31, 44, 60))
         for chunk, _ in chunks(text):
-            self.assertLessEqual(plain_len(chunk), CHUNK_CHARS, chunk)
+            self.assertLessEqual(plain_len(chunk), WHOLE_SENTENCE, chunk)
+
+    def test_a_sentence_that_is_not_much_too_long_is_not_cut_in_the_middle(self):
+        whole = sentence(32, comma_every=5)  # ~155 letters: past a chunk, short of a breath's worth
+        self.assertGreater(plain_len(whole), CHUNK_CHARS)
+        self.assertLessEqual(plain_len(whole), WHOLE_SENTENCE)
+        self.assertEqual(split_long(whole), [whole])
 
     def test_a_long_sentence_is_split_at_its_commas_into_even_parts(self):
-        long = sentence(30, comma_every=5)  # ~150 letters, a comma every five words
+        long = sentence(40, comma_every=5)  # ~200 letters, a comma every five words
         pieces = split_long(long)
         self.assertEqual(len(pieces), 2)
         self.assertTrue(all(p.rstrip(".").endswith(",") or p == pieces[-1] for p in pieces))
         self.assertLess(abs(plain_len(pieces[0]) - plain_len(pieces[1])), 40)
+        for piece in pieces:
+            self.assertLessEqual(plain_len(piece), CHUNK_CHARS)
 
     def test_a_sentence_with_no_commas_is_split_at_spaces(self):
         pieces = split_long(sentence(60))
         self.assertGreater(len(pieces), 1)
         for piece in pieces:
             self.assertLessEqual(plain_len(piece), CHUNK_CHARS)
+        self.assertEqual(len(split_long(sentence(40))), 2)
 
     def test_the_pauses_get_longer_with_the_break(self):
-        out = chunks(sentence(30, comma_every=5) + " " + sentence(6))
+        out = chunks(sentence(40, comma_every=5) + " " + sentence(6))
         pauses = [p for _, p in out]
         self.assertEqual(pauses[0], GAP_COMMA)  # inside the long sentence
         self.assertEqual(pauses[-1], GAP_PARAGRAPH)
@@ -82,7 +102,7 @@ class Chunks(unittest.TestCase):
 
     def test_nothing_is_lost_or_said_twice(self):
         text = "\n".join(
-            [sentence(31, comma_every=5) + " " + sentence(4, "!") + " " + sentence(60), sentence(12), sentence(70, comma_every=9)]
+            [sentence(41, comma_every=5) + " " + sentence(4, "!") + " " + sentence(60), sentence(12), sentence(70, comma_every=9)]
         )
         spoken = [w for chunk, _ in chunks(text) for w in words_of(chunk)]
         self.assertEqual(spoken, words_of(text))
@@ -100,6 +120,75 @@ class Chunks(unittest.TestCase):
     def test_a_single_unbreakable_word_still_comes_out_whole(self):
         word = "א" * 200
         self.assertEqual(chunks(word), [(word, GAP_PARAGRAPH)])
+
+
+class Pace(unittest.TestCase):
+    def test_the_usual_rate_is_the_middle_one(self):
+        self.assertEqual(usual_rate([100, 100, 100, 100], [10, 8, 10, 12]), 10.0)
+
+    def test_it_needs_a_few_chunks_before_it_judges_any(self):
+        self.assertIsNone(usual_rate([100, 100], [10, 10]))
+        self.assertIsNone(usual_rate([10, 10, 10, 10], [1, 1, 1, 1]))  # all too short to mean anything
+
+    def test_a_chunk_spoken_far_faster_than_the_rest_is_flagged(self):
+        # 100 letters in 4 s is 25 a second, against a usual 10: words dropped
+        self.assertTrue(off_pace(100, 4.0, 10.0))
+
+    def test_a_chunk_spoken_far_slower_is_flagged(self):
+        self.assertTrue(off_pace(100, 20.0, 10.0))
+
+    def test_an_ordinary_spread_is_left_alone(self):
+        for seconds in (7.5, 9, 10, 11, 12.5):  # 13 to 8 letters a second against a usual 10
+            self.assertFalse(off_pace(100, seconds, 10.0), seconds)
+
+    def test_a_short_chunk_is_never_judged(self):
+        self.assertFalse(off_pace(15, 0.5, 10.0))
+        self.assertFalse(off_pace(100, 4.0, None))
+
+
+class FakeModel:
+    """Says every chunk at the usual pace, except what `rush` says to hurry."""
+
+    class tts_model:  # noqa: N801
+        sample_rate = 1000
+
+    def __init__(self, rush=None):
+        self.rush = rush or {}  # chunk text -> list of seconds for successive tries
+        self.calls = []
+
+    def generate(self, text, **kw):
+        import numpy as np
+
+        self.calls.append(text)
+        tries = self.rush.get(text)
+        seconds = (tries.pop(0) if tries else plain_len(text) / 10.0)
+        return np.ones(int(seconds * 1000), dtype="float32")
+
+
+class Retries(unittest.TestCase):
+    # five sentences of about 55 letters each, none the same as another
+    TEXT = " ".join(sentence(11, "") + " " + (ch * 3) + "." for ch in "אבגדה")
+
+    def test_a_rushed_chunk_is_said_again_and_the_better_try_kept(self):
+        chunk = chunks(self.TEXT)[2][0]
+        model = FakeModel(rush={chunk: [3.0, plain_len(chunk) / 10.0]})  # first try far too fast, then right
+        audio, sr = speech.speak_vox_wav(model, "ref.wav", self.TEXT, budget_s=None)
+        self.assertEqual(model.calls.count(chunk), 2)
+        self.assertEqual(len(chunks(self.TEXT)), 5)
+        normal = sum(plain_len(c) / 10.0 for c, _ in chunks(self.TEXT))
+        pauses = sum(p for _, p in chunks(self.TEXT)[:-1])
+        self.assertAlmostEqual(len(audio) / sr, normal + pauses, delta=0.01)  # the retry's length, not 3 s
+
+    def test_a_chunk_that_stays_rushed_is_tried_only_a_couple_of_times(self):
+        chunk = chunks(self.TEXT)[1][0]
+        model = FakeModel(rush={chunk: [3.0, 3.0, 3.0, 3.0]})
+        speech.speak_vox_wav(model, "ref.wav", self.TEXT, budget_s=None)
+        self.assertEqual(model.calls.count(chunk), 1 + speech.RETRIES)
+
+    def test_an_ordinary_recording_is_not_said_twice(self):
+        model = FakeModel()
+        speech.speak_vox_wav(model, "ref.wav", self.TEXT, budget_s=None)
+        self.assertEqual(len(model.calls), 5)
 
 
 if __name__ == "__main__":
