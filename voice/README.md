@@ -160,3 +160,12 @@ An L4 costs about $0.80 an hour, billed by the second. That covers only the time
 running: a cold start, the recap itself, and two idle minutes afterwards in case you want a second
 take. Going by the timing above, a recap should cost around five cents, so the free $30 covers far
 more than one a week.
+
+## Tests
+
+How the text is broken into breaths (`speech.chunks`, DESIGN.md §2.73) is plain Python and has tests that need
+nothing installed:
+
+```sh
+python3 voice/test_speech.py
+```

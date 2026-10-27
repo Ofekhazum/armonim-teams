@@ -44,15 +44,29 @@ def plain_len(text: str) -> int:
     """Length as it is spoken: the vowel points are not extra speech."""
     return len(POINTS.sub("", text))
 
-# Sentences are packed into chunks up to this many letters (points not counted,
-# so pointed text breaks where unpointed text would). It sets how
-# often a breath falls: roughly every sentence or two, which is where the
-# Chatterbox version the club first heard had them.
-CHUNK_CHARS = 240
+# How the text is broken up to be spoken (§2.69.1, §2.73). The model never
+# pauses by itself — not at a full stop, not at a "!" — so every breath in the
+# recording is one stitched in between chunks, and a chunk is spoken in one go.
+# The text is therefore cut so that a breath falls at every sentence end, and
+# no chunk runs longer than a person could say in one breath, however long the
+# sentences are: the writing is left as wild as the persona wants it.
+#
+# Letters, points not counted, so pointed text breaks where unpointed text would.
+# 140 letters is about 11 seconds of speech; the 240 this replaced was 18, and
+# in a real recap most chunks ran 15-18 seconds with up to three sentence ends
+# inside them and no pause at any.
+CHUNK_CHARS = 140
 
-# Pauses stitched between chunks, in seconds. A sentence break inside a
-# paragraph is a breath; a paragraph break is a beat longer.
-GAP_SENTENCE = 0.25
+# Only a sentence of a word or two ("כן!") is joined to its neighbour instead of
+# standing alone: a breath after one syllable sounds like a stammer, and a chunk
+# that small is harder for the model to say. Anything longer gets its own breath
+# — even "איזו בונבוניירה!" does, which is the whole point of the breaths.
+SHORT_SENTENCE = 12
+
+# Pauses stitched after a chunk, in seconds: after a comma break inside a long
+# sentence, a sentence end, and a paragraph end — each a beat longer than the last.
+GAP_COMMA = 0.15
+GAP_SENTENCE = 0.3
 GAP_PARAGRAPH = 0.6
 
 VOX_REPO = "openbmb/VoxCPM2"
@@ -112,43 +126,73 @@ def find_reference(voice: str, fetch, is_missing) -> str:
 
 
 def split_long(sentence: str) -> list[str]:
-    """A sentence over CHUNK_CHARS, broken at commas, then at spaces."""
-    if plain_len(sentence) <= CHUNK_CHARS:
+    """
+    A sentence over CHUNK_CHARS, broken into pieces of about equal length.
+
+    Broken at commas and semicolons where there are any, and only past that at
+    spaces. Balanced rather than packed: a 170-letter sentence is two 85s, not
+    a 140 and a 30, because a breath in the middle of a sentence sounds right
+    and a stub sounds like the speaker ran out.
+    """
+    total = plain_len(sentence)
+    if total <= CHUNK_CHARS:
         return [sentence]
+    target = total / -(-total // CHUNK_CHARS)  # an equal share of the pieces it needs
+
+    atoms: list[str] = []
+    for piece in re.split(r"(?<=[,;])\s+", sentence):
+        atoms.extend([piece] if plain_len(piece) <= CHUNK_CHARS else piece.split())
+
     out, current = [], ""
-    for piece in re.split(r"(?<=,)\s+", sentence):
-        words = [piece] if plain_len(piece) <= CHUNK_CHARS else piece.split()
-        for word in words:
-            joined = f"{current} {word}".strip()
-            if plain_len(joined) <= CHUNK_CHARS:
-                current = joined
-            else:
-                if current:
-                    out.append(current)
-                current = word
+    for atom in atoms:
+        joined = f"{current} {atom}".strip()
+        # close the piece when the next atom would not fit, or would take it
+        # further past its share than stopping here leaves it short of it
+        over = plain_len(joined) - target
+        short = target - plain_len(current)
+        if current and (plain_len(joined) > CHUNK_CHARS or (over > 0 and over > short)):
+            out.append(current)
+            current = atom
+        else:
+            current = joined
     if current:
         out.append(current)
     return out
 
 
 def chunks(text: str) -> list[tuple[str, float]]:
-    """(chunk, pause after it) — sentences packed up to CHUNK_CHARS each."""
+    """
+    (chunk, pause after it): a breath at every sentence end, none of them long.
+
+    Each sentence is its own chunk, with a pause after. A sentence too long to
+    say in one breath is split at its commas first, with a shorter pause at each
+    split. A very short sentence joins its neighbour when they fit together.
+    The last chunk of a paragraph gets the paragraph's longer pause.
+    """
     out: list[tuple[str, float]] = []
     for paragraph in (p.strip() for p in text.split("\n")):
         if not paragraph:
             continue
-        current = ""
+        units: list[tuple[str, float]] = []
         for sentence in (s for s in re.split(r"(?<=[.!?])\s+", paragraph) if s):
-            for piece in split_long(sentence):
-                joined = f"{current} {piece}".strip()
-                if plain_len(joined) <= CHUNK_CHARS:
-                    current = joined
-                else:
-                    if current:
-                        out.append((current, GAP_SENTENCE))
-                    current = piece
-        if current:
-            out.append((current, GAP_PARAGRAPH))
+            pieces = split_long(sentence)
+            units.extend((piece, GAP_COMMA) for piece in pieces[:-1])
+            units.append((pieces[-1], GAP_SENTENCE))
+
+        merged: list[tuple[str, float]] = []
+        for text_, pause in units:
+            if merged:
+                before, before_pause = merged[-1]
+                # only across a sentence end: a comma break was made on purpose
+                joins = before_pause == GAP_SENTENCE and (
+                    plain_len(before) < SHORT_SENTENCE or plain_len(text_) < SHORT_SENTENCE
+                )
+                if joins and plain_len(f"{before} {text_}") <= CHUNK_CHARS:
+                    merged[-1] = (f"{before} {text_}", pause)
+                    continue
+            merged.append((text_, pause))
+        merged[-1] = (merged[-1][0], GAP_PARAGRAPH)
+        out.extend(merged)
     return out
 
 
