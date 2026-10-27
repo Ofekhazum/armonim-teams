@@ -5463,6 +5463,29 @@ for free, and a hand-built player would have to re-do each of them.
   "user gesture" on iOS; a player that sometimes starts by itself and sometimes doesn't is worse than one
   that waits to be pressed.
 
+#### 2.71.2 Respelling what the voice mispronounces (`pronunciations.js`)
+
+VoxCPM2 cannot read niqqud, so a word it gets wrong (שגב read as *shagav*, שיא as *shi* — the sin dot it
+cannot see) is fixed by **respelling it in the text the voice is sent, and only there**. The report the app
+shows, stores and runs its guards on is never touched; the 🔍 panel shows the respelled text, so what the
+voice was given is checkable.
+
+- **A dictionary, edited in code.** `PRONUNCIATIONS` maps a word as the report spells it to how to say it —
+  a Latin spelling (`שגב: 'Segev'`, read in the cloned voice's own accent), a respelling in Hebrew letters
+  (`שיא: 'סיא'`, which stays in the script and is the safer one for sin-read-as-shin), or `{ to, exact: true }`
+  for a word that is also something else (`דור`, which is also "generation", and whose prefixed forms —
+  מדור — are other words). Adding one is a line and a Worker deploy; recordings are cached per spoken text,
+  so a changed entry means the next take is made again.
+- **Whole words only.** A word matches if it is an entry, or a *valid* prefix (`ו ה ב כ ל מ ש` and the ways
+  they stack: `ו+ה`, `כש`, `וש+ב`…) followed by an entry — never a piece of a longer word, and never
+  arbitrary letters in front. So "והשחורים", "ישגב" (a verb), "משגבים" and "שיאים" are left alone, and
+  "מדור" is left alone because `דור` is `exact`.
+- **Prefixes in front of a Latin spelling are written as they are said** ("לשגב" → "le Segev",
+  "והשגב" → "veha Segev"); in front of a Hebrew respelling they stay ("בשיא" → "בסיא").
+- **Applied last**, after `speakable()`, in `spokenFor`, so it sees the numbers already spelled out.
+- **Unproven:** whether the voice reads Latin words inside a Hebrew sentence well. Each entry can be flipped
+  between a Latin and a Hebrew-letter spelling in one line.
+
 ## 3. Team generation algorithm
 
 Balancing is a small constrained optimization. With ≤15 players, brute force is too big
