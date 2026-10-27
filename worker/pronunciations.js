@@ -22,7 +22,7 @@
 export const PRONUNCIATIONS = {
   // names the voice got wrong
   שגב: 'Segev',
-  יועד: 'Yoad',
+  יועד: 'Yo-ahd', // "Yoad" is read as one syllable, "yode"
   דובצקי: 'Dubetsky',
   זרקא: 'Zarka',
   שיא: 'סיא',
