@@ -2,6 +2,12 @@ name = "armonim-roster"
 main = "roster-worker.js"
 compatibility_date = "2024-11-01"
 
+# Vowel points (niqqud) for the recorded recap (DESIGN.md §2.71). The way back if
+# they make the voice sound worse: set this to "off" and `npx wrangler deploy`.
+# Recordings are filed per setting, so nothing already made is lost or mixed up.
+[vars]
+VOICE_NIQQUD = "on"
+
 # The KV namespace that holds the roster. Create it once with:
 #   npx wrangler kv namespace create ROSTER_KV
 # then paste the printed id below (replace the placeholder).

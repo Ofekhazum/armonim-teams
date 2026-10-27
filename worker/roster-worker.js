@@ -51,10 +51,12 @@ import { isValidFacts, normalizePersona, recapKey, writeRecap } from './recap.js
 import {
   JOB_TIMEOUT_MS,
   canVoice,
+  provenanceOf,
   rememberDraft,
-  sourceOf,
   speakable,
   voiceConfigured,
+  voiceFor,
+  pointing,
   voiceHash,
   voiceKey,
 } from './recap-voice.js';
@@ -104,7 +106,7 @@ async function voiceStatus(env, fixtureId) {
   const recap = await readStoredRecap(env, fixtureId);
   if (!configured || !recap?.text) return { configured, voiceable: false, status: 'none' };
   const voiceable = canVoice(recap);
-  const hash = await voiceHash(speakable(recap.text));
+  const hash = await voiceHash(speakable(recap.text), voiceFor(recap), pointing(env));
   const job = await (await voiceJob(env, fixtureId).fetch('https://voice/status')).json();
   if (!job) return { configured, voiceable, status: 'none', hash };
   const timedOut = job.status === 'working' && Date.now() - job.startedAt > JOB_TIMEOUT_MS;
@@ -1016,8 +1018,11 @@ export default {
         // every recap; text written by hand is stored all the same, and read
         // all the same, but not spoken.
         if (isStr(body.text, 8000)) {
-          const source = await sourceOf(env, body.fixtureId, body.text);
-          const stored = { text: body.text, at: Date.now(), source };
+          const stored = {
+            text: body.text,
+            at: Date.now(),
+            ...(await provenanceOf(env, body.fixtureId, body.text)),
+          };
           await env.ROSTER_KV.put(key, JSON.stringify(stored));
           return json({ ok: true, ...stored });
         }
@@ -1045,15 +1050,16 @@ export default {
 
         // An unknown or missing persona falls back to 'default' (§2.70); the
         // choice only restyles the report, so a bad value is never worth a 400.
-        const written = await writeRecap(env, body.facts, normalizePersona(body.persona));
+        const persona = normalizePersona(body.persona);
+        const written = await writeRecap(env, body.facts, persona);
         if (written.error) return json({ error: written.error }, 502);
         if (body.save === true) {
-          const stored = { text: written.text, at: Date.now(), source: 'gemini' };
+          const stored = { text: written.text, at: Date.now(), source: 'gemini', persona };
           await env.ROSTER_KV.put(key, JSON.stringify(stored));
           return json({ ok: true, ...stored });
         }
         // the fingerprint that lets the organiser's "publish" count as Gemini's
-        await rememberDraft(env, body.fixtureId, written.text);
+        await rememberDraft(env, body.fixtureId, written.text, persona);
         return json({ ok: true, text: written.text });
       }
 
@@ -1074,7 +1080,8 @@ export default {
         if (!canVoice(recap)) return json({ error: 'not generated' }, 409);
 
         const spoken = speakable(recap.text);
-        const hash = await voiceHash(spoken);
+        const voice = voiceFor(recap);
+        const hash = await voiceHash(spoken, voice, pointing(env));
 
         if (body.file === true) {
           const { value, metadata } = await env.ROSTER_KV.getWithMetadata(
@@ -1105,7 +1112,7 @@ export default {
         }
         const res = await voiceJob(env, body.fixtureId).fetch('https://voice/start', {
           method: 'POST',
-          body: JSON.stringify({ fixtureId: body.fixtureId, text: spoken, hash }),
+          body: JSON.stringify({ fixtureId: body.fixtureId, text: spoken, hash, voice }),
         });
         return json({ configured: true, voiceable: true, ...(await res.json()) });
       }

@@ -8,9 +8,8 @@ Two separate things, and they're independent:
 
 - **Part A — the writing.** Which style Gemini writes the report in. This works
   today, and it's four small edits.
-- **Part B — the spoken voice.** Which cloned voice reads it aloud. **Today
-  every recap is read in one shared voice**, whoever wrote it. Giving a persona
-  its *own* voice is not wired yet — Part B explains what it would take.
+- **Part B — the spoken voice.** Which cloned voice reads it aloud. One file
+  upload per persona; until you add one, a persona is read in the default voice.
 
 ---
 
@@ -99,35 +98,51 @@ in because he's the organiser's friend, styled as himself, with his consent.
 
 ## Part B — give a persona its own voice
 
-**Current state.** The spoken recap (🎙️ on the night page) always uses a single
-reference clip: `reference_voice_final.wav` in the private Hugging Face dataset
-`ofh55/armonim-voice`. The Modal voice server loads that one clip and reads
-*every* recap in it, no matter which persona wrote the text. So today, changing
-the voice for everyone is just: upload a new clip to that dataset under that
-name, and the next recording uses it (see `voice/README.md`).
+A persona is read in the clip named after its key. In the private Hugging Face
+dataset `ofh55/armonim-voice`:
 
-**Per-persona voices are not built yet.** To make `noir` read in one voice and
-`zahavi` in another, three things need to change — it's a small feature, not a
-config step:
+| File | Used for |
+|---|---|
+| `voice_<key>.wav` | the persona with that key (`voice_zahavi.wav`, `voice_noir.wav`, …) |
+| `reference_voice_final.wav` | the `default` persona, **and any persona that has no `voice_<key>.wav`** |
 
-1. **Store which persona wrote a recap.** Right now the stored recap doesn't
-   record its persona, so the voice server has no way to know. The recap record
-   in KV would need a `persona` field.
-2. **Pass it to the voice server.** `worker/recap-voice.js` would send the
-   persona (or a voice key) along with the text when it starts a Modal job.
-3. **Map persona → clip in Modal.** `voice/modal_app.py` would pick the clip by
-   persona — e.g. fetch `voice_<persona>.wav` from the dataset, falling back to
-   the shared clip when a persona has none. Each voice is still just a file in
-   `ofh55/armonim-voice`.
+So adding a voice is one step: **record a clip and upload it to the dataset
+with that name.** No redeploy — the voice server fetches clips when a container
+starts, and picks up a new one the next time it is cold (up to a couple of
+minutes after the previous recording, or immediately on the first one of the
+day).
 
-Once that exists, "linking a voice" becomes: record a clip, upload it to the
-dataset as `voice_<key>.wav`, and the persona with that key is read in it. Until
-then, treat the voice as one shared setting.
+**Until you upload one, every persona is read in `reference_voice_final.wav`** —
+which is how it worked before this existed, so nothing changes by itself. To
+give the writing persona `zahavi` its own voice, upload `voice_zahavi.wav`; to
+split the default reporter off as well, upload a new `reference_voice_final.wav`
+(the default stays the fallback, so keep one).
 
-> Reminder for Part B voices, same as everywhere else: a cloned voice must be of
-> someone who agreed to it. The clip stays in the private dataset, and every
-> output keeps its AI watermark, its AI tags, and the "AI voice" line when
-> shared.
+How the clip is chosen (DESIGN.md §2.70.1):
 
-Want per-persona voices wired up? It's a good small next step — ask and it's a
-single focused change across those three files.
+1. When the organiser tells the app to write a report, the Worker remembers
+   **which persona wrote that draft**, next to the draft's fingerprint. When the
+   organiser publishes it, the persona is stored with the recap. The app is
+   never trusted to say which persona it was — a published recap is read in the
+   voice of the persona that actually wrote it.
+2. 🎙️ sends that persona's key to the voice server with the text.
+3. The voice server looks for `voice_<key>.wav`, and falls back to the default
+   clip if there isn't one (it logs that it did).
+
+A recap written before this existed, or by a persona that has since been
+removed, is read in the default voice.
+
+Each voice's recording is stored apart, so a night written once by `default`
+and re-written by `zahavi` doesn't get the wrong voice from a cached file. The
+default voice's cache is unchanged, so nothing that was already recorded has to
+be made again.
+
+**Tips for a clip** are the same as for the first one (`voice/README.md`): 15–25
+seconds of one person speaking, no music or echo, **left exactly as recorded**
+— the model copies the clip's *pace and pauses*, so a clip spoken calmly with
+real pauses gives a calm reading, and trimming the silences out of it makes the
+voice rush.
+
+> Same reminder as everywhere else: a cloned voice must be of someone who
+> agreed to it. The clip stays in the private dataset, and every output keeps
+> its AI watermark, its AI tags, and the "AI voice" line when shared.

@@ -171,6 +171,8 @@ export const night = {
 
   // --- The report, read aloud (§2.69) — the organiser's two taps -------------
   'np.voice.create': { he: '🎙️ יצירת הקלטה', en: '🎙️ Create recap' },
+  'np.voice.listen': { he: '🎧 שמיעה', en: '🎧 Listen' },
+  'np.voice.player': { he: 'ההקלטה', en: 'The recording' },
   'np.voice.working': { he: '⏳ מקליט… {time}', en: '⏳ Recording… {time}' },
   'np.voice.workingHint': {
     he: 'אם שרת הקול ישן, הוא מתעורר קודם — זה יכול לקחת כמה דקות. אפשר לסגור את הדף, ההקלטה ממשיכה.',

@@ -22,10 +22,13 @@
 // admin word can still write a recap by hand — it just cannot make the voice
 // say it.
 
+import { normalizePersona } from './recap.js';
+import { vocalize } from './vocalize.js';
+
 // Bump when speakable() or the voice server changes what a recap sounds like,
 // so the cached audio for every night stops matching and is made again on
 // request.
-export const VOICE_VERSION = 3; // 2: the reference clip changed; 3: the engine did (VoxCPM2, §2.69.1)
+export const VOICE_VERSION = 4; // 2: the reference clip changed; 3: the engine did (VoxCPM2, §2.69.1); 4: the words go to it with niqqud (§2.71)
 
 // A cold GPU container boots and loads ~3 GB of weights; a long recap is a few
 // minutes more to generate. An alarm handler gets fifteen minutes of wall
@@ -66,15 +69,35 @@ export async function sha256Hex(text) {
 }
 
 /** The fingerprint the cached audio is filed under: the words, and how they were made. */
-export const voiceHash = (spoken) => sha256Hex(`v${VOICE_VERSION}\n${spoken}`);
+export const voiceHash = (spoken, voice = 'default', pointed = true) =>
+  sha256Hex(
+    `v${VOICE_VERSION}${pointed ? '' : '-plain'}\n${voice === 'default' ? '' : `${voice}\n`}${spoken}`,
+  );
+
+/** Is the recording made with niqqud? On unless `VOICE_NIQQUD` is "off" (wrangler.toml). */
+export const pointing = (env) => String(env?.VOICE_NIQQUD ?? 'on').toLowerCase() !== 'off';
+
+/**
+ * Whose voice reads this recap (§2.70.1). Always a persona key the Worker knows:
+ * a recap stored before personas existed, or with one since removed, is read in
+ * the default voice rather than refused.
+ */
+export const voiceFor = (stored) => normalizePersona(stored?.persona);
 
 // --- Provenance -------------------------------------------------------------
 
-/** Remember that the reporter wrote this text for this night. */
-export async function rememberDraft(env, fixtureId, text) {
+// A fingerprint is the text's hash, then `:` and the persona that wrote it.
+// Lists written before personas existed hold bare hashes, which read as default.
+const entry = (hash, persona) => `${hash}:${persona}`;
+const hashOf = (item) => String(item).split(':')[0];
+
+/** Remember that the reporter, as this persona, wrote this text for this night. */
+export async function rememberDraft(env, fixtureId, text, persona = 'default') {
   const hash = await sha256Hex(text);
   const known = await readDrafts(env, fixtureId);
-  const next = [...known.filter((h) => h !== hash), hash].slice(-MAX_DRAFTS);
+  const next = [...known.filter((h) => hashOf(h) !== hash), entry(hash, normalizePersona(persona))].slice(
+    -MAX_DRAFTS,
+  );
   await env.ROSTER_KV.put(draftsKey(fixtureId), JSON.stringify(next), {
     expirationTtl: DRAFT_TTL_S,
   });
@@ -89,10 +112,18 @@ async function readDrafts(env, fixtureId) {
   }
 }
 
-/** 'gemini' if the reporter wrote exactly this for this night, otherwise 'edited'. */
-export async function sourceOf(env, fixtureId, text) {
-  const known = await readDrafts(env, fixtureId);
-  return known.includes(await sha256Hex(text)) ? 'gemini' : 'edited';
+/**
+ * Where this text came from: `{ source: 'gemini', persona }` if the reporter
+ * wrote exactly this for this night, otherwise `{ source: 'edited' }`.
+ *
+ * The persona comes from the Worker's own record of the draft, never from the
+ * client, so the voice a recap is read in can only be the one its writer was.
+ */
+export async function provenanceOf(env, fixtureId, text) {
+  const hash = await sha256Hex(text);
+  const found = (await readDrafts(env, fixtureId)).find((item) => hashOf(item) === hash);
+  if (found === undefined) return { source: 'edited' };
+  return { source: 'gemini', persona: normalizePersona(String(found).split(':')[1]) };
 }
 
 /**
@@ -316,15 +347,15 @@ const auth = (env) => ({ 'Modal-Key': env.MODAL_KEY, 'Modal-Secret': env.MODAL_S
 
 const refusedToken = (res) => res?.status === 401 || res?.status === 403;
 
-/** Queue the words; the job's id. A refused token or refused text is final. */
-export async function startJob(env, text, { wait = sleep } = {}) {
+/** Queue the words, to be read in `voice`; the job's id. A refused token or refused text is final. */
+export async function startJob(env, text, { wait = sleep, voice = 'default' } = {}) {
   for (let tries = 1; ; tries++) {
     let res = null;
     try {
       res = await fetch(voiceUrl(env, '/jobs'), {
         method: 'POST',
         headers: { ...auth(env), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text }),
+        body: JSON.stringify({ text, voice }),
       });
     } catch {
       // a dropped connection is worth another try
@@ -388,6 +419,7 @@ const view = (job) =>
         status: job.status,
         hash: job.hash,
         startedAt: job.startedAt,
+        ...(job.pointed === undefined ? {} : { pointed: job.pointed }),
         ...(job.error ? { error: job.error } : {}),
       }
     : null;
@@ -395,7 +427,7 @@ const view = (job) =>
 /**
  * Durable Object: one night's voice job. `idFromName(fixtureId)`.
  *
- *   POST /start  { fixtureId, text, hash }   begin, unless one is running
+ *   POST /start  { fixtureId, text, hash, voice }   begin, unless one is running
  *   GET  /status                             { status, hash, startedAt, error? }
  *
  * The work happens in `alarm()`, set for "now" by /start. That is what lets
@@ -419,7 +451,7 @@ export class RecapVoice {
     if (url.pathname === '/status') return Response.json(view(await this.job()));
 
     if (url.pathname === '/start' && request.method === 'POST') {
-      const { fixtureId, text, hash } = await request.json();
+      const { fixtureId, text, hash, voice } = await request.json();
       const current = await this.job();
       if (current?.status === 'working' && Date.now() - current.startedAt < JOB_TIMEOUT_MS) {
         return Response.json(view(current));
@@ -427,6 +459,7 @@ export class RecapVoice {
       const job = { status: 'working', fixtureId, hash, startedAt: Date.now() };
       await this.state.storage.put('job', job);
       await this.state.storage.put('text', text);
+      await this.state.storage.put('voice', normalizePersona(voice));
       await this.state.storage.setAlarm(Date.now());
       return Response.json(view(job));
     }
@@ -440,15 +473,28 @@ export class RecapVoice {
   async alarm() {
     const job = await this.job();
     const text = await this.state.storage.get('text');
+    const voice = (await this.state.storage.get('voice')) ?? 'default';
     if (!job || job.status !== 'working' || !text) return;
 
     let next;
     try {
-      const audio = await synthesize(this.env, text, { deadline: job.startedAt + JOB_TIMEOUT_MS });
+      // Vowel points are for the voice's benefit only (§2.71). If they can't be
+      // added, or come back with different letters, the recording is made from
+      // the text as it stands — worse at names, never wrong in what it says.
+      const vocal = pointing(this.env)
+        ? await vocalize(this.env, text)
+        : { text, pointed: false, reason: 'switched off' };
+      if (!vocal.pointed) {
+        console.log(JSON.stringify({ voice: 'unpointed', fixtureId: job.fixtureId, reason: vocal.reason }));
+      }
+      const audio = await synthesize(this.env, vocal.text, {
+        deadline: job.startedAt + JOB_TIMEOUT_MS,
+        voice,
+      });
       await this.env.ROSTER_KV.put(voiceKey(job.fixtureId), audio, {
         metadata: { hash: job.hash, at: Date.now() },
       });
-      next = { ...job, status: 'ready', finishedAt: Date.now() };
+      next = { ...job, status: 'ready', finishedAt: Date.now(), pointed: vocal.pointed };
     } catch (err) {
       next = {
         ...job,
@@ -464,5 +510,6 @@ export class RecapVoice {
     if ((await this.job())?.startedAt !== job.startedAt) return;
     await this.state.storage.put('job', next);
     await this.state.storage.delete('text');
+    await this.state.storage.delete('voice');
   }
 }

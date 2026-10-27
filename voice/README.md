@@ -64,6 +64,9 @@ Run all of these from the repo root.
 ### 2. The reference voice
 
 The clip goes in the private dataset `ofh55/armonim-voice`, named `reference_voice_final.wav`.
+That is the default voice, and the one any persona uses unless it has a clip of its own: a persona
+with the key `zahavi` is read in `voice_zahavi.wav` if that file is in the dataset (see
+`docs/personas.md`, Part B). Every clip follows the same advice below.
 
 For a good clone:
 

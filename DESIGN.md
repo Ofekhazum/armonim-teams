@@ -5306,6 +5306,96 @@ them, read aloud and stripped of its AI label the moment it is forwarded, is exa
 whole feature's labelling exists to prevent. `zahavi` is the organiser's own friend, whose voice the
 audio feature already uses with his consent, styled as himself.
 
+### 2.70.1 A voice per persona
+
+A persona now has its own voice when it has its own clip, and shares the default one when it doesn't.
+The clip for persona `<key>` is `voice_<key>.wav` in the private dataset; `reference_voice_final.wav`
+is the default and the fallback. The pieces:
+
+- **The persona is remembered by the Worker, not sent by the client.** Writing a draft stores
+  `<sha256(text)>:<persona>` in the night's draft list (the same list that proves a recap came from
+  Gemini, §2.69); publishing finds the draft by its hash and stores `persona` on the recap, alongside
+  `source`. `save: true` stores it directly. An edited recap carries none and is never voiced anyway.
+  The client's `persona` on a *publish* is ignored, so the voice a recap is read in can only be that of
+  the persona that wrote it. Old draft lists hold bare hashes and read as `default`; old recaps have no
+  `persona` and read as `default` (`voiceFor`).
+- **One cache entry per voice.** `voiceHash(spoken, voice)` folds the voice into the key for every
+  voice but `default`, whose hash is what it already was, so nothing already recorded is invalidated.
+- **The voice server gets a key, validated twice.** The job carries `{ text, voice }`; the Worker only
+  sends a key `normalizePersona` knows, and Modal holds it to `^[a-z][a-z0-9_]{0,23}$` because it
+  becomes a file name. A missing clip falls back to the default, with a log line, rather than failing
+  the recording; a clip is fetched once per container.
+- **Nothing changes until a clip is uploaded.** With only `reference_voice_final.wav` in the dataset,
+  every persona is read in it — exactly the behaviour before this.
+
+### 2.71 Vowel points (niqqud) for the voice
+
+The TTS model guesses at unpointed Hebrew and gets names wrong; pointed text (ניקוד) says how each
+word is read. The app must never show the points. So the points are added to the **spoken** text at
+the moment a recording is made, by `worker/vocalize.js`, and the stored report is never touched.
+
+**One deliberate departure from the original spec**, which asked the report prompt itself to write
+pointed Hebrew and the Worker to keep two copies (`vocalizedText` for audio, `text` stripped for the
+UI). That is a second call here instead, for four reasons:
+
+- *The report prompt is already ~200 lines of rules.* Pointing every word roughly doubles the output
+  tokens the writer must produce and is one more thing it can get wrong while it is also meant to
+  be funny and accurate.
+- *Nothing has to be stored twice.* Two copies mean draft fingerprints, the published record, the
+  KV payload and the client types all carrying a pair that must stay in step; here the report is one
+  string, as it has always been, and the provenance rule (§2.69) is unchanged.
+- *It points the whole spoken text,* including the numbers `speakable()` has spelled out ("חמש") —
+  which the report writer, working with digits, never could.
+- *It can be switched off, or fail, at no cost.* Pointing is checked **letter for letter**: the
+  answer, with its points stripped, must equal what was sent (`sameLetters`), line by line. One
+  differing letter — a word "corrected", a sentence dropped — and the answer is discarded, retried
+  once, and then the recording is made from the unpointed text. The voice can therefore never say
+  a word the report does not contain, and trying can never make a recording *worse than before*.
+
+Details:
+
+- **Where.** In the `RecapVoice` alarm, before the job is queued with Modal; the job record gets
+  `pointed: true|false` (also on the public status), and a skipped pointing is logged with its
+  reason. Cached audio is keyed by the *unpointed* spoken text and `VOICE_VERSION` (now 4), so existing
+  recordings stop matching and are made again on request.
+- **Stripping.** `stripPoints` deliberately does **not** use the U+0591–U+05C7 block: that range
+  holds the maqaf (U+05BE, "־"), the paseq and the sof pasuq, which are punctuation. Stripping them
+  would glue "מורט־עצבים" into one word and delete the pauses.
+- **Voice server.** Chunks are measured in letters without points (`plain_len`), so a pointed recap
+  breaks in the same places an unpointed one would and the pacing work of §2.69.1 is unchanged.
+  `MAX_CHARS` rose from 6,000 to 12,000, since pointed text is nearly twice as long in characters.
+- **The way back.** `VOICE_NIQQUD` in `worker/wrangler.toml` (`"on"` by default): set it to `"off"` and
+  `npx wrangler deploy` — no code change. Recordings are filed per setting (`voiceHash(…, pointed)`),
+  so after flipping, a night shows no recording until it is made again, and the other setting's take is
+  kept, not overwritten.
+- **If whole-text pointing sounds worse, a narrower version is possible** (not built): point only the
+  hard words — names from the roster and a short list of ambiguous words — and leave the rest bare. It
+  would reuse `sameLetters` unchanged; only the prompt and the instruction about which words change.
+- **Whether it helps VoxCPM2 is unproven.** A direct comparison was started and never finished
+  (§2.69.1), and the decision was to trust Gemini's pointing. If a recording sounds worse, the
+  pointing is one call (`vocalize` in the alarm) to remove.
+
+### 2.72 Listening to the recording in the app
+
+Until now the only way to hear a recording was the share sheet. The file the share step already
+fetches into memory is now also played in the page, with the browser's own `<audio controls>`
+(`RecapVoice.tsx`): a progress bar, scrubbing, and the OS's lock-screen and Bluetooth controls come
+for free, and a hand-built player would have to re-do each of them.
+
+- **Same file, no second fetch, nothing stored.** The player's source is an object URL made from the
+  `File` that sharing uses and revoked when the file is replaced or the page goes. A browser that
+  can't make one shows no player and still offers to share.
+- **A recording already on file is one tap away.** When the night's status is `ready` the button reads
+  **🎧 Listen**, not Create. It asks without `fresh`, which the Worker answers from the cached take at
+  no cost and without counting against the day's four — the same path the button always took, only
+  labelled for what it now does. **↻ Another take** is unchanged and is the only thing that records again.
+- **Still organiser-only.** The audio is behind the admin word on POST (§2.69), so the player lives
+  where the Share button did. Making it playable for the whole group means deciding that a cloned voice
+  is fetchable by anyone who opens the night; that was not asked for and is not done.
+- **No autoplay.** The file arrives after a fetch, by which time the tap that asked has expired as a
+  "user gesture" on iOS; a player that sometimes starts by itself and sometimes doesn't is worse than one
+  that waits to be pressed.
+
 ## 3. Team generation algorithm
 
 Balancing is a small constrained optimization. With ≤15 players, brute force is too big
