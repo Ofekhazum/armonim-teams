@@ -32,10 +32,17 @@ import { pointCount, sameLetters, vocalize } from './vocalize.js';
 // request.
 export const VOICE_VERSION = 4; // 2: the reference clip changed; 3: the engine did (VoxCPM2, §2.69.1); 4: the words go to it with niqqud (§2.71)
 
-// A cold GPU container boots and loads ~3 GB of weights; a long recap is a few
-// minutes more to generate. An alarm handler gets fifteen minutes of wall
-// clock, so the whole job has to fit inside fourteen.
-export const JOB_TIMEOUT_MS = 14 * 60 * 1000;
+// How long a recording may take from the press of the button, all told. Three
+// minutes of that is the voice, and the rest is waiting: Modal does not always
+// have a GPU free, and a call has been seen to sit in its queue for thirteen
+// minutes before it started (§2.69.2). A job that has not finished by now has
+// not been slow, it has been lost.
+export const JOB_TIMEOUT_MS = 30 * 60 * 1000;
+
+// An alarm handler gets fifteen minutes of wall clock, so a job is not one
+// alarm but as many as it takes: each one waits on the voice server for up to
+// this long, then sets the next and goes, carrying on from the same call.
+const SLICE_MS = 10 * 60 * 1000;
 
 // Queueing a job. The endpoint itself is a small CPU container, up in seconds,
 // so a few tries a little apart cover a cold start or a blip.
@@ -412,11 +419,22 @@ export async function startJob(env, text, { wait = sleep, voice = 'default' } = 
   }
 }
 
-/** Wait for the job and return its MP3. */
-export async function collectJob(env, callId, { deadline, wait = sleep, now = Date.now } = {}) {
+/** The job is still going: not a failure, just not finished by the time this one stopped waiting. */
+export class StillWorking extends Error {}
+
+/**
+ * Wait for the job and return its MP3, or throw `StillWorking` when `deadline`
+ * comes first. `onPhase` hears "queued" while the call is waiting for a GPU and
+ * "running" once it has one.
+ */
+export async function collectJob(
+  env,
+  callId,
+  { deadline, wait = sleep, now = Date.now, onPhase } = {},
+) {
   for (let polls = 1; ; polls++) {
     const left = Math.floor((deadline - now()) / 1000);
-    if (left <= 5 || polls > MAX_POLLS) throw new Error('voice job did not finish in time');
+    if (left <= 5 || polls > MAX_POLLS) throw new StillWorking('voice job did not finish in time');
     const waitS = Math.min(POLL_WAIT_S, left - 5);
 
     let res = null;
@@ -429,7 +447,11 @@ export async function collectJob(env, callId, { deadline, wait = sleep, now = Da
       // a dropped poll loses nothing — the job runs on regardless
     }
     if (refusedToken(res)) throw new Error(`voice server refused the token (${res.status})`);
-    if (res?.status === 202) continue;
+    if (res?.status === 202) {
+      const still = await res.json().catch(() => null);
+      if (typeof still?.phase === 'string') await onPhase?.(still.phase);
+      continue;
+    }
     if (res?.ok) {
       const bytes = await res.arrayBuffer();
       if (bytes.byteLength === 0 || bytes.byteLength > MAX_AUDIO_BYTES) {
@@ -445,11 +467,6 @@ export async function collectJob(env, callId, { deadline, wait = sleep, now = Da
   }
 }
 
-export async function synthesize(env, text, opts = {}) {
-  const callId = await startJob(env, text, opts);
-  return collectJob(env, callId, opts);
-}
-
 // --- The job --------------------------------------------------------------
 
 const view = (job) =>
@@ -460,6 +477,8 @@ const view = (job) =>
         startedAt: job.startedAt,
         ...(job.pointed === undefined ? {} : { pointed: job.pointed }),
         ...(job.pointNote ? { pointNote: job.pointNote } : {}),
+        // while it runs: is it waiting for a GPU, or on one?
+        ...(job.status === 'working' && job.phase ? { phase: job.phase } : {}),
         ...(job.error ? { error: job.error } : {}),
       }
     : null;
@@ -513,6 +532,7 @@ export class RecapVoice {
       await this.state.storage.put('job', job);
       await this.state.storage.put('text', text);
       await this.state.storage.put('voice', normalizePersona(voice));
+      await this.state.storage.delete('callId');
       await this.state.storage.setAlarm(Date.now());
       return Response.json(view(job));
     }
@@ -520,67 +540,101 @@ export class RecapVoice {
     return new Response('not found', { status: 404 });
   }
 
+  /** Save `change` onto the job record, unless a newer job has taken its place. */
+  async update(startedAt, change) {
+    const current = await this.job();
+    if (current?.startedAt !== startedAt) return null;
+    const next = { ...current, ...change };
+    await this.state.storage.put('job', next);
+    return next;
+  }
+
   // Never throws. A throwing alarm is retried by the runtime, and a retry here
   // would be another few minutes of somebody's daily GPU allowance spent on a
   // job that already failed once — the organiser can press the button again.
+  //
+  // A job takes as many alarms as it needs. The first points the text, starts
+  // the call on the voice server and keeps its id; each one waits on that call
+  // for up to SLICE_MS and, if it is not done, sets the next alarm and ends
+  // without finishing the job — so the wait is not bounded by one alarm's fifteen
+  // minutes, and a call stuck in Modal's queue is waited for, not abandoned.
   async alarm() {
     const job = await this.job();
-    const text = await this.state.storage.get('text');
-    const voice = (await this.state.storage.get('voice')) ?? 'default';
-    if (!job || job.status !== 'working' || !text) return;
+    if (!job || job.status !== 'working') return;
+    const store = this.state.storage;
+    const deadline = job.startedAt + JOB_TIMEOUT_MS;
 
-    let next;
     try {
-      // Vowel points are for the voice's benefit only (§2.71). If they can't be
-      // added, or come back with different letters, the recording is made from
-      // the text as it stands — worse at names, never wrong in what it says.
-      const vocal =
-        pointCount(text) > 0
-          ? { text, pointed: true, ok: 1, of: 1 } // written pointed, so there is nothing to ask
-          : pointing(this.env)
-            ? await vocalize(this.env, text)
-            : { text, pointed: false, reason: 'switched off' };
-      if (!vocal.pointed) {
-        console.log(JSON.stringify({ voice: 'unpointed', fixtureId: job.fixtureId, reason: vocal.reason }));
+      let callId = await store.get('callId');
+      if (!callId) {
+        const text = await store.get('text');
+        if (!text) return;
+        const voice = (await store.get('voice')) ?? 'default';
+
+        // Vowel points are for the voice's benefit only (§2.71). If they can't be
+        // added, or come back with different letters, the recording is made from
+        // the text as it stands — worse at names, never wrong in what it says.
+        const vocal =
+          pointCount(text) > 0
+            ? { text, pointed: true, ok: 1, of: 1 } // written pointed, so there is nothing to ask
+            : pointing(this.env)
+              ? await vocalize(this.env, text)
+              : { text, pointed: false, reason: 'switched off' };
+        if (!vocal.pointed) {
+          console.log(JSON.stringify({ voice: 'unpointed', fixtureId: job.fixtureId, reason: vocal.reason }));
+        }
+        // kept as soon as it is decided, so even a job that then fails or times out
+        // can be asked what it was given (TEMPORARY, see /sent)
+        await store.put('sent', vocal.text);
+        if (vocal.raw && (!vocal.pointed || vocal.ok < vocal.of)) {
+          await store.put('sentRaw', vocal.raw);
+        } else {
+          await store.delete('sentRaw');
+        }
+
+        callId = await startJob(this.env, vocal.text, { voice });
+        await store.put('callId', callId);
+        // Why a recording is not (fully) pointed, kept where the status can show it:
+        // the Worker's log is gone by the time anybody asks.
+        const pointNote = !vocal.pointed
+          ? vocal.reason
+          : vocal.ok < vocal.of
+            ? `${vocal.ok} of ${vocal.of} lines`
+            : undefined;
+        await this.update(job.startedAt, { pointed: vocal.pointed, pointNote, phase: 'queued' });
       }
-      // kept as soon as it is decided, so even a job that then fails or times out
-      // can be asked what it was given (TEMPORARY, see /sent)
-      await this.state.storage.put('sent', vocal.text);
-      if (vocal.raw && (!vocal.pointed || vocal.ok < vocal.of)) {
-        await this.state.storage.put('sentRaw', vocal.raw);
-      } else {
-        await this.state.storage.delete('sentRaw');
-      }
-      const audio = await synthesize(this.env, vocal.text, {
-        deadline: job.startedAt + JOB_TIMEOUT_MS,
-        voice,
+
+      const audio = await collectJob(this.env, callId, {
+        deadline: Math.min(deadline, Date.now() + SLICE_MS),
+        onPhase: async (phase) => {
+          if ((await this.job())?.phase !== phase) await this.update(job.startedAt, { phase });
+        },
       });
       await this.env.ROSTER_KV.put(voiceKey(job.fixtureId), audio, {
         metadata: { hash: job.hash, at: Date.now() },
       });
-      // Why a recording is not (fully) pointed, kept where the status can show it:
-      // the Worker's log is gone by the time anybody asks.
-      const pointNote = !vocal.pointed
-        ? vocal.reason
-        : vocal.ok < vocal.of
-          ? `${vocal.ok} of ${vocal.of} lines`
-          : undefined;
-      next = { ...job, status: 'ready', finishedAt: Date.now(), pointed: vocal.pointed, pointNote };
+      await this.update(job.startedAt, { status: 'ready', finishedAt: Date.now() });
     } catch (err) {
-      next = {
-        ...job,
-        status: 'failed',
-        finishedAt: Date.now(),
-        error: String(err?.message ?? err).slice(0, 300),
-      };
-      console.log(JSON.stringify({ voice: 'failed', fixtureId: job.fixtureId, error: next.error }));
+      // not a failure: the call is still going and there is time left to wait for it
+      if (err instanceof StillWorking && Date.now() < deadline - 10_000) {
+        await store.setAlarm(Date.now() + 1000);
+        return;
+      }
+      const minutes = Math.round((Date.now() - job.startedAt) / 60000);
+      const phase = (await this.job())?.phase;
+      const why =
+        err instanceof StillWorking
+          ? `no recording after ${minutes} minutes (${phase === 'running' ? 'still recording' : 'never got a GPU'})`
+          : String(err?.message ?? err).slice(0, 300);
+      await this.update(job.startedAt, { status: 'failed', finishedAt: Date.now(), error: why });
+      console.log(JSON.stringify({ voice: 'failed', fixtureId: job.fixtureId, error: why }));
     }
 
-    // A job that outlived its timeout may have been replaced by a newer one
-    // while it ran; the newer one's record is the one to keep.
-    if ((await this.job())?.startedAt !== job.startedAt) return;
-    await this.state.storage.put('job', next);
-    await this.state.storage.delete('text');
-    await this.state.storage.delete('voice');
+    // done with it, one way or the other: the text and the call are of no more use
+    if ((await this.job())?.status !== 'working') {
+      await store.delete('text');
+      await store.delete('voice');
+      await store.delete('callId');
+    }
   }
 }

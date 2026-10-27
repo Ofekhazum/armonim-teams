@@ -215,4 +215,23 @@ describe('RecapVoice', () => {
     expect(screen.getByText('<nikud>שֶׂגֶב</nikud>')).toBeInTheDocument();
     expect(screen.getByText(s('np.voice.sent.raw'))).toBeInTheDocument();
   });
+
+  it('says the recording is waiting for a GPU, and that it is recording once it has one', async () => {
+    mocked.fetchVoiceStatus.mockResolvedValue(
+      status({ status: 'working', startedAt: Date.now(), phase: 'queued' }),
+    );
+    renderVoice();
+    expect(await screen.findByText(/Waiting for a GPU/)).toBeInTheDocument();
+    expect(screen.getByText(s('np.voice.queuedHint'))).toBeInTheDocument();
+    expect(screen.queryByText(s('np.voice.workingHint'))).toBeNull();
+  });
+
+  it('shows the ordinary recording message when it is on a GPU', async () => {
+    mocked.fetchVoiceStatus.mockResolvedValue(
+      status({ status: 'working', startedAt: Date.now(), phase: 'running' }),
+    );
+    renderVoice();
+    expect(await screen.findByText(s('np.voice.workingHint'))).toBeInTheDocument();
+    expect(screen.queryByText(/Waiting for a GPU/)).toBeNull();
+  });
 });

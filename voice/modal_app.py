@@ -18,6 +18,7 @@
 # container starts — never in this repo, and never baked into the image.
 
 import re
+import time
 from pathlib import Path
 
 import modal
@@ -39,6 +40,13 @@ VOICE_SECRET_NAME = "armonim-voice"
 # sends one it knows, but this is also a file name in a private dataset, so it
 # is held to a plain slug here as well.
 VOICE_KEY = re.compile(r"^[a-z][a-z0-9_]{0,23}$")
+
+# Where a recording leaves a note that it has started. Modal reports a call that
+# is waiting for a GPU and one that is running the same way (still going), and
+# the app should be able to say which: a call has waited thirteen minutes for a
+# GPU before starting (DESIGN.md §2.69.2). A call writes its id here as soon as it
+# is running; a call whose id is not here yet is still queued.
+STATE_DICT = "armonim-voice-state"
 
 # How long the poll endpoint waits for a finished recap before answering
 # "still working". Modal cuts a web request at 150 s.
@@ -80,7 +88,13 @@ app = modal.App(APP_NAME)
     # VoxCPM2 is a 2B model with bf16 weights: an L4 (24 GB) does them in
     # hardware and has room to spare; a T4 does neither. About $0.80 an hour,
     # billed by the second, so a recap is a few cents of the free credit.
-    gpu="L4",
+    #
+    # A list is Modal's own fallback: the first it can get, in this order. The L4
+    # alone was not always to be had, and a recording waited up to thirteen
+    # minutes for one while the same job runs in three on any of these. An A10
+    # (24 GB, Ampere, bf16) and an L40S (48 GB) cost more an hour and the same
+    # few cents a recording.
+    gpu=["L4", "A10", "L40S"],
     secrets=[modal.Secret.from_name(VOICE_SECRET_NAME)],
     # Inside the Worker's fourteen minutes, so a recording that runs long ends here, as
     # an error the app can show, and not as the Worker giving up on a call still running.
@@ -130,19 +144,29 @@ class Voice:
     def speak(self, text: str, voice: str = "default") -> bytes:
         from speech import speak_vox_mp3
 
+        # tell the poll endpoint this call has a GPU. Only ever a courtesy: if
+        # the note cannot be written the recording goes ahead without it.
+        try:
+            modal.Dict.from_name(STATE_DICT, create_if_missing=True).put(
+                modal.current_function_call_id(), int(time.time())
+            )
+        except Exception as err:
+            print(f"could not note that the call started: {err}", flush=True)
+
         return speak_vox_mp3(self.model, self.reference_for(voice), text)
 
 
-def make_api(start, result):
+def make_api(start, result, phase=None):
     """
     The HTTP side, free of Modal so it can be served locally with fakes.
 
       POST /jobs        { text, voice? }  → { call_id }
-      GET  /jobs/{id}?wait=N      → 200 audio/mpeg | 202 still working
+      GET  /jobs/{id}?wait=N      → 200 audio/mpeg | 202 { status, phase? } still working
                                     | 404 unknown or expired | 500 { error }
 
     `start(text, voice)` returns a job id; `result(id, wait)` returns the MP3 bytes,
     or raises TimeoutError (still running) or LookupError (no such job).
+    `phase(id)`, if given, says "queued" or "running" for a job still going.
     """
     from fastapi import Body, FastAPI
     from fastapi.responses import JSONResponse, Response
@@ -163,7 +187,15 @@ def make_api(start, result):
         try:
             audio = await result(call_id, max(0.0, min(wait, MAX_WAIT_S)))
         except TimeoutError:
-            return JSONResponse({"status": "working"}, status_code=202)
+            body = {"status": "working"}
+            if phase:
+                try:
+                    said = await phase(call_id)
+                except Exception:  # a note about the job is never worth failing the poll
+                    said = None
+                if said:
+                    body["phase"] = said
+            return JSONResponse(body, status_code=202)
         except LookupError:
             return JSONResponse({"error": "no such job"}, status_code=404)
         except Exception as err:  # the job itself failed; say why
@@ -191,4 +223,9 @@ def web():
         except (modal.exception.OutputExpiredError, modal.exception.NotFoundError) as err:
             raise LookupError(call_id) from err
 
-    return make_api(start, result)
+    async def phase(call_id: str) -> str:
+        # a running call has left its id in the Dict; one that has not is queued
+        d = modal.Dict.from_name(STATE_DICT, create_if_missing=True)
+        return "running" if await d.get.aio(call_id) else "queued"
+
+    return make_api(start, result, phase)

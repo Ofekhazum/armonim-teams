@@ -187,7 +187,9 @@ export default function RecapVoice({ fixtureId, date, adminWord, recapAt }: Prop
             className="rounded-lg border border-orange-600/60 px-3 py-1 text-xs font-bold text-orange-800 hover:bg-orange-50 disabled:opacity-60"
           >
             {phase === 'working'
-              ? t('np.voice.working', { time: clock(now - (status.startedAt ?? now)) })
+              ? t(status.phase === 'queued' ? 'np.voice.queued' : 'np.voice.working', {
+                  time: clock(now - (status.startedAt ?? now)),
+                })
               : busy
                 ? t('np.voice.fetching')
                 : status.status === 'ready'
@@ -242,7 +244,11 @@ export default function RecapVoice({ fixtureId, date, adminWord, recapAt }: Prop
           )}
         </div>
       )}
-      {phase === 'working' && <p className="mt-1.5 text-[11px] text-amber-900/50">{t('np.voice.workingHint')}</p>}
+      {phase === 'working' && (
+        <p className="mt-1.5 text-[11px] text-amber-900/50">
+          {t(status.phase === 'queued' ? 'np.voice.queuedHint' : 'np.voice.workingHint')}
+        </p>
+      )}
       {failed && <p className="mt-1.5 whitespace-pre-wrap break-words text-xs text-red-700">{failed}</p>}
     </div>
   );
