@@ -150,6 +150,10 @@ export const night = {
   'np.report.writing': { he: 'כותב…', en: 'writing…' },
   'np.report.writeAnother': { he: '↻ לכתוב עוד אחד', en: '↻ Write another' },
   'np.report.write': { he: '✍️ לכתוב את הדיווח', en: '✍️ Write the report' },
+  // The reporter's persona (§2.70) — admin-only, next to the write button.
+  'np.report.persona.label': { he: 'סגנון הכתב', en: 'Reporter style' },
+  'np.report.persona.default': { he: 'כתב רגיל', en: 'House reporter' },
+  'np.report.persona.zahavi': { he: 'רז זהבי', en: 'Raz Zahavi' },
   'np.report.saving': { he: 'שומר…', en: 'saving…' },
   'np.report.publish': { he: '✓ לפרסם את זה', en: '✓ Publish this one' },
   'np.report.discard': { he: 'ביטול', en: 'Discard' },

@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { buildPrompt, isValidFacts, recapKey, splitEvents, writeRecap } from './recap.js';
+import {
+  PERSONAS,
+  PERSONA_KEYS,
+  buildPrompt,
+  isValidFacts,
+  normalizePersona,
+  recapKey,
+  splitEvents,
+  writeRecap,
+} from './recap.js';
 import { foreignScript } from './gemini.js';
 
 // The reporter's job is to write, and its one hard constraint is to write only
@@ -473,6 +482,63 @@ describe('buildPrompt', () => {
     // statistical vibe this whole feature keeps sliding back into
     expect(p).toMatch(/written as bare facts on purpose/);
     expect(p).toMatch(/funniest true sentences/);
+  });
+});
+
+describe('personas (§2.70)', () => {
+  // The guardrails that must survive every persona, picked from TONE_GUARDRAILS
+  // and the parts of the prompt a voice is not allowed to touch.
+  const GUARDRAILS = [
+    'THE ONE LINE YOU DO NOT CROSS',
+    "a person's body, weight, looks, age, health, money, job, family, politics, religion",
+    'Every number must come from the record above, unchanged',
+    'no markdown',
+    'WRITE IN HEBREW',
+    'NEVER WRITE A DATE',
+    'You must not invent any of them',
+  ];
+
+  it('normalizePersona keeps a known key and falls back to default otherwise', () => {
+    expect(normalizePersona('zahavi')).toBe('zahavi');
+    expect(normalizePersona('default')).toBe('default');
+    expect(normalizePersona('bibi')).toBe('default'); // not a persona we ship
+    expect(normalizePersona(undefined)).toBe('default');
+    expect(normalizePersona('')).toBe('default');
+    expect(normalizePersona('toString')).toBe('default'); // not an own property
+  });
+
+  it('default restyles nothing — its role, byline shape and house voice', () => {
+    const p = buildPrompt(facts(), 'default');
+    expect(p).toContain(PERSONAS.default.role);
+    expect(p).toContain('<name of the reporter> מדווח מהמגרש');
+    expect(p).toMatch(/Invent the reporter/);
+    expect(p).toMatch(/over-excited sports broadcaster/);
+    // and it is what an unspecified persona gives
+    expect(buildPrompt(facts())).toBe(p);
+  });
+
+  it('a persona swaps the role, the byline and the voice', () => {
+    const p = buildPrompt(facts(), 'zahavi');
+    expect(p).toContain(PERSONAS.zahavi.role);
+    expect(p).toContain("📻 רז זהבי מדווח מליגה ג'");
+    expect(p).toContain('איזו בונבוניירה'); // its own flavour
+    // a fixed byline is used as-is, not invented, and the default voice is gone
+    expect(p).toMatch(/Use this byline exactly as written/);
+    expect(p).not.toMatch(/Invent the reporter/);
+    expect(p).not.toMatch(/over-excited sports broadcaster/);
+  });
+
+  it('an unknown persona builds exactly the default prompt', () => {
+    expect(buildPrompt(facts(), 'bibi')).toBe(buildPrompt(facts(), 'default'));
+  });
+
+  it('every persona carries every guardrail, after its own voice', () => {
+    for (const key of PERSONA_KEYS) {
+      const p = buildPrompt(facts(), key);
+      for (const rule of GUARDRAILS) expect(p, `${key} / ${rule}`).toContain(rule);
+      // the guardrails come after the persona's tone, never before it
+      expect(p.indexOf(PERSONAS[key].tone)).toBeLessThan(p.indexOf('THE ONE LINE YOU DO NOT CROSS'));
+    }
   });
 });
 
