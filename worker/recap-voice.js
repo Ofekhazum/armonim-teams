@@ -23,11 +23,12 @@
 // say it.
 
 import { normalizePersona } from './recap.js';
+import { vocalize } from './vocalize.js';
 
 // Bump when speakable() or the voice server changes what a recap sounds like,
 // so the cached audio for every night stops matching and is made again on
 // request.
-export const VOICE_VERSION = 3; // 2: the reference clip changed; 3: the engine did (VoxCPM2, §2.69.1)
+export const VOICE_VERSION = 4; // 2: the reference clip changed; 3: the engine did (VoxCPM2, §2.69.1); 4: the words go to it with niqqud (§2.71)
 
 // A cold GPU container boots and loads ~3 GB of weights; a long recap is a few
 // minutes more to generate. An alarm handler gets fifteen minutes of wall
@@ -413,6 +414,7 @@ const view = (job) =>
         status: job.status,
         hash: job.hash,
         startedAt: job.startedAt,
+        ...(job.pointed === undefined ? {} : { pointed: job.pointed }),
         ...(job.error ? { error: job.error } : {}),
       }
     : null;
@@ -471,11 +473,21 @@ export class RecapVoice {
 
     let next;
     try {
-      const audio = await synthesize(this.env, text, { deadline: job.startedAt + JOB_TIMEOUT_MS, voice });
+      // Vowel points are for the voice's benefit only (§2.71). If they can't be
+      // added, or come back with different letters, the recording is made from
+      // the text as it stands — worse at names, never wrong in what it says.
+      const vocal = await vocalize(this.env, text);
+      if (!vocal.pointed) {
+        console.log(JSON.stringify({ voice: 'unpointed', fixtureId: job.fixtureId, reason: vocal.reason }));
+      }
+      const audio = await synthesize(this.env, vocal.text, {
+        deadline: job.startedAt + JOB_TIMEOUT_MS,
+        voice,
+      });
       await this.env.ROSTER_KV.put(voiceKey(job.fixtureId), audio, {
         metadata: { hash: job.hash, at: Date.now() },
       });
-      next = { ...job, status: 'ready', finishedAt: Date.now() };
+      next = { ...job, status: 'ready', finishedAt: Date.now(), pointed: vocal.pointed };
     } catch (err) {
       next = {
         ...job,

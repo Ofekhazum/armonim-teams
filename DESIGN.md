@@ -5328,6 +5328,46 @@ is the default and the fallback. The pieces:
 - **Nothing changes until a clip is uploaded.** With only `reference_voice_final.wav` in the dataset,
   every persona is read in it — exactly the behaviour before this.
 
+### 2.71 Vowel points (niqqud) for the voice
+
+The TTS model guesses at unpointed Hebrew and gets names wrong; pointed text (ניקוד) says how each
+word is read. The app must never show the points. So the points are added to the **spoken** text at
+the moment a recording is made, by `worker/vocalize.js`, and the stored report is never touched.
+
+**One deliberate departure from the original spec**, which asked the report prompt itself to write
+pointed Hebrew and the Worker to keep two copies (`vocalizedText` for audio, `text` stripped for the
+UI). That is a second call here instead, for four reasons:
+
+- *The report prompt is already ~200 lines of rules.* Pointing every word roughly doubles the output
+  tokens the writer must produce and is one more thing it can get wrong while it is also meant to
+  be funny and accurate.
+- *Nothing has to be stored twice.* Two copies mean draft fingerprints, the published record, the
+  KV payload and the client types all carrying a pair that must stay in step; here the report is one
+  string, as it has always been, and the provenance rule (§2.69) is unchanged.
+- *It points the whole spoken text,* including the numbers `speakable()` has spelled out ("חמש") —
+  which the report writer, working with digits, never could.
+- *It can be switched off, or fail, at no cost.* Pointing is checked **letter for letter**: the
+  answer, with its points stripped, must equal what was sent (`sameLetters`), line by line. One
+  differing letter — a word "corrected", a sentence dropped — and the answer is discarded, retried
+  once, and then the recording is made from the unpointed text. The voice can therefore never say
+  a word the report does not contain, and trying can never make a recording *worse than before*.
+
+Details:
+
+- **Where.** In the `RecapVoice` alarm, before the job is queued with Modal; the job record gets
+  `pointed: true|false` (also on the public status), and a skipped pointing is logged with its
+  reason. Cached audio is keyed by the *unpointed* spoken text and `VOICE_VERSION` (now 4), so existing
+  recordings stop matching and are made again on request.
+- **Stripping.** `stripPoints` deliberately does **not** use the U+0591–U+05C7 block: that range
+  holds the maqaf (U+05BE, "־"), the paseq and the sof pasuq, which are punctuation. Stripping them
+  would glue "מורט־עצבים" into one word and delete the pauses.
+- **Voice server.** Chunks are measured in letters without points (`plain_len`), so a pointed recap
+  breaks in the same places an unpointed one would and the pacing work of §2.69.1 is unchanged.
+  `MAX_CHARS` rose from 6,000 to 12,000, since pointed text is nearly twice as long in characters.
+- **Whether it helps VoxCPM2 is unproven.** A direct comparison was started and never finished
+  (§2.69.1), and the decision was to trust Gemini's pointing. If a recording sounds worse, the
+  pointing is one call (`vocalize` in the alarm) to remove.
+
 ## 3. Team generation algorithm
 
 Balancing is a small constrained optimization. With ≤15 players, brute force is too big

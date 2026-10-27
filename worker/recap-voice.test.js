@@ -319,6 +319,48 @@ describe('RecapVoice', () => {
     expect(bodies).toEqual([{ text: 'שלום.', voice: 'zahavi' }]);
   });
 
+  it('sends the voice server the pointed text, and records that it did', async () => {
+    const POINTED = 'שָׁלוֹם.';
+    const state = fakeState();
+    const env = { ...voiceEnv(), GEMINI_KEY: 'k', ROSTER_KV: fakeKv() };
+    const voice = new RecapVoice(state, env);
+    await startJobOn(voice, { fixtureId: 'f1', text: 'שלום.', hash: 'h1' });
+    const sent = [];
+    vi.stubGlobal('fetch', async (url, init) => {
+      if (String(url).includes('generativelanguage')) {
+        return Response.json({ candidates: [{ content: { parts: [{ text: `<nikud>${POINTED}</nikud>` }] } }] });
+      }
+      if (init?.method === 'POST') sent.push(JSON.parse(init.body).text);
+      return init?.method === 'POST' ? Response.json({ call_id: 'fc-1' }) : new Response(MP3);
+    });
+    await voice.alarm();
+    expect(sent).toEqual([POINTED]);
+    expect(await (await voice.fetch(new Request('https://voice/status'))).json()).toMatchObject({
+      status: 'ready',
+      pointed: true,
+    });
+  });
+
+  it('still makes the recording, unpointed, when the points cannot be added', async () => {
+    const state = fakeState();
+    const env = { ...voiceEnv(), GEMINI_KEY: 'k', ROSTER_KV: fakeKv() };
+    const voice = new RecapVoice(state, env);
+    await startJobOn(voice, { fixtureId: 'f1', text: 'שלום.', hash: 'h1' });
+    const sent = [];
+    vi.stubGlobal('fetch', async (url, init) => {
+      if (String(url).includes('generativelanguage')) return new Response('', { status: 401 });
+      if (init?.method === 'POST') sent.push(JSON.parse(init.body).text);
+      return init?.method === 'POST' ? Response.json({ call_id: 'fc-1' }) : new Response(MP3);
+    });
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    await voice.alarm();
+    expect(sent).toEqual(['שלום.']);
+    expect(await (await voice.fetch(new Request('https://voice/status'))).json()).toMatchObject({
+      status: 'ready',
+      pointed: false,
+    });
+  });
+
   it('ignores a voice it does not know and falls back to the default', async () => {
     const state = fakeState();
     const env = { ...voiceEnv(), ROSTER_KV: fakeKv() };

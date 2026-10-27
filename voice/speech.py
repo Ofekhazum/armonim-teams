@@ -29,10 +29,22 @@ import re
 import subprocess
 import tempfile
 
-# A recap is 1,400–2,900 characters. Anything far past that is not a recap.
-MAX_CHARS = 6000
+# A recap is 1,400–2,900 letters. With vowel points (§2.71) it is nearly twice
+# that in characters, so the limit is on characters as received. Anything far
+# past it is not a recap.
+MAX_CHARS = 12000
 
-# Sentences are packed into chunks up to this many characters. It sets how
+# Hebrew vowel points and cantillation. Not the maqaf (U+05BE), paseq or sof
+# pasuq, which are punctuation and sit inside the same block.
+POINTS = re.compile("[\u0591-\u05bd\u05bf\u05c1\u05c2\u05c4\u05c5\u05c7]")
+
+
+def plain_len(text: str) -> int:
+    """Length as it is spoken: the vowel points are not extra speech."""
+    return len(POINTS.sub("", text))
+
+# Sentences are packed into chunks up to this many letters (points not counted,
+# so pointed text breaks where unpointed text would). It sets how
 # often a breath falls: roughly every sentence or two, which is where the
 # Chatterbox version the club first heard had them.
 CHUNK_CHARS = 240
@@ -56,14 +68,14 @@ MAX_STEPS = 400
 
 def split_long(sentence: str) -> list[str]:
     """A sentence over CHUNK_CHARS, broken at commas, then at spaces."""
-    if len(sentence) <= CHUNK_CHARS:
+    if plain_len(sentence) <= CHUNK_CHARS:
         return [sentence]
     out, current = [], ""
     for piece in re.split(r"(?<=,)\s+", sentence):
-        words = [piece] if len(piece) <= CHUNK_CHARS else piece.split()
+        words = [piece] if plain_len(piece) <= CHUNK_CHARS else piece.split()
         for word in words:
             joined = f"{current} {word}".strip()
-            if len(joined) <= CHUNK_CHARS:
+            if plain_len(joined) <= CHUNK_CHARS:
                 current = joined
             else:
                 if current:
@@ -84,7 +96,7 @@ def chunks(text: str) -> list[tuple[str, float]]:
         for sentence in (s for s in re.split(r"(?<=[.!?])\s+", paragraph) if s):
             for piece in split_long(sentence):
                 joined = f"{current} {piece}".strip()
-                if len(joined) <= CHUNK_CHARS:
+                if plain_len(joined) <= CHUNK_CHARS:
                     current = joined
                 else:
                     if current:
