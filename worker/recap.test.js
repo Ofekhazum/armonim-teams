@@ -501,7 +501,7 @@ describe('personas (§2.70)', () => {
   it('normalizePersona keeps a known key and falls back to default otherwise', () => {
     expect(normalizePersona('zahavi')).toBe('zahavi');
     expect(normalizePersona('default')).toBe('default');
-    expect(normalizePersona('bibi')).toBe('default'); // not a persona we ship
+    expect(normalizePersona('shimiyahu')).toBe('default'); // not a persona we ship
     expect(normalizePersona(undefined)).toBe('default');
     expect(normalizePersona('')).toBe('default');
     expect(normalizePersona('toString')).toBe('default'); // not an own property
@@ -529,7 +529,7 @@ describe('personas (§2.70)', () => {
   });
 
   it('an unknown persona builds exactly the default prompt', () => {
-    expect(buildPrompt(facts(), 'bibi')).toBe(buildPrompt(facts(), 'default'));
+    expect(buildPrompt(facts(), 'shimiyahu')).toBe(buildPrompt(facts(), 'default'));
   });
 
   it('every persona carries every guardrail, after its own voice', () => {
