@@ -5341,6 +5341,30 @@ is the default and the fallback. The pieces:
 
 ### 2.71 Vowel points (niqqud) for the voice
 
+> **Current design: the report is written pointed (the original spec).** The second-Gemini-call design
+> described below was built first and proved fragile — a strict check on a long text rejected the whole
+> answer, and the first real recordings all came out unpointed. So the report writer is now asked to
+> write **with niqqud** (`NIQQUD_RULE` in `buildPrompt`, only when `VOICE_NIQQUD` is on), and:
+>
+> - `writeRecap` returns `text` — the report **with the points stripped** (`stripPoints`), which is
+>   what the app shows, stores and what every guard (Hebrew-only, foreign script, dates) runs on — and
+>   `vocalized`, the pointed copy, when the model really pointed it. The two are the same words *by
+>   construction*, so there is nothing to compare and nothing to reject.
+> - The pointed copy lives only on the Worker: in the night's draft list beside the draft's hash and
+>   persona (so a published draft finds it the same way it finds its persona, and the client can never
+>   supply one), then on the stored recap as `vocalized`. It is **never sent to the app** — drafts,
+>   publish responses and `GET /recap` all drop it (`withoutVocalized`).
+> - A recording reads from `spokenFor(env, recap)`: `speakable(vocalized)` if there is one *and* it
+>   still has the same letters as `text` (checked, not assumed) and niqqud is on; otherwise
+>   `speakable(text)`. `speakable` understands points: a counted noun's gender is read from the word
+>   without them, and a prefix letter before a hyphen has its points dropped so it still glues on.
+> - The job skips the second call when its text already carries points. **The second call
+>   (`vocalize.js`, below) remains only as the fallback** for recaps written before this, or when the
+>   model ignored the request — those are pointed at recording time, per line, as described below.
+> - Cost: pointed Hebrew is roughly three times the tokens of plain, inside the 10,000-token output
+>   budget the report already has. Whether pointing the writing costs the report any of its quality is
+>   unproven; `VOICE_NIQQUD = "off"` returns both the prompt and the voice to plain text.
+
 The TTS model guesses at unpointed Hebrew and gets names wrong; pointed text (ניקוד) says how each
 word is read. The app must never show the points. So the points are added to the **spoken** text at
 the moment a recording is made, by `worker/vocalize.js`, and the stored report is never touched.

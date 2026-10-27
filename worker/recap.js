@@ -24,6 +24,7 @@
 // what the data is, what it is not, and that nothing outside it may appear.
 
 import { callGemini, foreignScript } from './gemini.js';
+import { pointCount, stripPoints } from './vocalize.js';
 
 // The report comes back wrapped in this, and only what is inside it is kept.
 // Asking a model for "five paragraphs and here are the rules" invites it to
@@ -228,7 +229,12 @@ const TONE_GUARDRAILS = `THE ONE LINE YOU DO NOT CROSS. Everything you mock is a
 - Do not describe any single match as an event. You do not know how any of them looked.
 - No headline, no title, no bullet points, no markdown, no closing sign-off line with your name. Just the five paragraphs, ready to be pasted into a group chat as they are.`;
 
-export function buildPrompt(facts, persona = 'default') {
+// Asked for only when the recording will be made from the report itself (§2.71):
+// the report is written pointed once, the app shows it with the points stripped,
+// and the voice is sent it as written. Nothing here loosens another rule.
+const NIQQUD_RULE = `HEBREW VOWEL POINTS (NIQQUD). This report will be read aloud by a speech synthesiser, so write it with full niqqud: vowel points on every Hebrew word, the shin dot and the sin dot (שׁ / שׂ), dagesh where it belongs, and no cantillation marks. The points go ON TOP of the ordinary spelling. The letters must be exactly what you would write without any niqqud — the standard full spelling (ktiv male) — with no letter added, dropped or changed for the sake of the vowels. Player names are copied letter for letter, with points added. Numbers stay as digits and are not pointed. Every other rule here applies to the pointed text unchanged: Hebrew only, no dates, nothing that is not in the facts below.`;
+
+export function buildPrompt(facts, persona = 'default', { pointed = false } = {}) {
   const p = PERSONAS[persona] ?? PERSONAS.default;
   // A byline with a <placeholder> is invented fresh; a literal one is used as
   // written. The "never a real journalist, never a player" rule only bites on
@@ -441,7 +447,7 @@ ${p.tone}
 
 ${TONE_GUARDRAILS}
 
-OUTPUT FORMAT. Put the finished report, and nothing else, between ${OPEN} and ${CLOSE}. Do not check your work inside those tags, do not restate these rules inside them, do not explain your choices inside them. Anything outside the tags is discarded, so the tags must contain the whole report and none of your working.
+${pointed ? `${NIQQUD_RULE}\n\n` : ''}OUTPUT FORMAT. Put the finished report, and nothing else, between ${OPEN} and ${CLOSE}. Do not check your work inside those tags, do not restate these rules inside them, do not explain your choices inside them. Anything outside the tags is discarded, so the tags must contain the whole report and none of your working.
 
 ${OPEN}
 (the five paragraphs, in Hebrew)
@@ -489,8 +495,8 @@ export function foreignWords(text, facts) {
 /** An ISO date copied out of the record — see NEVER WRITE A DATE in the prompt. */
 const datesIn = (text) => [...new Set(text.match(/\d{4}-\d{2}-\d{2}/g) ?? [])];
 
-export async function writeRecap(env, facts, persona = 'default') {
-  const said = await callGemini(env, buildPrompt(facts, persona));
+export async function writeRecap(env, facts, persona = 'default', { pointed = false } = {}) {
+  const said = await callGemini(env, buildPrompt(facts, persona, { pointed }));
   if (said.error) return { error: said.error };
 
   // Only what is inside the tags. Deliberation that arrives as ordinary text —
@@ -498,8 +504,15 @@ export async function writeRecap(env, facts, persona = 'default') {
   // outside them and is dropped. No tags at all means the model did not follow
   // the one instruction that makes its answer usable, and a report nobody can
   // trust the boundaries of is worse than none.
-  const text = between(said.raw);
-  if (!text) return { error: 'the model wrote its working out instead of a report' };
+  const written = between(said.raw);
+  if (!written) return { error: 'the model wrote its working out instead of a report' };
+
+  // Asked to point it, the model may or may not have. What the app shows and
+  // every check below reads is the report with the points stripped — the same
+  // words by construction, so there is nothing to compare — and the pointed copy
+  // is kept beside it for the voice, only if it really has points (§2.71).
+  const vocalized = pointed && pointCount(written) > 0 ? written.normalize('NFC') : null;
+  const text = stripPoints(written).normalize('NFC');
 
   // Refused rather than scrubbed. Deleting a stray word from the middle of a
   // Hebrew sentence leaves a sentence nobody wrote, and the organiser already
@@ -521,5 +534,5 @@ export async function writeRecap(env, facts, persona = 'default') {
     return { error: `the report printed a raw date: ${dates.slice(0, 3).join(', ')}` };
   }
 
-  return { text, model: said.model };
+  return { text, ...(vocalized ? { vocalized } : {}), model: said.model };
 }

@@ -542,6 +542,60 @@ describe('personas (§2.70)', () => {
   });
 });
 
+describe('a report written with niqqud (§2.71)', () => {
+  const PLAIN = 'הכחולים לקחו את הערב. שגב כבש שלושה שערים.';
+  const POINTED = 'הַכְּחוּלִּים לָקְחוּ אֶת הָעֶרֶב. שֶׂגֶב כָּבַשׁ שְׁלוֹשָׁה שְׁעָרִים.';
+  const geminiSays = (text) => {
+    const original = globalThis.fetch;
+    globalThis.fetch = async () =>
+      Response.json({ candidates: [{ content: { parts: [{ text: `<report>${text}</report>` }] } }] });
+    return () => (globalThis.fetch = original);
+  };
+
+  it('asks for points only when it will use them, and leaves the ordinary prompt as it was', () => {
+    const plain = buildPrompt(facts());
+    expect(plain).not.toContain('NIQQUD');
+    expect(buildPrompt(facts(), 'default', { pointed: false })).toBe(plain);
+    const pointed = buildPrompt(facts(), 'default', { pointed: true });
+    expect(pointed).toContain('HEBREW VOWEL POINTS (NIQQUD)');
+    expect(pointed).toContain('ktiv male');
+    // the rule sits after the guardrails and before the output format, replacing nothing
+    expect(pointed.indexOf('NIQQUD')).toBeGreaterThan(pointed.indexOf('THE ONE LINE YOU DO NOT CROSS'));
+    expect(pointed.indexOf('NIQQUD')).toBeLessThan(pointed.indexOf('OUTPUT FORMAT'));
+    expect(pointed.replace(/HEBREW VOWEL POINTS[^]*?OUTPUT FORMAT/, 'OUTPUT FORMAT')).toBe(plain);
+  });
+
+  it('shows the report with the points stripped and keeps the pointed copy beside it', async () => {
+    const restore = geminiSays(POINTED);
+    const out = await writeRecap({ GEMINI_KEY: 'k' }, facts(), 'default', { pointed: true });
+    restore();
+    expect(out.text).toBe(PLAIN);
+    expect(out.vocalized).toBe(POINTED);
+  });
+
+  it('is plain text and nothing more when it was not asked for points', async () => {
+    const restore = geminiSays(POINTED);
+    const out = await writeRecap({ GEMINI_KEY: 'k' }, facts());
+    restore();
+    expect(out.text).toBe(PLAIN);
+    expect(out).not.toHaveProperty('vocalized');
+  });
+
+  it('keeps no pointed copy when the model ignored the request', async () => {
+    const restore = geminiSays(PLAIN);
+    const out = await writeRecap({ GEMINI_KEY: 'k' }, facts(), 'default', { pointed: true });
+    restore();
+    expect(out).toEqual({ text: PLAIN, model: expect.any(String) });
+  });
+
+  it('checks the stripped text, so pointed Hebrew gets no way round the language guards', async () => {
+    const restore = geminiSays('הַכְּחוּלִּים finalmente לָקְחוּ אֶת הָעֶרֶב.');
+    const out = await writeRecap({ GEMINI_KEY: 'k' }, facts(), 'default', { pointed: true });
+    restore();
+    expect(out.error).toMatch(/slipped out of Hebrew/);
+  });
+});
+
 describe('writeRecap', () => {
   it('says so when no key is configured, rather than failing obscurely', async () => {
     expect(await writeRecap({}, facts())).toEqual({ error: 'not-configured' });
