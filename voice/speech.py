@@ -44,6 +44,15 @@ GAP_PARAGRAPH = 0.6
 
 VOX_REPO = "openbmb/VoxCPM2"
 
+# The most generation steps one chunk may take. A step is one patch of audio:
+# 4 latent frames of 40 ms, so 0.16 s. A normal chunk (240 characters, 15–20 s of
+# speech) needs about 150. The library's own limit is 4,096 steps — eleven
+# minutes of audio from a single chunk that never finds its end — and it retries
+# a bad attempt up to three more times, which is how one chunk can hold the GPU
+# until the job times out. 400 steps is 64 s: nearly three times what a real
+# chunk needs, and the worst case becomes about a minute instead of ten.
+MAX_STEPS = 400
+
 
 def split_long(sentence: str) -> list[str]:
     """A sentence over CHUNK_CHARS, broken at commas, then at spaces."""
@@ -108,7 +117,8 @@ def speak_vox_wav(model, reference: str, text: str):
     parts = []
     for chunk, pause in chunks(text):
         wav = model.generate(
-            text=chunk, cfg_value=2.0, inference_timesteps=10, reference_wav_path=reference
+            text=chunk, cfg_value=2.0, inference_timesteps=10, reference_wav_path=reference,
+            max_len=MAX_STEPS,
         )
         parts.append(np.asarray(wav, dtype="float32"))
         parts.append(np.zeros(int(sr * pause), dtype="float32"))
