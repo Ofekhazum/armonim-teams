@@ -5,8 +5,10 @@ import {
   canVoice,
   collectJob,
   hebrewNumber,
+  sha256Hex,
   speakable,
   startJob,
+  voiceFor,
   voiceHash,
   voiceKey,
 } from './recap-voice.js';
@@ -144,7 +146,7 @@ const MP3 = new Uint8Array([0x49, 0x44, 0x33, 1, 2, 3]).buffer;
 const later = () => Date.now() + 14 * 60_000;
 
 describe('startJob', () => {
-  it('sends the words with the proxy-auth token, and nothing else', async () => {
+  it('sends the words and the voice with the proxy-auth token, and nothing else', async () => {
     const calls = [];
     vi.stubGlobal('fetch', async (url, init) => {
       calls.push({ url, init });
@@ -154,7 +156,17 @@ describe('startJob', () => {
     expect(calls[0].url).toBe(`${VOICE}/jobs`);
     expect(calls[0].init.headers['Modal-Key']).toBe('wk-test');
     expect(calls[0].init.headers['Modal-Secret']).toBe('ws-test');
-    expect(JSON.parse(calls[0].init.body)).toEqual({ text: 'שלום.' });
+    expect(JSON.parse(calls[0].init.body)).toEqual({ text: 'שלום.', voice: 'default' });
+  });
+
+  it('names the voice it was asked for', async () => {
+    const calls = [];
+    vi.stubGlobal('fetch', async (url, init) => {
+      calls.push(init);
+      return Response.json({ call_id: 'fc-1' });
+    });
+    await startJob(voiceEnv(), 'שלום.', { voice: 'zahavi' });
+    expect(JSON.parse(calls[0].body)).toEqual({ text: 'שלום.', voice: 'zahavi' });
   });
 
   it('tries again through a cold start or a blip', async () => {
@@ -276,7 +288,45 @@ const voiceAnswers = () =>
 const startJobOn = (voice, body) =>
   voice.fetch(new Request('https://voice/start', { method: 'POST', body: JSON.stringify(body) }));
 
+describe('voiceFor / voiceHash', () => {
+  it('reads a recap in its writer’s voice, and a stranger in the default one', () => {
+    expect(voiceFor({ persona: 'zahavi' })).toBe('zahavi');
+    expect(voiceFor({})).toBe('default'); // stored before personas existed
+    expect(voiceFor({ persona: 'no-such-persona' })).toBe('default');
+    expect(voiceFor({ persona: '../../etc' })).toBe('default');
+    expect(voiceFor(null)).toBe('default');
+  });
+
+  it('files each voice’s audio apart, and leaves the default’s where it was', async () => {
+    const words = 'הכחולים לקחו את הערב.';
+    expect(await voiceHash(words, 'zahavi')).not.toBe(await voiceHash(words));
+    expect(await voiceHash(words, 'default')).toBe(await voiceHash(words));
+  });
+});
+
 describe('RecapVoice', () => {
+  it('hands the voice on to the voice server', async () => {
+    const state = fakeState();
+    const env = { ...voiceEnv(), ROSTER_KV: fakeKv() };
+    const voice = new RecapVoice(state, env);
+    await startJobOn(voice, { fixtureId: 'f1', text: 'שלום.', hash: 'h1', voice: 'zahavi' });
+    const bodies = [];
+    vi.stubGlobal('fetch', async (_url, init) => {
+      if (init?.method === 'POST') bodies.push(JSON.parse(init.body));
+      return init?.method === 'POST' ? Response.json({ call_id: 'fc-1' }) : new Response(MP3);
+    });
+    await voice.alarm();
+    expect(bodies).toEqual([{ text: 'שלום.', voice: 'zahavi' }]);
+  });
+
+  it('ignores a voice it does not know and falls back to the default', async () => {
+    const state = fakeState();
+    const env = { ...voiceEnv(), ROSTER_KV: fakeKv() };
+    const voice = new RecapVoice(state, env);
+    await startJobOn(voice, { fixtureId: 'f1', text: 'שלום.', hash: 'h1', voice: '../x' });
+    expect(await state.storage.get('voice')).toBe('default');
+  });
+
   it('starts on an alarm and files the audio under the words it read', async () => {
     const state = fakeState();
     const env = { ...voiceEnv(), ROSTER_KV: fakeKv() };
@@ -404,6 +454,40 @@ describe('POST /recap — where a stored recap came from', () => {
     expect(JSON.parse(kv.store.get('recap:f1')).source).toBe('edited');
   });
 
+  it('remembers which persona wrote a published draft', async () => {
+    const { env, kv } = routeEnv();
+    geminiWrites('הכחולים לקחו את הערב.');
+    const draft = await (
+      await call(env, '/recap', { secret: WORD, fixtureId: 'f1', facts: FACTS, persona: 'zahavi' })
+    ).json();
+    await call(env, '/recap', { secret: WORD, fixtureId: 'f1', text: draft.text });
+    expect(JSON.parse(kv.store.get('recap:f1'))).toMatchObject({ source: 'gemini', persona: 'zahavi' });
+  });
+
+  it('does not take the persona from the client when a draft is published', async () => {
+    const { env, kv } = routeEnv();
+    geminiWrites('הכחולים לקחו את הערב.');
+    const draft = await (await call(env, '/recap', { secret: WORD, fixtureId: 'f1', facts: FACTS })).json();
+    await call(env, '/recap', { secret: WORD, fixtureId: 'f1', text: draft.text, persona: 'zahavi' });
+    expect(JSON.parse(kv.store.get('recap:f1')).persona).toBe('default');
+  });
+
+  it('keeps the persona when the recap is saved in one call', async () => {
+    const { env, kv } = routeEnv();
+    geminiWrites('הכחולים לקחו את הערב.');
+    await call(env, '/recap', { secret: WORD, fixtureId: 'f1', facts: FACTS, persona: 'zahavi', save: true });
+    expect(JSON.parse(kv.store.get('recap:f1')).persona).toBe('zahavi');
+  });
+
+  it('reads drafts remembered before personas existed as the default voice', async () => {
+    const { env, kv } = routeEnv();
+    const text = 'טיוטה ישנה.';
+    const hash = await sha256Hex(text);
+    await kv.put('recapdrafts:f1', JSON.stringify([hash]));
+    await call(env, '/recap', { secret: WORD, fixtureId: 'f1', text });
+    expect(JSON.parse(kv.store.get('recap:f1'))).toMatchObject({ source: 'gemini', persona: 'default' });
+  });
+
   it('does not let one night’s draft vouch for another', async () => {
     const { env, kv } = routeEnv();
     geminiWrites('הכחולים לקחו את הערב.');
@@ -440,6 +524,17 @@ describe('/recap-audio', () => {
     expect((await res.json()).status).toBe('working');
     const job = await voices.get('f1').state.storage.get('text');
     expect(job).toBe('ארבל מדווח.\nהכחולים לקחו חמש נקודות.');
+  });
+
+  it('has a persona’s recap read in that persona’s voice, filed apart from the default', async () => {
+    const { env, kv, voices } = routeEnv();
+    const text = 'הכחולים לקחו את הערב.';
+    await storeRecap(kv, 'f1', { text, at: 1, source: 'gemini', persona: 'zahavi' });
+    await call(env, '/recap-audio', { secret: WORD, fixtureId: 'f1' });
+    expect(await voices.get('f1').state.storage.get('voice')).toBe('zahavi');
+    expect((await voices.get('f1').state.storage.get('job')).hash).toBe(
+      await voiceHash(speakable(text), 'zahavi'),
+    );
   });
 
   it('wants the word', async () => {

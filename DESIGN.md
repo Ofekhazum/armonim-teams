@@ -5306,6 +5306,28 @@ them, read aloud and stripped of its AI label the moment it is forwarded, is exa
 whole feature's labelling exists to prevent. `zahavi` is the organiser's own friend, whose voice the
 audio feature already uses with his consent, styled as himself.
 
+### 2.70.1 A voice per persona
+
+A persona now has its own voice when it has its own clip, and shares the default one when it doesn't.
+The clip for persona `<key>` is `voice_<key>.wav` in the private dataset; `reference_voice_final.wav`
+is the default and the fallback. The pieces:
+
+- **The persona is remembered by the Worker, not sent by the client.** Writing a draft stores
+  `<sha256(text)>:<persona>` in the night's draft list (the same list that proves a recap came from
+  Gemini, §2.69); publishing finds the draft by its hash and stores `persona` on the recap, alongside
+  `source`. `save: true` stores it directly. An edited recap carries none and is never voiced anyway.
+  The client's `persona` on a *publish* is ignored, so the voice a recap is read in can only be that of
+  the persona that wrote it. Old draft lists hold bare hashes and read as `default`; old recaps have no
+  `persona` and read as `default` (`voiceFor`).
+- **One cache entry per voice.** `voiceHash(spoken, voice)` folds the voice into the key for every
+  voice but `default`, whose hash is what it already was, so nothing already recorded is invalidated.
+- **The voice server gets a key, validated twice.** The job carries `{ text, voice }`; the Worker only
+  sends a key `normalizePersona` knows, and Modal holds it to `^[a-z][a-z0-9_]{0,23}$` because it
+  becomes a file name. A missing clip falls back to the default, with a log line, rather than failing
+  the recording; a clip is fetched once per container.
+- **Nothing changes until a clip is uploaded.** With only `reference_voice_final.wav` in the dataset,
+  every persona is read in it — exactly the behaviour before this.
+
 ## 3. Team generation algorithm
 
 Balancing is a small constrained optimization. With ≤15 players, brute force is too big
