@@ -47,6 +47,13 @@ beforeEach(() => {
   mocked.shareVoiceFile.mockResolvedValue('shared');
 });
 
+// jsdom has no object URLs; the player needs one
+const createObjectURL = vi.fn(() => 'blob:recap');
+const revokeObjectURL = vi.fn();
+beforeEach(() => {
+  Object.assign(URL, { createObjectURL, revokeObjectURL });
+});
+
 describe('RecapVoice', () => {
   it('shows nothing until the Worker has a voice to call', async () => {
     mocked.fetchVoiceStatus.mockResolvedValue(status({ configured: false }));
@@ -105,5 +112,54 @@ describe('RecapVoice', () => {
     renderVoice();
     fireEvent.click(await screen.findByText(s('np.voice.create')));
     expect(await screen.findByText(s('np.voice.err.tooMany'))).toBeInTheDocument();
+  });
+
+  it('plays the recording in the page, from the file it already has', async () => {
+    mocked.fetchVoiceStatus.mockResolvedValue(status());
+    mocked.startVoice.mockResolvedValue(status({ status: 'ready' }));
+    renderVoice();
+    expect(document.querySelector('audio')).toBeNull();
+    fireEvent.click(await screen.findByText(s('np.voice.create')));
+    await screen.findByText(s('np.voice.share'));
+    const player = document.querySelector('audio');
+    expect(player).not.toBeNull();
+    expect(player).toHaveAttribute('src', 'blob:recap');
+    expect(createObjectURL).toHaveBeenCalledWith(FILE);
+    // listening is not sharing
+    expect(mocked.shareVoiceFile).not.toHaveBeenCalled();
+  });
+
+  it('offers to listen to a recording already on file, without making another', async () => {
+    mocked.fetchVoiceStatus.mockResolvedValue(status({ status: 'ready' }));
+    mocked.startVoice.mockResolvedValue(status({ status: 'ready' }));
+    renderVoice();
+    expect(screen.queryByText(s('np.voice.create'))).toBeNull();
+    fireEvent.click(await screen.findByText(s('np.voice.listen')));
+    await screen.findByText(s('np.voice.share'));
+    // asked without `fresh`: a take already on file is not re-recorded
+    expect(mocked.startVoice).toHaveBeenCalledWith('f1', 'word', false);
+    expect(document.querySelector('audio')).not.toBeNull();
+  });
+
+  it('lets go of the player’s URL when the file goes', async () => {
+    mocked.fetchVoiceStatus.mockResolvedValue(status());
+    mocked.startVoice.mockResolvedValue(status({ status: 'ready' }));
+    const { unmount } = renderVoice();
+    fireEvent.click(await screen.findByText(s('np.voice.create')));
+    await screen.findByText(s('np.voice.share'));
+    unmount();
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:recap');
+  });
+
+  it('still offers to share on a browser that cannot play it', async () => {
+    createObjectURL.mockImplementationOnce(() => {
+      throw new Error('no');
+    });
+    mocked.fetchVoiceStatus.mockResolvedValue(status());
+    mocked.startVoice.mockResolvedValue(status({ status: 'ready' }));
+    renderVoice();
+    fireEvent.click(await screen.findByText(s('np.voice.create')));
+    expect(await screen.findByText(s('np.voice.share'))).toBeInTheDocument();
+    expect(document.querySelector('audio')).toBeNull();
   });
 });

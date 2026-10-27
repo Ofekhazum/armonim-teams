@@ -3,13 +3,14 @@ import type { VoiceStatus } from '../recapVoice';
 import { fetchVoiceFile, fetchVoiceStatus, shareVoiceFile, startVoice } from '../recapVoice';
 import { t } from '../i18n';
 
-// The recap, read aloud (§2.69) — the organiser's two taps under the report.
+// The recap, read aloud (§2.69) — the organiser's taps under the report.
 //
 // Tap one asks for it. The Worker answers at once and does the work on an
 // alarm, so this polls a public status route until the file exists, then
-// fetches it into memory. Tap two shares it. They cannot be one tap: the share
-// sheet needs a fresh user gesture, and the one that started a recording that
-// took three minutes is long gone by the time there is something to share.
+// fetches it into memory, where it plays in the page (§2.72) and waits to be
+// shared. Sharing is a tap of its own: the share sheet needs a fresh user
+// gesture, and the one that started a recording that took three minutes is
+// long gone by the time there is something to share.
 
 const POLL_MS = 5000;
 
@@ -30,6 +31,7 @@ export default function RecapVoice({ fixtureId, date, adminWord, recapAt }: Prop
   const [status, setStatus] = useState<VoiceStatus | null>(null);
   const [phase, setPhase] = useState<'idle' | 'starting' | 'working' | 'fetching'>('idle');
   const [file, setFile] = useState<File | null>(null);
+  const [playUrl, setPlayUrl] = useState<string | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
 
@@ -49,6 +51,25 @@ export default function RecapVoice({ fixtureId, date, adminWord, recapAt }: Prop
       cancelled = true;
     };
   }, [fixtureId, recapAt]);
+
+  // The same file the share sheet gets, played from memory. No second fetch, and
+  // nothing is stored: the URL lives and dies with the file.
+  useEffect(() => {
+    if (!file) {
+      setPlayUrl(null);
+      return;
+    }
+    let url: string | null = null;
+    try {
+      url = URL.createObjectURL(file);
+    } catch {
+      // no player on a browser that cannot make one; sharing still works
+    }
+    setPlayUrl(url);
+    return () => {
+      if (url) URL.revokeObjectURL(url);
+    };
+  }, [file]);
 
   const collect = useCallback(async () => {
     setPhase('fetching');
@@ -125,6 +146,16 @@ export default function RecapVoice({ fixtureId, date, adminWord, recapAt }: Prop
   const busy = phase !== 'idle';
   return (
     <div className="mt-3 border-t border-amber-900/10 pt-3">
+      {file && playUrl && (
+        <audio
+          controls
+          preload="metadata"
+          src={playUrl}
+          dir="ltr"
+          aria-label={t('np.voice.player')}
+          className="mb-2 h-9 w-full"
+        />
+      )}
       <div className="flex flex-wrap items-center gap-2">
         {file ? (
           <>
@@ -151,7 +182,9 @@ export default function RecapVoice({ fixtureId, date, adminWord, recapAt }: Prop
               ? t('np.voice.working', { time: clock(now - (status.startedAt ?? now)) })
               : busy
                 ? t('np.voice.fetching')
-                : t('np.voice.create')}
+                : status.status === 'ready'
+                  ? t('np.voice.listen')
+                  : t('np.voice.create')}
           </button>
         )}
       </div>

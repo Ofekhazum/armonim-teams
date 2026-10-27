@@ -5368,6 +5368,27 @@ Details:
   (§2.69.1), and the decision was to trust Gemini's pointing. If a recording sounds worse, the
   pointing is one call (`vocalize` in the alarm) to remove.
 
+### 2.72 Listening to the recording in the app
+
+Until now the only way to hear a recording was the share sheet. The file the share step already
+fetches into memory is now also played in the page, with the browser's own `<audio controls>`
+(`RecapVoice.tsx`): a progress bar, scrubbing, and the OS's lock-screen and Bluetooth controls come
+for free, and a hand-built player would have to re-do each of them.
+
+- **Same file, no second fetch, nothing stored.** The player's source is an object URL made from the
+  `File` that sharing uses and revoked when the file is replaced or the page goes. A browser that
+  can't make one shows no player and still offers to share.
+- **A recording already on file is one tap away.** When the night's status is `ready` the button reads
+  **🎧 Listen**, not Create. It asks without `fresh`, which the Worker answers from the cached take at
+  no cost and without counting against the day's four — the same path the button always took, only
+  labelled for what it now does. **↻ Another take** is unchanged and is the only thing that records again.
+- **Still organiser-only.** The audio is behind the admin word on POST (§2.69), so the player lives
+  where the Share button did. Making it playable for the whole group means deciding that a cloned voice
+  is fetchable by anyone who opens the night; that was not asked for and is not done.
+- **No autoplay.** The file arrives after a fetch, by which time the tap that asked has expired as a
+  "user gesture" on iOS; a player that sometimes starts by itself and sometimes doesn't is worse than one
+  that waits to be pressed.
+
 ## 3. Team generation algorithm
 
 Balancing is a small constrained optimization. With ≤15 players, brute force is too big
