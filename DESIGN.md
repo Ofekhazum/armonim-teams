@@ -5211,6 +5211,12 @@ paid plan to create any Gradio or Docker Space. Modal also fits better:
   for a second take, and 4 takes a day per IP in the Worker (`VOICE_LIMIT`), so a leaked admin word
   can't spend the credits.
 
+**The daily cap is a setting.** `VOICE_LIMIT` in `wrangler.toml`: a number sets recordings per IP per day
+(10 if unset), `"off"` removes the cap for a session of listening tests, and anything else is ignored so a
+typo can't remove it. It is `"off"` while the voice is being tuned — set it back to `"10"` afterwards. The
+admin word is still required and Modal's spend cap still applies; what the cap stops is a leaked word
+queueing recordings without limit.
+
 ### 2.69.1 Choosing the voice engine (VoxCPM2, not Chatterbox)
 
 The first engine was Chatterbox Multilingual v2 (MIT), with Hebrew vowel marks from phonikud. It read

@@ -224,6 +224,19 @@ const GRADES_WINDOW_MS = 60 * 60 * 1000;
 // voices and takes in a sitting; the point is that a leaked word cannot queue
 // an unbounded number of them.
 const VOICE_LIMIT = 10;
+
+/**
+ * The daily cap on recordings, unless the `VOICE_LIMIT` var says otherwise:
+ * a number sets it, "off" removes it (for a session of listening tests — the
+ * admin word is still needed, and so is the Modal spend cap). Anything else is
+ * ignored, so a typo cannot quietly remove the cap.
+ */
+export function voiceCap(env) {
+  const set = String(env?.VOICE_LIMIT ?? '').trim().toLowerCase();
+  if (set === 'off') return Infinity;
+  const n = Number(set);
+  return set !== '' && Number.isInteger(n) && n > 0 ? n : VOICE_LIMIT;
+}
 const VOICE_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 // Room upgrades are unauthenticated by design — the share link is the
@@ -1125,11 +1138,11 @@ export default {
 
         // Only a job that will actually run is counted — asking how one is
         // going, or for one already made, costs nothing.
-        const gate = await countAttempt(
-          limiterFor(env, `voice:${ip}`),
-          VOICE_LIMIT,
-          VOICE_WINDOW_MS,
-        );
+        const cap = voiceCap(env);
+        const gate =
+          cap === Infinity
+            ? { blocked: false }
+            : await countAttempt(limiterFor(env, `voice:${ip}`), cap, VOICE_WINDOW_MS);
         if (gate.blocked) {
           return json({ error: 'too many voices' }, 429, {
             'Retry-After': String(gate.retryAfter),

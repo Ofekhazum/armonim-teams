@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import worker from './roster-worker.js';
+import worker, { voiceCap } from './roster-worker.js';
 import { stripPoints } from './vocalize.js';
 import {
   RecapVoice,
@@ -693,7 +693,34 @@ describe('POST /recap — where a stored recap came from', () => {
   });
 });
 
+describe('voiceCap', () => {
+  it('is ten a day unless told otherwise', () => {
+    expect(voiceCap({})).toBe(10);
+    expect(voiceCap({ VOICE_LIMIT: '' })).toBe(10);
+  });
+
+  it('takes a number, and "off" removes it', () => {
+    expect(voiceCap({ VOICE_LIMIT: '25' })).toBe(25);
+    expect(voiceCap({ VOICE_LIMIT: 'off' })).toBe(Infinity);
+    expect(voiceCap({ VOICE_LIMIT: 'OFF' })).toBe(Infinity);
+  });
+
+  it('does not let a typo remove the cap', () => {
+    for (const bad of ['0', '-3', '2.5', 'none', 'false', 'unlimited']) {
+      expect(voiceCap({ VOICE_LIMIT: bad })).toBe(10);
+    }
+  });
+});
+
 describe('/recap-audio', () => {
+  it('does not count recordings against the daily cap while it is off', async () => {
+    const { env, kv, limited } = routeEnv();
+    env.VOICE_LIMIT = 'off';
+    await storeRecap(kv, 'f1', { text: 'דוח', at: 1, source: 'gemini' });
+    await call(env, '/recap-audio', { secret: WORD, fixtureId: 'f1' });
+    expect(limited.filter((n) => n.startsWith('voice:'))).toHaveLength(0);
+  });
+
   it('will not speak a recap somebody wrote by hand', async () => {
     const { env, kv, voices } = routeEnv();
     await storeRecap(kv, 'f1', { text: 'כל מה שבא לי', at: 1, source: 'edited' });

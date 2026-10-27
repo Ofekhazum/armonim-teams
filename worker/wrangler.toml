@@ -9,6 +9,11 @@ compatibility_date = "2024-11-01"
 [vars]
 VOICE_NIQQUD = "off"
 
+# Recordings per IP per day (DESIGN.md §2.69). A number changes the cap; "off"
+# removes it, for a session of listening tests — set it back to "10" after. The
+# admin word is still required, and Modal's own spend cap still applies.
+VOICE_LIMIT = "off"
+
 # The KV namespace that holds the roster. Create it once with:
 #   npx wrangler kv namespace create ROSTER_KV
 # then paste the printed id below (replace the placeholder).
