@@ -25,7 +25,7 @@
 // Bump when speakable() or the voice server changes what a recap sounds like,
 // so the cached audio for every night stops matching and is made again on
 // request.
-export const VOICE_VERSION = 1;
+export const VOICE_VERSION = 3; // 2: the reference clip changed; 3: the engine did (VoxCPM2, §2.69.1)
 
 // A cold GPU container boots and loads ~3 GB of weights; a long recap is a few
 // minutes more to generate. An alarm handler gets fifteen minutes of wall

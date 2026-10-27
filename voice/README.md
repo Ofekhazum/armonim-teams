@@ -4,11 +4,11 @@ The voice server behind the voiced night recap (DESIGN.md §2.69). It takes the 
 which the Worker cleans for speech, and returns an MP3 of it read in the reference voice. Its only
 caller is the Worker.
 
-- `speech.py`: the pipeline, as plain Python. [phonikud-onnx](https://huggingface.co/thewh1teagle/phonikud-onnx)
-  adds the Hebrew vowel marks, [Chatterbox Multilingual](https://huggingface.co/ResembleAI/chatterbox)
-  (MIT) does the zero-shot voice cloning with `language_id="he"`, and ffmpeg levels the loudness and
-  encodes the MP3.
-- `modal_app.py`: wraps the pipeline for Modal. `Voice` runs it on a T4 GPU, and `web` is the
+- `speech.py`: the pipeline, as plain Python. [VoxCPM2](https://huggingface.co/openbmb/VoxCPM2)
+  (Apache-2.0) does the zero-shot voice cloning in Hebrew, one chunk at a time with breaths stitched
+  between them. Then the AI watermark is applied, and ffmpeg levels the loudness and encodes the
+  MP3. It replaced Chatterbox after a listening comparison, which is written up in DESIGN.md §2.69.1.
+- `modal_app.py`: wraps the pipeline for Modal. `Voice` runs it on an L4 GPU, and `web` is the
   endpoint the Worker calls: `POST /jobs` to queue a recap, `GET /jobs/{id}?wait=100` to collect
   the MP3.
 
@@ -22,8 +22,10 @@ These are part of the design, not optional extras. The voice is a real person's.
 - **The reference voice lives in a private Hugging Face dataset** (`ofh55/armonim-voice`). A
   container fetches it at startup with a token kept in a Modal Secret. It never sits in this repo
   or in the image.
-- **Every output is marked as synthetic.** Chatterbox applies Resemble's PerTh watermark inside
-  `generate()`. The MP3's title and comment tags say it's an AI voice. The app names the file
+- **Every output is marked as synthetic.** Resemble's PerTh watermark is applied to the audio.
+  VoxCPM2 adds none of its own, so `speech.watermark()` does it, and it refuses to continue if the
+  watermarker can't load, so unmarked audio can't go out by accident. It survives the final MP3.
+  The MP3's title and comment tags also say it's an AI voice, and the app names the file
   `…-AI-voice.mp3` and sends a line of text with it saying so.
 
 ## Setup without the CLI (dashboard + GitHub Actions)
@@ -61,14 +63,15 @@ Run all of these from the repo root.
 
 ### 2. The reference voice
 
-The clip goes in the private dataset `ofh55/armonim-voice`, named `reference_voice.wav`.
+The clip goes in the private dataset `ofh55/armonim-voice`, named `reference_voice_final.wav`.
 
 For a good clone:
 
-- Use 10–15 seconds of one person speaking, with no music, applause or room echo.
-- Put the cleanest stretch first. Chatterbox uses the first 10 seconds for the voice and the first 6
-  for the speaking style, and ignores the rest.
-- A mono WAV at 24 kHz or higher is ideal, but most audio formats will work.
+- Use 15–25 seconds of one person speaking, with no music, applause or room echo.
+- **The clip is used exactly as uploaded**, and VoxCPM2 copies its **rhythm**. A clip spoken at the
+  pace and with the pauses you'd like in a recap gives you that pace. Don't trim the silences out
+  of it: when they were trimmed, the voice read fast with no stops after sentences.
+- A WAV at 24 kHz or higher is ideal, but most audio formats will work.
 
 Create a **fine-grained** Hugging Face token at
 <https://huggingface.co/settings/tokens/new?tokenType=fineGrained> with **read** access to that
@@ -136,20 +139,21 @@ npx wrangler deploy                    # also adds the RecapVoice Durable Object
 
 ## Running it locally
 
-`speech.py` has no Modal in it, so it runs on a laptop CPU. It's slow, but it runs exactly the same
-code:
+`speech.py` has no Modal in it, so it can run anywhere VoxCPM2 does. A GPU is strongly advised for
+the 2B model, and a laptop CPU hasn't been tried:
 
 ```python
-from speech import load_model, speak_mp3
-model, diacritizer = load_model("cpu")
-open("out.mp3", "wb").write(speak_mp3(model, diacritizer, "voice.wav", "שלום לכולם."))
+from speech import load_vox, speak_vox_mp3
+model = load_vox("cuda")
+open("out.mp3", "wb").write(speak_vox_mp3(model, "voice.wav", "שלום לכולם."))
 ```
 
-On a laptop CPU, a warm model took 40–70 seconds to make 14 seconds of speech. A T4 will be much
-faster, but this hasn't been measured yet.
+On an L4, a 1,289-character test recap (105 s of speech) and a second 75 s version finished in 3¾
+minutes including a cold start. That's the only timing measured so far.
 
 ## What it costs
 
-A T4 costs about $0.59 an hour, billed by the second. That covers only the time a container is
+An L4 costs about $0.80 an hour, billed by the second. That covers only the time a container is
 running: a cold start, the recap itself, and two idle minutes afterwards in case you want a second
-take. A long recap should cost a few cents, so the free $30 covers far more than one a week.
+take. Going by the timing above, a recap should cost around five cents, so the free $30 covers far
+more than one a week.
