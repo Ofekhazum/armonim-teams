@@ -5261,9 +5261,18 @@ does not declare.
 
 **Limits of what was measured.** One reference clip, one speaker, one paragraph and one invented
 full-length recap (the repo is public, so no real recap with real names was committed). VoxCPM2 gets
-plain Hebrew with no vowel marks, and mispronounces some names (§2.69.2 if it is tried). Timing is
-from the comparison runs: a full recap and a second version finished in 3¾ minutes including a
-cold start.
+plain Hebrew with no vowel marks, and mispronounces some names.
+
+**Vowel marks (nikud) were tried and left open.** The attempt was to run the real recap three ways
+on Modal: plain, with phonikud's standard marks, and with its full marks. The first run never
+returned, and a second, capped and run as separate jobs, also hadn't after more than 20 minutes, so
+it was stopped. It is not known whether the marks make VoxCPM2 run on without an end, or whether a
+chunk of the real recap does so even without them. **If it is the recap, the live path has no guard
+against it:** a runaway chunk would hold the GPU until Modal's 15-minute limit, and the Worker would
+report the job failed. The options for names are an automatic pass (phonikud) or a hand-written
+pronunciation for each name, kept next to the roster and swapped into the text before it is sent.
+Timing is from the comparison runs: a full recap and a second version finished in 3¾ minutes
+including a cold start.
 
 ## 3. Team generation algorithm
 
