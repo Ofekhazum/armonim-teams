@@ -5,6 +5,7 @@ import {
   canVoice,
   collectJob,
   hebrewNumber,
+  pointing,
   sha256Hex,
   speakable,
   startJob,
@@ -301,6 +302,38 @@ describe('voiceFor / voiceHash', () => {
     const words = 'הכחולים לקחו את הערב.';
     expect(await voiceHash(words, 'zahavi')).not.toBe(await voiceHash(words));
     expect(await voiceHash(words, 'default')).toBe(await voiceHash(words));
+  });
+});
+
+describe('the niqqud switch', () => {
+  it('is on unless it is turned off', () => {
+    expect(pointing({})).toBe(true);
+    expect(pointing({ VOICE_NIQQUD: 'on' })).toBe(true);
+    expect(pointing({ VOICE_NIQQUD: 'off' })).toBe(false);
+    expect(pointing({ VOICE_NIQQUD: 'OFF' })).toBe(false);
+  });
+
+  it('files plain recordings apart from pointed ones', async () => {
+    expect(await voiceHash('שלום.', 'default', false)).not.toBe(await voiceHash('שלום.', 'default', true));
+  });
+
+  it('records from the text as it stands, and asks Gemini nothing, when off', async () => {
+    const state = fakeState();
+    const env = { ...voiceEnv(), GEMINI_KEY: 'k', VOICE_NIQQUD: 'off', ROSTER_KV: fakeKv() };
+    const voice = new RecapVoice(state, env);
+    await startJobOn(voice, { fixtureId: 'f1', text: 'שלום.', hash: 'h1' });
+    const urls = [];
+    vi.stubGlobal('fetch', async (url, init) => {
+      urls.push(String(url));
+      return init?.method === 'POST' ? Response.json({ call_id: 'fc-1' }) : new Response(MP3);
+    });
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    await voice.alarm();
+    expect(urls.some((u) => u.includes('generativelanguage'))).toBe(false);
+    expect(await (await voice.fetch(new Request('https://voice/status'))).json()).toMatchObject({
+      status: 'ready',
+      pointed: false,
+    });
   });
 });
 

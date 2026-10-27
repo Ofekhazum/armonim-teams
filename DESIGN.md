@@ -5364,6 +5364,13 @@ Details:
 - **Voice server.** Chunks are measured in letters without points (`plain_len`), so a pointed recap
   breaks in the same places an unpointed one would and the pacing work of §2.69.1 is unchanged.
   `MAX_CHARS` rose from 6,000 to 12,000, since pointed text is nearly twice as long in characters.
+- **The way back.** `VOICE_NIQQUD` in `worker/wrangler.toml` (`"on"` by default): set it to `"off"` and
+  `npx wrangler deploy` — no code change. Recordings are filed per setting (`voiceHash(…, pointed)`),
+  so after flipping, a night shows no recording until it is made again, and the other setting's take is
+  kept, not overwritten.
+- **If whole-text pointing sounds worse, a narrower version is possible** (not built): point only the
+  hard words — names from the roster and a short list of ambiguous words — and leave the rest bare. It
+  would reuse `sameLetters` unchanged; only the prompt and the instruction about which words change.
 - **Whether it helps VoxCPM2 is unproven.** A direct comparison was started and never finished
   (§2.69.1), and the decision was to trust Gemini's pointing. If a recording sounds worse, the
   pointing is one call (`vocalize` in the alarm) to remove.

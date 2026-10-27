@@ -56,6 +56,7 @@ import {
   speakable,
   voiceConfigured,
   voiceFor,
+  pointing,
   voiceHash,
   voiceKey,
 } from './recap-voice.js';
@@ -105,7 +106,7 @@ async function voiceStatus(env, fixtureId) {
   const recap = await readStoredRecap(env, fixtureId);
   if (!configured || !recap?.text) return { configured, voiceable: false, status: 'none' };
   const voiceable = canVoice(recap);
-  const hash = await voiceHash(speakable(recap.text), voiceFor(recap));
+  const hash = await voiceHash(speakable(recap.text), voiceFor(recap), pointing(env));
   const job = await (await voiceJob(env, fixtureId).fetch('https://voice/status')).json();
   if (!job) return { configured, voiceable, status: 'none', hash };
   const timedOut = job.status === 'working' && Date.now() - job.startedAt > JOB_TIMEOUT_MS;
@@ -1080,7 +1081,7 @@ export default {
 
         const spoken = speakable(recap.text);
         const voice = voiceFor(recap);
-        const hash = await voiceHash(spoken, voice);
+        const hash = await voiceHash(spoken, voice, pointing(env));
 
         if (body.file === true) {
           const { value, metadata } = await env.ROSTER_KV.getWithMetadata(

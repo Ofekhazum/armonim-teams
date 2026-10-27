@@ -69,8 +69,13 @@ export async function sha256Hex(text) {
 }
 
 /** The fingerprint the cached audio is filed under: the words, and how they were made. */
-export const voiceHash = (spoken, voice = 'default') =>
-  sha256Hex(voice === 'default' ? `v${VOICE_VERSION}\n${spoken}` : `v${VOICE_VERSION}\n${voice}\n${spoken}`);
+export const voiceHash = (spoken, voice = 'default', pointed = true) =>
+  sha256Hex(
+    `v${VOICE_VERSION}${pointed ? '' : '-plain'}\n${voice === 'default' ? '' : `${voice}\n`}${spoken}`,
+  );
+
+/** Is the recording made with niqqud? On unless `VOICE_NIQQUD` is "off" (wrangler.toml). */
+export const pointing = (env) => String(env?.VOICE_NIQQUD ?? 'on').toLowerCase() !== 'off';
 
 /**
  * Whose voice reads this recap (§2.70.1). Always a persona key the Worker knows:
@@ -476,7 +481,9 @@ export class RecapVoice {
       // Vowel points are for the voice's benefit only (§2.71). If they can't be
       // added, or come back with different letters, the recording is made from
       // the text as it stands — worse at names, never wrong in what it says.
-      const vocal = await vocalize(this.env, text);
+      const vocal = pointing(this.env)
+        ? await vocalize(this.env, text)
+        : { text, pointed: false, reason: 'switched off' };
       if (!vocal.pointed) {
         console.log(JSON.stringify({ voice: 'unpointed', fixtureId: job.fixtureId, reason: vocal.reason }));
       }
