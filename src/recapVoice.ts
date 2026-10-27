@@ -72,9 +72,13 @@ export async function startVoice(
 
 /**
  * TEMPORARY (§2.71): the exact text the voice server was last sent for this
- * night — with its vowel points, if it got any. Null if there is none to show.
+ * night — with its vowel points, if it got any — and, when pointing was rejected
+ * or partly rejected, what the model answered. Null if there is none to show.
  */
-export async function fetchSentText(fixtureId: string, secret: string): Promise<string | null> {
+export async function fetchSentText(
+  fixtureId: string,
+  secret: string,
+): Promise<{ text: string; raw?: string } | null> {
   if (!REMOTE_URL) return null;
   try {
     const res = await fetch(`${REMOTE_URL}/recap-audio`, {
@@ -83,8 +87,9 @@ export async function fetchSentText(fixtureId: string, secret: string): Promise<
       body: JSON.stringify({ secret, fixtureId, sent: true }),
     });
     if (!res.ok) return null;
-    const body = (await res.json()) as { text?: string };
-    return typeof body.text === 'string' ? body.text : null;
+    const body = (await res.json()) as { text?: string; raw?: string };
+    if (typeof body.text !== 'string') return null;
+    return { text: body.text, ...(typeof body.raw === 'string' ? { raw: body.raw } : {}) };
   } catch {
     return null;
   }

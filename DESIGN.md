@@ -5393,6 +5393,12 @@ Details:
   to settle whether a recording was pointed. **To remove:** the `/sent` route and `sent` storage in
   `recap-voice.js`, the `sent` branch in `roster-worker.js`, `fetchSentText`, the 🔍 block in
   `RecapVoice.tsx` and the `np.voice.sent.*` strings.
+- **Why a rejection is explained, and its answer kept.** The first real recording came back unpointed
+  with "no line kept its letters", which covered two different failures — the model returning the text
+  with no vowel points at all, and the model changing letters in every line. Now it says which
+  ("the answer had no vowel points", or "the letters changed in every line (“x” became “y”)" with the
+  first place they differ), and the job keeps the model's own answer (`sentRaw`) whenever it was not all
+  used, shown in the 🔍 panel under the text actually sent.
 - **The way back.** `VOICE_NIQQUD` in `worker/wrangler.toml` (`"on"` by default): set it to `"off"` and
   `npx wrangler deploy` — no code change. Recordings are filed per setting (`voiceHash(…, pointed)`),
   so after flipping, a night shows no recording until it is made again, and the other setting's take is

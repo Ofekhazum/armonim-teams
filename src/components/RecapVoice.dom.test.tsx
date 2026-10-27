@@ -182,7 +182,7 @@ describe('RecapVoice', () => {
 
   it('shows the text the voice was sent, with a count of its vowel marks', async () => {
     mocked.fetchVoiceStatus.mockResolvedValue(status({ status: 'ready' }));
-    mocked.fetchSentText.mockResolvedValue('שֶׂגֶב כָּבַשׁ.');
+    mocked.fetchSentText.mockResolvedValue({ text: 'שֶׂגֶב כָּבַשׁ.' });
     renderVoice();
     fireEvent.click(await screen.findByText(s('np.voice.sent.show')));
     expect(await screen.findByText('שֶׂגֶב כָּבַשׁ.')).toBeInTheDocument();
@@ -204,5 +204,15 @@ describe('RecapVoice', () => {
     renderVoice();
     fireEvent.click(await screen.findByText(s('np.voice.sent.show')));
     expect(await screen.findByText(s('np.voice.sent.none'))).toBeInTheDocument();
+  });
+
+  it('shows what the model answered when its pointing was not used', async () => {
+    mocked.fetchVoiceStatus.mockResolvedValue(status({ status: 'ready' }));
+    mocked.fetchSentText.mockResolvedValue({ text: 'שגב כבש.', raw: '<nikud>שֶׂגֶב</nikud>' });
+    renderVoice();
+    fireEvent.click(await screen.findByText(s('np.voice.sent.show')));
+    expect(await screen.findByText('שגב כבש.')).toBeInTheDocument();
+    expect(screen.getByText('<nikud>שֶׂגֶב</nikud>')).toBeInTheDocument();
+    expect(screen.getByText(s('np.voice.sent.raw'))).toBeInTheDocument();
   });
 });

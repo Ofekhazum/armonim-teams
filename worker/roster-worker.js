@@ -1089,7 +1089,7 @@ export default {
         if (body.sent === true) {
           const said = await (await voiceJob(env, body.fixtureId).fetch('https://voice/sent')).json();
           if (!said?.sent || said.hash !== hash) return json({ error: 'no text' }, 404);
-          return json({ text: said.sent });
+          return json({ text: said.sent, ...(said.raw ? { raw: said.raw } : {}) });
         }
 
         if (body.file === true) {
