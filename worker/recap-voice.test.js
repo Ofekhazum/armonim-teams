@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import worker from './roster-worker.js';
+import { stripPoints } from './vocalize.js';
 import {
   RecapVoice,
   canVoice,
@@ -8,6 +9,7 @@ import {
   pointing,
   sha256Hex,
   speakable,
+  spokenFor,
   startJob,
   voiceFor,
   voiceHash,
@@ -118,6 +120,29 @@ describe('speakable', () => {
 });
 
 // --- Provenance ---------------------------------------------------------------
+
+describe('speakable on pointed text (§2.71)', () => {
+  it('reads a pointed report the way it reads a plain one', () => {
+    const plain = '📻 ארבל מדווח\n\nהכחולים לקחו 5 נקודות ב-3 משחקים. ו-אריאל כבש 10 שערים!';
+    const pointed =
+      '📻 אַרְבֵּל מְדַוֵּוחַ\n\nהַכְּחוּלִּים לָקְחוּ 5 נְקוּדוֹת בְּ-3 מִשְׂחָקִים. וְ-אֲרִיאֵל כָּבַשׁ 10 שְׁעָרִים!';
+    // the same words, with the same numbers spelled in the same gender
+    expect(stripPoints(speakable(pointed))).toBe(speakable(plain).replace('ו-אריאל', 'ואריאל'));
+  });
+
+  it('takes the gender of a counted noun from the word whatever points it carries', () => {
+    expect(stripPoints(speakable('הֵם שִׂחֲקוּ 3 מִשְׂחָקִים'))).toContain('שלושה משחקים');
+    expect(stripPoints(speakable('הֵבִיאוּ 3 נְקוּדוֹת'))).toContain('שלוש נקודות');
+  });
+
+  it('keeps the points on the words', () => {
+    expect(speakable('שֶׂגֶב כָּבַשׁ.')).toBe('שֶׂגֶב כָּבַשׁ.');
+  });
+
+  it('still joins a hyphenated word into two', () => {
+    expect(stripPoints(speakable('דּוּ-קְרָב נִפְתַּח.'))).toBe('דו קרב נפתח.');
+  });
+});
 
 describe('canVoice', () => {
   it('voices what Gemini wrote, and what was stored before anyone asked', () => {
@@ -595,6 +620,63 @@ describe('POST /recap — where a stored recap came from', () => {
     expect(JSON.parse(kv.store.get('recap:f1'))).toMatchObject({ source: 'gemini', persona: 'default' });
   });
 
+  describe('written with niqqud (§2.71)', () => {
+    const PLAIN = 'הכחולים לקחו את הערב.';
+    const POINTED = 'הַכְּחוּלִּים לָקְחוּ אֶת הָעֶרֶב.';
+
+    it('shows the app the plain text, and keeps the pointed copy only on the Worker', async () => {
+      const { env, kv } = routeEnv();
+      geminiWrites(POINTED);
+      const draft = await (await call(env, '/recap', { secret: WORD, fixtureId: 'f1', facts: FACTS })).json();
+      expect(draft).toEqual({ ok: true, text: PLAIN }); // not the pointed copy, not even a hint of it
+
+      const published = await (await call(env, '/recap', { secret: WORD, fixtureId: 'f1', text: draft.text })).json();
+      expect(published).not.toHaveProperty('vocalized');
+      expect(JSON.parse(kv.store.get('recap:f1'))).toMatchObject({ text: PLAIN, vocalized: POINTED });
+
+      // and the public read does not hand it out either
+      const read = await (await call(env, '/recap?id=f1')).json();
+      expect(read.text).toBe(PLAIN);
+      expect(read).not.toHaveProperty('vocalized');
+    });
+
+    it('keeps it when the recap is saved in one call', async () => {
+      const { env, kv } = routeEnv();
+      geminiWrites(POINTED);
+      const saved = await (
+        await call(env, '/recap', { secret: WORD, fixtureId: 'f1', facts: FACTS, save: true })
+      ).json();
+      expect(saved).not.toHaveProperty('vocalized');
+      expect(JSON.parse(kv.store.get('recap:f1')).vocalized).toBe(POINTED);
+    });
+
+    it('does not vouch for a pointed copy the client brings', async () => {
+      const { env, kv } = routeEnv();
+      geminiWrites(POINTED);
+      await call(env, '/recap', { secret: WORD, fixtureId: 'f1', facts: FACTS });
+      await call(env, '/recap', {
+        secret: WORD,
+        fixtureId: 'f1',
+        text: PLAIN,
+        vocalized: 'משהו אחר לגמרי',
+      });
+      expect(JSON.parse(kv.store.get('recap:f1')).vocalized).toBe(POINTED);
+    });
+
+    it('asks for plain text when niqqud is switched off', async () => {
+      const { env, kv } = routeEnv();
+      env.VOICE_NIQQUD = 'off';
+      const prompts = [];
+      vi.stubGlobal('fetch', async (_url, init) => {
+        prompts.push(JSON.parse(init.body).contents[0].parts[0].text);
+        return Response.json({ candidates: [{ content: { parts: [{ text: `<report>${PLAIN}</report>` }] } }] });
+      });
+      await call(env, '/recap', { secret: WORD, fixtureId: 'f1', facts: FACTS, save: true });
+      expect(prompts[0]).not.toContain('NIQQUD');
+      expect(JSON.parse(kv.store.get('recap:f1'))).not.toHaveProperty('vocalized');
+    });
+  });
+
   it('does not let one night’s draft vouch for another', async () => {
     const { env, kv } = routeEnv();
     geminiWrites('הכחולים לקחו את הערב.');
@@ -658,6 +740,42 @@ describe('/recap-audio', () => {
     // re-rolled since: that text belongs to a report nobody can read any more
     await storeRecap(kv, 'f1', { text: 'דוח אחר לגמרי.', at: 2, source: 'gemini' });
     expect((await call(env, '/recap-audio', { secret: WORD, fixtureId: 'f1', sent: true })).status).toBe(404);
+  });
+
+  it('records from the pointed report as written, and does not ask Gemini to point it again', async () => {
+    const { env, kv, voices } = routeEnv();
+    const POINTED = 'הַכְּחוּלִּים לָקְחוּ אֶת הָעֶרֶב.';
+    await storeRecap(kv, 'f1', {
+      text: 'הכחולים לקחו את הערב.',
+      vocalized: POINTED,
+      at: 1,
+      source: 'gemini',
+    });
+    await call(env, '/recap-audio', { secret: WORD, fixtureId: 'f1' });
+    const urls = [];
+    const sent = [];
+    vi.stubGlobal('fetch', async (url, init) => {
+      urls.push(String(url));
+      if (init?.method === 'POST') sent.push(JSON.parse(init.body).text);
+      return init?.method === 'POST' ? Response.json({ call_id: 'fc-1' }) : new Response(MP3);
+    });
+    await voices.get('f1').instance.alarm();
+    expect(sent).toEqual([POINTED]);
+    expect(urls.some((u) => u.includes('generativelanguage'))).toBe(false);
+    expect(await (await call(env, '/recap-audio', { secret: WORD, fixtureId: 'f1', sent: true })).json()).toEqual({
+      text: POINTED,
+    });
+  });
+
+  it('ignores a pointed copy that is not the recap’s own words', async () => {
+    const { env, kv } = routeEnv();
+    const recap = { text: 'הכחולים לקחו את הערב.', vocalized: 'שָׁלוֹם עוֹלָם.', source: 'gemini' };
+    expect(spokenFor(env, recap)).toBe('הכחולים לקחו את הערב.');
+    expect(spokenFor(env, { ...recap, vocalized: 'הַכְּחוּלִּים לָקְחוּ אֶת הָעֶרֶב.' })).toContain('הַכְּחוּלִּים');
+    // switched off: the plain text, even though a pointed copy is on file
+    expect(spokenFor({ ...env, VOICE_NIQQUD: 'off' }, { ...recap, vocalized: 'הַכְּחוּלִּים לָקְחוּ אֶת הָעֶרֶב.' })).toBe(
+      'הכחולים לקחו את הערב.',
+    );
   });
 
   it('keeps the sent text behind the word', async () => {

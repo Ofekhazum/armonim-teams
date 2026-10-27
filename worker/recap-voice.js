@@ -23,7 +23,7 @@
 // say it.
 
 import { normalizePersona } from './recap.js';
-import { vocalize } from './vocalize.js';
+import { pointCount, sameLetters, vocalize } from './vocalize.js';
 
 // Bump when speakable() or the voice server changes what a recap sounds like,
 // so the cached audio for every night stops matching and is made again on
@@ -86,18 +86,22 @@ export const voiceFor = (stored) => normalizePersona(stored?.persona);
 
 // --- Provenance -------------------------------------------------------------
 
-// A fingerprint is the text's hash, then `:` and the persona that wrote it.
-// Lists written before personas existed hold bare hashes, which read as default.
-const entry = (hash, persona) => `${hash}:${persona}`;
-const hashOf = (item) => String(item).split(':')[0];
+// A draft is remembered as `{ hash, persona, vocalized? }`: the hash of the text
+// the app shows, the persona that wrote it, and — when the report was written
+// with niqqud (§2.71) — the pointed copy the voice will be sent. Lists written
+// before this hold strings: a bare hash, or `hash:persona`.
+const asEntry = (item) =>
+  typeof item === 'object' && item !== null
+    ? item
+    : { hash: String(item).split(':')[0], persona: String(item).split(':')[1] };
+const hashOf = (item) => asEntry(item).hash;
 
 /** Remember that the reporter, as this persona, wrote this text for this night. */
-export async function rememberDraft(env, fixtureId, text, persona = 'default') {
+export async function rememberDraft(env, fixtureId, text, persona = 'default', vocalized = null) {
   const hash = await sha256Hex(text);
   const known = await readDrafts(env, fixtureId);
-  const next = [...known.filter((h) => hashOf(h) !== hash), entry(hash, normalizePersona(persona))].slice(
-    -MAX_DRAFTS,
-  );
+  const entry = { hash, persona: normalizePersona(persona), ...(vocalized ? { vocalized } : {}) };
+  const next = [...known.filter((h) => hashOf(h) !== hash), entry].slice(-MAX_DRAFTS);
   await env.ROSTER_KV.put(draftsKey(fixtureId), JSON.stringify(next), {
     expirationTtl: DRAFT_TTL_S,
   });
@@ -113,17 +117,19 @@ async function readDrafts(env, fixtureId) {
 }
 
 /**
- * Where this text came from: `{ source: 'gemini', persona }` if the reporter
- * wrote exactly this for this night, otherwise `{ source: 'edited' }`.
+ * Where this text came from: `{ source: 'gemini', persona, vocalized? }` if the
+ * reporter wrote exactly this for this night, otherwise `{ source: 'edited' }`.
  *
- * The persona comes from the Worker's own record of the draft, never from the
- * client, so the voice a recap is read in can only be the one its writer was.
+ * The persona and the pointed copy come from the Worker's own record of the
+ * draft, never from the client, so the voice a recap is read in, and the words
+ * it is read from, can only be the ones its writer wrote.
  */
 export async function provenanceOf(env, fixtureId, text) {
   const hash = await sha256Hex(text);
   const found = (await readDrafts(env, fixtureId)).find((item) => hashOf(item) === hash);
   if (found === undefined) return { source: 'edited' };
-  return { source: 'gemini', persona: normalizePersona(String(found).split(':')[1]) };
+  const { persona, vocalized } = asEntry(found);
+  return { source: 'gemini', persona: normalizePersona(persona), ...(vocalized ? { vocalized } : {}) };
 }
 
 /**
@@ -136,6 +142,18 @@ export async function provenanceOf(env, fixtureId, text) {
  */
 export const canVoice = (stored) =>
   Boolean(stored?.text) && (stored.source === undefined || stored.source === 'gemini');
+
+/**
+ * The words a recording is made from, ready for the ear.
+ *
+ * The pointed copy the report was written with, if it has one and it is still
+ * this recap's own words — checked, not assumed — and niqqud is on; otherwise
+ * the plain text (which the voice job points itself, §2.71).
+ */
+export function spokenFor(env, recap) {
+  const pointed = pointing(env) && recap.vocalized && sameLetters(recap.text, recap.vocalized);
+  return speakable(pointed ? recap.vocalized : recap.text);
+}
 
 // --- speakable() ----------------------------------------------------------
 //
@@ -196,6 +214,10 @@ const isDefinite = (word) =>
 // short words that a hyphen joins to the next one: כל-כך is not כ+ל+כך, and
 // של-50 is "of fifty", not a prefix.
 const PREFIX = /^(?:[ובכלמשה]|ו[הבכלמש]|ש[הבכמ]|כש|וכש|וש[הבכמ])$/;
+
+// One Hebrew letter's vowel points and cantillation, as a pattern for the rules below.
+const POINT = '[\\u0591-\\u05BD\\u05BF\\u05C1\\u05C2\\u05C4\\u05C5\\u05C7]';
+const POINTS = `${POINT}*`;
 
 const needsVav = (n) => n < 20 || (n < 100 && n % 10 === 0) || n % 100 === 0;
 
@@ -289,6 +311,14 @@ export function speakable(text) {
     .replace(/^\s*[-•–]\s+/gm, '')
     .replace(/_/g, ' ');
 
+  // Pointed text (§2.71): a prefix letter glued on with a hyphen carries its own
+  // points ("וְ-אריאל"), which would stop the rules below seeing it as a prefix.
+  // Its vowel is the same as without the hyphen, so the points come off.
+  out = out.replace(
+    new RegExp(`(^|[^\\p{L}\\p{M}])((?:[ובכלמשה]${POINTS}){1,3})(?=[-־])`, 'gu'),
+    (_, lead, letters) => `${lead}${letters.replace(new RegExp(POINT, 'gu'), '')}`,
+  );
+
   // 1,000 → 1000, before anything reads the comma as a pause.
   out = out.replace(/(\d)[,٬](?=\d{3}\b)/g, '$1');
 
@@ -306,11 +336,11 @@ export function speakable(text) {
   // ו-אריאל → ואריאל: the hyphen only kept a name's first letter visible.
   // כל-כך is two words that happen to start with prefix letters; it falls
   // through to the next rule and becomes "כל כך".
-  out = out.replace(/(^|[^\p{L}])([ובכלמשה]{1,3})[-־](?=\p{L})/gu, (all, lead, letters) =>
+  out = out.replace(/(^|[^\p{L}\p{M}])([ובכלמשה]{1,3})[-־](?=\p{L})/gu, (all, lead, letters) =>
     PREFIX.test(letters) ? `${lead}${letters}` : all,
   );
   // דו-קרב, מורט־עצבים — two words, said as two words.
-  out = out.replace(/(\p{L})[-־](?=\p{L})/gu, '$1 ');
+  out = out.replace(/(\p{L}\p{M}*)[-־](?=\p{L})/gu, '$1 ');
 
   out = out
     .replace(/[()[\]{}]/g, ', ')
@@ -495,9 +525,12 @@ export class RecapVoice {
       // Vowel points are for the voice's benefit only (§2.71). If they can't be
       // added, or come back with different letters, the recording is made from
       // the text as it stands — worse at names, never wrong in what it says.
-      const vocal = pointing(this.env)
-        ? await vocalize(this.env, text)
-        : { text, pointed: false, reason: 'switched off' };
+      const vocal =
+        pointCount(text) > 0
+          ? { text, pointed: true, ok: 1, of: 1 } // written pointed, so there is nothing to ask
+          : pointing(this.env)
+            ? await vocalize(this.env, text)
+            : { text, pointed: false, reason: 'switched off' };
       if (!vocal.pointed) {
         console.log(JSON.stringify({ voice: 'unpointed', fixtureId: job.fixtureId, reason: vocal.reason }));
       }
