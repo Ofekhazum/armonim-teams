@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { buildVocalizePrompt, pointCount, sameLetters, stripPoints, vocalize } from './vocalize.js';
+import { MODELS } from './gemini.js';
+import { POINTING_MODELS, buildVocalizePrompt, pointCount, sameLetters, stripPoints, vocalize } from './vocalize.js';
 
 // Vowel points for the voice (§2.71). The one thing that must hold: whatever the
 // model sends back, the recording is of the report's own words.
@@ -79,6 +80,14 @@ describe('vocalize', () => {
     const config = ask.mock.calls[0][2];
     expect(config.temperature).toBeLessThanOrEqual(0.3);
     expect(config.maxTokens).toBeGreaterThanOrEqual(10000);
+  });
+
+  it('asks its own models, never the recap writer’s first choice', async () => {
+    const ask = asking(answer(POINTED));
+    await vocalize({ GEMINI_MODEL: MODELS[0] }, SPOKEN, { ask });
+    expect(ask.mock.calls[0][2].models).toBe(POINTING_MODELS);
+    expect(POINTING_MODELS).not.toContain(MODELS[0]);
+    expect(POINTING_MODELS.every((m) => MODELS.includes(m))).toBe(true);
   });
 
   it('tries once more when the first answer changed a word, and takes a good second', async () => {

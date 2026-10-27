@@ -194,7 +194,7 @@ export async function callGemini(env, prompt, config = {}) {
   // telling those apart from the outside is otherwise guesswork.
   const failures = [];
 
-  for (const model of modelOrder(env)) {
+  for (const model of config.models ?? modelOrder(env)) {
     let res;
     try {
       res = await askModel(model, key, prompt, config);
