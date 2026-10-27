@@ -20,11 +20,28 @@
 // the next take is made again.
 
 export const PRONUNCIATIONS = {
+  // names the voice got wrong
   שגב: 'Segev',
-  יועד: 'Yoed',
-  דובצקי: 'Dovtski',
+  יועד: 'Yoad',
+  דובצקי: 'Dubetsky',
   זרקא: 'Zarka',
   שיא: 'סיא',
+  טאקו: 'Tako',
+  עומרי: 'Omri',
+  ירין: 'Yarin',
+  אופק: 'Ofek',
+  עובדיה: 'Ovadia',
+  אריאל: 'Ariel',
+
+  // the club's own name, so it is not read as "Ermonim"
+  ארמונים: 'Armonim',
+
+  // names that are also ordinary words: `exact`, so only the bare word is
+  // respelled and the other words made of the same letters are left alone
+  דור: { to: 'Dor', exact: true }, // not "מדור" (a section) or "כדור" (a ball)
+  שי: { to: 'Shay', exact: true }, // not "Shai" (a gift)
+  סלע: { to: 'Sela', exact: true }, // the name, not the rock
+  קהל: { to: 'Kahal', exact: true }, // Tomer Kahal, not "הקהל" (the crowd)
 };
 
 // The letters Hebrew glues onto the front of a word, and the ways they stack:
