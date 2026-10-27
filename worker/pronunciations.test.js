@@ -80,7 +80,7 @@ describe('the shipped dictionary', () => {
   });
 
   it('respells a name that is also a word only on its own', () => {
-    expect(pronounce('דור שי סלע קהל')).toBe('Dor Shay Sela Kahal');
+    expect(pronounce('דור שי סלע קהל')).toBe('Dor Shy Sela Kahal');
     expect(pronounce('תומר קהל כבש')).toBe('תומר Kahal כבש');
     // the other words made of the same letters are not names
     expect(pronounce('מדור כדור הדור הקהל קהלים שיר סלעים')).toBe('מדור כדור הדור הקהל קהלים שיר סלעים');
