@@ -5492,6 +5492,32 @@ voice was given is checkable.
 - **Unproven:** whether the voice reads Latin words inside a Hebrew sentence well. Each entry can be flipped
   between a Latin and a Hebrew-letter spelling in one line.
 
+### 2.73 A breath at every sentence (`chunks`)
+
+The voice model never pauses by itself — not at a full stop, not at a "!" — so every breath in a recording is
+silence stitched between *chunks*, and a chunk is spoken in one go. The old chunker packed sentences into
+chunks of up to 240 letters, which measured on a real recap as: most chunks 15–18 s long (longest 18.5 s),
+8 of 10 holding one to three full sentence ends with no pause at any, and one paragraph of 840 letters
+running about a minute with only 0.25 s gaps. That is the "out of breath" sound.
+
+The writing is **deliberately not constrained** to fix it — a prompt limit on sentence length would flatten
+the explosive, run-on style a persona like Swissa is *for*. The chunker absorbs it instead:
+
+- **Every sentence is its own chunk, with a pause after it** (0.3 s; 0.6 s at a paragraph end). A "!" gets
+  the same breath as a ".".
+- **A sentence too long for one breath is split** — at its commas and semicolons, into pieces of *about equal
+  length* (a 170-letter sentence is two 85s, not a 140 and a 30), at spaces only if there are no commas —
+  with a shorter 0.15 s breath at each split. No chunk is over `CHUNK_CHARS = 140` letters, about 11 s.
+- **Only a word or two joins its neighbour** (`SHORT_SENTENCE = 12`): "כן!" alone would be a stammer.
+  Anything longer, "איזו בונבוניירה!" included, keeps its own breath.
+- Points and punctuation do not count toward the length (`plain_len`), and nothing is dropped or said twice.
+
+On the same recap: 24 chunks, longest stretch 10.6 s, **no** sentence end inside a chunk. The price is more
+chunks and so more calls to the model — roughly ten to twenty seconds on a recording that takes about three
+minutes — and a fresh start of intonation at each break, which is the point and also the risk: if a break
+sounds choppy rather than breathy, raise `CHUNK_CHARS` or lengthen `GAP_SENTENCE` before anything else.
+`voice/test_speech.py` covers it (`python3 voice/test_speech.py`, no dependencies, made-up text).
+
 ## 3. Team generation algorithm
 
 Balancing is a small constrained optimization. With ≤15 players, brute force is too big
