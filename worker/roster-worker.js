@@ -209,11 +209,11 @@ const GRADES_LIMIT = 12;
 const GRADES_WINDOW_MS = 60 * 60 * 1000;
 
 // Voiced recaps (§2.69), per IP per day. Not set by the act — one a week, maybe
-// a second take — but by what each one spends: a long recap is two or three
-// minutes of a five-minute daily GPU allowance on somebody's Hugging Face
-// account. Four is already more than that allowance can pay for; the point is
-// that a leaked word cannot queue an unbounded number of them.
-const VOICE_LIMIT = 4;
+// a second take — but by what each one spends: a long recap is a couple of
+// minutes of GPU on the organiser's Modal credit. Ten gives room to try a few
+// voices and takes in a sitting; the point is that a leaked word cannot queue
+// an unbounded number of them.
+const VOICE_LIMIT = 10;
 const VOICE_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 // Room upgrades are unauthenticated by design — the share link is the
