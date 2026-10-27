@@ -767,6 +767,22 @@ describe('/recap-audio', () => {
     });
   });
 
+  it('sends the voice the respelled words, and leaves the report alone', async () => {
+    const { env, kv, voices } = routeEnv();
+    await storeRecap(kv, 'f1', { text: 'לשגב היה שיא.', at: 1, source: 'gemini' });
+    await call(env, '/recap-audio', { secret: WORD, fixtureId: 'f1' });
+    const sent = [];
+    vi.stubGlobal('fetch', async (url, init) => {
+      if (String(url).includes('generativelanguage')) return new Response('', { status: 401 });
+      if (init?.method === 'POST') sent.push(JSON.parse(init.body).text);
+      return init?.method === 'POST' ? Response.json({ call_id: 'fc-1' }) : new Response(MP3);
+    });
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    await voices.get('f1').instance.alarm();
+    expect(sent).toEqual(['le Segev היה סיא.']);
+    expect(JSON.parse(kv.store.get('recap:f1')).text).toBe('לשגב היה שיא.');
+  });
+
   it('ignores a pointed copy that is not the recap’s own words', async () => {
     const { env, kv } = routeEnv();
     const recap = { text: 'הכחולים לקחו את הערב.', vocalized: 'שָׁלוֹם עוֹלָם.', source: 'gemini' };

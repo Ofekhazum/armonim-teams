@@ -23,6 +23,7 @@
 // say it.
 
 import { normalizePersona } from './recap.js';
+import { pronounce } from './pronunciations.js';
 import { pointCount, sameLetters, vocalize } from './vocalize.js';
 
 // Bump when speakable() or the voice server changes what a recap sounds like,
@@ -148,11 +149,13 @@ export const canVoice = (stored) =>
  *
  * The pointed copy the report was written with, if it has one and it is still
  * this recap's own words — checked, not assumed — and niqqud is on; otherwise
- * the plain text (which the voice job points itself, §2.71).
+ * the plain text (which the voice job points itself, §2.71). Then the words the
+ * voice mispronounces are respelled (`pronunciations.js`, §2.71.2) — in this
+ * text only, never in the report.
  */
 export function spokenFor(env, recap) {
   const pointed = pointing(env) && recap.vocalized && sameLetters(recap.text, recap.vocalized);
-  return speakable(pointed ? recap.vocalized : recap.text);
+  return pronounce(speakable(pointed ? recap.vocalized : recap.text));
 }
 
 // --- speakable() ----------------------------------------------------------
