@@ -420,6 +420,7 @@ const view = (job) =>
         hash: job.hash,
         startedAt: job.startedAt,
         ...(job.pointed === undefined ? {} : { pointed: job.pointed }),
+        ...(job.pointNote ? { pointNote: job.pointNote } : {}),
         ...(job.error ? { error: job.error } : {}),
       }
     : null;
@@ -494,7 +495,14 @@ export class RecapVoice {
       await this.env.ROSTER_KV.put(voiceKey(job.fixtureId), audio, {
         metadata: { hash: job.hash, at: Date.now() },
       });
-      next = { ...job, status: 'ready', finishedAt: Date.now(), pointed: vocal.pointed };
+      // Why a recording is not (fully) pointed, kept where the status can show it:
+      // the Worker's log is gone by the time anybody asks.
+      const pointNote = !vocal.pointed
+        ? vocal.reason
+        : vocal.ok < vocal.of
+          ? `${vocal.ok} of ${vocal.of} lines`
+          : undefined;
+      next = { ...job, status: 'ready', finishedAt: Date.now(), pointed: vocal.pointed, pointNote };
     } catch (err) {
       next = {
         ...job,

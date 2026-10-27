@@ -13,6 +13,9 @@ export interface VoiceStatus {
   voiceable: boolean; // the stored recap is one Gemini wrote
   status: 'none' | 'working' | 'ready' | 'failed';
   startedAt?: number;
+  // whether the recording was made with niqqud, and if not (or not fully) why (§2.71)
+  pointed?: boolean;
+  pointNote?: string;
   error?: string;
 }
 

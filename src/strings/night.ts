@@ -173,6 +173,9 @@ export const night = {
 
   // --- The report, read aloud (§2.69) — the organiser's two taps -------------
   'np.voice.create': { he: '🎙️ יצירת הקלטה', en: '🎙️ Create recap' },
+  'np.voice.pointed': { he: 'עם ניקוד', en: 'With niqqud' },
+  'np.voice.pointedSome': { he: 'ניקוד חלקי: {note}', en: 'Partial niqqud: {note}' },
+  'np.voice.unpointed': { he: 'בלי ניקוד: {note}', en: 'Without niqqud: {note}' },
   'np.voice.listen': { he: '🎧 שמיעה', en: '🎧 Listen' },
   'np.voice.player': { he: 'ההקלטה', en: 'The recording' },
   'np.voice.working': { he: '⏳ מקליט… {time}', en: '⏳ Recording… {time}' },
