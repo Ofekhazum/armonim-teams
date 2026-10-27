@@ -52,10 +52,16 @@ def plain_len(text: str) -> int:
 # sentences are: the writing is left as wild as the persona wants it.
 #
 # Letters, points not counted, so pointed text breaks where unpointed text would.
-# 140 letters is about 11 seconds of speech; the 240 this replaced was 18, and
-# in a real recap most chunks ran 15-18 seconds with up to three sentence ends
-# inside them and no pause at any.
+# A chunk is at most 140 letters, about 11 seconds of speech; the 240 this
+# replaced was 18, and in a real recap most chunks ran 15-18 seconds with up to
+# three sentence ends inside them and no pause at any.
 CHUNK_CHARS = 140
+
+# A sentence is only split in two if it is longer than this (about 13 seconds).
+# Between 140 and 170 it is kept whole: a break in the middle of a sentence can
+# sound like the speaker was cut off, and a few seconds more without a breath
+# is the lesser fault. Past it, the pieces are of 140 or fewer letters.
+WHOLE_SENTENCE = 170
 
 # Only a sentence of a word or two ("כן!") is joined to its neighbour instead of
 # standing alone: a breath after one syllable sounds like a stammer, and a chunk
@@ -127,7 +133,7 @@ def find_reference(voice: str, fetch, is_missing) -> str:
 
 def split_long(sentence: str) -> list[str]:
     """
-    A sentence over CHUNK_CHARS, broken into pieces of about equal length.
+    A sentence over WHOLE_SENTENCE, broken into pieces of about equal length.
 
     Broken at commas and semicolons where there are any, and only past that at
     spaces. Balanced rather than packed: a 170-letter sentence is two 85s, not
@@ -135,7 +141,7 @@ def split_long(sentence: str) -> list[str]:
     and a stub sounds like the speaker ran out.
     """
     total = plain_len(sentence)
-    if total <= CHUNK_CHARS:
+    if total <= WHOLE_SENTENCE:
         return [sentence]
     target = total / -(-total // CHUNK_CHARS)  # an equal share of the pieces it needs
 
@@ -196,6 +202,34 @@ def chunks(text: str) -> list[tuple[str, float]]:
     return out
 
 
+# A chunk is checked against the rest of the recording: the same speaker reads
+# at nearly the same rate throughout (on real recaps, 13.0 letters a second give
+# or take half a letter), so a chunk spoken much faster than that is one where the
+# model dropped words or stopped before the end of the sentence, and one spoken
+# much slower is one where it dragged or rambled. Only chunks long enough for the
+# rate to mean something are judged.
+CHECK_MIN_LETTERS = 40
+TOO_FAST = 1.35  # times the recording's usual rate
+TOO_SLOW = 0.65
+RETRIES = 2  # extra tries for a chunk that fails the check; the best of them is kept
+
+
+def usual_rate(letters: list[int], seconds: list[float]) -> float | None:
+    """The recording's usual letters a second, or None if too few chunks to say."""
+    rates = sorted(n / t for n, t in zip(letters, seconds) if n >= CHECK_MIN_LETTERS and t > 0)
+    if len(rates) < 3:
+        return None
+    return rates[len(rates) // 2]
+
+
+def off_pace(n: int, t: float, usual: float | None) -> bool:
+    """True if a chunk of `n` letters spoken in `t` seconds is out of step with the rest."""
+    if usual is None or n < CHECK_MIN_LETTERS or t <= 0:
+        return False
+    ratio = (n / t) / usual
+    return ratio > TOO_FAST or ratio < TOO_SLOW
+
+
 def load_vox(device: str = "cuda"):
     from voxcpm import VoxCPM
 
@@ -221,26 +255,58 @@ def speak_vox_wav(model, reference: str, text: str, budget_s: float | None = BUD
         raise ValueError("text too long")
 
     sr = model.tts_model.sample_rate
-    parts = []
     todo = chunks(text)
     started = time.monotonic()
-    for i, (chunk, pause) in enumerate(todo, 1):
+
+    def over_budget(i: int):
         if budget_s is not None and time.monotonic() - started > budget_s:
             raise TimeoutError(
                 f"the recording ran out of time at chunk {i} of {len(todo)} ({int(budget_s)} s)"
             )
-        t = time.monotonic()
+
+    def say(chunk: str):
         wav = model.generate(
             text=chunk, cfg_value=2.0, inference_timesteps=10, reference_wav_path=reference,
             max_len=MAX_STEPS,
         )
-        audio = np.asarray(wav, dtype="float32")
+        return np.asarray(wav, dtype="float32")
+
+    audio = []
+    for i, (chunk, _) in enumerate(todo, 1):
+        over_budget(i)
+        t = time.monotonic()
+        audio.append(say(chunk))
         print(
-            f"chunk {i}/{len(todo)}: {plain_len(chunk)} letters -> {len(audio) / sr:.1f} s of speech"
+            f"chunk {i}/{len(todo)}: {plain_len(chunk)} letters -> {len(audio[-1]) / sr:.1f} s of speech"
             f" in {time.monotonic() - t:.1f} s",
             flush=True,
         )
-        parts.append(audio)
+
+    # a second look at the chunks that came out at a different pace to the rest
+    letters = [plain_len(c) for c, _ in todo]
+    usual = usual_rate(letters, [len(a) / sr for a in audio])
+    for i, (chunk, _) in enumerate(todo):
+        if not off_pace(letters[i], len(audio[i]) / sr, usual):
+            continue
+        best = audio[i]
+        for attempt in range(1, RETRIES + 1):
+            over_budget(i + 1)
+            again = say(chunk)
+            print(
+                f"chunk {i + 1}/{len(todo)} retry {attempt}: {len(best) / sr:.1f} s -> {len(again) / sr:.1f} s"
+                f" ({letters[i] / (len(best) / sr):.1f} letters/s, usual {usual:.1f})",
+                flush=True,
+            )
+            # keep whichever lands nearer the usual pace
+            if abs(letters[i] / (len(again) / sr) - usual) < abs(letters[i] / (len(best) / sr) - usual):
+                best = again
+            if not off_pace(letters[i], len(best) / sr, usual):
+                break
+        audio[i] = best
+
+    parts = []
+    for wav, (_, pause) in zip(audio, todo):
+        parts.append(wav)
         parts.append(np.zeros(int(sr * pause), dtype="float32"))
     return np.concatenate(parts[:-1]), sr
 

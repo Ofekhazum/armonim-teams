@@ -5518,6 +5518,27 @@ minutes — and a fresh start of intonation at each break, which is the point an
 sounds choppy rather than breathy, raise `CHUNK_CHARS` or lengthen `GAP_SENTENCE` before anything else.
 `voice/test_speech.py` covers it (`python3 voice/test_speech.py`, no dependencies, made-up text).
 
+#### 2.73.1 Calmer delivery: "!" and sentences cut off in the middle
+
+Two things heard on the first recordings with the breathing chunker, and what was done. **The writing is left
+as wild as the persona wants it** in both.
+
+- **A long sentence ending in "!" is delivered at a very high pitch.** The model reads a whole sentence
+  knowing how it ends, so the "!" lifts the entire sentence, not its last word. In the text the voice is
+  sent (and only there), `calmExclamations` (`delivery.js`) ends a sentence of more than 45 characters with
+  a full stop instead; a short one ("איזו בונבוניירה!") keeps its "!". `VOICE_EXCLAIM` in `wrangler.toml`:
+  `"short"` (default), `"calm"` (no "!" at all), `"all"` (as written). The 🔍 panel shows what was sent. On
+  the recap it was tuned on, 11 of 15 exclamation marks became full stops.
+- **A sentence cut off in the middle** — most likely a comma split (the first piece ends on a comma, the
+  model stops, and the next restarts), possibly the model clipping or dropping the end of a chunk. Two
+  changes, neither verified by ear: a sentence is only split if it is longer than `WHOLE_SENTENCE = 170`
+  letters (about 13 s) instead of 140, so most sentences are never cut; and **every chunk is checked
+  against the rest of the recording** — the same speaker reads at nearly the same rate throughout (13.0
+  letters a second, give or take half), so a chunk of 40+ letters spoken more than 1.35× faster than the
+  recording's median (words dropped, the end skipped) or slower than 0.65× (dragged, rambled) is generated
+  again, up to twice, and the try nearest the usual pace is kept. The Modal log records each retry. A
+  recording that never needs one makes exactly the calls it did before.
+
 ## 3. Team generation algorithm
 
 Balancing is a small constrained optimization. With ≤15 players, brute force is too big

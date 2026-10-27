@@ -14,6 +14,11 @@ VOICE_NIQQUD = "off"
 # admin word is still required, and Modal's own spend cap still applies.
 VOICE_LIMIT = "off"
 
+# How excited the voice may sound (DESIGN.md §2.73): "short" keeps "!" on short
+# sentences and ends long ones with a full stop; "calm" removes every "!"; "all"
+# sends them as written. The report itself is never changed.
+VOICE_EXCLAIM = "short"
+
 # The KV namespace that holds the roster. Create it once with:
 #   npx wrangler kv namespace create ROSTER_KV
 # then paste the printed id below (replace the placeholder).
