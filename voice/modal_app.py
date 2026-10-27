@@ -22,7 +22,7 @@ from pathlib import Path
 
 import modal
 
-from speech import MAX_CHARS, VOX_REPO
+from speech import MAX_CHARS, VOX_REPO, find_reference
 
 APP_NAME = "armonim-recap-voice"
 MODELS = "/models"
@@ -31,8 +31,8 @@ MODELS = "/models"
 # Hugging Face token that can read it (`modal secret create armonim-voice
 # HF_TOKEN=…`).
 VOICE_REPO = "ofh55/armonim-voice"
-VOICE_FILE = "reference_voice_final.wav"  # the default voice, and the fallback for any persona without its own
-VOICE_PREFIX = "voice_"  # a persona's own clip is voice_<persona>.wav in the same dataset
+# The clips are named in speech.py: reference_voice_final.wav is the default and
+# the fallback; a persona's own is voice_<persona>.wav in the same dataset.
 VOICE_SECRET_NAME = "armonim-voice"
 
 # A voice is a persona key (worker/recap.js PERSONAS). The Worker only ever
@@ -82,7 +82,9 @@ app = modal.App(APP_NAME)
     # billed by the second, so a recap is a few cents of the free credit.
     gpu="L4",
     secrets=[modal.Secret.from_name(VOICE_SECRET_NAME)],
-    timeout=15 * 60,
+    # Inside the Worker's fourteen minutes, so a recording that runs long ends here, as
+    # an error the app can show, and not as the Worker giving up on a call still running.
+    timeout=13 * 60,
     # stay warm briefly for a second take, then stop billing
     scaledown_window=120,
     # one recap at a time — the club makes one a week
@@ -95,14 +97,15 @@ class Voice:
 
         from speech import load_vox
 
-        # Fetched per container rather than baked into the image, so changing
-        # a voice is an upload to the dataset rather than a redeploy, and a clip
-        # never sits in an image layer. Used exactly as uploaded: the model
-        # copies the rhythm of its clip, so trimming the pauses out of it makes
-        # the voice read fast with no stops (§2.69.1).
+        # The clips are fetched when a recording needs one, not here: a container
+        # that crashes while it boots never reports why, and a missing clip then
+        # looks like a recording that never finishes. Fetched from the dataset
+        # rather than baked into the image, so changing a voice is an upload to the dataset
+        # and a clip never sits in an image layer. Used exactly as uploaded: the
+        # model copies the rhythm of its clip, so trimming the pauses out of it
+        # makes the voice read fast with no stops (§2.69.1).
         self.token = os.environ["HF_TOKEN"]
         self.references = {}
-        self.references["default"] = self.fetch(VOICE_FILE)
         self.model = load_vox("cuda")
 
     def fetch(self, filename: str) -> str:
@@ -112,14 +115,15 @@ class Voice:
 
     def reference_for(self, voice: str) -> str:
         """The clip for a persona: its own voice_<persona>.wav, else the default."""
-        from huggingface_hub.utils import EntryNotFoundError
+        try:  # moved between huggingface_hub versions
+            from huggingface_hub.errors import EntryNotFoundError
+        except ImportError:
+            from huggingface_hub.utils import EntryNotFoundError
 
         if voice not in self.references:
-            try:
-                self.references[voice] = self.fetch(f"{VOICE_PREFIX}{voice}.wav")
-            except EntryNotFoundError:
-                print(f"no clip for voice {voice!r}; using the default", flush=True)
-                self.references[voice] = self.references["default"]
+            self.references[voice] = find_reference(
+                voice, self.fetch, lambda err: isinstance(err, EntryNotFoundError)
+            )
         return self.references[voice]
 
     @modal.method()
