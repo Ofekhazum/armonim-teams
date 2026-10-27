@@ -87,7 +87,7 @@ const post = async (body: unknown): Promise<RecapResult> => {
 // Which reporter's voice styles the report (§2.70). The keys are the Worker's —
 // an unknown or omitted one is read as 'default' there, so the app never has to
 // stay in step with the list. `undefined` means "don't ask for one".
-export type Persona = 'default' | 'zahavi';
+export type Persona = 'default' | 'zahavi' | 'bibi';
 
 /** Write one and hand it back without storing it — the draft the organiser reads. */
 export const draftRecap = (

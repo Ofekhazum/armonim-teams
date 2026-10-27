@@ -15,7 +15,9 @@ import { clearRecap, draftRecap, fetchRecap, saveRecap } from '../recap';
 const PERSONA_LABELS: Record<Persona, Parameters<typeof t>[0]> = {
   default: 'np.report.persona.default',
   zahavi: 'np.report.persona.zahavi',
+  bibi: 'np.report.persona.bibi',
 };
+
 const PERSONA_OPTIONS = Object.keys(PERSONA_LABELS) as Persona[];
 import { fmtWins, Name, TEAM_META, teamLabel } from './ui';
 import { MilestoneStrip } from './TonightFacts';
