@@ -430,6 +430,7 @@ const view = (job) =>
  *
  *   POST /start  { fixtureId, text, hash, voice }   begin, unless one is running
  *   GET  /status                             { status, hash, startedAt, error? }
+ *   GET  /sent                               { sent, hash } — what the voice server was sent (TEMPORARY, §2.71)
  *
  * The work happens in `alarm()`, set for "now" by /start. That is what lets
  * the request that asked for it return in milliseconds: the phone polls the
@@ -450,6 +451,16 @@ export class RecapVoice {
   async fetch(request) {
     const url = new URL(request.url);
     if (url.pathname === '/status') return Response.json(view(await this.job()));
+
+    // TEMPORARY (§2.71): the exact text the voice server was last sent, so the
+    // organiser can see whether it was pointed. Remove with the `sent` route in
+    // roster-worker.js and RecapVoice's "text sent" button once pointing is trusted.
+    if (url.pathname === '/sent') {
+      return Response.json({
+        sent: (await this.state.storage.get('sent')) ?? null,
+        hash: (await this.job())?.hash ?? null,
+      });
+    }
 
     if (url.pathname === '/start' && request.method === 'POST') {
       const { fixtureId, text, hash, voice } = await request.json();
@@ -488,6 +499,9 @@ export class RecapVoice {
       if (!vocal.pointed) {
         console.log(JSON.stringify({ voice: 'unpointed', fixtureId: job.fixtureId, reason: vocal.reason }));
       }
+      // kept as soon as it is decided, so even a job that then fails or times out
+      // can be asked what it was given (TEMPORARY, see /sent)
+      await this.state.storage.put('sent', vocal.text);
       const audio = await synthesize(this.env, vocal.text, {
         deadline: job.startedAt + JOB_TIMEOUT_MS,
         voice,

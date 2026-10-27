@@ -15,6 +15,7 @@ vi.mock('../recapVoice', () => ({
   fetchVoiceStatus: vi.fn(),
   startVoice: vi.fn(),
   fetchVoiceFile: vi.fn(),
+  fetchSentText: vi.fn(),
   shareVoiceFile: vi.fn(),
 }));
 
@@ -177,5 +178,31 @@ describe('RecapVoice', () => {
     renderVoice();
     fireEvent.click(await screen.findByText(s('np.voice.create')));
     expect(await screen.findByText('Partial niqqud: 3 of 5 lines')).toBeInTheDocument();
+  });
+
+  it('shows the text the voice was sent, with a count of its vowel marks', async () => {
+    mocked.fetchVoiceStatus.mockResolvedValue(status({ status: 'ready' }));
+    mocked.fetchSentText.mockResolvedValue('שֶׂגֶב כָּבַשׁ.');
+    renderVoice();
+    fireEvent.click(await screen.findByText(s('np.voice.sent.show')));
+    expect(await screen.findByText('שֶׂגֶב כָּבַשׁ.')).toBeInTheDocument();
+    expect(screen.getByText('7 vowel marks')).toBeInTheDocument();
+    expect(mocked.fetchSentText).toHaveBeenCalledWith('f1', 'word');
+    fireEvent.click(screen.getByText(s('np.voice.sent.hide')));
+    expect(screen.queryByText('שֶׂגֶב כָּבַשׁ.')).toBeNull();
+  });
+
+  it('says when there is no text to show, and offers none before a recording exists', async () => {
+    mocked.fetchVoiceStatus.mockResolvedValue(status());
+    const { unmount } = renderVoice();
+    await screen.findByText(s('np.voice.create'));
+    expect(screen.queryByText(s('np.voice.sent.show'))).toBeNull();
+    unmount();
+
+    mocked.fetchVoiceStatus.mockResolvedValue(status({ status: 'failed' }));
+    mocked.fetchSentText.mockResolvedValue(null);
+    renderVoice();
+    fireEvent.click(await screen.findByText(s('np.voice.sent.show')));
+    expect(await screen.findByText(s('np.voice.sent.none'))).toBeInTheDocument();
   });
 });
