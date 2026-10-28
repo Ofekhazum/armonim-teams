@@ -5539,9 +5539,10 @@ the explosive, run-on style a persona like Swissa is *for*. The chunker absorbs 
 
 - **Every sentence is its own chunk, with a pause after it** (0.3 s; 0.6 s at a paragraph end). A "!" gets
   the same breath as a ".".
-- **A sentence too long for one breath is split** — at its commas and semicolons, into pieces of *about equal
-  length* (a 170-letter sentence is two 85s, not a 140 and a 30), at spaces only if there are no commas —
-  with a shorter 0.15 s breath at each split. No chunk is over `CHUNK_CHARS = 140` letters, about 11 s.
+- **A sentence is never cut at a comma** (changed in §2.73.2). Only one too long for any breath
+  (`WHOLE_SENTENCE = 320` letters, about 25 s) is split — at its commas, into pieces of *about equal length*,
+  at spaces only if there are no commas — with a shorter 0.15 s breath at each split. Joined short
+  sentences stay under `CHUNK_CHARS = 140` letters.
 - **Only a word or two joins its neighbour** (`SHORT_SENTENCE = 12`): "כן!" alone would be a stammer.
   Anything longer, "איזו בונבוניירה!" included, keeps its own breath.
 - Points and punctuation do not count toward the length (`plain_len`), and nothing is dropped or said twice.
@@ -5572,6 +5573,16 @@ as wild as the persona wants it** in both.
   recording's median (words dropped, the end skipped) or slower than 0.65× (dragged, rambled) is generated
   again, up to twice, and the try nearest the usual pace is kept. The Modal log records each retry. A
   recording that never needs one makes exactly the calls it did before.
+
+#### 2.73.2 No cuts at commas
+
+Each chunk is generated on its own, so the voice ends it the way it ends a sentence, with a fall. A break
+after a comma therefore sounded like a full stop in the middle of a thought, and that is worse than a long
+breath. `WHOLE_SENTENCE` went from 170 to 320 letters (about 25 s; the model's own `MAX_STEPS` limit is about
+800 letters), so a sentence is cut only if no one could say it in one go, and then in as few equal pieces as
+it takes, at a comma if there is one. Sentence ends still get their breath. If a very long sentence rambles
+or drops its end, the pace check (§2.73.1) retries it; lower `WHOLE_SENTENCE` if it happens often.
+Also in this change: "יועד" is respelled `Yo-ad` (was `Yo-ahd`).
 
 ## 3. Team generation algorithm
 
