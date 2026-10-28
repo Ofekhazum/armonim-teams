@@ -5574,6 +5574,16 @@ as wild as the persona wants it** in both.
   again, up to twice, and the try nearest the usual pace is kept. The Modal log records each retry. A
   recording that never needs one makes exactly the calls it did before.
 
+#### 2.73.2 No cuts at commas
+
+Each chunk is generated on its own, so the voice ends it the way it ends a sentence, with a fall. A break
+after a comma therefore sounded like a full stop in the middle of a thought, and that is worse than a long
+breath. `WHOLE_SENTENCE` went from 170 to 320 letters (about 25 s; the model's own `MAX_STEPS` limit is about
+800 letters), so a sentence is cut only if no one could say it in one go, and then in as few equal pieces as
+it takes, at a comma if there is one. Sentence ends still get their breath. If a very long sentence rambles
+or drops its end, the pace check (§2.73.1) retries it; lower `WHOLE_SENTENCE` if it happens often.
+Also in this change: "יועד" is respelled `Yo-ad` (was `Yo-ahd`).
+
 ## 3. Team generation algorithm
 
 Balancing is a small constrained optimization. With ≤15 players, brute force is too big
@@ -5948,13 +5958,3 @@ on demand.
 3. **Short-handed logic** — 13/14 player team sizing, loan rotation screen.
 4. **Polish** — settings for weights, variety-across-weeks scoring, JSON export/import.
    *(History, results and rating suggestions landed in §2.6; picture sharing in §6.)*
-
-#### 2.73.2 No cuts at commas
-
-Each chunk is generated on its own, so the voice ends it the way it ends a sentence, with a fall. A break
-after a comma therefore sounded like a full stop in the middle of a thought, and that is worse than a long
-breath. `WHOLE_SENTENCE` went from 170 to 320 letters (about 25 s; the model's own `MAX_STEPS` limit is about
-800 letters), so a sentence is cut only if no one could say it in one go, and then in as few equal pieces as
-it takes, at a comma if there is one. Sentence ends still get their breath. If a very long sentence rambles
-or drops its end, the pace check (§2.73.1) retries it; lower `WHOLE_SENTENCE` if it happens often.
-Also in this change: "יועד" is respelled `Yo-ad` (was `Yo-ahd`).
