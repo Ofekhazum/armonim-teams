@@ -72,7 +72,7 @@ describe('the shipped dictionary', () => {
   });
 
   it('respells the names it was started with', () => {
-    expect(pronounce('שגב ויועד ודובצקי וזרקא')).toBe('Segev ve Yo-ahd ve Dubetsky ve Zarka');
+    expect(pronounce('שגב ויועד ודובצקי וזרקא')).toBe('Segev ve Yo-ad ve Dubetsky ve Zarka');
     expect(pronounce('לאריאל ולירין, אופק ועומרי נגד טאקו ועובדיה')).toBe(
       'le Ariel vele Yarin, Ofek ve Omri נגד Tako ve Ovadia',
     );

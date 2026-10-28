@@ -51,34 +51,38 @@ class Chunks(unittest.TestCase):
         self.assertEqual([p for _, p in out], [GAP_SENTENCE, GAP_SENTENCE, GAP_PARAGRAPH])
 
     def test_no_chunk_is_longer_than_a_breath(self):
-        text = "\n".join(sentence(n, comma_every=4) for n in (5, 18, 31, 44, 60))
+        text = "\n".join(sentence(n, comma_every=4) for n in (5, 18, 31, 44, 60, 120))
         for chunk, _ in chunks(text):
             self.assertLessEqual(plain_len(chunk), WHOLE_SENTENCE, chunk)
 
-    def test_a_sentence_that_is_not_much_too_long_is_not_cut_in_the_middle(self):
-        whole = sentence(32, comma_every=5)  # ~155 letters: past a chunk, short of a breath's worth
-        self.assertGreater(plain_len(whole), CHUNK_CHARS)
-        self.assertLessEqual(plain_len(whole), WHOLE_SENTENCE)
-        self.assertEqual(split_long(whole), [whole])
+    def test_a_sentence_is_never_cut_at_a_comma_while_a_person_could_say_it(self):
+        for words in (32, 40, 60, 75):  # ~155 to ~360 letters, a comma every five words
+            whole = sentence(words, comma_every=5)
+            if plain_len(whole) > WHOLE_SENTENCE:
+                continue
+            self.assertEqual(split_long(whole), [whole])
+            self.assertEqual(chunks(whole), [(whole, GAP_PARAGRAPH)])
+        self.assertGreater(plain_len(sentence(60, comma_every=5)), CHUNK_CHARS)
+        self.assertEqual(len(chunks(sentence(60, comma_every=5))), 1)
 
-    def test_a_long_sentence_is_split_at_its_commas_into_even_parts(self):
-        long = sentence(40, comma_every=5)  # ~200 letters, a comma every five words
+    def test_a_sentence_too_long_for_one_breath_is_split_at_its_commas_into_even_parts(self):
+        long = sentence(100, comma_every=5)  # ~480 letters, past WHOLE_SENTENCE
         pieces = split_long(long)
         self.assertEqual(len(pieces), 2)
-        self.assertTrue(all(p.rstrip(".").endswith(",") or p == pieces[-1] for p in pieces))
-        self.assertLess(abs(plain_len(pieces[0]) - plain_len(pieces[1])), 40)
+        self.assertTrue(all(p.endswith(",") or p == pieces[-1] for p in pieces))
+        self.assertLess(abs(plain_len(pieces[0]) - plain_len(pieces[1])), 60)
         for piece in pieces:
-            self.assertLessEqual(plain_len(piece), CHUNK_CHARS)
+            self.assertLessEqual(plain_len(piece), WHOLE_SENTENCE)
 
-    def test_a_sentence_with_no_commas_is_split_at_spaces(self):
-        pieces = split_long(sentence(60))
+    def test_a_very_long_sentence_with_no_commas_is_split_at_spaces(self):
+        pieces = split_long(sentence(120))
         self.assertGreater(len(pieces), 1)
         for piece in pieces:
-            self.assertLessEqual(plain_len(piece), CHUNK_CHARS)
-        self.assertEqual(len(split_long(sentence(40))), 2)
+            self.assertLessEqual(plain_len(piece), WHOLE_SENTENCE)
+        self.assertEqual(len(split_long(sentence(100))), 2)
 
     def test_the_pauses_get_longer_with_the_break(self):
-        out = chunks(sentence(40, comma_every=5) + " " + sentence(6))
+        out = chunks(sentence(100, comma_every=5) + " " + sentence(6))
         pauses = [p for _, p in out]
         self.assertEqual(pauses[0], GAP_COMMA)  # inside the long sentence
         self.assertEqual(pauses[-1], GAP_PARAGRAPH)
@@ -102,7 +106,7 @@ class Chunks(unittest.TestCase):
 
     def test_nothing_is_lost_or_said_twice(self):
         text = "\n".join(
-            [sentence(41, comma_every=5) + " " + sentence(4, "!") + " " + sentence(60), sentence(12), sentence(70, comma_every=9)]
+            [sentence(101, comma_every=5) + " " + sentence(4, "!") + " " + sentence(130), sentence(12), sentence(150, comma_every=9)]
         )
         spoken = [w for chunk, _ in chunks(text) for w in words_of(chunk)]
         self.assertEqual(spoken, words_of(text))

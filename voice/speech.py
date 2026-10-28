@@ -52,16 +52,19 @@ def plain_len(text: str) -> int:
 # sentences are: the writing is left as wild as the persona wants it.
 #
 # Letters, points not counted, so pointed text breaks where unpointed text would.
-# A chunk is at most 140 letters, about 11 seconds of speech; the 240 this
-# replaced was 18, and in a real recap most chunks ran 15-18 seconds with up to
-# three sentence ends inside them and no pause at any.
+# Short sentences are joined into a chunk of at most 140 letters, about 11
+# seconds of speech (the 240 this replaced ran 15-18 seconds in a real recap, with
+# up to three sentence ends inside and no pause at any).
 CHUNK_CHARS = 140
 
-# A sentence is only split in two if it is longer than this (about 13 seconds).
-# Between 140 and 170 it is kept whole: a break in the middle of a sentence can
-# sound like the speaker was cut off, and a few seconds more without a breath
-# is the lesser fault. Past it, the pieces are of 140 or fewer letters.
-WHOLE_SENTENCE = 170
+# A sentence is never cut at a comma, and is kept whole up to this length (about
+# 25 seconds). Each chunk is generated on its own, so the voice ends it the way
+# it ends a sentence, falling; a break after a comma sounds like a full stop in
+# the middle of a thought, which is worse than a long breath. Only a sentence
+# past this, which a person could not say in one go either, is split, and then
+# into as few and as equal pieces as it takes, at a comma if there is one near.
+# The model's own limit (MAX_STEPS) is about 800 letters, well above it.
+WHOLE_SENTENCE = 320
 
 # Only a sentence of a word or two ("כן!") is joined to its neighbour instead of
 # standing alone: a breath after one syllable sounds like a stammer, and a chunk
@@ -69,7 +72,7 @@ WHOLE_SENTENCE = 170
 # — even "איזו בונבוניירה!" does, which is the whole point of the breaths.
 SHORT_SENTENCE = 12
 
-# Pauses stitched after a chunk, in seconds: after a comma break inside a long
+# Pauses stitched after a chunk, in seconds: after a break inside a very long
 # sentence, a sentence end, and a paragraph end — each a beat longer than the last.
 GAP_COMMA = 0.15
 GAP_SENTENCE = 0.3
@@ -135,19 +138,19 @@ def split_long(sentence: str) -> list[str]:
     """
     A sentence over WHOLE_SENTENCE, broken into pieces of about equal length.
 
-    Broken at commas and semicolons where there are any, and only past that at
-    spaces. Balanced rather than packed: a 170-letter sentence is two 85s, not
-    a 140 and a 30, because a breath in the middle of a sentence sounds right
-    and a stub sounds like the speaker ran out.
+    The last resort, for a sentence no one could say in one breath: broken at
+    commas and semicolons where there are any, and only past that at spaces.
+    Balanced rather than packed: a 340-letter sentence is two 170s, not a 320
+    and a 20, because a stub sounds like the speaker ran out.
     """
     total = plain_len(sentence)
     if total <= WHOLE_SENTENCE:
         return [sentence]
-    target = total / -(-total // CHUNK_CHARS)  # an equal share of the pieces it needs
+    target = total / -(-total // WHOLE_SENTENCE)  # an equal share of the pieces it needs
 
     atoms: list[str] = []
     for piece in re.split(r"(?<=[,;])\s+", sentence):
-        atoms.extend([piece] if plain_len(piece) <= CHUNK_CHARS else piece.split())
+        atoms.extend([piece] if plain_len(piece) <= WHOLE_SENTENCE else piece.split())
 
     out, current = [], ""
     for atom in atoms:
@@ -156,7 +159,7 @@ def split_long(sentence: str) -> list[str]:
         # further past its share than stopping here leaves it short of it
         over = plain_len(joined) - target
         short = target - plain_len(current)
-        if current and (plain_len(joined) > CHUNK_CHARS or (over > 0 and over > short)):
+        if current and (plain_len(joined) > WHOLE_SENTENCE or (over > 0 and over > short)):
             out.append(current)
             current = atom
         else:
@@ -171,8 +174,9 @@ def chunks(text: str) -> list[tuple[str, float]]:
     (chunk, pause after it): a breath at every sentence end, none of them long.
 
     Each sentence is its own chunk, with a pause after. A sentence too long to
-    say in one breath is split at its commas first, with a shorter pause at each
-    split. A very short sentence joins its neighbour when they fit together.
+    say in one breath (WHOLE_SENTENCE) is split, with a shorter pause at each
+    split; a sentence shorter than that is never cut at its commas. A very
+    short sentence joins its neighbour when they fit together.
     The last chunk of a paragraph gets the paragraph's longer pause.
     """
     out: list[tuple[str, float]] = []
