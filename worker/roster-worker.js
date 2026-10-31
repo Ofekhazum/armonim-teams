@@ -22,6 +22,9 @@
 //   POST /recap        → write one for a night; requires the secret word
 //   GET  /recap-audio?id=… → public status of a night's voiced recap (§2.69)
 //   POST /recap-audio  → make it, or fetch the MP3 once made; secret word
+//                        (a month's show too, as fixtureId `month:YYYY-MM`)
+//   POST /month-recap  → write, publish, read or forget a month's show (§2.74);
+//                        secret word
 //   GET  /grades?id=…  → public read of a night's one-line player grades
 //   GET  /grades/all   → every published mark, marks only (the form graph)
 //   POST /grades       → write them for a night; requires the secret word
@@ -48,6 +51,7 @@ export { RecapVoice } from './recap-voice.js';
 
 import { bytesToB64u, publicKeyBytes } from './push.js';
 import { isValidFacts, normalizePersona, recapKey, writeRecap } from './recap.js';
+import { isMonthRecapId, monthRecapId, readMonthFacts, writeMonthRecap } from './month-recap.js';
 import {
   JOB_TIMEOUT_MS,
   canVoice,
@@ -664,7 +668,8 @@ export default {
     // may write one, which is what /recap below is for.
     if (url.pathname === '/recap' && request.method === 'GET') {
       const id = url.searchParams.get('id');
-      if (!isStr(id, 200)) return json({ error: 'bad id' }, 400);
+      // a month's show is admin-only text (§2.74): read through /month-recap
+      if (!isStr(id, 200) || isMonthRecapId(id)) return json({ error: 'bad id' }, 400);
       const raw = await env.ROSTER_KV.get(recapKey(id));
       if (!raw) return json({ text: null });
       try {
@@ -905,6 +910,7 @@ export default {
       '/live',
       '/recap',
       '/recap-audio',
+      '/month-recap',
       '/grades',
       '/awards',
       '/verify',
@@ -1025,7 +1031,10 @@ export default {
       // this is built for: the same call with `save`, made the moment a night
       // is filed, with nobody in the loop. Nothing else has to change.
       if (url.pathname === '/recap') {
-        if (!isStr(body.fixtureId, 200)) return json({ error: 'bad id' }, 400);
+        // a month is written through /month-recap and nowhere else (§2.74)
+        if (!isStr(body.fixtureId, 200) || isMonthRecapId(body.fixtureId)) {
+          return json({ error: 'bad id' }, 400);
+        }
         const key = recapKey(body.fixtureId);
 
         if (body.text === null) {
@@ -1089,6 +1098,69 @@ export default {
         }
         // the fingerprint that lets the organiser's "publish" count as Gemini's
         await rememberDraft(env, body.fixtureId, written.text, persona, written.vocalized);
+        return json({ ok: true, text: written.text });
+      }
+
+      // The month's show (§2.74).
+      //
+      //   { period, persona? }       → write a draft and hand it back, store nothing
+      //   { period, text }           → publish this text
+      //   { period, text: null }     → forget it, and its recording
+      //   { period, read: true }     → the published text, if there is one
+      //
+      // **A month and a persona, never facts.** The Worker reads the month out
+      // of KV itself, so nothing a caller sends reaches the prompt. The show is
+      // stored as the recap `month:<period>`, which is what lets /recap-audio
+      // voice it — in the persona's own voice — with no change at all.
+      //
+      // The text is admin-only: this route is behind the word, and the public
+      // GET /recap refuses a month id. The group gets the recording.
+      if (url.pathname === '/month-recap') {
+        if (!isPeriod(body.period)) return json({ error: 'bad period' }, 400);
+        const id = monthRecapId(body.period);
+        const key = recapKey(id);
+
+        if (body.read === true) {
+          const stored = await readStoredRecap(env, id);
+          return json(stored?.text ? withoutVocalized(stored) : { text: null });
+        }
+
+        if (body.text === null) {
+          await env.ROSTER_KV.delete(key);
+          await env.ROSTER_KV.delete(voiceKey(id));
+          return json({ ok: true, text: null });
+        }
+
+        // Voiceable only if it is word for word a draft written below, and read
+        // in the persona that wrote it — the same provenance as a night (§2.69).
+        if (isStr(body.text, 8000)) {
+          const stored = { text: body.text, at: Date.now(), ...(await provenanceOf(env, id, body.text)) };
+          await env.ROSTER_KV.put(key, JSON.stringify(stored));
+          return json({ ok: true, ...withoutVocalized(stored) });
+        }
+
+        // Ready means a recorded month with a registered team, so the current
+        // month is refused here, before anything is counted or spent.
+        const facts = await readMonthFacts(env, body.period);
+        if (!facts) return json({ error: 'month not ready' }, 409);
+
+        // Its own counter beside the nights', on the same terms: generating
+        // spends the club's Gemini quota, so it is rated and never refunded.
+        const gen = await countAttempt(
+          limiterFor(env, `monthrecap:${ip}`),
+          RECAP_LIMIT,
+          RECAP_WINDOW_MS,
+        );
+        if (gen.blocked) {
+          return json({ error: 'too many recaps' }, 429, {
+            'Retry-After': String(gen.retryAfter),
+          });
+        }
+
+        const persona = normalizePersona(body.persona);
+        const written = await writeMonthRecap(env, facts, persona);
+        if (written.error) return json({ error: written.error }, 502);
+        await rememberDraft(env, id, written.text, persona);
         return json({ ok: true, text: written.text });
       }
 

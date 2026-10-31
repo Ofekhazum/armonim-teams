@@ -5598,8 +5598,17 @@ Also in this change: "יועד" is respelled `Yo-ad` (was `Yo-ahd`).
 
 ### 2.74 The month, read aloud (planned — `feature/month-voice`)
 
-> **Status: being built.** Step 1, the facts (`src/monthFacts.ts`), is done. This section is
-> rewritten as the design as the remaining parts land. Decided
+> **Status: being built.** Done so far:
+>
+> - Step 1, the facts (`src/monthFacts.ts`).
+> - Step 2, the prompt and routes (`worker/month-recap.js`, `POST /month-recap`).
+> - Step 3, which turned out to need no voice change. The show is stored as the recap
+>   `month:<period>` (fixture ids are base36 and never hold a colon), so the draft fingerprints, the
+>   persona memory and `/recap-audio` voice a month as they are. The `monthrecap:` / `monthdrafts:`
+>   keys in the table below were therefore never needed. `/recap` refuses a `month:` id, both ways,
+>   so the text is admin-only.
+>
+> This section is rewritten as the design when the UI lands. Decided
 > 2026-10-31:
 >
 > - one host
