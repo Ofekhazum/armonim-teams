@@ -89,6 +89,21 @@ const readMonthInputs = async (env) => {
 };
 
 /**
+ * What the month's show is built from (§2.74): the archive as the app reads
+ * it, the roster `buildWrapped` is handed, and the guest map that the stored
+ * marks have to be read through (see `canonicalIds` below). One read of each
+ * record, where calling the two helpers would read both twice.
+ */
+export const readMonthArchive = async (env) => {
+  const { fixtures, rosterIds, absorbers, players } = await readGuestMerge(env);
+  return {
+    history: mergeGuestIdentities(fixtures, rosterIds, absorbers),
+    players,
+    canonical: guestIdentities(fixtures, rosterIds, absorbers),
+  };
+};
+
+/**
  * `guest id → the id it should be read as`, for anything stored *beside* the
  * archive rather than inside it.
  *

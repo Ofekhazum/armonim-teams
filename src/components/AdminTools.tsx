@@ -10,6 +10,7 @@ import type { AllMarks } from '../gradeHistory';
 import { fmtRating, fmtWins, Name, Section } from './ui';
 import AlertsCheck from './AlertsCheck';
 import PostMortem from './PostMortem';
+import MonthShow from './MonthShow';
 import { fmtDate, getLang, t } from '../i18n';
 
 /**
@@ -143,6 +144,14 @@ export default function AdminTools({ history, players, adminWord, onApplyRating 
             {sharingWrapped ? '…' : t('tools.recap.share')}
           </button>
         </div>
+      )}
+
+      {/* The month's show (§2.74), beside the images it is sent with, and for
+          the same months: the current one included, told as if it ended now. */}
+      {periods.length > 0 && (
+        <Section id="monthShow" title={t('tools.show.title')} defaultOpen={false}>
+          <MonthShow periods={periods} adminWord={adminWord} />
+        </Section>
       )}
 
       {/* Team of the Month (§2.25). The cron on the 1st is the usual registrar

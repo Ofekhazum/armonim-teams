@@ -33,10 +33,10 @@ import { pointCount, stripPoints } from './vocalize.js';
 // middle of the Hebrew, which is exactly what would have gone to WhatsApp.
 // A delimiter costs nothing and makes the answer machine-findable rather than
 // a matter of trusting the model to have kept quiet.
-const OPEN = '<report>';
-const CLOSE = '</report>';
+export const OPEN = '<report>';
+export const CLOSE = '</report>';
 
-const between = (text) => {
+export const between = (text) => {
   const from = text.indexOf(OPEN);
   const to = text.lastIndexOf(CLOSE);
   if (from === -1) return null;
@@ -221,7 +221,7 @@ export const normalizePersona = (key) =>
 // here is a guardrail or a point of craft that holds whoever is speaking — the
 // line nobody crosses, the numbers, the shirts, the format. Kept out of the
 // persona so a new voice inherits it rather than restating it.
-const TONE_GUARDRAILS = `THE ONE LINE YOU DO NOT CROSS. Everything you mock is a *result*: matches won and lost, shirts worn, streaks, turning up, who beat whom. Never a person's body, weight, looks, age, health, money, job, family, politics, religion, or anything else about who they are rather than how their night went. Never state as fact that somebody is bad at football — say the scoreboard laughed at them instead. These fifteen people play together every week and all of them read this: it has to be the kind of ribbing that gets sent to the group by the person it is about.
+export const TONE_GUARDRAILS = `THE ONE LINE YOU DO NOT CROSS. Everything you mock is a *result*: matches won and lost, shirts worn, streaks, turning up, who beat whom. Never a person's body, weight, looks, age, health, money, job, family, politics, religion, or anything else about who they are rather than how their night went. Never state as fact that somebody is bad at football — say the scoreboard laughed at them instead. These fifteen people play together every week and all of them read this: it has to be the kind of ribbing that gets sent to the group by the person it is about.
 - Every number must come from the record above, unchanged. If something is not written above, it did not happen and must not be mentioned.
 - Nothing about a shirt colour may point outside tonight. No colour is owed revenge, due a comeback, on a decline, or expected to do anything next week — next week's teams do not exist yet.
 - A player's own record in a colour is fair game, because that is about the player: somebody who keeps winning whenever they happen to wear white is cursed or blessed, and that follows them into whatever shirt they get handed next.
@@ -514,25 +514,32 @@ export async function writeRecap(env, facts, persona = 'default', { pointed = fa
   const vocalized = pointed && pointCount(written) > 0 ? written.normalize('NFC') : null;
   const text = stripPoints(written).normalize('NFC');
 
-  // Refused rather than scrubbed. Deleting a stray word from the middle of a
-  // Hebrew sentence leaves a sentence nobody wrote, and the organiser already
-  // has a "write another one" button two centimetres away — so the honest move
-  // is to say what was wrong and let them press it.
+  const refused = refusalOf(text, facts);
+  if (refused) return { error: refused };
+
+  return { text, ...(vocalized ? { vocalized } : {}), model: said.model };
+}
+
+/**
+ * Why a written report may not be kept, or null when it may. Shared with the
+ * month's show (§2.74), which is read aloud and so needs every one of these.
+ *
+ * Refused rather than scrubbed. Deleting a stray word from the middle of a
+ * Hebrew sentence leaves a sentence nobody wrote, and the organiser already
+ * has a "write another one" button two centimetres away — so the honest move
+ * is to say what was wrong and let them press it.
+ *
+ * `facts.players` is only read for names, the one legitimate source of Latin.
+ */
+export function refusalOf(text, facts) {
   const foreign = foreignWords(text, facts);
-  if (foreign.length > 0) {
-    return { error: `the report slipped out of Hebrew: ${foreign.slice(0, 5).join(', ')}` };
-  }
+  if (foreign.length > 0) return `the report slipped out of Hebrew: ${foreign.slice(0, 5).join(', ')}`;
   // The other half of the same question. `foreignWords` reads `[A-Za-z]`, so
   // for all the years it has been here it could only ever catch the scripts it
   // was looking for — a word in Arabic or Cyrillic walked straight past it.
   const script = foreignScript(text);
-  if (script.length > 0) {
-    return { error: `the report slipped out of Hebrew: ${script.slice(0, 5).join(', ')}` };
-  }
+  if (script.length > 0) return `the report slipped out of Hebrew: ${script.slice(0, 5).join(', ')}`;
   const dates = datesIn(text);
-  if (dates.length > 0) {
-    return { error: `the report printed a raw date: ${dates.slice(0, 3).join(', ')}` };
-  }
-
-  return { text, ...(vocalized ? { vocalized } : {}), model: said.model };
+  if (dates.length > 0) return `the report printed a raw date: ${dates.slice(0, 3).join(', ')}`;
+  return null;
 }
