@@ -5598,7 +5598,8 @@ Also in this change: "יועד" is respelled `Yo-ad` (was `Yo-ahd`).
 
 ### 2.74 The month, read aloud (planned — `feature/month-voice`)
 
-> **Status: a plan, nothing built yet.** It is rewritten as the design as the parts land. Decided
+> **Status: being built.** Step 1, the facts (`src/monthFacts.ts`), is done. This section is
+> rewritten as the design as the remaining parts land. Decided
 > 2026-10-31:
 >
 > - one host
