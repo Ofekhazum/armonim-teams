@@ -5596,6 +5596,113 @@ it takes, at a comma if there is one. Sentence ends still get their breath. If a
 or drops its end, the pace check (§2.73.1) retries it; lower `WHOLE_SENTENCE` if it happens often.
 Also in this change: "יועד" is respelled `Yo-ad` (was `Yo-ahd`).
 
+### 2.74 The month, read aloud (planned — `feature/month-voice`)
+
+> **Status: a plan, nothing built yet.** It is rewritten as the design as the parts land. Decided
+> 2026-10-31:
+>
+> - one host
+> - the Team of the Month revealed as a countdown from 5 to 1
+> - the grade awards **in**
+> - the text admin-only, with the group getting the MP3
+
+A finished month gets a short, funny radio show as an MP3. It covers what happened, the month's awards,
+and a countdown reveal of the Team of the Month. It goes to the group next to the monthly recap images
+(§2.11), so the images show the month and the audio tells it. It is admin-only and experimental, like
+the night's voice (§2.69), and it uses the same pipeline. Only two parts are new: the facts, and the
+prompt.
+
+**Running order.** Target about 2½ minutes of speech, around 350–420 words. A night's recap runs
+3½ minutes, and a month told at that length would drag.
+
+1. **Cold open.** A byline from the persona, then the month in one breath: how many nights, and who
+   ran it.
+2. **The best of the month's events.** Every night's organiser note is split into events
+   (`splitEvents`, marks stripped). The model is handed all of them, each tagged with which night
+   of the month it came from ("the second מחזור", never a date), and picks the 3–4 best to retell.
+   This is the only material the images don't already show.
+3. **The awards ceremony.** The month's counts become trophies: longest streak, longest winless run,
+   unluckiest shirt, bully, best and worst pair, benched most, reservists, milestones crossed, and the
+   highest and lowest average mark. The model picks the ones with a story, the same rule as "a fact is
+   raw material" for nights. The mark awards are results like any other: a low average is a month the
+   scoreboard was unkind, never a verdict on the player (§2.9).
+4. **Team of the Month, a countdown from 5 to 1.** Each player gets one sentence built from their own
+   parts (nights, match wins, nights won outright, MVPs, perfect attendance), with a build-up before
+   number 1. This is the climax and the reason for the format.
+5. **Sign-off.** Aimed at named people, for next month, about their own results. The shirt rule
+   (§2.24) applies unchanged.
+
+**The Worker builds the facts, and the request carries only a month.** A night's recap takes its facts
+from the client. Here, `POST /month-recap { secret, period }` is all a caller sends. The Worker reads
+`history` and `roster` from KV the way `awards.js` already does, runs `buildWrapped` (bundled from
+`src/`, as `totm.ts` already is), and reads the team from the **registered** `totm` document rather
+than recomputing it. That way the audio can never name a different five from the gold card everyone
+saw. A month with no registered team (the current one) is refused. This is the strongest form of
+§2.69's rule that no caller can supply words, since nothing free-text arrives from outside at all.
+
+**Ratings never go in; the month's grade awards do.** No rating and no `tier` is sent to Gemini.
+`teachersPet` and `punchingBag` go in as the figure the monthly image's marks card already prints:
+name, average mark, and graded nights. Grades contain the `tier` term (§2.39), but these averages are
+already public on the card, and per-night grades are public too, so the model learns nothing the group
+can't already see. A test asserts that the facts contain no rating or tier field, like the one on
+`recapFacts`. The Worker reads the stored marks the way `fetchAllMarks` does for the app.
+
+**Personas work exactly as they do for a night (§2.70, §2.70.1).**
+
+- **Choosing one.** The organiser picks a persona next to "write" in AdminTools, from the same
+  `PERSONA_LABELS` list the night page uses (moved to a shared module so the two pickers cannot fall
+  out of step). The month request becomes `{ secret, period, persona }`, and `normalizePersona`
+  resolves an unknown key to `default`.
+- **The prompt.** The month prompt takes the persona's `role`, `byline` and `tone` verbatim, followed
+  by the same `TONE_GUARDRAILS`, so a persona can't loosen a rule here either. Every persona is
+  written about *a night* (Bibi's role: "summarizing a weekly … football night"). So a fixed
+  `MONTH_FRAME` comes straight after the role and overrides that: "This time it is not one night.
+  This is the end-of-month special covering every מחזור of the month, ending with the Team of the
+  Month." The personas stay one definition each, with no month copies to maintain. A test runs every
+  persona through the month prompt and checks that both the frame and the guardrails are there.
+- **The voice is the persona's own.** The draft list remembers `<hash>:<persona>` (the
+  `monthdrafts:<YYYY-MM>` list). Publishing stores `persona` on the month's record, and the recording
+  is read with `voice_<key>.wav`, falling back to the default clip as for nights. The persona of the
+  text and the persona of the voice can't differ, because the client never sends a voice.
+
+**What is reused and what is new**
+
+| part | reused | new |
+|---|---|---|
+| facts | `buildWrapped`, `splitEvents`/`stripMarks`, the registered `totm` | `worker/month-facts.js`: flattens them into counts plus tagged events |
+| prompt | the rules blocks of `buildPrompt` (Hebrew only, no dates, מחזור, shirts, nothing invented, the line not to cross), `PERSONAS` + `TONE_GUARDRAILS` | `worker/month-recap.js`: the running order above, written for the ear (no emoji, short sentences, a paragraph per breath, §2.73) |
+| guards | `<report>` tags, `foreignWords`, `foreignScript`, the date check | none |
+| storage | the draft-fingerprint provenance (§2.69) and persona memory (§2.70.1) | `monthrecap:<YYYY-MM>`, `monthdrafts:<YYYY-MM>` |
+| voice | `RecapVoice` DO, `speakable`, `pronunciations.js`, Modal unchanged | the DO and its KV keys are named by a subject id (`month:2026-09`) instead of a fixture id |
+| limits | `VOICE_LIMIT` (shared with nights) | `MONTH_RECAP_LIMIT` for generating text, its own counter |
+| UI | `RecapVoice.tsx` (record, listen, share) | under the 📊 Monthly recap picker in AdminTools: write, read the draft, re-roll or publish, then record |
+
+The Modal voice server is unchanged. It turns Hebrew into speech and knows nothing about months.
+
+**Build order**, each step a commit with its tests:
+
+1. `month-facts.js` and a test that no rating reaches it.
+2. The prompt, `writeMonthRecap`, the `/month-recap` routes (draft, publish, delete, public read),
+   and their tests.
+3. Change the voice job's id from a fixture id to a subject id, keeping existing nights' KV keys as
+   they are so no recording is invalidated.
+4. The AdminTools UI.
+5. A listening test on a real month, then tune the length and running order.
+
+**Considered and not planned**
+
+- **Summarising the month's stored nightly recaps.** That is a summary of a summary, which drifts from
+  the record, and not every night has a recap. The facts are the source here as they are for nights.
+- **Writing it automatically from the cron on the 1st.** It can come later as a draft only, the same
+  way `autoRecap` is kept for nights. A month is published once and posted to everyone, so a human
+  reads it first.
+
+- **Two hosts** (a studio anchor and a pitch-side reporter). The voice server reads one voice per job,
+  so this would need a list of `{ text, voice }` segments stitched together on Modal. It is left for
+  later, if one host works.
+- **Showing the text to everyone.** The organiser reads, re-rolls and publishes the text in AdminTools.
+  The group gets the MP3. The text is stored, so showing it later is a UI change only.
+
 ## 3. Team generation algorithm
 
 Balancing is a small constrained optimization. With ≤15 players, brute force is too big
