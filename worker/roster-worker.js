@@ -1139,8 +1139,9 @@ export default {
           return json({ ok: true, ...withoutVocalized(stored) });
         }
 
-        // Ready means a recorded month with a registered team, so the current
-        // month is refused here, before anything is counted or spent.
+        // Ready means at least one recorded night — the current month included,
+        // told as the month so far. Refused here, before anything is counted
+        // or spent.
         const facts = await readMonthFacts(env, body.period);
         if (!facts) return json({ error: 'month not ready' }, 409);
 

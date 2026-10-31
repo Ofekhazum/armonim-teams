@@ -14,8 +14,8 @@ import { REMOTE_URL } from './remote';
 /** The id a month's show is recorded under — `month:2026-09`. */
 export const monthShowId = (period: string) => `month:${period}`;
 
-// `not-ready` is the one failure a night does not have: the month is still
-// being played, or its Team of the Month is not registered yet.
+// `not-ready` is the one failure a night does not have: the Worker has no
+// recorded night for that month (the app's copy is ahead of the published one).
 export type MonthShowError = RecapError | 'not-ready';
 
 export type MonthShowResult =

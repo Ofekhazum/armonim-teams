@@ -5604,6 +5604,7 @@ Also in this change: "יועד" is respelled `Yo-ad` (was `Yo-ahd`).
 > - the Team of the Month revealed as a countdown from 5 to 1
 > - the grade awards **in**
 > - the text admin-only, with the group getting the MP3
+> - the current month allowed, told as "the month so far" (below)
 >
 > **The voice needed no change, which is why "storage" and "voice" below are smaller than the plan.**
 > The show is stored as the recap `month:<period>`, so the draft fingerprints, the persona memory and
@@ -5655,10 +5656,28 @@ prompt.
 **The Worker builds the facts, and the request carries only a month.** A night's recap takes its facts
 from the client. Here, `POST /month-recap { secret, period }` is all a caller sends. The Worker reads
 `history` and `roster` from KV the way `awards.js` already does, runs `buildWrapped` (bundled from
-`src/`, as `totm.ts` already is), and reads the team from the **registered** `totm` document rather
-than recomputing it. That way the audio can never name a different five from the gold card everyone
-saw. A month with no registered team (the current one) is refused. This is the strongest form of
+`src/`, as `totm.ts` already is), and works out the team (below). This is the strongest form of
 §2.69's rule that no caller can supply words, since nothing free-text arrives from outside at all.
+
+**Any month with a recorded night, the current one included (2026-10-31).** Like the monthly
+images, the show doesn't wait for the month to end. Two rules decide what an unfinished month is told:
+
+- **Finished or not is decided in Israel time** (`currentPeriod`, `Asia/Jerusalem`). The Worker's
+  own clock is UTC, which would still call it the old month for two or three hours after the club's
+  midnight on the 1st, and the evening of the 31st is exactly when someone would write one.
+- **Which five the countdown is.**
+  - A finished month uses the **registered** team, the announcement on the gold card, so the audio
+    can't name a different five from the card everyone saw.
+  - A month still being played uses the team **as it stands**, counted the way the monthly images
+    count it, so the show and the images sent with it agree. This applies even if the current month
+    was registered by hand, since a mid-month registration is a snapshot the images no longer show.
+  - A finished month nobody registered falls back to the same live count.
+- **An unfinished month is told as "the month so far".** `MONTH_SO_FAR_FRAME` replaces the end-of-month
+  frame. The countdown is the Team of the Month as it stands, and the model is told to say so once
+  (נכון לעכשיו) and never call it final. The sign-off looks at the rest of the month. The screen says
+  the same thing to the organiser: a night played after recording is not in the show, so write a new one.
+  Nothing goes stale silently. The stored show keeps the words it was written with, and a new draft
+  is a new recording.
 
 **Ratings never go in; the month's grade awards do.** No rating and no `tier` is sent to Gemini.
 `teachersPet` and `punchingBag` go in as the figure the monthly image's marks card already prints:
@@ -5690,7 +5709,7 @@ can't already see. A test asserts that the facts contain no rating or tier field
 
 | part | reused | new |
 |---|---|---|
-| facts | `buildWrapped`, `splitEvents`/`stripMarks`, the registered `totm` | `src/monthFacts.ts` (bundled into the Worker like `totm.ts`): flattens them into counts plus events tagged by night |
+| facts | `buildWrapped`, `splitEvents`/`stripMarks`, the registered `totm` (finished months) | `src/monthFacts.ts` (bundled into the Worker like `totm.ts`): flattens them into counts plus events tagged by night |
 | prompt | the rules blocks of `buildPrompt` (Hebrew only, no dates, מחזור, shirts, nothing invented, the line not to cross), `PERSONAS` + `TONE_GUARDRAILS` | `worker/month-recap.js`: the running order above, written for the ear (no emoji, short sentences, a paragraph per breath, §2.73) |
 | guards | `<report>` tags, `foreignWords`, `foreignScript`, the date check, all via `refusalOf` | none |
 | storage | the recap record, its draft-fingerprint provenance (§2.69) and persona memory (§2.70.1), under the id `month:<YYYY-MM>` | nothing |

@@ -4,7 +4,9 @@ import { RecapVoice } from './recap-voice.js';
 import { PERSONAS, PERSONA_KEYS, TONE_GUARDRAILS } from './recap.js';
 import {
   MONTH_FRAME,
+  MONTH_SO_FAR_FRAME,
   buildMonthPrompt,
+  currentPeriod,
   isMonthRecapId,
   monthRecapId,
   readMonthFacts,
@@ -21,8 +23,10 @@ import { ratingsOf, teamOfMonth, totmPeriods } from '../src/totm';
 afterEach(() => vi.unstubAllGlobals());
 
 const club = buildTestClub();
-const PERIOD = totmPeriods(club.history).find((p) =>
-  club.history.some((fx) => fx.date.startsWith(`${p}-`) && fx.note),
+// A finished month with a note in it. The invented club follows the real
+// calendar, so "finished" has to be asked rather than assumed.
+const PERIOD = totmPeriods(club.history).find(
+  (p) => p < currentPeriod() && club.history.some((fx) => fx.date.startsWith(`${p}-`) && fx.note),
 );
 const FIVE = teamOfMonth(club.history, PERIOD, ratingsOf(club.players));
 const REGISTERED = { ids: FIVE.map((p) => p.id), names: FIVE.map((p) => p.name), at: 1 };
@@ -153,8 +157,31 @@ describe('readMonthFacts', () => {
     expect(facts.awards.some((a) => a.startsWith('highest average mark'))).toBe(true);
   });
 
-  it('is not ready before the team is registered', async () => {
-    expect(await readMonthFacts({ ROSTER_KV: clubKv({ registered: false }) }, PERIOD)).toBeNull();
+  it('counts the team itself when a finished month was never registered', async () => {
+    const facts = await readMonthFacts({ ROSTER_KV: clubKv({ registered: false }) }, PERIOD);
+    expect(facts.final).toBe(true);
+    REGISTERED.names.forEach((name, i) => expect(facts.team[i].startsWith(name)).toBe(true));
+  });
+
+  it('tells a month still being played as the month so far', async () => {
+    // "now" inside the month itself
+    const during = Date.parse(`${PERIOD}-15T12:00:00Z`);
+    const facts = await readMonthFacts({ ROSTER_KV: clubKv() }, PERIOD, during);
+    expect(facts.final).toBe(false);
+  });
+
+  it('is not ready for a month with no recorded night', async () => {
+    expect(await readMonthFacts({ ROSTER_KV: clubKv() }, '1999-01')).toBeNull();
+  });
+});
+
+describe('currentPeriod', () => {
+  it('ends the month at midnight in Israel, not in UTC', () => {
+    // 22:30 UTC on 31 October is 00:30 on 1 November in Israel (UTC+2 in winter)
+    expect(currentPeriod(Date.parse('2026-10-31T22:30:00Z'))).toBe('2026-11');
+    expect(currentPeriod(Date.parse('2026-10-31T21:30:00Z'))).toBe('2026-10');
+    // and in summer, UTC+3
+    expect(currentPeriod(Date.parse('2026-07-31T21:30:00Z'))).toBe('2026-08');
   });
 });
 
@@ -171,6 +198,20 @@ describe('buildMonthPrompt', () => {
       expect(prompt).toContain(p.byline);
       expect(prompt.indexOf(TONE_GUARDRAILS)).toBeGreaterThan(prompt.indexOf(p.tone));
     }
+  });
+
+  it('tells a month still being played as the month so far, and never as final', async () => {
+    const f = { ...(await facts()), final: false };
+    const prompt = buildMonthPrompt(f, 'default');
+    expect(prompt).toContain(MONTH_SO_FAR_FRAME);
+    expect(prompt).not.toContain(MONTH_FRAME);
+    expect(prompt).toContain('TEAM OF THE MONTH AS IT STANDS');
+    expect(prompt).toContain('נכון לעכשיו');
+    expect(prompt).not.toContain('already announced');
+
+    const finished = buildMonthPrompt(await facts(), 'default');
+    expect(finished).toContain(MONTH_FRAME);
+    expect(finished).toContain('already announced');
   });
 
   it('falls back to the house reporter for a persona it does not know', async () => {
@@ -262,10 +303,10 @@ describe('/month-recap', () => {
     expect(JSON.parse(kv.store.get(`recap:month:${PERIOD}`)).source).toBe('edited');
   });
 
-  it('refuses a month that is not ready, before spending or counting anything', async () => {
-    const { env, limited } = routeEnv(clubKv({ registered: false }));
+  it('refuses a month with no recorded night, before spending or counting anything', async () => {
+    const { env, limited } = routeEnv();
     const asked = gemini(SHOW);
-    const res = await call(env, '/month-recap', { secret: WORD, period: PERIOD });
+    const res = await call(env, '/month-recap', { secret: WORD, period: '1999-01' });
     expect(res.status).toBe(409);
     expect(asked).toHaveLength(0);
     expect(limited.some((n) => n.startsWith('monthrecap:'))).toBe(false);

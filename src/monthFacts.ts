@@ -42,8 +42,11 @@ export interface MonthFacts {
   leaders: string[];
   awards: string[];
   milestones: string[];
-  // Best first, exactly the registered order. The countdown reads it backwards.
+  // Best first. The countdown reads it backwards.
   team: string[];
+  // False while the month is still being played: the show is "the month so
+  // far", and its team is the table as it stands rather than an announcement.
+  final: boolean;
 }
 
 // Spelt out rather than asked of `Intl`, because the Worker has no language
@@ -95,10 +98,16 @@ function milestoneLine(m: Milestone): string {
 }
 
 /**
- * The month as the show is told it, or null when there is nothing to tell —
- * a month with no recorded night, or no registered team yet. The second is
- * what keeps the current month out: the team is registered on the 1st of the
- * month after, and a show that ends on a countdown cannot be written before.
+ * The month as the show is told it, or null when it has no recorded night.
+ *
+ * **Which team the countdown is.** A finished month's is the registered one —
+ * the announcement, on the gold card — so the show can never name a different
+ * five from the card everyone saw. A month still being played (`final` false)
+ * has no announcement yet, so it gets the team as it stands, worked out the
+ * way the monthly images work it out: the show and the images sent with it
+ * agree. That holds even when the current month has been registered by hand,
+ * since a mid-month registration is a snapshot the images no longer show. A
+ * finished month nobody registered falls back to the same live count.
  */
 export function monthFacts(
   history: FixtureRecord[],
@@ -106,8 +115,8 @@ export function monthFacts(
   players: Player[],
   marks: AllMarks,
   registered: RegisteredTeam | null,
+  final = true,
 ): MonthFacts | null {
-  if (!registered || registered.ids.length === 0) return null;
   const w = buildWrapped(history, period, players, marks);
   if (w.nightsRecorded === 0) return null;
 
@@ -171,13 +180,17 @@ export function monthFacts(
   }
   for (const r of w.reservists) awards.push(`reservist: ${r.name} came for ${r.nights} night${r.nights === 1 ? '' : 's'} and banked ${r.wins} match wins`);
 
-  // The registered names, in the registered order, with the parts that earned
-  // the place when the month's own count still agrees on who it was. A
-  // registered player the count no longer picks (a correction since) still
-  // gets their place in the countdown, named, just without the numbers.
+  // The names in order, with the parts that earned each place when the month's
+  // own count still agrees on who it was. A registered player the count no
+  // longer picks (a correction since) still gets their place in the countdown,
+  // named, just without the numbers.
   const parts = new Map(w.teamOfMonth.map((p) => [p.id, p]));
-  const team = registered.ids.map((id, i) => {
-    const name = registered.names[i] ?? parts.get(id)?.name ?? '?';
+  const named =
+    final && registered && registered.ids.length > 0
+      ? registered
+      : { ids: w.teamOfMonth.map((p) => p.id), names: w.teamOfMonth.map((p) => p.name) };
+  const team = named.ids.map((id, i) => {
+    const name = named.names[i] ?? parts.get(id)?.name ?? '?';
     const p = parts.get(id);
     if (!p) return name;
     const every = p.nights === p.monthLength ? ', played every night' : '';
@@ -194,5 +207,6 @@ export function monthFacts(
     awards,
     milestones: w.monthlyAchievements.map(milestoneLine),
     team,
+    final,
   };
 }

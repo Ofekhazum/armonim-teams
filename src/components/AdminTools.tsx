@@ -146,17 +146,11 @@ export default function AdminTools({ history, players, adminWord, onApplyRating 
         </div>
       )}
 
-      {/* The month's show (§2.74), beside the images it is sent with. Only a
-          finished month with a registered team: the show ends on that team, and
-          the Worker refuses any other month anyway. */}
+      {/* The month's show (§2.74), beside the images it is sent with, and for
+          the same months: the current one included, told as the month so far. */}
       {periods.length > 0 && (
         <Section id="monthShow" title={t('tools.show.title')} defaultOpen={false}>
-          <MonthShow
-            periods={periods.filter(
-              (p) => awards[p] && p < new Date().toISOString().slice(0, 7),
-            )}
-            adminWord={adminWord}
-          />
+          <MonthShow periods={periods} adminWord={adminWord} />
         </Section>
       )}
 

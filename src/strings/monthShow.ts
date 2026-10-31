@@ -10,14 +10,18 @@ export const monthShow = {
   },
   'tools.show.month': { he: 'חודש', en: 'Month' },
   'tools.show.none': {
-    he: 'אין עדיין חודש מוכן — תוכנית נכתבת רק לחודש שהסתיים והרכב החודש שלו נרשם.',
-    en: 'No month is ready yet — a show is written only for a finished month whose Team of the Month is registered.',
+    he: 'עוד אין חודש עם מחזור מתועד.',
+    en: 'No month has a recorded night yet.',
   },
   'tools.show.nothing': { he: 'עוד לא נכתבה תוכנית לחודש הזה.', en: 'No show written for this month yet.' },
   'tools.show.write': { he: '✍️ לכתוב את התוכנית', en: '✍️ Write the show' },
+  'tools.show.soFar': {
+    he: 'החודש עוד לא נגמר: התוכנית תספר את החודש עד עכשיו, והרכב החודש יהיה נכון להיום. מחזור נוסף אחרי ההקלטה לא ייכנס אליה — כתבו תוכנית חדשה.',
+    en: 'This month is not over: the show tells the month so far, with the Team of the Month as it stands today. A night played after recording is not in it — write a new show.',
+  },
   'tools.show.err.notReady': {
-    he: 'החודש הזה עוד לא מוכן: הוא עדיין משוחק, או שהרכב החודש שלו לא נרשם.',
-    en: 'This month is not ready: it is still being played, or its Team of the Month is not registered.',
+    he: 'אין עדיין מחזור מתועד לחודש הזה. פרסמו את ההיסטוריה ונסו שוב.',
+    en: 'There is no recorded night for this month yet. Publish the history and try again.',
   },
   'tools.show.deleteConfirm': {
     he: 'למחוק את התוכנית של החודש הזה ואת ההקלטה שלה?',

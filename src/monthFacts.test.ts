@@ -37,10 +37,23 @@ const registered = registeredFor(club.history, period, club.players);
 const facts = () => monthFacts(club.history, period, club.players, marks, registered)!;
 
 describe('monthFacts', () => {
-  it('has nothing to say before the team is registered, or about an empty month', () => {
-    expect(monthFacts(club.history, period, club.players, marks, null)).toBeNull();
-    expect(monthFacts(club.history, period, club.players, marks, { ids: [], names: [] })).toBeNull();
+  it('has nothing to say about a month with no recorded night', () => {
     expect(monthFacts(club.history, '1999-01', club.players, marks, registered)).toBeNull();
+  });
+
+  it('counts the team itself, as the images do, when a finished month was never registered', () => {
+    const f = monthFacts(club.history, period, club.players, marks, null)!;
+    registered.names.forEach((name, i) => expect(f.team[i].startsWith(name)).toBe(true));
+    expect(f.final).toBe(true);
+  });
+
+  it('tells a month still being played with the team as it stands, not a registration', () => {
+    // a hand registration made mid-month is a snapshot the images no longer show
+    const stale: RegisteredTeam = { ids: ['nobody-now'], names: ['שחקן מאמצע החודש'] };
+    const f = monthFacts(club.history, period, club.players, marks, stale, false)!;
+    expect(f.final).toBe(false);
+    expect(f.team.join(' ')).not.toContain('שחקן מאמצע החודש');
+    registered.names.forEach((name, i) => expect(f.team[i].startsWith(name)).toBe(true));
   });
 
   it("numbers the month's nights in order and carries each night's events", () => {

@@ -38,10 +38,26 @@ export const monthRecapId = (period) => `month:${period}`;
 export const isMonthRecapId = (id) => typeof id === 'string' && id.startsWith('month:');
 
 /**
- * The month's facts, read out of KV, or null when the month is not ready: no
- * night recorded, or no team registered yet (the current month, always).
+ * The month still being played, as `YYYY-MM`, **in Israel**.
+ *
+ * Not UTC, which is the Worker's own clock: the club's month ends at midnight
+ * in Israel, two or three hours before UTC's does, and a show written in that
+ * gap — the evening of the 31st is exactly when someone would write one — would
+ * otherwise still be told the month is not over.
  */
-export async function readMonthFacts(env, period) {
+export const currentPeriod = (now = Date.now()) =>
+  new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem', year: 'numeric', month: '2-digit' })
+    .format(now)
+    .slice(0, 7);
+
+/**
+ * The month's facts, read out of KV, or null when it has no recorded night.
+ *
+ * A month still being played is allowed, the way the monthly images allow it:
+ * its show is "the month so far", told from the nights filed up to now, and its
+ * Team of the Month is the table as it stands (`final: false`, see monthFacts).
+ */
+export async function readMonthFacts(env, period, now = Date.now()) {
   const [{ history, players, canonical }, awards, marks] = await Promise.all([
     readMonthArchive(env),
     readAwards(env),
@@ -53,7 +69,8 @@ export async function readMonthFacts(env, period) {
   for (const [fixtureId, rows] of Object.entries(marks)) {
     canonicalMarks[fixtureId] = remapPlayerKeys(rows, canonical);
   }
-  const facts = monthFacts(history, period, players, canonicalMarks, awards[period] ?? null);
+  const final = period < currentPeriod(now);
+  const facts = monthFacts(history, period, players, canonicalMarks, awards[period] ?? null, final);
   if (!facts) return null;
   // Everybody who played that month: the only names whose Latin letters the
   // Hebrew check may pass. Kept beside the facts, never put in the prompt.
@@ -69,6 +86,13 @@ export async function readMonthFacts(env, period) {
 // copy of each persona to keep in step.
 export const MONTH_FRAME =
   'This time it is not one night. This is the END-OF-MONTH SPECIAL: a short radio show covering every מחזור of the month, read aloud and sent to the club as an audio file, and it ends with the Team of the Month. Stay exactly who you are, and host the month.';
+
+// The same, for a month still being played. Said outright, because nothing in
+// the facts would tell the model the month is unfinished, and a show that calls
+// a mid-month table "the Team of the Month" is announcing something the cron
+// may register differently on the 1st.
+export const MONTH_SO_FAR_FRAME =
+  'This time it is not one night. This is the MONTH-SO-FAR SPECIAL: a short radio show covering every מחזור played so far this month, read aloud and sent to the club as an audio file. THE MONTH IS NOT OVER — more nights may still be played — and the show ends with the Team of the Month AS IT STANDS RIGHT NOW. Stay exactly who you are, and host the month so far.';
 
 const list = (items, empty) => (items.length ? items.map((s) => `- ${s}`).join('\n') : empty);
 
@@ -95,10 +119,15 @@ export function buildMonthPrompt(facts, persona = 'default') {
   // the wrong way round: the model is told the place, not left to infer it.
   const team = facts.team.map((line, i) => `PLACE ${i + 1}: ${line}`).join('\n');
   const countdown = [...facts.team.keys()].map((i) => facts.team.length - i).join(', ');
+  // Absent on facts built before `final` existed: those were all finished months.
+  const final = facts.final !== false;
+  const teamHeader = final
+    ? 'TEAM OF THE MONTH — already chosen and already announced to the club on a gold shirt. Copy these five exactly, in exactly these places. Do not reorder them, do not swap anyone in or out, and do not work out a different team from the numbers.'
+    : 'TEAM OF THE MONTH AS IT STANDS — the month is not over, so this is the table today, and it can still change before the month ends. Copy these five exactly, in exactly these places. Do not reorder them, do not swap anyone in or out, and do not work out a different team from the numbers. Say once, plainly, that this is the team as things stand (נכון לעכשיו); never call it final, decided or announced.';
 
   return `${p.role}
 
-${MONTH_FRAME}
+${final ? MONTH_FRAME : MONTH_SO_FAR_FRAME}
 
 WRITE IN HEBREW. Every word must be Hebrew, except player names, which are already Hebrew and must be copied exactly as given — never translated, transliterated or shortened. Not one word of any other language, not even for flavour: this script goes straight to a Hebrew voice, and a foreign word in it comes out as noise.
 
@@ -114,8 +143,8 @@ THE SHIRTS ARE DRAWN FRESH EVERY WEEK. A colour is a team for one evening and no
 
 WHAT YOU KNOW AND WHAT YOU DO NOT. Below is the complete record of the month. There are NO goals, NO scorers, NO assists and NO saves, because nobody records them. Invent none of them. Every number you use must appear below, unchanged.
 
-THE MONTH — ${facts.month}
-Nights played: ${facts.nights}
+${final ? 'THE MONTH' : 'THE MONTH SO FAR'} — ${facts.month}
+Nights played${final ? '' : ' up to now'}: ${facts.nights}
 Match wins banked across the month: ${facts.matchWins}
 
 NIGHT BY NIGHT
@@ -130,7 +159,7 @@ ${list(facts.awards, '- none')}
 WHAT PLAYERS REACHED THIS MONTH
 ${list(facts.milestones, '- nothing was reached')}
 
-TEAM OF THE MONTH — already chosen and already announced to the club on a gold shirt. Copy these five exactly, in exactly these places. Do not reorder them, do not swap anyone in or out, and do not work out a different team from the numbers.
+${teamHeader}
 ${team}
 
 THE EVENTS. Every EVENT line above is something that really happened, written down by the organiser on the night. They are the only part of this record the club cannot read off the app, so they are the best material you have. Pick the three or four best of them across the whole month and give each its own two or three sentences — build on it: a consequence, an accusation, a mock investigation, a callback later in the show. Say which night it was by its place in the month. Each event is separate, with its own owner: if an event names a player, it is theirs and you may go after them for it; if it names nobody, it belongs to nobody, and no player's name may be attached to it anywhere in the show. You saw it all yourself — never say anyone told you.
@@ -143,11 +172,11 @@ ${p.byline}
 
 ${bylineNote}
 
-1. THE OPENING — about 50 words. What kind of month it was and who ran it.
+1. THE OPENING — about 50 words. ${final ? 'What kind of month it was and who ran it.' : 'What kind of month it has been so far and who is running it.'}
 2. THE EVENTS — about 110 words. Three or four, as above.
 3. THE AWARDS CEREMONY — about 90 words. Hand out the best few awards from THE MONTH'S AWARDS and THE MONTH'S LEADERS as trophies, with mock gravity. Choose the ones with a story and leave the rest; a list of every award is a failed ceremony. An average mark is a result like any other: a low one is a month the scoreboard was unkind, never a verdict on the player.
-4. TEAM OF THE MONTH, AS A COUNTDOWN — about 130 words. Places in this order: ${countdown}. One or two sentences for each, made from their own line above, and real build-up before place 1, who is announced last.
-5. THE SIGN-OFF — one or two sentences, to named players about their own month. Next month's teams do not exist yet.
+4. TEAM OF THE MONTH${final ? '' : ' AS IT STANDS'}, AS A COUNTDOWN — about 130 words. Places in this order: ${countdown}. One or two sentences for each, made from their own line above, and real build-up before place 1, who is announced last.
+5. THE SIGN-OFF — one or two sentences, to named players about their own month${final ? '. Next month’s teams do not exist yet.' : ', looking at the rest of it: who has to hold their place, who still has nights left to climb into the team. The next nights’ teams do not exist yet.'}
 
 YOUR VOICE
 ${p.tone}
