@@ -5596,25 +5596,35 @@ it takes, at a comma if there is one. Sentence ends still get their breath. If a
 or drops its end, the pace check (§2.73.1) retries it; lower `WHOLE_SENTENCE` if it happens often.
 Also in this change: "יועד" is respelled `Yo-ad` (was `Yo-ahd`).
 
-### 2.74 The month, read aloud (planned — `feature/month-voice`)
+### 2.74 The month, read aloud (`src/monthFacts.ts`, `worker/month-recap.js`, `MonthShow.tsx`)
 
-> **Status: being built.** Done so far:
+> **Status: built, not yet run against the real Gemini or voice.** Decided 2026-10-31:
 >
-> - Step 1, the facts (`src/monthFacts.ts`).
-> - Step 2, the prompt and routes (`worker/month-recap.js`, `POST /month-recap`).
-> - Step 3, which turned out to need no voice change. The show is stored as the recap
->   `month:<period>` (fixture ids are base36 and never hold a colon), so the draft fingerprints, the
->   persona memory and `/recap-audio` voice a month as they are. The `monthrecap:` / `monthdrafts:`
->   keys in the table below were therefore never needed. `/recap` refuses a `month:` id, both ways,
->   so the text is admin-only.
->
-> This section is rewritten as the design when the UI lands. Decided
-> 2026-10-31:
->
-> - one host
+> - one host, in any persona
 > - the Team of the Month revealed as a countdown from 5 to 1
 > - the grade awards **in**
 > - the text admin-only, with the group getting the MP3
+>
+> **The voice needed no change, which is why "storage" and "voice" below are smaller than the plan.**
+> The show is stored as the recap `month:<period>`, so the draft fingerprints, the persona memory and
+> `/recap-audio` voice a month as they are. Fixture ids are base36 and never hold a colon, so the two
+> can't meet. The `monthrecap:` / `monthdrafts:` keys the plan named were never needed. `/recap`
+> refuses a `month:` id in both directions, which is what keeps the text admin-only.
+>
+> **How to revert it.** The feature merges as one merge commit (`git merge --no-ff feature/month-voice`),
+> so `git revert -m 1 <that merge>` removes all of it. Its footprint in files it doesn't own is small,
+> so a revert after later work rarely conflicts:
+>
+> - the month guard in the two `/recap` handlers and the new route in `roster-worker.js`
+> - `refusalOf` split out of `writeRecap`, and a few `export`s, in `recap.js`
+> - `readMonthArchive` in `awards.js`
+> - an optional `shareText` prop on `RecapVoice`
+> - one folded section in `AdminTools`
+> - one line in `strings/index.ts`
+>
+> **Delete the published month shows in the app before reverting.** Once the guard is gone, the public
+> `GET /recap?id=month:…` would serve their text. The KV keys left behind (`recap:month:*`,
+> `recapdrafts:month:*`, `recapaudio:month:*`) are otherwise inert.
 
 A finished month gets a short, funny radio show as an MP3. It covers what happened, the month's awards,
 and a countdown reveal of the Team of the Month. It goes to the group next to the monthly recap images
@@ -5660,8 +5670,9 @@ can't already see. A test asserts that the facts contain no rating or tier field
 **Personas work exactly as they do for a night (§2.70, §2.70.1).**
 
 - **Choosing one.** The organiser picks a persona next to "write" in AdminTools, from the same
-  `PERSONA_LABELS` list the night page uses (moved to a shared module so the two pickers cannot fall
-  out of step). The month request becomes `{ secret, period, persona }`, and `normalizePersona`
+  same labels the night page uses. `MonthShow` keeps its own `PERSONA_LABELS` typed
+  `Record<Persona, …>` rather than importing NightPage's, so this feature touches no night code, and a
+  persona added to the app but not here is a compile error. The month request becomes `{ secret, period, persona }`, and `normalizePersona`
   resolves an unknown key to `default`.
 - **The prompt.** The month prompt takes the persona's `role`, `byline` and `tone` verbatim, followed
   by the same `TONE_GUARDRAILS`, so a persona can't loosen a rule here either. Every persona is
@@ -5670,8 +5681,8 @@ can't already see. A test asserts that the facts contain no rating or tier field
   This is the end-of-month special covering every מחזור of the month, ending with the Team of the
   Month." The personas stay one definition each, with no month copies to maintain. A test runs every
   persona through the month prompt and checks that both the frame and the guardrails are there.
-- **The voice is the persona's own.** The draft list remembers `<hash>:<persona>` (the
-  `monthdrafts:<YYYY-MM>` list). Publishing stores `persona` on the month's record, and the recording
+- **The voice is the persona's own.** The draft list remembers `<hash>:<persona>` (the night's
+  `recapdrafts:` list, under `month:<YYYY-MM>`). Publishing stores `persona` on the month's record, and the recording
   is read with `voice_<key>.wav`, falling back to the default clip as for nights. The persona of the
   text and the persona of the voice can't differ, because the client never sends a voice.
 
@@ -5679,25 +5690,25 @@ can't already see. A test asserts that the facts contain no rating or tier field
 
 | part | reused | new |
 |---|---|---|
-| facts | `buildWrapped`, `splitEvents`/`stripMarks`, the registered `totm` | `worker/month-facts.js`: flattens them into counts plus tagged events |
+| facts | `buildWrapped`, `splitEvents`/`stripMarks`, the registered `totm` | `src/monthFacts.ts` (bundled into the Worker like `totm.ts`): flattens them into counts plus events tagged by night |
 | prompt | the rules blocks of `buildPrompt` (Hebrew only, no dates, מחזור, shirts, nothing invented, the line not to cross), `PERSONAS` + `TONE_GUARDRAILS` | `worker/month-recap.js`: the running order above, written for the ear (no emoji, short sentences, a paragraph per breath, §2.73) |
-| guards | `<report>` tags, `foreignWords`, `foreignScript`, the date check | none |
-| storage | the draft-fingerprint provenance (§2.69) and persona memory (§2.70.1) | `monthrecap:<YYYY-MM>`, `monthdrafts:<YYYY-MM>` |
-| voice | `RecapVoice` DO, `speakable`, `pronunciations.js`, Modal unchanged | the DO and its KV keys are named by a subject id (`month:2026-09`) instead of a fixture id |
-| limits | `VOICE_LIMIT` (shared with nights) | `MONTH_RECAP_LIMIT` for generating text, its own counter |
-| UI | `RecapVoice.tsx` (record, listen, share) | under the 📊 Monthly recap picker in AdminTools: write, read the draft, re-roll or publish, then record |
+| guards | `<report>` tags, `foreignWords`, `foreignScript`, the date check, all via `refusalOf` | none |
+| storage | the recap record, its draft-fingerprint provenance (§2.69) and persona memory (§2.70.1), under the id `month:<YYYY-MM>` | nothing |
+| voice | `RecapVoice` DO, `speakable`, `pronunciations.js`, Modal unchanged | nothing |
+| limits | `VOICE_LIMIT` (shared with nights), `RECAP_LIMIT` (the same number) | its own counter, `monthrecap:<ip>` |
+| UI | `RecapVoice.tsx` (record, listen, share), the night page's labels | `MonthShow.tsx`, a folded section in AdminTools: month and persona, write, re-roll or publish, then record |
 
 The Modal voice server is unchanged. It turns Hebrew into speech and knows nothing about months.
 
-**Build order**, each step a commit with its tests:
+**Built in this order**, each step a commit with its tests:
 
-1. `month-facts.js` and a test that no rating reaches it.
-2. The prompt, `writeMonthRecap`, the `/month-recap` routes (draft, publish, delete, public read),
-   and their tests.
-3. Change the voice job's id from a fixture id to a subject id, keeping existing nights' KV keys as
-   they are so no recording is invalidated.
-4. The AdminTools UI.
-5. A listening test on a real month, then tune the length and running order.
+1. `src/monthFacts.ts`, with a test that no rating reaches it.
+2. The prompt, `writeMonthRecap` and `POST /month-recap` (draft, publish, read, delete). The read is
+   behind the word, since the text is admin-only.
+3. The voice, which needed nothing (see the status note above).
+4. `MonthShow.tsx` in AdminTools.
+5. **Still to do:** a listening test on a real month, then tune the length and running order. It
+   needs the Worker deployed.
 
 **Considered and not planned**
 

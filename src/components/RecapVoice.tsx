@@ -20,6 +20,8 @@ interface Props {
   adminWord: string;
   // when the stored recap was written — a new one means the old audio is stale
   recapAt: number;
+  // the line the share carries — a night's by default; the month's show has its own
+  shareText?: string;
 }
 
 const clock = (ms: number) => {
@@ -27,7 +29,7 @@ const clock = (ms: number) => {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 };
 
-export default function RecapVoice({ fixtureId, date, adminWord, recapAt }: Props) {
+export default function RecapVoice({ fixtureId, date, adminWord, recapAt, shareText }: Props) {
   const [status, setStatus] = useState<VoiceStatus | null>(null);
   const [phase, setPhase] = useState<'idle' | 'starting' | 'working' | 'fetching'>('idle');
   const [file, setFile] = useState<File | null>(null);
@@ -136,7 +138,7 @@ export default function RecapVoice({ fixtureId, date, adminWord, recapAt }: Prop
 
   const share = async () => {
     if (!file) return;
-    if ((await shareVoiceFile(file, t('np.voice.shareText'))) === 'failed') {
+    if ((await shareVoiceFile(file, shareText ?? t('np.voice.shareText'))) === 'failed') {
       setFailed(t('np.voice.err.share'));
     }
   };
