@@ -151,9 +151,17 @@ ${list(facts.milestones, '- nothing was reached')}
 TEAM OF THE MONTH — already chosen. Copy these five exactly, in exactly these places. Do not reorder them, do not swap anyone in or out, and do not work out a different team from the numbers.
 ${team}
 
-THE EVENTS. Every EVENT line above is something that really happened, written down by the organiser on the night. They are the only part of this record the club cannot read off the app, so they are the best material you have. Pick the three or four best of them across the whole month and give each its own two or three sentences — build on it: a consequence, an accusation, a mock investigation, a callback later in the show. Say which night it was by its place in the month. Each event is separate, with its own owner: if an event names a player, it is theirs and you may go after them for it; if it names nobody, it belongs to nobody, and no player's name may be attached to it anywhere in the show. You saw it all yourself — never say anyone told you.
+A FACT IS RAW MATERIAL, NOT A SENTENCE. Every line in this record is a bare clause so that you can build a joke out of it: a nickname, an accusation, a mock investigation, a feud, a grand title taken away again. Copying a fact into Hebrew and putting a comma after it is not reporting it. Pick fewer facts and make every one you pick land; a fact you have nothing funny to say about is a fact to DROP. There are far more facts below than this show can carry, on purpose.
 
-THE RUNNING ORDER. A byline, then these parts, about 350 to 420 words in all. Each part is its own paragraph, and the countdown is one paragraph per place.
+The failure to avoid, from a real draft of this show (names replaced by פלוני and אלמוני):
+- A countdown that read the table aloud: "במקום החמישי, פלוני, עם שני מחזורים משלושה, שבעה וחצי ניצחונות משחקים, ומחזור אחד שבו ניצח את הערב. במקום הרביעי, אלמוני, עם שני מחזורים, שנים עשר וחצי ניצחונות משחקים..." Four numbers per person and not one joke. Nobody listening remembers a number; they remember the line about them.
+- Events crammed into one sentence each: "ראינו במחזור הראשון איך הכדור עף רק פעמיים, ואיך פלוני חזר..., בעוד אלמוני נפצע..." Three events announced, none of them told.
+
+THIS IS A ROAST. The club asked for this and they want it sharp: every paragraph has at least one line somebody will be sent a laughing emoji about — and the line nobody crosses, below, still holds: it is results that get mocked, never people. Somebody who won the least is accused of something. Somebody who won the most is accused of something else. Hand out nicknames and take them back.
+
+THE EVENTS. Every EVENT line above is something that really happened, written down by the organiser on the night. They are the only part of this record the club cannot read off the app, so they are the best material you have. Pick the three best of them across the whole month and give each its own two or three sentences — build on it: a consequence, an accusation, a mock investigation, a callback later in the show. Leave the rest out rather than listing them. Say which night it was by its place in the month. Each event is separate, with its own owner: if an event names a player, it is theirs and you may go after them for it; if it names nobody, it belongs to nobody, and no player's name may be attached to it anywhere in the show. You saw it all yourself — never say anyone told you.
+
+THE RUNNING ORDER. A byline, then these parts, about 400 to 480 words in all. Each part is its own paragraph, and the countdown is one paragraph per place.
 
 Open with the byline on its own line:
 
@@ -162,10 +170,11 @@ ${p.byline}
 ${bylineNote}
 
 1. THE OPENING — about 50 words. What kind of month it was and who ran it.
-2. THE EVENTS — about 110 words. Three or four, as above.
-3. THE AWARDS CEREMONY — about 90 words. Hand out the best few awards from THE MONTH'S AWARDS and THE MONTH'S LEADERS as trophies, with mock gravity. Choose the ones with a story and leave the rest; a list of every award is a failed ceremony. An average mark is a result like any other: a low one is a month the scoreboard was unkind, never a verdict on the player.
-4. TEAM OF THE MONTH, AS A COUNTDOWN — about 130 words. Places in this order: ${countdown}. One or two sentences for each, made from their own line above, and real build-up before place 1, who is announced last.
-5. THE SIGN-OFF — one or two sentences, to named players about their own month. Next month’s teams do not exist yet.
+2. THE EVENTS — about 110 words. Three, as above, each told rather than announced.
+3. THE AWARDS CEREMONY — about 90 words. Two or three awards from THE MONTH'S AWARDS and THE MONTH'S LEADERS, no more, each handed over as a trophy with mock gravity and a joke about who gets it. A list of every award is a failed ceremony. An average mark is a result like any other: a low one is a month the scoreboard was unkind, never a verdict on the player.
+4. THE BUILD-UP TO THE TEAM OF THE MONTH — about 40 words, before any name. The moment of the show: what it means to make this team, the tension, the committee that deliberated through the night, the envelope being opened — in your own voice. Name nobody yet.
+5. THE COUNTDOWN — about 130 words. Places in this order: ${countdown}. For each place, ONE number from their line at most, and a line about them: a title, a reason they got in, an accusation, a dig at how close it was. Never read their line out. Each place builds on the last, and place 1 is announced last, with real drama.
+6. THE SIGN-OFF — one or two sentences, to named players about their own month. Next month’s teams do not exist yet.
 
 YOUR VOICE
 ${p.tone}

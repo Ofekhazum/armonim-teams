@@ -85,6 +85,10 @@ describe('monthFacts', () => {
     expect(monthFacts(club.history, period, club.players, marks, swapped)!.team[0]).toBe('שחקן שתוקן');
   });
 
+  it('leaves out the early-versus-late win rates, which say nothing about a month', () => {
+    expect(facts().awards.join(' ')).not.toMatch(/ran out of gas|early matches/);
+  });
+
   it('names the month and never prints a date', () => {
     const f = facts();
     expect(f.month).toMatch(/^[א-ת]+$/);

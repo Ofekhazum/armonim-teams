@@ -73,7 +73,6 @@ const nth = (n: number) => ORDINAL[n - 1] ?? `${n}th`;
 // One decimal, the way the marks card prints it — an average of marks out of
 // ten with more digits than that is precision nobody measured.
 const mark = (avg: number) => avg.toFixed(1);
-const pct = (rate: number) => `${Math.round(rate * 100)}%`;
 
 function milestoneLine(m: Milestone): string {
   switch (m.kind) {
@@ -166,9 +165,9 @@ export function monthFacts(
     awards.push(`${w.bully.aName} beat ${w.bully.bName} ${w.bully.aWon} times to ${w.bully.bWon} in ${w.bully.faced} meetings this month`);
   }
   if (w.benchwarmer) awards.push(`benched most: ${w.benchwarmer.name} sat out ${w.benchwarmer.matchesBenched} matches`);
-  if (w.outOfGas) {
-    awards.push(`ran out of gas: ${w.outOfGas.name} won ${pct(w.outOfGas.earlyRate)} of their early matches and ${pct(w.outOfGas.lateRate)} of their late ones`);
-  }
+  // Not "ran out of gas": early-versus-late win rates are a night's shape, and
+  // over a month they read as noise — the first real show spent a sentence on
+  // two percentages and pinned them on the wrong player.
   if (w.cursedShirt) {
     awards.push(`unluckiest shirt: ${COLOUR[w.cursedShirt.color]} won ${w.cursedShirt.nightsWon} of ${w.cursedShirt.nightsPlayed} nights`);
   }

@@ -216,6 +216,22 @@ describe('buildMonthPrompt', () => {
     expect(buildMonthPrompt(f, 'nobody')).toBe(buildMonthPrompt(f, 'default'));
   });
 
+  it('builds up to the team before naming anyone, and never reads a line out', async () => {
+    const prompt = buildMonthPrompt(await facts(), 'default');
+    const buildUp = prompt.indexOf('THE BUILD-UP TO THE TEAM OF THE MONTH');
+    expect(buildUp).toBeGreaterThan(-1);
+    expect(prompt.indexOf('THE COUNTDOWN')).toBeGreaterThan(buildUp);
+    expect(prompt).toContain('Never read their line out');
+  });
+
+  it('quotes its bad examples without anybody’s real name', async () => {
+    const prompt = buildMonthPrompt(await facts(), 'default');
+    const examples = prompt.slice(prompt.indexOf('The failure to avoid'), prompt.indexOf('THIS IS A ROAST'));
+    // whole words: "דור" is a name, and also the end of "הכדור"
+    const words = new Set(examples.split(/[^\u05d0-\u05ea]+/));
+    for (const p of club.players) expect(words.has(p.name)).toBe(false);
+  });
+
   it('hands over the team by place, and the countdown from the bottom', async () => {
     const prompt = buildMonthPrompt(await facts(), 'default');
     REGISTERED.names.forEach((name, i) => expect(prompt).toContain(`PLACE ${i + 1}: ${name}`));

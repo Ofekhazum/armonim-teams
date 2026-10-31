@@ -5633,25 +5633,44 @@ and a countdown reveal of the Team of the Month. It goes to the group next to th
 the night's voice (§2.69), and it uses the same pipeline. Only two parts are new: the facts, and the
 prompt.
 
-**Running order.** Target about 2½ minutes of speech, around 350–420 words. A night's recap runs
+**Running order.** Target about 3 minutes of speech, around 400–480 words. A night's recap runs
 3½ minutes, and a month told at that length would drag.
 
 1. **Cold open.** A byline from the persona, then the month in one breath: how many nights, and who
    ran it.
 2. **The best of the month's events.** Every night's organiser note is split into events
    (`splitEvents`, marks stripped). The model is handed all of them, each tagged with which night
-   of the month it came from ("the second מחזור", never a date), and picks the 3–4 best to retell.
-   This is the only material the images don't already show.
+   of the month it came from ("the second מחזור", never a date), and retells the **three** best,
+   leaving the rest out. This is the only material the images don't already show.
 3. **The awards ceremony.** The month's counts become trophies: longest streak, longest winless run,
    unluckiest shirt, bully, best and worst pair, benched most, reservists, milestones crossed, and the
-   highest and lowest average mark. The model picks the ones with a story, the same rule as "a fact is
-   raw material" for nights. The mark awards are results like any other: a low average is a month the
+   highest and lowest average mark. The model hands out **two or three**, each with a joke about
+   whoever gets it. The mark awards are results like any other: a low average is a month the
    scoreboard was unkind, never a verdict on the player (§2.9).
-4. **Team of the Month, a countdown from 5 to 1.** Each player gets one sentence built from their own
-   parts (nights, match wins, nights won outright, MVPs, perfect attendance), with a build-up before
-   number 1. This is the climax and the reason for the format.
-5. **Sign-off.** Aimed at named people, for next month, about their own results. The shirt rule
+4. **The build-up** to the Team of the Month, about 40 words, naming nobody: what the team means, the
+   committee, the envelope.
+5. **The countdown from 5 to 1.** **At most one number per player**, and a line about them: a title,
+   an accusation, how close it was. The model never reads their stats line out. Number 1 comes last,
+   with real drama. This is the climax and the reason for the format.
+6. **Sign-off.** Aimed at named people, for next month, about their own results. The shirt rule
    (§2.24) applies unchanged.
+
+**Tuned on the first real draft (Bibi, October 2026).** The first draft was right about the facts
+but thin on jokes, and it failed in three ways:
+
+- The countdown read each player's stats out ("שני מחזורים משלושה, שבעה וחצי ניצחונות משחקים, ומחזור
+  אחד…").
+- The events were each crammed into one clause.
+- The ceremony spent a sentence on early-versus-late win rates, attached to the wrong player.
+
+The fixes:
+
+- The prompt now quotes the first two failures as failures, with the names replaced by פלוני and
+  אלמוני so the model can't lift them as facts.
+- It adds the night prompt's "a fact is raw material" rule, a roast rule (every paragraph gets a line
+  someone gets sent a laughing emoji about, still mocking results only), and the separate build-up
+  before the countdown.
+- `outOfGas` is no longer in the facts. Over a month it's noise.
 
 **The Worker builds the facts, and the request carries only a month.** A night's recap takes its facts
 from the client. Here, `POST /month-recap { secret, period }` is all a caller sends. The Worker reads
