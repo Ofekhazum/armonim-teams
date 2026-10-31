@@ -74,6 +74,22 @@ const nth = (n: number) => ORDINAL[n - 1] ?? `${n}th`;
 // ten with more digits than that is precision nobody measured.
 const mark = (avg: number) => avg.toFixed(1);
 
+// How many extra things one place in the countdown is handed. Enough to pick
+// from; few enough that a place stays a line and not a paragraph.
+const MAX_MENTIONS = 3;
+
+/**
+ * Does this text name this player — as a whole word, or with "and" in front?
+ *
+ * Whole words because a name can be the end of another word ("דור" in
+ * "הכדור"), and only the "ו" prefix because it is the one an event list
+ * actually uses ("ושגב"); "מ" in front of "דור" is a section, not a person.
+ */
+export function namesPlayer(text: string, name: string): boolean {
+  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`(^|[^\\u05d0-\\u05ea])ו?${escaped}($|[^\\u05d0-\\u05ea])`).test(text);
+}
+
 function milestoneLine(m: Milestone): string {
   switch (m.kind) {
     case 'debut-group':
@@ -179,6 +195,23 @@ export function monthFacts(
   }
   for (const r of w.reservists) awards.push(`reservist: ${r.name} came for ${r.nights} night${r.nights === 1 ? '' : 's'} and banked ${r.wins} match wins`);
 
+  // What else a player in the team did this month, for the countdown to hang a
+  // line on rather than reading their numbers out (§2.74): the organiser's
+  // events that name them, the nights they were picked as player of the night,
+  // milestones they crossed, and awards that name them. Best first and capped,
+  // so one place in the countdown stays one or two sentences.
+  const mentionsOf = (id: string, name: string): string[] => {
+    const names = (text: string) => namesPlayer(text, name);
+    // The organiser's events first: the one thing about a player the club
+    // cannot read off the app, and the one the countdown is most worth spending.
+    return [
+      ...nightsInOrder.flatMap((n) => n.events.filter(names).map((e) => `on the ${nth(n.night)} night: "${e}"`)),
+      ...nights.filter((fx) => fx.mvpId === id).map((fx) => `player of the night on the ${nth(ordinalOf.get(fx.id)!)} night`),
+      ...w.monthlyAchievements.filter((m) => 'id' in m && m.id === id).map(milestoneLine),
+      ...awards.filter(names),
+    ].slice(0, MAX_MENTIONS);
+  };
+
   // The names in order, with the parts that earned each place when the month's
   // own count still agrees on who it was. A registered player the count no
   // longer picks (a correction since) still gets their place in the countdown,
@@ -191,9 +224,11 @@ export function monthFacts(
   const team = named.ids.map((id, i) => {
     const name = named.names[i] ?? parts.get(id)?.name ?? '?';
     const p = parts.get(id);
-    if (!p) return name;
+    const also = mentionsOf(id, name);
+    const tail = also.length ? `. ALSO THIS MONTH: ${also.join('; ')}` : '';
+    if (!p) return `${name}${tail}`;
     const every = p.nights === p.monthLength ? ', played every night' : '';
-    return `${name}: ${p.nights} of ${p.monthLength} nights, ${p.wins} match wins, ${p.nightsWon} nights won, ${p.mvps} player-of-the-night picks${every}`;
+    return `${name}: ${p.nights} of ${p.monthLength} nights, ${p.wins} match wins, ${p.nightsWon} nights won, ${p.mvps} player-of-the-night picks${every}${tail}`;
   });
 
   const [, m] = period.split('-').map(Number);

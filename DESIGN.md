@@ -5672,6 +5672,29 @@ The fixes:
   before the countdown.
 - `outOfGas` is no longer in the facts. Over a month it's noise.
 
+**Tuned on the second (Zahavi, October 2026).**
+
+- **Too many "!" made the recording one long shout.** The show had about twenty-five. The voice
+  delivers a sentence ending in "!" excited from its first word. `calmExclamations` (§2.73.1) only
+  calms *long* sentences, and Zahavi's are short, so they all reached the voice. Two fixes, both for
+  the month only:
+  - The prompt now allows at most one "!" a paragraph, placed after the persona's tone so it
+    overrides "plenty of exclamation marks".
+  - `capExclamations` enforces that limit on the written text before it's stored. It keeps the
+    shortest exclamation in a paragraph and turns the rest into full stops.
+
+  The fix is in the text, not the voice step. The month's text exists only to be read aloud, while
+  the voice step also serves every night, and changing what it sends would make every night recording
+  already made show as "not recorded".
+- **The countdown talks about what each player did.** Each place's line now carries up to three
+  `ALSO THIS MONTH` items, in this order:
+  1. the organiser's events that name them, matched as a whole word or with "ו" in front (`namesPlayer`)
+  2. the nights they were player of the night
+  3. milestones they crossed
+  4. awards that name them
+
+  The prompt builds each place on the best one, at most two sentences a place.
+
 **The Worker builds the facts, and the request carries only a month.** A night's recap takes its facts
 from the client. Here, `POST /month-recap { secret, period }` is all a caller sends. The Worker reads
 `history` and `roster` from KV the way `awards.js` already does, runs `buildWrapped` (bundled from

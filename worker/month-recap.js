@@ -161,7 +161,7 @@ THIS IS A ROAST. The club asked for this and they want it sharp: every paragraph
 
 THE EVENTS. Every EVENT line above is something that really happened, written down by the organiser on the night. They are the only part of this record the club cannot read off the app, so they are the best material you have. Pick the three best of them across the whole month and give each its own two or three sentences — build on it: a consequence, an accusation, a mock investigation, a callback later in the show. Leave the rest out rather than listing them. Say which night it was by its place in the month. Each event is separate, with its own owner: if an event names a player, it is theirs and you may go after them for it; if it names nobody, it belongs to nobody, and no player's name may be attached to it anywhere in the show. You saw it all yourself — never say anyone told you.
 
-THE RUNNING ORDER. A byline, then these parts, about 400 to 480 words in all. Each part is its own paragraph, and the countdown is one paragraph per place.
+THE RUNNING ORDER. A byline, then these parts, about 420 to 500 words in all. Each part is its own paragraph, and the countdown is one paragraph per place.
 
 Open with the byline on its own line:
 
@@ -173,7 +173,7 @@ ${bylineNote}
 2. THE EVENTS — about 110 words. Three, as above, each told rather than announced.
 3. THE AWARDS CEREMONY — about 90 words. Two or three awards from THE MONTH'S AWARDS and THE MONTH'S LEADERS, no more, each handed over as a trophy with mock gravity and a joke about who gets it. A list of every award is a failed ceremony. An average mark is a result like any other: a low one is a month the scoreboard was unkind, never a verdict on the player.
 4. THE BUILD-UP TO THE TEAM OF THE MONTH — about 40 words, before any name. The moment of the show: what it means to make this team, the tension, the committee that deliberated through the night, the envelope being opened — in your own voice. Name nobody yet.
-5. THE COUNTDOWN — about 130 words. Places in this order: ${countdown}. For each place, ONE number from their line at most, and a line about them: a title, a reason they got in, an accusation, a dig at how close it was. Never read their line out. Each place builds on the last, and place 1 is announced last, with real drama.
+5. THE COUNTDOWN — about 150 words. Places in this order: ${countdown}. TWO SENTENCES PER PLACE AT MOST. Where a player's line has ALSO THIS MONTH, that is what their place is about: pick the best ONE of those — an event of theirs, a night they were player of the night, a milestone — and build their line on it (an event named there is theirs, and fair game). Otherwise, ONE number from their line at most, and a title, an accusation, or a dig at how close it was. Never read their line out. Each place builds on the last, and place 1 is announced last, with real drama.
 6. THE SIGN-OFF — one or two sentences, to named players about their own month. Next month’s teams do not exist yet.
 
 YOUR VOICE
@@ -184,6 +184,8 @@ ${TONE_GUARDRAILS}
 FOR THIS SHOW. Wherever the rules above say "tonight", read "this month". Where they speak of five paragraphs, the running order above replaces it.
 
 WRITTEN TO BE HEARD. This is read aloud by a voice and sent as an audio file, so write speech, not text: short sentences, no emoji, no parentheses, no slashes, no abbreviations, no lists. Nothing that only makes sense to the eye.
+
+AT MOST ONE EXCLAMATION MARK IN A PARAGRAPH, and this overrides anything in YOUR VOICE above. The voice shouts every sentence that ends in "!", from its first word, so a paragraph of them comes out as one long yell and the recording stops sounding like a person. End sentences with a full stop and put the excitement in the words — the persona's catchphrases, the build-up, the drama — and save the one "!" for the line that deserves it.
 
 OUTPUT FORMAT. Put the finished script, and nothing else, between ${OPEN} and ${CLOSE}. Do not check your work inside those tags, and do not explain your choices. Anything outside the tags is discarded.
 
@@ -197,10 +199,46 @@ ${CLOSE}`;
  * throws, the same contract as `writeRecap`, and through the same refusals:
  * no tags, a foreign word or script, or a printed date, and it is not kept.
  */
+/**
+ * At most one "!" in a paragraph, keeping the shortest exclamation and ending
+ * every other sentence with a full stop ("?!" keeps its question mark).
+ *
+ * The prompt asks for this, and a persona whose own voice is "plenty of
+ * exclamation marks" does not always listen: the first Zahavi show had
+ * twenty-five, every one of them short enough to pass the voice's own softening
+ * (`delivery.js`, which only calms *long* sentences), and the recording came
+ * out as one long shout. This text exists only to be read aloud, so it is
+ * corrected here rather than in the voice step, which serves every night as
+ * well. The shortest is kept because a short line is what "!" is for.
+ */
+export function capExclamations(text) {
+  return String(text ?? '')
+    .split('\n')
+    .map((line) => {
+      const sentences = line.split(/(?<=[.!?])\s+/);
+      const loud = sentences.filter((x) => /!$/.test(x));
+      if (loud.length <= 1) return line;
+      const keep = loud.reduce((a, b) => (b.length < a.length ? b : a));
+      let kept = false;
+      return sentences
+        .map((x) => {
+          if (!/!$/.test(x)) return x;
+          if (x === keep && !kept) {
+            kept = true;
+            return x;
+          }
+          return x.replace(/(\?)?!+$/, (_, question) => question ?? '.');
+        })
+        .join(' ');
+    })
+    .join('\n');
+}
+
 export async function writeMonthRecap(env, facts, persona = 'default') {
   const said = await callGemini(env, buildMonthPrompt(facts, persona));
   if (said.error) return { error: said.error };
-  const text = between(said.raw)?.normalize('NFC');
+  const written = between(said.raw)?.normalize('NFC');
+  const text = written ? capExclamations(written) : null;
   if (!text) return { error: 'the model wrote its working out instead of a report' };
   const refused = refusalOf(text, { players: (facts.names ?? []).map((name) => ({ name })) });
   if (refused) return { error: refused };

@@ -5,6 +5,7 @@ import { PERSONAS, PERSONA_KEYS, TONE_GUARDRAILS } from './recap.js';
 import {
   MONTH_FRAME,
   buildMonthPrompt,
+  capExclamations,
   currentPeriod,
   isMonthRecapId,
   monthRecapId,
@@ -232,6 +233,15 @@ describe('buildMonthPrompt', () => {
     for (const p of club.players) expect(words.has(p.name)).toBe(false);
   });
 
+  it('asks for a short countdown built on what else each player did, and few "!"', async () => {
+    const prompt = buildMonthPrompt(await facts(), 'zahavi');
+    expect(prompt).toContain('TWO SENTENCES PER PLACE AT MOST');
+    expect(prompt).toContain('ALSO THIS MONTH');
+    expect(prompt).toContain('AT MOST ONE EXCLAMATION MARK IN A PARAGRAPH');
+    // after the persona's own "plenty of exclamation marks", so it overrides it
+    expect(prompt.indexOf('AT MOST ONE EXCLAMATION MARK')).toBeGreaterThan(prompt.indexOf(PERSONAS.zahavi.tone));
+  });
+
   it('hands over the team by place, and the countdown from the bottom', async () => {
     const prompt = buildMonthPrompt(await facts(), 'default');
     REGISTERED.names.forEach((name, i) => expect(prompt).toContain(`PLACE ${i + 1}: ${name}`));
@@ -247,6 +257,26 @@ describe('buildMonthPrompt', () => {
   });
 });
 
+describe('capExclamations', () => {
+  it('leaves one "!" in a paragraph — the shortest — and full stops for the rest', () => {
+    // from the first Zahavi show
+    const shouted =
+      'ועכשיו, לטקס הפרסים היוקרתי! הלחמי חוטף את פרס הספסל המוזהב! בעל הבית השתגע! אללה ירחמו, איזו השפלה ספורטיבית!';
+    expect(capExclamations(shouted)).toBe(
+      'ועכשיו, לטקס הפרסים היוקרתי. הלחמי חוטף את פרס הספסל המוזהב. בעל הבית השתגע! אללה ירחמו, איזו השפלה ספורטיבית.',
+    );
+  });
+
+  it('counts each paragraph on its own, and leaves a calm one alone', () => {
+    const text = 'שורה אחת! שורה ארוכה יותר!\n\nפסקה רגועה. בלי צעקות.\nמקום ראשון!';
+    expect(capExclamations(text)).toBe('שורה אחת! שורה ארוכה יותר.\n\nפסקה רגועה. בלי צעקות.\nמקום ראשון!');
+  });
+
+  it('keeps a question a question', () => {
+    expect(capExclamations('מה זה? מה זה הדבר הזה?! איזה גול!')).toBe('מה זה? מה זה הדבר הזה? איזה גול!');
+  });
+});
+
 describe('writeMonthRecap — what reaches the voice is Hebrew', () => {
   let facts;
   beforeAll(async () => {
@@ -256,6 +286,12 @@ describe('writeMonthRecap — what reaches the voice is Hebrew', () => {
   it('keeps a Hebrew show', async () => {
     gemini(SHOW);
     expect(await writeMonthRecap({ GEMINI_KEY: 'k' }, facts)).toMatchObject({ text: SHOW });
+  });
+
+  it('stores the show with its exclamation marks capped', async () => {
+    gemini('איזה חודש! איזה חודש מטורף! מתחילים!');
+    // the shortest is kept: "מתחילים!" is the line "!" is for
+    expect((await writeMonthRecap({ GEMINI_KEY: 'k' }, facts)).text).toBe('איזה חודש. איזה חודש מטורף. מתחילים!');
   });
 
   it('lets through a Latin name only if somebody that month is called it', async () => {

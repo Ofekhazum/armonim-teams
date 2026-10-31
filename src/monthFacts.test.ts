@@ -4,7 +4,7 @@ import type { AllMarks } from './gradeHistory';
 import { buildTestClub } from './testData';
 import { nightGrades } from './grades';
 import { ratingsOf, teamOfMonth, totmPeriods } from './totm';
-import { monthFacts, type RegisteredTeam } from './monthFacts';
+import { monthFacts, namesPlayer, type RegisteredTeam } from './monthFacts';
 
 // What the month's show is told. The same two questions as `recapFacts`: is
 // every number one the app already stands behind, and does anything private
@@ -83,6 +83,31 @@ describe('monthFacts', () => {
       names: ['שחקן שתוקן', ...registered.names.slice(1)],
     };
     expect(monthFacts(club.history, period, club.players, marks, swapped)!.team[0]).toBe('שחקן שתוקן');
+  });
+
+  it("tells the countdown what else each of the team did, the organiser's events first", () => {
+    const top = registered.ids[0];
+    const name = registered.names[0];
+    // one night of theirs with an event naming them, and them as its MVP
+    const theirs = club.history.find(
+      (fx) => fx.date.startsWith(`${period}-`) && fx.players.some((p) => p.id === top),
+    )!;
+    const history = club.history.map((fx) =>
+      fx.id === theirs.id ? { ...fx, note: `@${name} בעט את הכדור לחניה@`, mvpId: top } : fx,
+    );
+    const line = monthFacts(history, period, club.players, marks, registered)!.team[0];
+    const also = line.slice(line.indexOf('ALSO THIS MONTH: ') + 'ALSO THIS MONTH: '.length).split('; ');
+    expect(also[0]).toMatch(new RegExp(`on the \\w+ night: "${name} בעט את הכדור לחניה"`));
+    expect(also.some((m) => m.startsWith('player of the night on the'))).toBe(true);
+    // capped, so a place stays a line
+    expect(also.length).toBeLessThanOrEqual(3);
+  });
+
+  it('matches a name as a word, never as the end of another one', () => {
+    expect(namesPlayer('ושגב השחיל את כולם', 'שגב')).toBe(true);
+    expect(namesPlayer('הכדור עף מעל הגדר', 'דור')).toBe(false);
+    expect(namesPlayer('המדור של הספורט', 'דור')).toBe(false);
+    expect(namesPlayer('best pair: ניב and גיא won 4', 'גיא')).toBe(true);
   });
 
   it('leaves out the early-versus-late win rates, which say nothing about a month', () => {
