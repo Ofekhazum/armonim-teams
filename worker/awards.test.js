@@ -66,6 +66,25 @@ describe('registerAwards', () => {
     expect(awards['2026-08'].at).toBe(SEP_1);
   });
 
+  it('settles a tie the month cannot with the higher star rating, not the name', async () => {
+    // six on one shirt, level in everything: by name 'Zed' is the one left out
+    const squad = ['a', 'b', 'c', 'd', 'e', 'z'];
+    const tied = (date) =>
+      fixture(date, {
+        teams: { black: squad, white: ['x'], blue: [] },
+        players: [...squad, 'x'].map((id) => ({ id, name: id === 'z' ? 'Zed' : id.toUpperCase(), rating: 3 })),
+        wins: { black: 4, white: 1, blue: 0 },
+      });
+    const fixtures = [tied('2026-08-06'), tied('2026-08-13')];
+    const roster = (zedRating) => squad.map((id) => ({ id, name: id, rating: id === 'z' ? zedRating : 3 }));
+
+    const unrated = await registerAwards(withHistory(fixtures), SEP_1);
+    expect(unrated.awards['2026-08'].ids).not.toContain('z');
+
+    const rated = await registerAwards(withHistory(fixtures, undefined, roster(5)), SEP_1);
+    expect(rated.awards['2026-08'].ids).toContain('z');
+  });
+
   it('leaves the month still being played alone', async () => {
     // the cron fires *inside* September, and September is not over
     const env = withHistory([fixture('2026-08-06'), fixture('2026-09-01')]);
