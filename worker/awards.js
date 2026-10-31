@@ -24,7 +24,7 @@
 // their own screen. That is exactly the disagreement `src/totm.ts` exists to
 // prevent, arriving through the input instead of through the rule.
 
-import { teamOfMonth, totmPeriods } from '../src/totm';
+import { ratingsOf, teamOfMonth, totmPeriods } from '../src/totm';
 import { guestAbsorbers, guestIdentities, mergeGuestIdentities } from '../src/guests';
 
 export const AWARDS_KEY = 'totm';
@@ -72,19 +72,27 @@ const readGuestMerge = async (env) => {
   );
   const rosterIds = new Set(players.map((p) => p.id));
   const absorbers = guestAbsorbers(players);
-  return { fixtures, rosterIds, absorbers };
+  return { fixtures, rosterIds, absorbers, players };
 };
 
-const readHistory = async (env) => {
-  const { fixtures, rosterIds, absorbers } = await readGuestMerge(env);
-  return mergeGuestIdentities(fixtures, rosterIds, absorbers);
+/**
+ * The archive and the roster's star ratings, which settle a tie the month's own
+ * numbers cannot (`byImportance` in src/totm.ts). The same roster the app hands
+ * `buildWrapped`, so the card and the cron break a tie the same way.
+ */
+const readMonthInputs = async (env) => {
+  const { fixtures, rosterIds, absorbers, players } = await readGuestMerge(env);
+  return {
+    history: mergeGuestIdentities(fixtures, rosterIds, absorbers),
+    ratings: ratingsOf(players),
+  };
 };
 
 /**
  * `guest id → the id it should be read as`, for anything stored *beside* the
  * archive rather than inside it.
  *
- * The fixtures themselves are merged by `readHistory` above, but the grade
+ * The fixtures themselves are merged by `readMonthInputs` below, but the grade
  * lines in KV are keyed by whatever id the night was filed under, and a mark
  * written while somebody was still a guest keeps pointing at that dead id after
  * they join the roster. The routes that serve those read this and rewrite the
@@ -131,7 +139,7 @@ const award = (five, at) => ({
  * design; every other question ("is this month finished?") reduces to it.
  */
 export async function registerAwards(env, now = Date.now()) {
-  const history = await readHistory(env);
+  const { history, ratings } = await readMonthInputs(env);
   const stored = await readAwards(env);
   const current = new Date(now).toISOString().slice(0, 7);
 
@@ -139,7 +147,7 @@ export async function registerAwards(env, now = Date.now()) {
   for (const period of totmPeriods(history)) {
     if (period >= current) continue;
     if (stored[period]) continue;
-    const five = teamOfMonth(history, period);
+    const five = teamOfMonth(history, period, ratings);
     if (five.length === 0) continue;
     stored[period] = award(five, now);
     added++;
@@ -157,8 +165,8 @@ export async function registerAwards(env, now = Date.now()) {
  * here stays set.
  */
 export async function announceMonth(env, period, now = Date.now()) {
-  const history = await readHistory(env);
-  const five = teamOfMonth(history, period);
+  const { history, ratings } = await readMonthInputs(env);
+  const five = teamOfMonth(history, period, ratings);
   if (five.length === 0) return null;
   const stored = await readAwards(env);
   stored[period] = award(five, now);

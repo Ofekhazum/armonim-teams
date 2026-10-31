@@ -824,6 +824,50 @@ describe('team of the month', () => {
     expect(row('top').score - row('low').score).toBeGreaterThan(NEAR_TIE);
     expect(picked[0].name).toBe('top');
   });
+
+  describe('a tie that every one of the month’s numbers leaves level', () => {
+    // six on one shirt, every night: identical in everything but name and rating.
+    // By name 'zed' sorts last and is the one left out of five seats.
+    const squad = ['abe', 'bob', 'cal', 'dan', 'eli', 'zed'];
+    const level = () => [
+      night(d(1), squad, ['x'], { black: 4, white: 1, blue: 0 }),
+      night(d(2), squad, ['x'], { black: 4, white: 1, blue: 0 }),
+    ];
+    const ids = (history: FixtureRecord[], players?: Player[]) =>
+      buildWrapped(history, '2026-05', players).teamOfMonth.map((p) => p.id);
+    const rated = (rating: Record<string, number>): Player[] =>
+      squad.map((id) => ({ ...player(id), rating: rating[id] ?? 3 }));
+
+    it('falls to the name when nothing separates them and no ratings are known', () => {
+      expect(ids(level())).toEqual(['abe', 'bob', 'cal', 'dan', 'eli']);
+    });
+
+    it('gives the seat to the higher star rating, not to the alphabet', () => {
+      expect(ids(level(), rated({ zed: 5 }))).toContain('zed');
+      expect(ids(level(), rated({ zed: 5 }))).not.toContain('eli');
+    });
+
+    it('goes by the higher rating whichever way round the names fall', () => {
+      expect(ids(level(), rated({ abe: 1, bob: 4, cal: 4, dan: 4, eli: 4, zed: 5 }))[0]).toBe('zed');
+      expect(ids(level(), rated({ abe: 5, zed: 1 }))).not.toContain('zed');
+    });
+
+    it('does not count a guest nobody has rated as a high rating', () => {
+      const players = rated({ zed: 4 }).map((p) => (p.id === 'abe' ? { ...p, rating: 5, ratingUnknown: true } : p));
+      // abe's 5 is a placeholder; zed's real 4 outranks him
+      expect(ids(level(), players)).toContain('zed');
+      expect(ids(level(), players)).not.toContain('abe');
+    });
+
+    it('is only a tie-break: a better month beats a better rating', () => {
+      const history = [
+        night(d(1), squad.slice(0, 5), ['zed'], { black: 4, white: 5, blue: 0 }),
+        night(d(2), squad.slice(0, 5), ['zed'], { black: 4, white: 5, blue: 0 }),
+      ];
+      // zed is rated worst in the club but won more matches: he is in first, on the month
+      expect(ids(history, rated({ zed: 1, abe: 5, bob: 5, cal: 5, dan: 5, eli: 5 }))[0]).toBe('zed');
+    });
+  });
 });
 
 describe('the team-of-the-month rule', () => {

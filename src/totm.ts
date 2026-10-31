@@ -13,7 +13,7 @@
 // the rule cannot drift — a copy in the Worker would agree on the day it was
 // written and quietly stop agreeing on the day one of them was tuned.
 
-import type { FixtureRecord } from './types';
+import type { FixtureRecord, Player } from './types';
 import { hasResult } from './calibration';
 import { TEAM_COLORS } from './balancer';
 import { teamOf, winnerOf } from './milestones';
@@ -151,21 +151,48 @@ export const TOTM_SIZE = 5;
 export const NEAR_TIE = 0.1;
 
 /**
+ * Star ratings by player id, for the last tie-break below.
+ *
+ * Built from the roster by whoever asks — the shirt image from the roster in
+ * the app, the cron from the roster in KV — and through this one function, so
+ * the two read it the same way. A guest nobody has rated (`ratingUnknown`), or a
+ * player no longer on the roster, simply has no entry, and no entry never wins
+ * a tie.
+ */
+export const ratingsOf = (players: readonly Pick<Player, 'id' | 'rating' | 'ratingUnknown'>[]): Map<string, number> =>
+  new Map(
+    players
+      .filter((p) => !p.ratingUnknown && Number.isFinite(p.rating))
+      .map((p) => [p.id, p.rating] as const),
+  );
+
+/**
  * The order to settle a near-tie in, most important first: the human pick,
- * then nights taken outright, then match wins, then turning up.
+ * then nights taken outright, then match wins, then turning up, then the
+ * higher star rating.
  *
  * This is a deliberate inversion of the score's own emphasis. The score is a
  * *rate*, so it deliberately doesn't care how often you came; this list is what
  * to do when the rate has stopped saying anything, and at that point the rarest
  * thing wins — an MVP is one pick a night, a night won is one shirt in three,
  * a match win is four or five an evening, and an appearance is just a yes.
+ *
+ * The rating is the first thing that is not about this month at all, which is
+ * why it comes last of the facts: it only ever speaks when every one of them
+ * has been level (two players with the same nights, wins, nights taken and
+ * picks — it happened in 2026-10), and what it says is "the one we rate higher".
+ * The name is the very last resort, there so the order is the same every time
+ * and for no other reason: an alphabet should never decide a seat.
  */
-const byImportance = (a: TotmPlayer, b: TotmPlayer): number =>
-  b.mvps - a.mvps ||
-  b.nightsWon - a.nightsWon ||
-  b.wins - a.wins ||
-  b.nights - a.nights ||
-  a.name.localeCompare(b.name, 'he');
+const byImportance =
+  (ratings: ReadonlyMap<string, number>) =>
+  (a: TotmPlayer, b: TotmPlayer): number =>
+    b.mvps - a.mvps ||
+    b.nightsWon - a.nightsWon ||
+    b.wins - a.wins ||
+    b.nights - a.nights ||
+    (ratings.get(b.id) ?? -Infinity) - (ratings.get(a.id) ?? -Infinity) ||
+    a.name.localeCompare(b.name, 'he');
 
 /**
  * Rank by score, but re-order each band of near-level scores by `byImportance`.
@@ -183,13 +210,14 @@ const byImportance = (a: TotmPlayer, b: TotmPlayer): number =>
  * top scorer — which makes a band strictly narrower than NEAR_TIE, and makes
  * the whole thing deterministic — and only then is each band reordered.
  */
-function rankByScoreThenImportance(rows: TotmPlayer[]): TotmPlayer[] {
-  const byScore = [...rows].sort((a, b) => b.score - a.score || byImportance(a, b));
+function rankByScoreThenImportance(rows: TotmPlayer[], ratings: ReadonlyMap<string, number>): TotmPlayer[] {
+  const byImportanceHere = byImportance(ratings);
+  const byScore = [...rows].sort((a, b) => b.score - a.score || byImportanceHere(a, b));
   const ranked: TotmPlayer[] = [];
   for (let i = 0; i < byScore.length; ) {
     let end = i + 1;
     while (end < byScore.length && byScore[i].score - byScore[end].score < NEAR_TIE) end++;
-    ranked.push(...byScore.slice(i, end).sort(byImportance));
+    ranked.push(...byScore.slice(i, end).sort(byImportanceHere));
     i = end;
   }
   return ranked;
@@ -209,8 +237,15 @@ export const monthNights = (history: FixtureRecord[], period: string): FixtureRe
  * decimal place — see `rankByScoreThenImportance`. That matters more here than
  * it looks: the fifth slot is the one that gets argued about, and neither "the
  * sort was unstable" nor "he was 0.08 ahead" is an answer anybody accepts.
+ *
+ * `ratings` (see `ratingsOf`) is the tie-break after all the month's own
+ * facts; without it, a tie that survives them falls to the name.
  */
-export function teamOfMonth(history: FixtureRecord[], period: string): TotmPlayer[] {
+export function teamOfMonth(
+  history: FixtureRecord[],
+  period: string,
+  ratings: ReadonlyMap<string, number> = new Map(),
+): TotmPlayer[] {
   const played = monthNights(history, period);
   if (played.length === 0) return [];
 
@@ -248,7 +283,7 @@ export function teamOfMonth(history: FixtureRecord[], period: string): TotmPlaye
       return { id, name: nameOf.get(id) ?? '?', score: totmScore(parts), ...parts };
     });
 
-  return rankByScoreThenImportance(eligible).slice(0, TOTM_SIZE);
+  return rankByScoreThenImportance(eligible, ratings).slice(0, TOTM_SIZE);
 }
 
 /** Which months have at least one night with a result, newest first. */

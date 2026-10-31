@@ -21,6 +21,7 @@ import {
   NEAR_TIE,
   TOTM_SIZE,
   perfectAttendanceBonus,
+  ratingsOf,
   teamOfMonth,
   totmEligible,
   totmScore,
@@ -348,7 +349,7 @@ export function buildWrapped(
 
   const topMvps = mvpCounts(chronological).map((m) => ({ name: m.name, count: m.count }));
 
-  const teamOfMonthPicks = teamOfMonth(history, period);
+  const teamOfMonthPicks = teamOfMonth(history, period, ratingsOf(players));
 
   const [bottomScorerId, bottomScorerWins] =
     [...wins.entries()]

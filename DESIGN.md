@@ -2363,6 +2363,18 @@ looks like without waiting for the 1st. It asks first, though, and says the thin
 otherwise be discovered a month later — the cron never overwrites, so a team scored halfway through a
 month stays scored halfway through unless it is removed.
 
+**The tie-break ladder ends in the star rating, not the alphabet** (2026-10). Near-level scores are
+re-ordered by the human pick, nights taken outright, match wins, nights played — and, new, **the higher
+star rating** — with the name as the final fallback only so the order is the same every time. It was added
+because October 2026 produced the case nobody had planned for: two players level on every number (score
+4.75, one night won, 7.5 wins, two nights, no MVP) fighting for the fifth seat, which the name sort
+settled. The rating is the only tie-break that is not about the month itself, so it sits last of the facts
+and only ever speaks when all of them are level. `ratingsOf(players)` builds the `id → rating` map for both
+callers (`buildWrapped` from the app's roster, the cron from the roster in KV) so they cannot break a tie
+differently; a guest with `ratingUnknown`, or someone off the roster, has no entry and never wins a tie.
+**Ratings stay private (§2.9):** nothing about them is shown or stored — the award is still ids and names
+— the one visible effect is that in a rare dead heat the rated-higher player is the one named.
+
 ### 2.26 Full-screen overlays on a phone (`src/scrollLock.ts`)
 
 The app has no router: a player's page, a night's page, pitch mode and the end-of-night dialog are

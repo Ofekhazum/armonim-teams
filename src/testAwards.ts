@@ -18,16 +18,16 @@
 // of the Month is trying to see.
 
 import type { Awards } from './awards';
-import { teamOfMonth, totmPeriods } from './totm';
+import { ratingsOf, teamOfMonth, totmPeriods } from './totm';
 import { buildTestClub } from './testData';
 
 export function testAwards(): Awards {
-  const { history } = buildTestClub();
+  const { history, players } = buildTestClub();
   const periods = totmPeriods(history); // newest first
   const out: Awards = {};
 
   for (const period of periods.slice(1)) {
-    const five = teamOfMonth(history, period);
+    const five = teamOfMonth(history, period, ratingsOf(players));
     if (five.length === 0) continue;
     out[period] = {
       ids: five.map((p) => p.id),
