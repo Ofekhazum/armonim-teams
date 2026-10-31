@@ -4,7 +4,6 @@ import { RecapVoice } from './recap-voice.js';
 import { PERSONAS, PERSONA_KEYS, TONE_GUARDRAILS } from './recap.js';
 import {
   MONTH_FRAME,
-  MONTH_SO_FAR_FRAME,
   buildMonthPrompt,
   currentPeriod,
   isMonthRecapId,
@@ -159,15 +158,19 @@ describe('readMonthFacts', () => {
 
   it('counts the team itself when a finished month was never registered', async () => {
     const facts = await readMonthFacts({ ROSTER_KV: clubKv({ registered: false }) }, PERIOD);
-    expect(facts.final).toBe(true);
     REGISTERED.names.forEach((name, i) => expect(facts.team[i].startsWith(name)).toBe(true));
   });
 
-  it('tells a month still being played as the month so far', async () => {
-    // "now" inside the month itself
-    const during = Date.parse(`${PERIOD}-15T12:00:00Z`);
-    const facts = await readMonthFacts({ ROSTER_KV: clubKv() }, PERIOD, during);
-    expect(facts.final).toBe(false);
+  it('counts the team for a month still being played, rather than trust a registration', async () => {
+    const kv = clubKv();
+    await kv.put('totm', JSON.stringify({ [PERIOD]: { ids: ['x'], names: ['שחקן מאמצע החודש'], at: 1 } }));
+    const during = Date.parse(`${PERIOD}-15T12:00:00Z`); // "now" inside the month itself
+    const facts = await readMonthFacts({ ROSTER_KV: kv }, PERIOD, during);
+    REGISTERED.names.forEach((name, i) => expect(facts.team[i].startsWith(name)).toBe(true));
+
+    // and once it is over, the registration is the announcement
+    const after = await readMonthFacts({ ROSTER_KV: kv }, PERIOD);
+    expect(after.team).toEqual(['שחקן מאמצע החודש']);
   });
 
   it('is not ready for a month with no recorded night', async () => {
@@ -200,18 +203,12 @@ describe('buildMonthPrompt', () => {
     }
   });
 
-  it('tells a month still being played as the month so far, and never as final', async () => {
-    const f = { ...(await facts()), final: false };
-    const prompt = buildMonthPrompt(f, 'default');
-    expect(prompt).toContain(MONTH_SO_FAR_FRAME);
-    expect(prompt).not.toContain(MONTH_FRAME);
-    expect(prompt).toContain('TEAM OF THE MONTH AS IT STANDS');
-    expect(prompt).toContain('נכון לעכשיו');
-    expect(prompt).not.toContain('already announced');
-
-    const finished = buildMonthPrompt(await facts(), 'default');
-    expect(finished).toContain(MONTH_FRAME);
-    expect(finished).toContain('already announced');
+  it('tells a month still being played exactly as it would a finished one', async () => {
+    const during = Date.parse(`${PERIOD}-15T12:00:00Z`);
+    const early = await readMonthFacts({ ROSTER_KV: clubKv() }, PERIOD, during);
+    // same club, same nights: the clock changes nothing the model is told
+    expect(buildMonthPrompt(early, 'default')).toBe(buildMonthPrompt(await facts(), 'default'));
+    expect(buildMonthPrompt(early, 'default')).not.toMatch(/so far|as it stands|נכון לעכשיו/i);
   });
 
   it('falls back to the house reporter for a persona it does not know', async () => {

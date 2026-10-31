@@ -10,8 +10,8 @@ import RecapVoice from './RecapVoice';
 // The night page's report block, for a month — the same taps in the same
 // order, and the same voice component under the published text. The text
 // lives only here, on the organiser's workbench. The months are the images'
-// months, the current one included: the Worker tells that one as the month so
-// far, with the Team of the Month as it stands.
+// months, the current one included, told as if it ended when the show was
+// written.
 
 // The night page's reporters, with its labels. Its own map rather than an
 // import from NightPage, so this feature touches nothing it does not own —
@@ -24,11 +24,6 @@ const PERSONA_LABELS: Record<Persona, Parameters<typeof t>[0]> = {
   swissa: 'np.report.persona.swissa',
 };
 const PERSONA_OPTIONS = Object.keys(PERSONA_LABELS) as Persona[];
-
-const localPeriod = () => {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-};
 
 interface Props {
   // months with a recorded night, newest first (`wrappedPeriods`)
@@ -115,13 +110,6 @@ export default function MonthShow({ periods, adminWord }: Props) {
   return (
     <div className="space-y-3 rounded-2xl border border-amber-900/15 bg-[#fffdf4]/70 p-4 shadow-sm">
       <p className="text-xs text-amber-900/60">{t('tools.show.hint')}</p>
-      {/* the phone's own month, which for this club is Israel's — the Worker
-          decides the same question by Israel time */}
-      {period >= localPeriod() && (
-        <p className="rounded-lg bg-amber-500/15 px-2 py-1.5 text-xs font-semibold text-amber-900">
-          {t('tools.show.soFar')}
-        </p>
-      )}
 
       <div className="flex flex-wrap items-center gap-2">
         <select

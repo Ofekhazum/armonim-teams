@@ -147,7 +147,7 @@ export default function AdminTools({ history, players, adminWord, onApplyRating 
       )}
 
       {/* The month's show (§2.74), beside the images it is sent with, and for
-          the same months: the current one included, told as the month so far. */}
+          the same months: the current one included, told as if it ended now. */}
       {periods.length > 0 && (
         <Section id="monthShow" title={t('tools.show.title')} defaultOpen={false}>
           <MonthShow periods={periods} adminWord={adminWord} />

@@ -15,10 +15,6 @@ export const monthShow = {
   },
   'tools.show.nothing': { he: 'עוד לא נכתבה תוכנית לחודש הזה.', en: 'No show written for this month yet.' },
   'tools.show.write': { he: '✍️ לכתוב את התוכנית', en: '✍️ Write the show' },
-  'tools.show.soFar': {
-    he: 'החודש עוד לא נגמר: התוכנית תספר את החודש עד עכשיו, והרכב החודש יהיה נכון להיום. מחזור נוסף אחרי ההקלטה לא ייכנס אליה — כתבו תוכנית חדשה.',
-    en: 'This month is not over: the show tells the month so far, with the Team of the Month as it stands today. A night played after recording is not in it — write a new show.',
-  },
   'tools.show.err.notReady': {
     he: 'אין עדיין מחזור מתועד לחודש הזה. פרסמו את ההיסטוריה ונסו שוב.',
     en: 'There is no recorded night for this month yet. Publish the history and try again.',

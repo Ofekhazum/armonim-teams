@@ -89,18 +89,6 @@ describe('MonthShow', () => {
     expect(mocked.readMonthShow).toHaveBeenLastCalledWith('2026-08', 'word');
   });
 
-  it('says when the month on screen is not over, and only then', async () => {
-    const d = new Date();
-    const current = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-    await renderShow([current, '2020-01']);
-    expect(screen.getByText(s('tools.show.soFar'))).toBeTruthy();
-
-    await act(async () =>
-      fireEvent.change(screen.getByLabelText(s('tools.show.month')), { target: { value: '2020-01' } }),
-    );
-    expect(screen.queryByText(s('tools.show.soFar'))).toBeNull();
-  });
-
   it('says a month is not ready in words, not as a failure', async () => {
     mocked.draftMonthShow.mockResolvedValue({ error: 'not-ready' });
     await renderShow();

@@ -44,9 +44,6 @@ export interface MonthFacts {
   milestones: string[];
   // Best first. The countdown reads it backwards.
   team: string[];
-  // False while the month is still being played: the show is "the month so
-  // far", and its team is the table as it stands rather than an announcement.
-  final: boolean;
 }
 
 // Spelt out rather than asked of `Intl`, because the Worker has no language
@@ -108,6 +105,9 @@ function milestoneLine(m: Milestone): string {
  * agree. That holds even when the current month has been registered by hand,
  * since a mid-month registration is a snapshot the images no longer show. A
  * finished month nobody registered falls back to the same live count.
+ *
+ * Nothing else depends on `final`. The show is told as if the month ended when
+ * it was written, whichever month it is; a new one is written when it ends.
  */
 export function monthFacts(
   history: FixtureRecord[],
@@ -207,6 +207,5 @@ export function monthFacts(
     awards,
     milestones: w.monthlyAchievements.map(milestoneLine),
     team,
-    final,
   };
 }

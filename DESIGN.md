@@ -5604,7 +5604,7 @@ Also in this change: "יועד" is respelled `Yo-ad` (was `Yo-ahd`).
 > - the Team of the Month revealed as a countdown from 5 to 1
 > - the grade awards **in**
 > - the text admin-only, with the group getting the MP3
-> - the current month allowed, told as "the month so far" (below)
+> - the current month allowed, told as if it ended when the show is written (below)
 >
 > **The voice needed no change, which is why "storage" and "voice" below are smaller than the plan.**
 > The show is stored as the recap `month:<period>`, so the draft fingerprints, the persona memory and
@@ -5660,7 +5660,10 @@ from the client. Here, `POST /month-recap { secret, period }` is all a caller se
 §2.69's rule that no caller can supply words, since nothing free-text arrives from outside at all.
 
 **Any month with a recorded night, the current one included (2026-10-31).** Like the monthly
-images, the show doesn't wait for the month to end. Two rules decide what an unfinished month is told:
+images, the show doesn't wait for the month to end. **It is told as if the month ended when the show
+is written.** It never says the month is still running, and if a show is wanted for the whole month,
+the organiser writes another one when the month really ends. The clock decides one thing only, which
+five the countdown names:
 
 - **Finished or not is decided in Israel time** (`currentPeriod`, `Asia/Jerusalem`). The Worker's
   own clock is UTC, which would still call it the old month for two or three hours after the club's
@@ -5672,12 +5675,6 @@ images, the show doesn't wait for the month to end. Two rules decide what an unf
     count it, so the show and the images sent with it agree. This applies even if the current month
     was registered by hand, since a mid-month registration is a snapshot the images no longer show.
   - A finished month nobody registered falls back to the same live count.
-- **An unfinished month is told as "the month so far".** `MONTH_SO_FAR_FRAME` replaces the end-of-month
-  frame. The countdown is the Team of the Month as it stands, and the model is told to say so once
-  (נכון לעכשיו) and never call it final. The sign-off looks at the rest of the month. The screen says
-  the same thing to the organiser: a night played after recording is not in the show, so write a new one.
-  Nothing goes stale silently. The stored show keeps the words it was written with, and a new draft
-  is a new recording.
 
 **Ratings never go in; the month's grade awards do.** No rating and no `tier` is sent to Gemini.
 `teachersPet` and `punchingBag` go in as the figure the monthly image's marks card already prints:
